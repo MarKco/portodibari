@@ -1,0 +1,419 @@
+'use strict';
+
+// ── Risk score for potential arms trafficking (0–100) ────────────────────────
+// AIS messages never describe cargo, only kinematics + self-declared static
+// data. So the score is built from *behavioural signatures* (anomalies) derived
+// from a ship's reading/event history, then a geopolitical-context multiplier is
+// applied — exactly the weighted-sum model described in the project brief.
+//
+//   0–30   verde   navigazione regolare
+//   31–70  giallo  anomalie minori, monitoraggio di routine
+//   71–100 rosso   combinazione di fattori critici → segnalazione
+//
+// Each detected signature contributes weighted points; the geopolitical context
+// (embargo / flag-of-convenience) multiplies the anomaly subtotal. Final value
+// is clamped to [0, 100].
+
+const db = require('../db');
+const { state, SOG_FERMA, RISK: R } = require('../config');
+const { haversineM } = require('./ship-analysis');
+const sanctions = require('./sanctions');
+const psc = require('./psc');
+
+// Self-declared destinations / known ports tied to arms embargoes or conflict
+// zones. Matched case-insensitively as substrings of the AIS destination field.
+const HIGH_RISK_DEST = [
+  'SYRIA', 'TARTUS', 'LATAKIA', 'BANIYAS',
+  'IRAN', 'BANDAR', 'BUSHEHR', 'CHABAHAR',
+  'NORTH KOREA', 'DPRK', 'NAMPO', 'WONSAN',
+  'LIBYA', 'TRIPOLI', 'BENGHAZI', 'MISRATA', 'TOBRUK',
+  'YEMEN', 'HODEIDAH', 'HUDAYDAH', 'ADEN',
+  'SUDAN', 'PORT SUDAN',
+  'RUSSIA', 'NOVOROSSIYSK', 'SEVASTOPOL', 'KERCH', 'CRIMEA',
+  'SOMALIA', 'MOGADISHU',
+];
+
+// MID = first 3 MMSI digits → flag state. Embargo / conflict flags weigh heavier
+// than ordinary flags of convenience (lax registries favoured by smugglers).
+const EMBARGO_MID = new Set([445, 468, 422, 642, 273]); // NK, Syria, Iran, Libya, Russia
+const FOC_MID = new Set([
+  351, 352, 353, 354, 355, 356, 357, 370, 371, 372, 373, // Panama
+  636, 637, // Liberia
+  538, // Marshall Islands
+  616, // Comoros
+  671, // Togo
+  677, // Tanzania
+  518, // Cook Islands
+  667, // Sierra Leone
+  214, // Moldova
+  514, 515, // Cambodia
+  511, // Palau
+  423, // Mongolia
+  619, // Ivory Coast
+]);
+
+// Registered-flag country names as they appear in VesselFinder/MarineTraffic
+// enrichment ("Bandiera"/"Flag" field). The MID heuristic only sees the MMSI's
+// declared flag; the scraped registry flag can differ (reflagging) or simply be
+// the ground truth, so it is matched independently by country name.
+const EMBARGO_FLAG_NAMES = ['NORTH KOREA', 'DPRK', 'SYRIA', 'IRAN', 'LIBYA', 'RUSSIA'];
+const FOC_FLAG_NAMES = [
+  'PANAMA', 'LIBERIA', 'MARSHALL', 'COMOROS', 'TOGO', 'TANZANIA', 'COOK ISLANDS',
+  'SIERRA LEONE', 'MOLDOVA', 'CAMBODIA', 'PALAU', 'MONGOLIA', 'IVORY COAST', "COTE D'IVOIRE",
+];
+
+// Human label for which key matched a sanctions entry, per language.
+const MATCHED_ON = {
+  it: { imo: 'IMO', callSign: 'call sign', name: 'nome' },
+  en: { imo: 'IMO', callSign: 'call sign', name: 'name' },
+};
+
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+function getLabels(lang) {
+  if (lang === 'en') return {
+    military: 'Military vessel (automatic maximum score)',
+    darkMax:  (h)           => `Prolonged AIS blackout (~${h}h underway)`,
+    darkPartial: (h)        => `AIS blackout (~${h}h underway)`,
+    spoofImpossible: (kn)   => `Impossible position jump (~${kn} kn)`,
+    spoofAnom: (kn)         => `Anomalous kinematics (~${kn} kn)`,
+    loiterMax: 'Anomalous stop in open sea (possible transshipment)',
+    loiterPartial: 'Anomalous slowdown off course',
+    draughtLoad: (d)        => `Draft increase +${d}m (cargo loaded)`,
+    destChange: (n)         => `Declared destination changed (${n} different)`,
+    hazmat: 'Cargo/Tanker hazardous goods (Hazmat)',
+    cargo:  'Cargo/Tanker (relevant for arms transport)',
+    nameHop: (n)            => `Hull name change (${n} names on same MMSI)`,
+    embargoFlag: (f, s)     => `Flag registered under embargo: ${f} (source ${s})`,
+    focFlag: (f, s)         => `Flag of convenience: ${f} (source ${s})`,
+    oldVessel: (y, age, s)  => `Aged vessel (${y}, ~${age} years — source ${s})`,
+    sanctioned: (src, prog, on) => `Listed in ${src} sanctions list${prog ? ` (${prog})` : ''} — matched by ${on}`,
+    pscBlackFlag: (f, m)    => `Flag on ${m} black list (high-risk registry): ${f}`,
+    pscGreyFlag: (f, m)     => `Flag on ${m} grey list (medium-risk registry): ${f}`,
+    pscBanned: (r, on)      => `Vessel on Paris MoU banned list${r ? ` — ${r}` : ''} (matched by ${on})`,
+    highRiskPort: (p, s)    => `Home port in high-risk zone: ${p} (source ${s})`,
+    highRiskCtx: (ctx, m)   => `High-risk context: ${ctx} (×${m})`,
+    ctxDest: 'destination under embargo/conflict zone',
+    ctxEmbargoFlag: 'state flag under embargo',
+    ctxFoc: 'flag of convenience',
+  };
+  return {
+    military: 'Nave militare (score massimo automatico)',
+    darkMax:  (h)           => `Blackout AIS prolungato (~${h}h in navigazione)`,
+    darkPartial: (h)        => `Blackout AIS (~${h}h in navigazione)`,
+    spoofImpossible: (kn)   => `Salto di posizione impossibile (~${kn} kn)`,
+    spoofAnom: (kn)         => `Cinematica anomala (~${kn} kn)`,
+    loiterMax: 'Sosta anomala in mare aperto (possibile trasbordo)',
+    loiterPartial: 'Rallentamento anomalo fuori rotta',
+    draughtLoad: (d)        => `Aumento pescaggio +${d}m (carico imbarcato)`,
+    destChange: (n)         => `Destinazione dichiarata variata (${n} diverse)`,
+    hazmat: 'Cargo/Tanker merci pericolose (Hazmat)',
+    cargo:  'Cargo/Tanker (rilevante per trasporto armi)',
+    nameHop: (n)            => `Cambio nome scafo (${n} nomi sullo stesso MMSI)`,
+    embargoFlag: (f, s)     => `Bandiera registrata sotto embargo: ${f} (fonte ${s})`,
+    focFlag: (f, s)         => `Bandiera di comodo: ${f} (fonte ${s})`,
+    oldVessel: (y, age, s)  => `Naviglio datato (${y}, ~${age} anni — fonte ${s})`,
+    sanctioned: (src, prog, on) => `Nave in lista sanzioni ${src}${prog ? ` (${prog})` : ''} — match per ${on}`,
+    pscBlackFlag: (f, m)    => `Bandiera in black list ${m} (registro ad alto rischio): ${f}`,
+    pscGreyFlag: (f, m)     => `Bandiera in grey list ${m} (registro a rischio medio): ${f}`,
+    pscBanned: (r, on)      => `Nave nella banned list Paris MoU${r ? ` — ${r}` : ''} (match per ${on})`,
+    highRiskPort: (p, s)    => `Porto di armamento in zona ad alto rischio: ${p} (fonte ${s})`,
+    highRiskCtx: (ctx, m)   => `Contesto ad alto rischio: ${ctx} (×${m})`,
+    ctxDest: 'destinazione sotto embargo/zona di conflitto',
+    ctxEmbargoFlag: 'bandiera di stato sotto embargo',
+    ctxFoc: 'bandiera di comodo',
+  };
+}
+
+// Find the first value whose key contains any of the given (lowercase) needles.
+function pick(data, needles) {
+  if (!data) return null;
+  for (const [k, v] of Object.entries(data)) {
+    const kl = k.toLowerCase();
+    if (needles.some((n) => kl.includes(n)) && v != null && v !== '') return String(v);
+  }
+  return null;
+}
+
+// Pull cached VesselFinder/MarineTraffic enrichment (only the sources the user
+// enabled) and merge it into a single field map. Never triggers live scraping:
+// it reads whatever the detail-view requests already cached, so it stays fast
+// and synchronous for the list endpoints.
+//
+// Returns vfStatus/mtStatus as one of:
+//   'none'      – source disabled or no cached data (not yet fetched via detail view)
+//   'available' – cached data found; whether it contributes to score is determined later
+function loadEnrichment(mmsi) {
+  let vfStatus = 'none', mtStatus = 'none';
+  const sources = [];
+  if (state.importVfData) {
+    const row = db.getScrapedData(mmsi, 'vf');
+    if (row) { vfStatus = 'available'; sources.push(['VesselFinder', row]); }
+  }
+  if (state.importMtData) {
+    const row = db.getScrapedData(mmsi, 'mt');
+    if (row) { mtStatus = 'available'; sources.push(['MarineTraffic', row]); }
+  }
+
+  const fields = {}; // field → { value, src }; first source to provide it wins
+  for (const [src, row] of sources) {
+    let data;
+    try {
+      data = JSON.parse(row.data_json);
+    } catch {
+      continue;
+    }
+    const set = (key, value) => {
+      if (value && !fields[key]) fields[key] = { value, src };
+    };
+    set('flag', pick(data, ['bandiera', 'flag']));
+    set('year', pick(data, ['anno costruzione', 'year of build', 'built', 'anno']));
+    set('homePort', pick(data, ['porto di armamento', 'home port', 'homeport']));
+  }
+  return { fields, vfStatus, mtStatus };
+}
+
+function bandOf(score) {
+  if (score <= 30) return 'low';
+  if (score <= 70) return 'med';
+  return 'high';
+}
+
+/**
+ * Compute the arms-trafficking risk score for one ship.
+ * Returns { score, band, factors } where `factors` lists the contributing
+ * signatures for the detail view. Pure given its inputs (queries are read-only).
+ */
+function computeRiskScore(ship, lang) {
+  const L = getLabels(lang);
+  const mmsi = ship.mmsi;
+  const positions = db.getShipPositions(mmsi);
+  const events = db.getShipEvents(mmsi);
+  const names = db.getDistinctShipNames(mmsi);
+
+  const factors = [];
+  let anomaly = 0;
+  const add = (points, label) => {
+    if (points <= 0) return;
+    anomaly += points;
+    factors.push({ label, points: Math.round(points) });
+  };
+
+  // Military ships → fixed maximum score regardless of behavioural signals.
+  if (isMilitary(ship)) {
+    return {
+      score: 100,
+      band: 'high',
+      factors: [{ label: L.military, points: 100 }],
+      sources: { vf: 'none', mt: 'none', sanctions: 'none', psc: 'none' },
+    };
+  }
+
+  // 1. Dark activity — longest AIS blackout while underway. In-port ships
+  //    legitimately transmit rarely, so only gaps that *begin* while moving
+  //    (sog ≥ threshold) count as a deliberate transponder shutdown.
+  let maxGapH = 0;
+  for (let i = 1; i < positions.length; i++) {
+    const prev = positions[i - 1];
+    const movingBefore = prev.sog != null && prev.sog >= SOG_FERMA;
+    if (!movingBefore) continue;
+    const dtH = (new Date(positions[i].received_at) - new Date(prev.received_at)) / 3.6e6;
+    if (dtH > maxGapH) maxGapH = dtH;
+  }
+  if (maxGapH >= R.DARK_MAX_H) {
+    add(R.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
+  } else if (maxGapH >= R.DARK_MIN_H) {
+    const t = (maxGapH - R.DARK_MIN_H) / (R.DARK_MAX_H - R.DARK_MIN_H);
+    add(R.DARK_PARTIAL_MIN + t * (R.DARK_MAX - R.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
+  }
+
+  // 2. Spoofing — physically impossible jump between consecutive positions.
+  let maxImplied = 0;
+  for (let i = 1; i < positions.length; i++) {
+    const a = positions[i - 1];
+    const b = positions[i];
+    const dtH = (new Date(b.received_at) - new Date(a.received_at)) / 3.6e6;
+    if (dtH <= 0 || dtH > 1) continue; // ignore long gaps (handled as blackout)
+    const dM = haversineM(a.lat, a.lon, b.lat, b.lon);
+    if (dM < 500) continue; // GPS jitter
+    const kn = dM / 1852 / dtH;
+    if (kn > maxImplied) maxImplied = kn;
+  }
+  if (maxImplied > R.SPOOF_IMPOSSIBLE) add(R.SPOOF_MAX, L.spoofImpossible(maxImplied.toFixed(0)));
+  else if (maxImplied > R.SPOOF_ANOMALOUS) add(R.SPOOF_ANOM_PTS, L.spoofAnom(maxImplied.toFixed(0)));
+
+  // 3. Loitering — stationary in open water (far from the monitored port centre)
+  //    while NOT moored/anchored: classic ship-to-ship transfer signature.
+  if (state.centerLat != null) {
+    const open = positions.filter((p) => {
+      const slow = p.sog != null && p.sog < SOG_FERMA;
+      const notMoored = p.ns !== '1' && p.ns !== '5';
+      const farKm = haversineM(p.lat, p.lon, state.centerLat, state.centerLon) / 1000;
+      return slow && notMoored && farKm > R.LOITER_FAR_KM;
+    }).length;
+    if (open >= R.LOITER_MIN_POS) add(R.LOITER_MAX, L.loiterMax);
+    else if (open >= 1) add(R.LOITER_PARTIAL, L.loiterPartial);
+  }
+
+  // 4. Draught load — significant increase in declared draught across a stop
+  //    (heavier cargo taken on). AIS draught is in 1/10 m units.
+  let maxLoad = 0;
+  for (let i = 1; i < events.length; i++) {
+    // events are newest-first; compare each with the older neighbour
+    const newer = events[i - 1];
+    const older = events[i];
+    if (newer.draught != null && older.draught != null) {
+      const deltaM = (newer.draught - older.draught) / 10;
+      if (deltaM > maxLoad) maxLoad = deltaM;
+    }
+  }
+  if (maxLoad >= R.DRAUGHT_MIN_DELTA) add(clamp(maxLoad * R.DRAUGHT_FACTOR, 0, R.DRAUGHT_MAX), L.draughtLoad(maxLoad.toFixed(1)));
+
+  // 5. Destination instability — frequent changes of declared destination.
+  const dests = new Set(
+    [ship.destination, ...events.map((e) => e.destination)]
+      .map((d) => (d || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+  if (dests.size >= 2) add(clamp((dests.size - 1) * R.DEST_PER_CHANGE, 0, R.DEST_MAX), L.destChange(dests.size));
+
+  // 6. Ship type — base contribution for cargo/tanker hulls.
+  const t = ship.ship_type;
+  if ((t >= 71 && t <= 74) || (t >= 81 && t <= 84)) add(R.HAZMAT, L.hazmat);
+  else if (t >= 70 && t <= 89) add(R.CARGO, L.cargo);
+
+  // 7. Flag/name hopping — one MMSI broadcasting multiple hull names.
+  if (names.length >= 2) add(R.NAME_HOP, L.nameHop(names.length));
+
+  // 8. External enrichment (VesselFinder / MarineTraffic) — only used when the
+  //    user enabled the corresponding import and the data is already cached.
+  //    Tracks which sources actually contributed points ('used') vs were merely
+  //    consulted but had no relevant data ('available').
+  const { fields: enr, vfStatus, mtStatus } = loadEnrichment(mmsi);
+  let vfContributed = false, mtContributed = false, pscContributed = false;
+  const addEnr = (points, label, src) => {
+    add(points, label);
+    if (points > 0) {
+      if (src === 'VesselFinder') vfContributed = true;
+      if (src === 'MarineTraffic') mtContributed = true;
+    }
+  };
+  if (enr.flag) {
+    const flagUpper = enr.flag.value.toUpperCase();
+    // Official Paris/Tokyo MoU flag performance, when enabled & loaded. It is
+    // ground truth for registry risk, so it overrides the hardcoded FOC list
+    // (e.g. Panama is only grey, Liberia is white in the current Paris list).
+    const pscFlag = state.importPsc && psc.flagsLoaded() ? psc.matchFlag(enr.flag.value) : null;
+    if (EMBARGO_FLAG_NAMES.some((n) => flagUpper.includes(n))) {
+      addEnr(R.EMBARGO_FLAG, L.embargoFlag(enr.flag.value, enr.flag.src), enr.flag.src);
+    } else if (pscFlag) {
+      const mous = pscFlag.mous.join(' + ');
+      if (pscFlag.perf === 'black') {
+        addEnr(R.PSC_BLACK_FLAG, L.pscBlackFlag(enr.flag.value, mous), enr.flag.src);
+        pscContributed = true;
+      } else if (pscFlag.perf === 'grey') {
+        addEnr(R.PSC_GREY_FLAG, L.pscGreyFlag(enr.flag.value, mous), enr.flag.src);
+        pscContributed = true;
+      }
+      // white → quality registry: no penalty (and suppresses the FOC heuristic)
+    } else if (FOC_FLAG_NAMES.some((n) => flagUpper.includes(n))) {
+      addEnr(R.FOC_FLAG, L.focFlag(enr.flag.value, enr.flag.src), enr.flag.src);
+    }
+  }
+  if (enr.year) {
+    const y = parseInt(String(enr.year.value).match(/\d{4}/)?.[0], 10);
+    const age = Number.isFinite(y) ? new Date().getUTCFullYear() - y : 0;
+    if (age >= R.OLD_MIN_AGE) addEnr(R.OLD_VESSEL, L.oldVessel(y, age, enr.year.src), enr.year.src);
+  }
+  if (enr.homePort) {
+    const hpUpper = enr.homePort.value.toUpperCase();
+    if (HIGH_RISK_DEST.some((k) => hpUpper.includes(k))) {
+      addEnr(R.HIGH_RISK_PORT, L.highRiskPort(enr.homePort.value, enr.homePort.src), enr.homePort.src);
+    }
+  }
+
+  // 9. Sanctions screening (OFAC SDN) — local match by IMO/name/call sign. A hit
+  //    is a very strong direct signal, so it adds a heavy weighted factor that
+  //    still passes through the geopolitical multiplier below.
+  //    'none' = disabled or dataset not loaded; 'available' = checked, no match;
+  //    'used' = matched and contributed points.
+  let sanctionStatus = 'none';
+  if (state.importSanctions && sanctions.getStatus().loaded) {
+    const hit = sanctions.matchShip(ship);
+    if (hit) {
+      const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][hit.matchedOn] || hit.matchedOn;
+      add(R.SANCTION_MATCH, L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
+      sanctionStatus = 'used';
+    } else {
+      sanctionStatus = 'available';
+    }
+  }
+
+  // 10. Port State Control (Paris / Tokyo MoU). Flag-performance points were
+  //     already added in block 8 (it needs the enriched flag). Here we add the
+  //     banned-ship match: a vessel refused access after repeated detentions —
+  //     the strongest "many detentions" signal — matched locally by IMO/name.
+  //     'none' = disabled or no data; 'available' = checked, no contribution;
+  //     'used' = flag and/or banned match contributed points.
+  let pscStatus = 'none';
+  if (state.importPsc && psc.anyLoaded()) {
+    pscStatus = pscContributed ? 'used' : 'available';
+    if (psc.bannedLoaded()) {
+      const ban = psc.matchBanned(ship);
+      if (ban) {
+        const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][ban.matchedOn] || ban.matchedOn;
+        add(R.PSC_BANNED, L.pscBanned(ban.entry.reason, onLabel));
+        pscStatus = 'used';
+      }
+    }
+  }
+
+  // ── Geopolitical context multiplier ────────────────────────────────────────
+  const destUpper = (ship.destination || '').toUpperCase();
+  const highRiskDest = HIGH_RISK_DEST.some((k) => destUpper.includes(k));
+  const mid = Math.floor(mmsi / 1e6);
+  const embargoFlag = EMBARGO_MID.has(mid);
+  const focFlag = FOC_MID.has(mid);
+
+  let mult = 1;
+  if (highRiskDest || embargoFlag) mult += R.MULT_HIGH_RISK;
+  if (focFlag) mult += R.MULT_FOC;
+
+  const score = clamp(Math.round(anomaly * mult), 0, 100);
+
+  if (mult > 1) {
+    const ctx = [];
+    if (highRiskDest) ctx.push(L.ctxDest);
+    if (embargoFlag) ctx.push(L.ctxEmbargoFlag);
+    if (focFlag) ctx.push(L.ctxFoc);
+    factors.push({ label: L.highRiskCtx(ctx.join(', '), mult.toFixed(1)), points: score - anomaly });
+  }
+
+  // Resolve final source status:
+  //   'none'      – no cached data (disabled or detail view never opened)
+  //   'available' – data in cache but no relevant fields triggered score
+  //   'used'      – data in cache AND contributed points to the score
+  const resolvedVf = vfStatus === 'none' ? 'none' : vfContributed ? 'used' : 'available';
+  const resolvedMt = mtStatus === 'none' ? 'none' : mtContributed ? 'used' : 'available';
+
+  factors.sort((a, b) => b.points - a.points);
+  return { score, band: bandOf(score), factors, sources: { vf: resolvedVf, mt: resolvedMt, sanctions: sanctionStatus, psc: pscStatus } };
+}
+
+// Name prefixes / keywords that identify military or NATO vessels in AIS data.
+// Prefixes include a trailing space to avoid false positives (e.g. "ITSM..." vs "ITS Lupo").
+const MILITARY_NAME_TOKENS = [
+  'WARSHIP', 'NATO',
+  'HMS ', 'USS ', 'FS ', 'FGS ', 'HNLMS ', 'HMAS ', 'HMCS ',
+  'INS ', 'BNS ', 'HDMS ', 'HTMS ', 'TCG ', 'ORP ', 'ITS ',
+  'ROKS ', 'NRP ', 'RFS ', 'ESPS ', 'SPS ',
+];
+
+function isMilitary(ship) {
+  if (ship.is_military === 1) return true;
+  if (ship.ship_type === 35) return true;
+  const name = (ship.ship_name || '').toUpperCase();
+  return MILITARY_NAME_TOKENS.some((tok) => name.includes(tok));
+}
+
+module.exports = { computeRiskScore, bandOf, isMilitary };

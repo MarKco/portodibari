@@ -1,0 +1,1037 @@
+'use strict';
+
+const { DatabaseSync } = require('node:sqlite');
+const path = require('path');
+const {
+  ACTIVE_WINDOW_HOURS,
+  PORT_WINDOW_HOURS,
+  MAX_READINGS_PER_TYPE,
+  MAX_API_LOG_RECORDS,
+  SOG_FERMA: DB_SOG_FERMA,
+} = require('./config');
+
+// The SQLite file lives at the project root (one level above src/).
+const DB_PATH = path.join(__dirname, '..', 'ais_data.db');
+const db = new DatabaseSync(DB_PATH);
+
+db.exec(`PRAGMA journal_mode = WAL`);
+db.exec(`PRAGMA synchronous = NORMAL`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS readings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    received_at TEXT NOT NULL,
+    message_type TEXT NOT NULL,
+    mmsi INTEGER,
+    ship_name TEXT,
+    latitude REAL,
+    longitude REAL,
+    navigational_status TEXT,
+    sog REAL,
+    cog REAL,
+    true_heading INTEGER,
+    raw_json TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_type_time ON readings(message_type, received_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_mmsi ON readings(mmsi);
+
+  CREATE TABLE IF NOT EXISTS ships (
+    mmsi INTEGER PRIMARY KEY,
+    ship_name TEXT,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    last_latitude REAL,
+    last_longitude REAL,
+    last_sog REAL,
+    last_cog REAL,
+    last_navigational_status TEXT,
+    ship_type INTEGER,
+    destination TEXT,
+    max_draught REAL,
+    flagged INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_ships_last_seen ON ships(last_seen_at DESC);
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS api_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status INTEGER,
+    duration_ms INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_log_ts ON api_log(ts DESC);
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS port_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mmsi INTEGER NOT NULL,
+    ship_name TEXT,
+    event_type TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    ship_type INTEGER,
+    destination TEXT,
+    draught REAL
+  );
+  CREATE INDEX IF NOT EXISTS idx_port_events_ts ON port_events(ts DESC);
+  CREATE INDEX IF NOT EXISTS idx_port_events_mmsi ON port_events(mmsi);
+`);
+
+// Notifications — in-app alert feed shown in the sidebar. Only the last
+// MAX_NOTIFICATIONS rows are retained (pruned on every insert).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    mmsi INTEGER,
+    ship_name TEXT,
+    area TEXT,
+    band TEXT,
+    score INTEGER,
+    ts TEXT NOT NULL,
+    read INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_notifications_id ON notifications(id DESC);
+`);
+
+// Risk-score history — periodic snapshots of each ship's computed risk score, so
+// the detail view can plot how the score evolved over time (escalation = signal).
+// Sampled sparsely (at most once per ship per hour, see recordRiskSnapshot) to
+// keep the table small; globally capped with rotation.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS risk_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mmsi INTEGER NOT NULL,
+    ts TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    band TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_risk_history_mmsi ON risk_history(mmsi, ts);
+`);
+
+// Migrate existing DB: add new columns if missing
+for (const col of [
+  'ship_type INTEGER',
+  'destination TEXT',
+  'max_draught REAL',
+  'call_sign TEXT',
+  'imo_number INTEGER',
+  'dim_bow INTEGER',
+  'dim_stern INTEGER',
+  'dim_port INTEGER',
+  'dim_starboard INTEGER',
+  'eta TEXT',
+  'notes TEXT',
+  'seen INTEGER NOT NULL DEFAULT 0',
+  'mt_ship_id INTEGER',
+  'is_military INTEGER NOT NULL DEFAULT 0',
+  "last_area TEXT NOT NULL DEFAULT ''",
+]) {
+  try {
+    db.exec(`ALTER TABLE ships ADD COLUMN ${col}`);
+  } catch {
+    /* column already exists */
+  }
+}
+
+for (const col of ['notif_muted INTEGER NOT NULL DEFAULT 0']) {
+  try {
+    db.exec(`ALTER TABLE ships ADD COLUMN ${col}`);
+  } catch {
+    /* column already exists */
+  }
+}
+
+for (const col of ['request_body TEXT', 'response_body TEXT']) {
+  try {
+    db.exec(`ALTER TABLE api_log ADD COLUMN ${col}`);
+  } catch {
+    /* column already exists */
+  }
+}
+
+for (const col of ["area TEXT NOT NULL DEFAULT ''"]) {
+  try { db.exec(`ALTER TABLE readings ADD COLUMN ${col}`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE port_events ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+
+// Origin area for 'area_change' notifications (the `area` column holds the destination).
+for (const col of ['from_area TEXT']) {
+  try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ship_scrape_cache (
+    mmsi    INTEGER NOT NULL,
+    source  TEXT    NOT NULL,
+    data_json TEXT  NOT NULL,
+    scraped_at TEXT NOT NULL,
+    PRIMARY KEY (mmsi, source)
+  )
+`);
+
+const upsertScrapeStmt = db.prepare(`
+  INSERT INTO ship_scrape_cache (mmsi, source, data_json, scraped_at)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(mmsi, source) DO UPDATE SET
+    data_json  = excluded.data_json,
+    scraped_at = excluded.scraped_at
+`);
+
+function getScrapedData(mmsi, source) {
+  return (
+    db
+      .prepare('SELECT data_json, scraped_at FROM ship_scrape_cache WHERE mmsi = ? AND source = ?')
+      .get(mmsi, source) || null
+  );
+}
+
+function setScrapedData(mmsi, source, data) {
+  const scraped_at = new Date().toISOString();
+  upsertScrapeStmt.run(mmsi, source, JSON.stringify(data), scraped_at);
+  return scraped_at;
+}
+
+const insertReading = db.prepare(`
+  INSERT INTO readings (received_at, message_type, mmsi, ship_name, latitude, longitude,
+    navigational_status, sog, cog, true_heading, raw_json, area)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+const pruneStmt = db.prepare(`
+  DELETE FROM readings
+  WHERE message_type = ? AND id NOT IN (
+    SELECT id FROM readings WHERE message_type = ? ORDER BY id DESC LIMIT ?
+  )
+`);
+
+const upsertShipStmt = db.prepare(`
+  INSERT INTO ships (mmsi, ship_name, first_seen_at, last_seen_at,
+    last_latitude, last_longitude, last_sog, last_cog, last_navigational_status,
+    ship_type, destination, max_draught,
+    call_sign, imo_number, dim_bow, dim_stern, dim_port, dim_starboard, eta, last_area)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(mmsi) DO UPDATE SET
+    ship_name = COALESCE(excluded.ship_name, ships.ship_name),
+    last_seen_at = excluded.last_seen_at,
+    last_latitude = COALESCE(excluded.last_latitude, ships.last_latitude),
+    last_longitude = COALESCE(excluded.last_longitude, ships.last_longitude),
+    last_sog = COALESCE(excluded.last_sog, ships.last_sog),
+    last_cog = COALESCE(excluded.last_cog, ships.last_cog),
+    last_navigational_status = COALESCE(excluded.last_navigational_status, ships.last_navigational_status),
+    ship_type = COALESCE(excluded.ship_type, ships.ship_type),
+    destination = COALESCE(excluded.destination, ships.destination),
+    max_draught = COALESCE(excluded.max_draught, ships.max_draught),
+    call_sign = COALESCE(excluded.call_sign, ships.call_sign),
+    imo_number = COALESCE(excluded.imo_number, ships.imo_number),
+    dim_bow = COALESCE(excluded.dim_bow, ships.dim_bow),
+    dim_stern = COALESCE(excluded.dim_stern, ships.dim_stern),
+    dim_port = COALESCE(excluded.dim_port, ships.dim_port),
+    dim_starboard = COALESCE(excluded.dim_starboard, ships.dim_starboard),
+    eta = COALESCE(excluded.eta, ships.eta),
+    last_area = excluded.last_area
+`);
+
+const getShipLastSeen = db.prepare(
+  'SELECT last_seen_at, ship_name, ship_type, destination, max_draught, flagged, last_area FROM ships WHERE mmsi = ?'
+);
+
+const insertPortEventStmt = db.prepare(
+  'INSERT INTO port_events (mmsi, ship_name, event_type, ts, ship_type, destination, draught, area) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+);
+
+// How many times this MMSI has already been recorded arriving in a given area —
+// used to detect a re-visit (an arrival where it had been seen before).
+const countPriorArrivalsStmt = db.prepare(
+  "SELECT COUNT(*) AS n FROM port_events WHERE mmsi = ? AND event_type = 'arrived' AND area = ?"
+);
+
+// Returns 1 if the ship's most recent port_event in the given area is a 'departed'.
+// Used to guard revisit detection: a new arrival is a true revisit only if the ship
+// actually left (has a departed event after its last arrived). Pure AIS signal gaps
+// (ship stays put but signal drops >1h) must NOT trigger revisit notifications.
+const lastEventWasDepartedStmt = db.prepare(`
+  SELECT event_type FROM port_events
+  WHERE mmsi = ? AND area = ?
+  ORDER BY ts DESC
+  LIMIT 1
+`);
+
+function parseGoTime(t) {
+  if (!t) return new Date().toISOString();
+  try {
+    const iso = t
+      .replace(' ', 'T')
+      .replace(/\s\+0000\sUTC$/, 'Z')
+      .replace(/(\.\d{3})\d+Z$/, '$1Z');
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+const insertCounters = {};
+
+// Returns { arrivedFlagged, newShip, revisit, areaChange, arrived }: arrivedFlagged
+// = mmsi when a flagged ship re-arrived (for alerts), newShip = mmsi the first time
+// an MMSI is ever seen (for proactive enrichment), revisit = mmsi when a ship arrives
+// in an area where it had already been seen before, areaChange = { mmsi, fromArea,
+// toArea } when a ship moves from one monitored area to a different one, arrived =
+// mmsi on any arrival (new MMSI or after >60min absence, for high-risk notifications
+// and score snapshots). All null otherwise.
+function insert(parsed, areaKey = '') {
+  const { MessageType, MetaData, Message } = parsed;
+  const meta = MetaData || {};
+  const msgData = Message?.[MessageType] || {};
+
+  const row = {
+    received_at: parseGoTime(meta.time_utc),
+    message_type: MessageType,
+    mmsi: meta.MMSI ?? null,
+    ship_name: (meta.ShipName || msgData.Name || '').trim() || null,
+    latitude: meta.latitude ?? null,
+    longitude: meta.longitude ?? null,
+    navigational_status: msgData.NavigationalStatus?.toString() ?? null,
+    sog: msgData.Sog ?? null,
+    cog: msgData.Cog ?? null,
+    true_heading: msgData.TrueHeading ?? null,
+    raw_json: JSON.stringify(parsed),
+    // Static data fields — only present in ShipStaticData / ExtendedClassB
+    ship_type: msgData.Type ?? null,
+    destination: msgData.Destination?.trim() || null,
+    max_draught: msgData.MaximumStaticDraught ?? null,
+    call_sign: msgData.CallSign?.trim() || null,
+    imo_number: msgData.ImoNumber || null,
+    dim_bow: msgData.DimensionToBow || null,
+    dim_stern: msgData.DimensionToStern || null,
+    dim_port: msgData.DimensionToPort || null,
+    dim_starboard: msgData.DimensionToStarboard || null,
+    eta: msgData.Eta ? String(msgData.Eta).trim() || null : null,
+  };
+
+  insertReading.run(
+    row.received_at,
+    row.message_type,
+    row.mmsi,
+    row.ship_name,
+    row.latitude,
+    row.longitude,
+    row.navigational_status,
+    row.sog,
+    row.cog,
+    row.true_heading,
+    row.raw_json,
+    areaKey
+  );
+
+  let arrivedFlagged = null;
+  let newShip = null;
+  let revisit = null;
+  let areaChange = null;
+  let arrived = null;
+
+  if (row.mmsi) {
+    const existing = getShipLastSeen.get(row.mmsi);
+    if (!existing) newShip = row.mmsi; // first time this MMSI is seen
+    const wasAbsent =
+      !existing || new Date(row.received_at) - new Date(existing.last_seen_at) > 60 * 60 * 1000;
+
+    // Area change = ship was last seen in a different (non-empty) area than the
+    // one this message belongs to. Checked before the upsert overwrites last_area.
+    const prevArea = existing?.last_area || '';
+    if (prevArea && areaKey && prevArea !== areaKey) {
+      areaChange = { mmsi: row.mmsi, fromArea: prevArea, toArea: areaKey };
+    }
+
+    upsertShipStmt.run(
+      row.mmsi,
+      row.ship_name,
+      row.received_at,
+      row.received_at,
+      row.latitude,
+      row.longitude,
+      row.sog,
+      row.cog,
+      row.navigational_status,
+      row.ship_type,
+      row.destination,
+      row.max_draught,
+      row.call_sign,
+      row.imo_number,
+      row.dim_bow,
+      row.dim_stern,
+      row.dim_port,
+      row.dim_starboard,
+      row.eta,
+      areaKey
+    );
+
+    if (wasAbsent) {
+      // A re-visit = this MMSI has already been recorded arriving in this same
+      // area before (checked before logging the current arrival).
+      const priorSameArea = countPriorArrivalsStmt.get(row.mmsi, areaKey).n;
+      const lastEvent = priorSameArea > 0 ? lastEventWasDepartedStmt.get(row.mmsi, areaKey) : null;
+      insertPortEventStmt.run(
+        row.mmsi,
+        row.ship_name || existing?.ship_name,
+        'arrived',
+        row.received_at,
+        row.ship_type ?? existing?.ship_type ?? null,
+        row.destination || existing?.destination || null,
+        row.max_draught ?? existing?.max_draught ?? null,
+        areaKey
+      );
+      if (priorSameArea > 0 && lastEvent?.event_type === 'departed') revisit = row.mmsi;
+      if (existing?.flagged) arrivedFlagged = row.mmsi;
+      arrived = row.mmsi; // any arrival (new or after >60min absence)
+    }
+  }
+
+  insertCounters[MessageType] = (insertCounters[MessageType] || 0) + 1;
+  if (insertCounters[MessageType] % 500 === 0) {
+    pruneStmt.run(MessageType, MessageType, MAX_READINGS_PER_TYPE);
+  }
+
+  return { arrivedFlagged, newShip, revisit, areaChange, arrived };
+}
+
+function checkAndLogDepartures() {
+  const departed = db
+    .prepare(
+      `
+    SELECT mmsi, ship_name, ship_type, destination, max_draught, last_seen_at, last_area
+    FROM ships
+    WHERE last_seen_at BETWEEN datetime('now', '-62 minutes') AND datetime('now', '-60 minutes')
+    AND NOT EXISTS (
+      SELECT 1 FROM port_events
+      WHERE port_events.mmsi = ships.mmsi
+        AND port_events.event_type = 'departed'
+        AND port_events.ts > datetime('now', '-3 hours')
+    )
+  `
+    )
+    .all();
+
+  for (const ship of departed) {
+    insertPortEventStmt.run(
+      ship.mmsi,
+      ship.ship_name,
+      'departed',
+      ship.last_seen_at,
+      ship.ship_type,
+      ship.destination,
+      ship.max_draught ?? null,
+      ship.last_area || ''
+    );
+  }
+  return departed.length;
+}
+
+// "Active" = seen within ACTIVE_WINDOW, OR in-port (moored/anchored or
+// SOG≈0) seen within the longer PORT_WINDOW. In-port ships transmit rarely
+// (up to every few hours for moored AIS class A), so they need a wider
+// retention to stay visible after a stream restart instead of dropping to Past.
+const ACTIVE_PREDICATE = `(
+  last_seen_at > datetime('now', '-${ACTIVE_WINDOW_HOURS} hours')
+  OR (
+    (last_sog < ${DB_SOG_FERMA} OR last_navigational_status IN ('1', '5'))
+    AND last_seen_at > datetime('now', '-${PORT_WINDOW_HOURS} hours')
+  )
+)`;
+
+function getActiveShips(area) {
+  const filter = area ? 'AND last_area = ?' : '';
+  const params = area ? [area] : [];
+  return db
+    .prepare(
+      `SELECT * FROM ships
+       WHERE ${ACTIVE_PREDICATE} ${filter}
+       ORDER BY flagged DESC, seen ASC, last_seen_at DESC`
+    )
+    .all(...params);
+}
+
+function getPastShips(area) {
+  const filter = area ? 'AND last_area = ?' : '';
+  const params = area ? [area] : [];
+  return db
+    .prepare(
+      `SELECT * FROM ships
+       WHERE NOT ${ACTIVE_PREDICATE} ${filter}
+       ORDER BY flagged DESC, seen ASC, last_seen_at DESC`
+    )
+    .all(...params);
+}
+
+function getShip(mmsi) {
+  return db.prepare('SELECT * FROM ships WHERE mmsi = ?').get(mmsi) || null;
+}
+
+function getShipReadings(mmsi, limit = 50, offset = 0) {
+  const rows = db
+    .prepare(
+      `
+    SELECT id, received_at, message_type, mmsi, ship_name, latitude, longitude,
+           navigational_status, sog, cog, true_heading
+    FROM readings WHERE mmsi = ? ORDER BY received_at DESC LIMIT ? OFFSET ?
+  `
+    )
+    .all(mmsi, limit, offset);
+  const total = db.prepare('SELECT COUNT(*) as n FROM readings WHERE mmsi = ?').get(mmsi).n;
+  return { rows, total };
+}
+
+// Recent positions for in-port hysteresis: a ship swinging at anchor / drifting
+// on current stays within a small radius even if its instantaneous SOG spikes.
+function getRecentPositions(mmsi, minutes = 30) {
+  return db
+    .prepare(
+      `
+    SELECT latitude AS lat, longitude AS lon, sog
+    FROM readings
+    WHERE mmsi = ? AND received_at > datetime('now', ?)
+      AND latitude IS NOT NULL AND longitude IS NOT NULL
+    ORDER BY received_at DESC
+    LIMIT 50
+  `
+    )
+    .all(mmsi, `-${minutes} minutes`);
+}
+
+// Recent positions for risk scoring (dark-activity gaps, speed-jump spoofing,
+// loitering). Time-bounded and oldest-first so consecutive-pair analysis works.
+function getShipPositions(mmsi, hours = 168, limit = 2000) {
+  return db
+    .prepare(
+      `
+    SELECT received_at, latitude AS lat, longitude AS lon, sog, navigational_status AS ns
+    FROM readings
+    WHERE mmsi = ? AND received_at > datetime('now', ?)
+      AND latitude IS NOT NULL AND longitude IS NOT NULL
+    ORDER BY received_at ASC
+    LIMIT ?
+  `
+    )
+    .all(mmsi, `-${hours} hours`, limit);
+}
+
+// Distinct (non-null) names a single MMSI has broadcast — name hopping signal.
+function getDistinctShipNames(mmsi) {
+  return db
+    .prepare(
+      'SELECT DISTINCT ship_name FROM readings WHERE mmsi = ? AND ship_name IS NOT NULL'
+    )
+    .all(mmsi)
+    .map((r) => r.ship_name);
+}
+
+function getShipTrack(mmsi, limit = 500) {
+  return db
+    .prepare(
+      `
+    SELECT id, received_at, latitude, longitude, sog, cog
+    FROM readings
+    WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+    ORDER BY received_at ASC
+    LIMIT ?
+  `
+    )
+    .all(mmsi, limit);
+}
+
+function getPortEvents(limit = 100, offset = 0, area) {
+  const filter = area ? 'WHERE area = ?' : '';
+  const params = area ? [area, limit, offset] : [limit, offset];
+  const rows = db
+    .prepare(`SELECT * FROM port_events ${filter} ORDER BY ts DESC LIMIT ? OFFSET ?`)
+    .all(...params);
+  const total = area
+    ? db.prepare('SELECT COUNT(*) as n FROM port_events WHERE area = ?').get(area).n
+    : db.prepare('SELECT COUNT(*) as n FROM port_events').get().n;
+  return { rows, total };
+}
+
+function getShipEvents(mmsi) {
+  return db
+    .prepare(
+      `
+    SELECT * FROM port_events WHERE mmsi = ? ORDER BY ts DESC
+  `
+    )
+    .all(mmsi);
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+const MAX_NOTIFICATIONS = 100;
+
+const insertNotificationStmt = db.prepare(
+  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, ts, read)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+);
+const pruneNotificationsStmt = db.prepare(
+  `DELETE FROM notifications WHERE id NOT IN (
+     SELECT id FROM notifications ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
+   )`
+);
+
+function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null }) {
+  const ts = new Date().toISOString();
+  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, ts);
+  pruneNotificationsStmt.run();
+  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, ts, read: 0 };
+}
+
+function getNotifications(limit = MAX_NOTIFICATIONS) {
+  return db.prepare('SELECT * FROM notifications ORDER BY id DESC LIMIT ?').all(limit);
+}
+
+function getUnreadNotificationCount() {
+  return db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE read = 0').get().n;
+}
+
+function markNotificationRead(id) {
+  db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(id);
+}
+
+function deleteNotification(id) {
+  db.prepare('DELETE FROM notifications WHERE id = ?').run(id);
+}
+
+function deleteAllNotifications() {
+  db.prepare('DELETE FROM notifications').run();
+}
+
+function markAllNotificationsRead() {
+  db.prepare('UPDATE notifications SET read = 1 WHERE read = 0').run();
+}
+
+// ── Risk-score history ─────────────────────────────────────────────────────────
+const MAX_RISK_HISTORY = 20000;
+let riskSnapshotCount = 0;
+
+// Record a score snapshot, but skip if the most recent snapshot for this MMSI is
+// less than an hour old AND has the same score — keeps the series meaningful
+// (one point per hour, plus every genuine change) without bloating the table.
+function recordRiskSnapshot(mmsi, score, band) {
+  if (mmsi == null || score == null) return;
+  const last = db
+    .prepare('SELECT ts, score FROM risk_history WHERE mmsi = ? ORDER BY id DESC LIMIT 1')
+    .get(mmsi);
+  if (last && last.score === score && Date.now() - new Date(last.ts).getTime() < 60 * 60 * 1000) {
+    return;
+  }
+  db.prepare('INSERT INTO risk_history (mmsi, ts, score, band) VALUES (?, ?, ?, ?)').run(
+    mmsi,
+    new Date().toISOString(),
+    score,
+    band
+  );
+  if (++riskSnapshotCount % 200 === 0) {
+    db.prepare(
+      `DELETE FROM risk_history WHERE id NOT IN (SELECT id FROM risk_history ORDER BY id DESC LIMIT ${MAX_RISK_HISTORY})`
+    ).run();
+  }
+}
+
+function getRiskHistory(mmsi, limit = 200) {
+  return db
+    .prepare('SELECT ts, score, band FROM risk_history WHERE mmsi = ? ORDER BY ts ASC LIMIT ?')
+    .all(mmsi, limit);
+}
+
+function getStats(area) {
+  const af = area ? 'AND area = ?' : '';
+  const ap = (base) => area ? [...base, area] : base;
+
+  const arrivalsToday = db
+    .prepare(`SELECT COUNT(*) as n FROM port_events WHERE event_type = 'arrived' AND ts >= date('now') ${af}`)
+    .get(...ap([])).n;
+
+  const arrivalsWeek = db
+    .prepare(`SELECT COUNT(*) as n FROM port_events WHERE event_type = 'arrived' AND ts >= datetime('now', '-7 days') ${af}`)
+    .get(...ap([])).n;
+
+  const totalArrivals = db
+    .prepare(`SELECT COUNT(*) as n FROM port_events WHERE event_type = 'arrived' ${af}`)
+    .get(...ap([])).n;
+
+  const avgStayHours = db
+    .prepare(
+      `SELECT AVG((julianday(d.ts) - julianday(a.ts)) * 24) as avg
+       FROM port_events a
+       JOIN port_events d ON a.mmsi = d.mmsi
+         AND d.event_type = 'departed'
+         AND d.ts > a.ts
+         AND NOT EXISTS (
+           SELECT 1 FROM port_events x
+           WHERE x.mmsi = a.mmsi AND x.event_type = 'arrived'
+             AND x.ts > a.ts AND x.ts < d.ts
+         )
+       WHERE a.event_type = 'arrived'
+         AND (julianday(d.ts) - julianday(a.ts)) * 24 BETWEEN 0.1 AND 72
+         ${area ? 'AND a.area = ?' : ''}`
+    )
+    .get(...(area ? [area] : [])).avg;
+
+  const byHour = db
+    .prepare(
+      `SELECT strftime('%H', ts) as hour, COUNT(*) as n
+       FROM port_events WHERE event_type = 'arrived' ${af}
+       GROUP BY hour ORDER BY hour`
+    )
+    .all(...ap([]));
+
+  const byType = db
+    .prepare(
+      `SELECT ship_type, COUNT(*) as n
+       FROM port_events WHERE event_type = 'arrived' AND ship_type IS NOT NULL ${af}
+       GROUP BY ship_type ORDER BY n DESC LIMIT 10`
+    )
+    .all(...ap([]));
+
+  return { arrivalsToday, arrivalsWeek, totalArrivals, avgStayHours, byHour, byType };
+}
+
+function getRecentShips(area) {
+  const filter = area ? 'AND last_area = ?' : '';
+  const params = area ? [area] : [];
+  return db
+    .prepare(
+      `SELECT * FROM ships
+       WHERE last_seen_at >= datetime('now', '-7 days') ${filter}
+       ORDER BY last_seen_at DESC`
+    )
+    .all(...params);
+}
+
+function getDailyArrivals(area) {
+  const filter = area ? 'AND area = ?' : '';
+  const params = area ? [area] : [];
+  return db
+    .prepare(
+      `SELECT date(ts) as day, COUNT(*) as n
+       FROM port_events
+       WHERE event_type = 'arrived'
+         AND ts >= datetime('now', '-30 days') ${filter}
+       GROUP BY day
+       ORDER BY day ASC`
+    )
+    .all(...params);
+}
+
+function getExpectedShips(keyword) {
+  if (!keyword) return [];
+  return db
+    .prepare(
+      `
+    SELECT * FROM ships
+    WHERE destination LIKE ?
+      AND last_seen_at <= datetime('now', '-60 minutes')
+      AND last_seen_at >= datetime('now', '-48 hours')
+    ORDER BY last_seen_at DESC
+    LIMIT 50
+  `
+    )
+    .all(`%${keyword}%`);
+}
+
+function setFlag(mmsi, flagged) {
+  db.prepare('UPDATE ships SET flagged = ? WHERE mmsi = ?').run(flagged ? 1 : 0, mmsi);
+}
+
+function setSeen(mmsi, seen) {
+  db.prepare('UPDATE ships SET seen = ? WHERE mmsi = ?').run(seen ? 1 : 0, mmsi);
+}
+
+function updateNotes(mmsi, notes) {
+  db.prepare('UPDATE ships SET notes = ? WHERE mmsi = ?').run(notes || null, mmsi);
+}
+
+function setMtShipId(mmsi, mtShipId) {
+  db.prepare('UPDATE ships SET mt_ship_id = ? WHERE mmsi = ?').run(mtShipId || null, mmsi);
+}
+
+function setMilitary(mmsi, isMilitary) {
+  db.prepare('UPDATE ships SET is_military = ? WHERE mmsi = ?').run(isMilitary ? 1 : 0, mmsi);
+}
+
+function setNotifMuted(mmsi, muted) {
+  db.prepare('UPDATE ships SET notif_muted = ? WHERE mmsi = ?').run(muted ? 1 : 0, mmsi);
+}
+
+function getReadings({ type, limit = 50, offset = 0 }) {
+  let sql =
+    'SELECT id, received_at, message_type, mmsi, ship_name, latitude, longitude, navigational_status, sog, cog, true_heading FROM readings';
+  const params = [];
+  if (type) {
+    sql += ' WHERE message_type = ?';
+    params.push(type);
+  }
+  sql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+  return db.prepare(sql).all(...params);
+}
+
+function getReading(id) {
+  return db.prepare('SELECT * FROM readings WHERE id = ?').get(id);
+}
+
+function getTotalCount(type) {
+  if (type) {
+    return db.prepare('SELECT COUNT(*) as n FROM readings WHERE message_type = ?').get(type).n;
+  }
+  return db.prepare('SELECT COUNT(*) as n FROM readings').get().n;
+}
+
+function getDistinctTypes() {
+  return db
+    .prepare('SELECT DISTINCT message_type FROM readings ORDER BY message_type')
+    .all()
+    .map((r) => r.message_type);
+}
+
+function getAllByType(type) {
+  return db.prepare('SELECT * FROM readings WHERE message_type = ? ORDER BY id DESC').all(type);
+}
+
+// Assign an area to rows still tagged '' (legacy data collected before
+// multi-area support, or imported from an old DB). Coordinate-aware: each row
+// goes to the box that contains it; rows outside every box fall back to
+// `fallbackArea` so they stay visible somewhere. port_events have no
+// coordinates, so they inherit their ship's area (else fallback).
+function tagLegacyArea(fallbackArea, areaForPoint) {
+  const fb = fallbackArea || '';
+  const resolve = (lat, lon) => (areaForPoint ? areaForPoint(lat, lon) : null) || fb;
+
+  const upR = db.prepare('UPDATE readings SET area = ? WHERE id = ?');
+  for (const r of db.prepare("SELECT id, latitude, longitude FROM readings WHERE area = ''").all()) {
+    upR.run(resolve(r.latitude, r.longitude), r.id);
+  }
+  const upS = db.prepare('UPDATE ships SET last_area = ? WHERE mmsi = ?');
+  for (const s of db.prepare("SELECT mmsi, last_latitude, last_longitude FROM ships WHERE last_area = ''").all()) {
+    upS.run(resolve(s.last_latitude, s.last_longitude), s.mmsi);
+  }
+  db.prepare(
+    `UPDATE port_events SET area = COALESCE(
+       (SELECT last_area FROM ships WHERE ships.mmsi = port_events.mmsi AND ships.last_area != ''),
+       ?)
+     WHERE area = ''`
+  ).run(fb);
+}
+
+// One-shot repair of rows mis-tagged by an earlier blind migration: when a
+// row's coordinates fall squarely inside a different area's box, move it there.
+// Rows outside every box keep their current tag (could be a legitimately
+// drifting tracked ship), so this is safe to run on every startup. Returns the
+// number of rows moved.
+function reconcileAreasByCoords(areaForPoint) {
+  if (!areaForPoint) return 0;
+  let moved = 0;
+  const upR = db.prepare('UPDATE readings SET area = ? WHERE id = ?');
+  for (const r of db.prepare("SELECT id, latitude, longitude, area FROM readings WHERE area != ''").all()) {
+    const a = areaForPoint(r.latitude, r.longitude);
+    if (a && a !== r.area) {
+      upR.run(a, r.id);
+      moved++;
+    }
+  }
+  const upS = db.prepare('UPDATE ships SET last_area = ? WHERE mmsi = ?');
+  for (const s of db.prepare("SELECT mmsi, last_latitude, last_longitude, last_area FROM ships WHERE last_area != ''").all()) {
+    const a = areaForPoint(s.last_latitude, s.last_longitude);
+    if (a && a !== s.last_area) {
+      upS.run(a, s.mmsi);
+      moved++;
+    }
+  }
+  // Realign port_events to their ship's (corrected) area.
+  db.prepare(
+    `UPDATE port_events SET area = (SELECT last_area FROM ships WHERE ships.mmsi = port_events.mmsi)
+     WHERE EXISTS (
+       SELECT 1 FROM ships
+       WHERE ships.mmsi = port_events.mmsi AND ships.last_area != '' AND ships.last_area != port_events.area
+     )`
+  ).run();
+  return moved;
+}
+
+// Row counts attributable to one area (shown in the Areas screen so the user
+// knows how much history a deletion will wipe).
+function getAreaCounts(area) {
+  return {
+    readings: db.prepare('SELECT COUNT(*) AS n FROM readings WHERE area = ?').get(area).n,
+    ships: db.prepare('SELECT COUNT(*) AS n FROM ships WHERE last_area = ?').get(area).n,
+    events: db.prepare('SELECT COUNT(*) AS n FROM port_events WHERE area = ?').get(area).n,
+  };
+}
+
+// Delete collected data. With `area`, only that area's rows; otherwise all.
+function deleteAll(area) {
+  if (area) {
+    // Drop score history for ships belonging to this area before the ships go.
+    db.prepare('DELETE FROM risk_history WHERE mmsi IN (SELECT mmsi FROM ships WHERE last_area = ?)').run(area);
+    db.prepare('DELETE FROM readings WHERE area = ?').run(area);
+    db.prepare('DELETE FROM ships WHERE last_area = ?').run(area);
+    db.prepare('DELETE FROM port_events WHERE area = ?').run(area);
+    db.prepare('DELETE FROM notifications WHERE area = ?').run(area);
+  } else {
+    db.exec('DELETE FROM readings');
+    db.exec('DELETE FROM ships');
+    db.exec('DELETE FROM port_events');
+    db.exec('DELETE FROM notifications');
+    db.exec('DELETE FROM risk_history');
+  }
+  Object.keys(insertCounters).forEach((k) => delete insertCounters[k]);
+}
+
+const insertLogStmt = db.prepare(
+  'INSERT INTO api_log (ts, method, path, status, duration_ms, request_body, response_body) VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+let logInsertCount = 0;
+
+function insertLog({ method, path, status, duration_ms, request_body = null, response_body = null }) {
+  const ts = new Date().toISOString();
+  const result = insertLogStmt.run(ts, method, path, status, duration_ms, request_body, response_body);
+  logInsertCount++;
+  if (logInsertCount % 500 === 0) {
+    db.prepare(
+      `DELETE FROM api_log WHERE id NOT IN (SELECT id FROM api_log ORDER BY id DESC LIMIT ${MAX_API_LOG_RECORDS})`
+    ).run();
+  }
+  return { id: Number(result.lastInsertRowid), ts, method, path, status, duration_ms };
+}
+
+function getLog(id) {
+  return db.prepare('SELECT * FROM api_log WHERE id = ?').get(id);
+}
+
+function getLogs(limit = 200, offset = 0) {
+  return db
+    .prepare(
+      'SELECT id, ts, method, path, status, duration_ms FROM api_log ORDER BY id DESC LIMIT ? OFFSET ?'
+    )
+    .all(limit, offset);
+}
+
+function clearLogs() {
+  db.exec('DELETE FROM api_log');
+}
+
+// ── Whole-database backup / restore ──────────────────────────────────────────
+// Tables copied on restore. Order matters only for readability; each is
+// independent (no cross-table FKs in this schema).
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history'];
+
+/**
+ * Write a consistent snapshot of the whole database to `dest`.
+ * `VACUUM INTO` produces a clean, fully-checkpointed copy even while the live
+ * AIS stream keeps writing — no WAL/-shm sidecar files to ship.
+ */
+function backupTo(dest) {
+  db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+}
+
+/**
+ * Replace ALL current data with the contents of the SQLite file at `src`.
+ * Copies column-by-column over the intersection of source/target columns, so a
+ * backup taken from an older schema (fewer columns) still restores cleanly.
+ * Runs in a single transaction on the live connection — prepared statements
+ * elsewhere stay valid. Returns per-table row counts.
+ */
+function restoreFrom(src) {
+  db.exec(`ATTACH DATABASE '${src.replace(/'/g, "''")}' AS restore`);
+  try {
+    const srcTables = new Set(
+      db.prepare("SELECT name FROM restore.sqlite_master WHERE type='table'").all().map((r) => r.name)
+    );
+    if (!srcTables.has('readings') || !srcTables.has('ships')) {
+      throw new Error('File di backup non valido: tabelle readings/ships assenti');
+    }
+
+    const counts = {};
+    db.exec('BEGIN');
+    try {
+      for (const t of BACKUP_TABLES) {
+        if (!srcTables.has(t)) continue;
+        const mainCols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+        const srcCols = new Set(db.prepare(`PRAGMA restore.table_info(${t})`).all().map((c) => c.name));
+        const cols = mainCols.filter((c) => srcCols.has(c));
+        if (cols.length === 0) continue;
+        const colList = cols.map((c) => `"${c}"`).join(', ');
+        db.exec(`DELETE FROM main.${t}`);
+        db.exec(`INSERT INTO main.${t} (${colList}) SELECT ${colList} FROM restore.${t}`);
+        counts[t] = db.prepare(`SELECT COUNT(*) AS n FROM main.${t}`).get().n;
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+
+    // Drop score-history snapshots orphaned by the restore. An older backup has
+    // no risk_history table, so the copy loop skips it and the pre-restore rows
+    // would otherwise survive pointing at MMSIs no longer present in `ships`.
+    db.prepare('DELETE FROM risk_history WHERE mmsi NOT IN (SELECT mmsi FROM ships)').run();
+
+    // Reset prune counters so they re-derive from the restored data.
+    Object.keys(insertCounters).forEach((k) => delete insertCounters[k]);
+    return counts;
+  } finally {
+    db.exec('DETACH DATABASE restore');
+  }
+}
+
+module.exports = {
+  insert,
+  getAreaCounts,
+  getActiveShips,
+  getPastShips,
+  getShip,
+  getShipReadings,
+  getShipTrack,
+  getShipPositions,
+  getDistinctShipNames,
+  getRecentPositions,
+  setFlag,
+  setSeen,
+  updateNotes,
+  setMtShipId,
+  setMilitary,
+  setNotifMuted,
+  getPortEvents,
+  getShipEvents,
+  addNotification,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationRead,
+  deleteNotification,
+  deleteAllNotifications,
+  markAllNotificationsRead,
+  recordRiskSnapshot,
+  getRiskHistory,
+  checkAndLogDepartures,
+  getStats,
+  getRecentShips,
+  getDailyArrivals,
+  getExpectedShips,
+  getReadings,
+  getReading,
+  getTotalCount,
+  getDistinctTypes,
+  getAllByType,
+  tagLegacyArea,
+  reconcileAreasByCoords,
+  deleteAll,
+  getScrapedData,
+  setScrapedData,
+  insertLog,
+  getLog,
+  getLogs,
+  clearLogs,
+  backupTo,
+  restoreFrom,
+  DB_PATH,
+};

@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+ais_data.db
+ais_data.db-shm
+ais_data.db-wal
+*.zip

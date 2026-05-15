@@ -1,0 +1,13 @@
+node_modules/
+local.properties
+ais_data.db
+ais_data.db-shm
+ais_data.db-wal
+*.zip
+.claude
+.DS_Store
+# Downloaded lists (OFAC SDN, Paris MoU banned, etc.) — fetched at runtime.
+# The MoU flag-performance JSONs are bundled (no machine-readable feed), so keep them.
+data/*
+!data/paris-mou-flags.json
+!data/tokyo-mou-flags.json

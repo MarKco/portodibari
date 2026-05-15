@@ -1,0 +1,30 @@
+# Copy this file to `local.properties` and fill in your values.
+# `local.properties` is gitignored — never commit real secrets.
+# Every key here can also be supplied as an environment variable.
+
+# aisstream.io API key (required). Get one at https://aisstream.io/.
+AIS_API_KEY=your_aisstream_api_key_here
+
+# Initial bounding-box preset. Must match a key defined in `bounding-boxes.json`
+# (default keys: bari | nord_adriatico | taranto | puglia).
+BBOX_PRESET=bari
+
+# Enrich ship details by scraping VesselFinder / MarineTraffic (true | false).
+IMPORT_VF_DATA=false
+IMPORT_MT_DATA=false
+
+# Screen ships against the OFAC SDN sanctions list (downloaded, matched by
+# IMO/name/call sign). A match is a very strong risk signal (true | false).
+IMPORT_SANCTIONS=false
+
+# Port State Control screening (true | false): Paris/Tokyo MoU flag-performance
+# lists (white/grey/black, bundled, updated yearly) + Paris MoU banned-ships list
+# (downloaded daily). Banned = refusal of access after repeated detentions.
+IMPORT_PSC=false
+
+# HTTP Basic Auth. Leave AUTH_PASSWORD empty to disable auth (recommended only
+# for local use). Set a password to gate the whole app behind a browser login
+# before exposing it on a network/internet. Basic auth sends credentials in
+# base64 (≈ cleartext) — put TLS in front or use an SSH tunnel when public.
+AUTH_USER=admin
+AUTH_PASSWORD=

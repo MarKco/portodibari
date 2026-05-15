@@ -1,0 +1,51 @@
+{
+  "_comment": "Aree di monitoraggio personalizzabili. Aggiungi/modifica liberamente: 'sw' = angolo Sud-Ovest [lat, lon], 'ne' = angolo Nord-Est [lat, lon]. 'name' è l'etichetta mostrata nell'interfaccia. 'keyword' (facoltativa, può essere null) filtra le navi 'attese' per destinazione. La chiave dell'oggetto (es. 'bari') è quella usata da BBOX_PRESET in local.properties.",
+  "bari": {
+    "name": "Porto di Bari",
+    "keyword": "BARI",
+    "sw": [
+      40.95,
+      16.6
+    ],
+    "ne": [
+      41.3,
+      17.1
+    ]
+  },
+  "nord_adriatico": {
+    "name": "Nord Adriatico",
+    "keyword": null,
+    "sw": [
+      44.92,
+      11.92
+    ],
+    "ne": [
+      45.73,
+      12.68
+    ]
+  },
+  "taranto": {
+    "name": "Porto di Taranto",
+    "keyword": "TARANTO",
+    "sw": [
+      40.42,
+      17.12
+    ],
+    "ne": [
+      40.52,
+      17.3
+    ]
+  },
+  "roma": {
+    "name": "Roma",
+    "keyword": "ROMA",
+    "sw": [
+      41.57642,
+      11.44775
+    ],
+    "ne": [
+      42.06459,
+      13.60931
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "tracker-porti",
+  "version": "1.0.0",
+  "description": "AIS ship tracker for configurable port bounding boxes (Adriatic/Ionian presets)",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "express": "^4.21.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3"
+  }
+}

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // Apply saved theme before first paint to avoid flash of wrong theme.
+    (function () {
+      try {
+        var t = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0d13">
+  <title>Tracking porti</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="layout">
+
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-brand">⚓ Tracker</span>
+      <button id="btn-sidebar-toggle" class="sidebar-toggle"
+              data-i18n-aria="sidebar.toggle"
+              data-i18n-title="sidebar.toggle"
+              aria-label="Comprimi barra laterale" title="Comprimi">‹</button>
+    </div>
+    <div class="sidebar-body">
+      <button id="btn-home" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.home" title="Monitoraggi">
+        <span class="sb-icon">🏠</span>
+        <span class="sb-label" data-i18n="sidebar.home">Monitoraggi</span>
+      </button>
+      <div class="sb-divider"></div>
+      <button id="btn-start" class="btn btn-primary sb-btn"
+              data-i18n-title="sidebar.start" title="Avvia il monitoraggio">
+        <span class="sb-icon">▶</span>
+        <span class="sb-label" data-i18n="sidebar.start">Avvia il monitoraggio</span>
+      </button>
+      <button id="btn-stop" class="btn btn-danger sb-btn" disabled
+              data-i18n-title="sidebar.stop" title="Ferma">
+        <span class="sb-icon">■</span>
+        <span class="sb-label" data-i18n="sidebar.stop">Ferma</span>
+      </button>
+      <div class="sb-divider"></div>
+      <button id="btn-clear" class="btn btn-clear sb-btn"
+              data-i18n-title="sidebar.clear" title="Cancella dati">
+        <span class="sb-icon">🗑</span>
+        <span class="sb-label" data-i18n="sidebar.clear">Cancella dati</span>
+      </button>
+      <div class="sb-divider"></div>
+      <button id="btn-log" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.logs" title="Log API">
+        <span class="sb-icon">📋</span>
+        <span class="sb-label" data-i18n="sidebar.logs">Log API</span>
+      </button>
+      <button id="btn-health" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.health" title="Diagnostica AIS">
+        <span class="sb-icon">📡</span>
+        <span class="sb-label" data-i18n="sidebar.health">Diagnostica AIS</span>
+      </button>
+      <button id="btn-areas" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.areas" title="Aree">
+        <span class="sb-icon">🗺</span>
+        <span class="sb-label" data-i18n="sidebar.areas">Aree</span>
+      </button>
+      <button id="btn-settings" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.settings" title="Impostazioni">
+        <span class="sb-icon">⚙</span>
+        <span class="sb-label" data-i18n="sidebar.settings">Impostazioni</span>
+      </button>
+      <div class="sb-divider"></div>
+      <div class="notif-controls">
+        <button id="btn-notifications" class="btn btn-secondary sb-btn"
+                data-i18n-title="sidebar.notifications" title="Notifiche">
+          <span class="sb-icon">🔔</span>
+          <span class="sb-label" data-i18n="sidebar.notifications">Notifiche</span>
+          <span id="notif-badge" class="notif-badge hidden">0</span>
+        </button>
+        <button id="btn-notif-clear" class="notif-clear-all hidden"
+                data-i18n-title="notif.clearAll" title="Cancella tutte le notifiche">🗑</button>
+      </div>
+      <div id="notif-list" class="notif-list">
+        <div class="notif-empty" data-i18n="notif.empty">Nessuna notifica.</div>
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-area-item">
+        <span class="sb-icon" aria-hidden="true">🗺</span>
+        <span class="sb-label sb-area-label">
+          <label for="bbox-select" data-i18n="sidebar.area">Area:</label>
+          <select id="bbox-select"></select>
+        </span>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <span class="sb-icon" aria-hidden="true">📊</span>
+      <span id="counter" class="counter sb-label">0 letture</span>
+    </div>
+  </nav>
+
+  <div id="app">
+    <header>
+      <h1 id="app-title" data-i18n="app.title">Tracking porti</h1>
+      <div id="status-badge" class="badge inactive" data-i18n="status.inactive">INATTIVO</div>
+    </header>
+
+    <!-- Tab navigation -->
+    <div class="tabs" id="main-tabs">
+      <button id="tab-active" class="tab tab-active">
+        <span data-i18n="tab.active">Navi presenti</span>
+        <span id="active-count" class="tab-count">0</span>
+      </button>
+      <button id="tab-past" class="tab">
+        <span data-i18n="tab.past">Navi passate</span>
+        <span id="past-count" class="tab-count">0</span>
+      </button>
+      <button id="tab-traffico" class="tab" data-i18n="tab.traffico">Traffico</button>
+    </div>
+
+    <!-- View: navi presenti -->
+    <div id="view-active">
+      <div id="active-map"></div>
+      <div id="active-map-resizer" class="map-resizer"></div>
+      <div class="list-toolbar" id="active-toolbar">
+        <input type="search" id="active-search" class="list-search"
+               data-i18n-placeholder="filter.searchHolder" placeholder="Cerca nome, MMSI, IMO, destinazione…">
+        <select id="active-band" class="list-band">
+          <option value="" data-i18n="filter.allBands">Tutte le fasce</option>
+          <option value="low" data-i18n="filter.bandLow">Verde (0–30)</option>
+          <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
+          <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
+        </select>
+        <label class="list-check"><input type="checkbox" id="active-inport"><span data-i18n="filter.inPort">Solo in porto</span></label>
+        <label class="list-check"><input type="checkbox" id="active-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+        <span class="list-toolbar-spacer"></span>
+        <span id="active-filter-count" class="list-filter-count"></span>
+        <button id="active-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+      </div>
+      <div id="table-wrap-active">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-flags" data-i18n="col.flags">Flag</th>
+              <th data-col="last_seen_at" data-i18n="col.lastSeen">Ultimo avv.</th>
+              <th data-col="ship_name" data-i18n="col.shipName">Nome nave</th>
+              <th data-col="mmsi" data-i18n="col.mmsi">MMSI</th>
+              <th data-col="ship_type" data-i18n="col.shipType">Tipo nave</th>
+              <th data-col="destination" data-i18n="col.destination">Destinazione</th>
+              <th data-col="last_sog" data-i18n="col.sog">SOG</th>
+              <th data-col="direction" data-i18n="col.direction">Direzione</th>
+              <th data-col="risk" data-i18n-title="col.risk" title="Score rischio trasporto armi (0–100)" data-i18n="col.risk">Rischio</th>
+            </tr>
+          </thead>
+          <tbody id="active-body">
+            <tr><td colspan="9" class="empty" data-i18n="empty.active">Nessuna nave nell'area. Avvia lo stream.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- View: navi passate -->
+    <div id="view-past" class="hidden">
+      <div class="list-toolbar" id="past-toolbar">
+        <input type="search" id="past-search" class="list-search"
+               data-i18n-placeholder="filter.searchHolder" placeholder="Cerca nome, MMSI, IMO, destinazione…">
+        <select id="past-band" class="list-band">
+          <option value="" data-i18n="filter.allBands">Tutte le fasce</option>
+          <option value="low" data-i18n="filter.bandLow">Verde (0–30)</option>
+          <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
+          <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
+        </select>
+        <label class="list-check"><input type="checkbox" id="past-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+        <span class="list-toolbar-spacer"></span>
+        <span id="past-filter-count" class="list-filter-count"></span>
+        <button id="past-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+      </div>
+      <div id="table-wrap-past">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-flags" data-i18n="col.flags">Flag</th>
+              <th data-col="ship_name" data-i18n="col.shipName">Nome nave</th>
+              <th data-col="mmsi" data-i18n="col.mmsi">MMSI</th>
+              <th data-col="last_seen_at" data-i18n="col.lastSeen">Ultimo avv.</th>
+              <th data-col="first_seen_at" data-i18n="col.firstSeen">Primo avv.</th>
+              <th data-col="duration_ms" data-i18n="col.stayDur">Durata sosta</th>
+              <th data-col="last_sog" data-i18n="col.sog">SOG</th>
+              <th data-col="risk" data-i18n-title="col.risk" title="Score rischio trasporto armi (0–100)" data-i18n="col.risk">Rischio</th>
+            </tr>
+          </thead>
+          <tbody id="past-body">
+            <tr><td colspan="8" class="empty" data-i18n="empty.past">Nessuna nave passata.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- View: dettaglio nave -->
+    <div id="view-detail" class="hidden">
+      <div class="detail-nav">
+        <button id="btn-back" class="btn btn-secondary" data-i18n="detail.back">← Indietro</button>
+        <div class="detail-ship-header">
+          <span id="detail-ship-name" class="detail-name"></span>
+          <span id="detail-ship-mmsi" class="detail-mmsi"></span>
+          <button id="btn-flag-detail" class="flag-btn"
+                  data-i18n-title="detail.flagAdd" title="Segna come segnalata">☆</button>
+          <button id="btn-seen-detail" class="seen-btn"
+                  data-i18n-title="detail.seenAdd" title="Segna come vista">✓</button>
+          <button id="btn-military-detail" class="military-btn" title="Segna come nave militare">🪖 <span id="military-btn-label">Segna come nave militare</span></button>
+          <button id="btn-notif-mute-detail" class="notif-mute-btn"
+                  data-i18n-title="detail.notifMuteAdd" title="Silenzia notifiche">🔔</button>
+          <a id="btn-vf-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"
+             data-i18n-title="detail.vfLink" title="Vedi su VesselFinder">⧉ VesselFinder</a>
+          <a id="btn-mt-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"
+             data-i18n-title="detail.mtLink" title="Vedi su MarineTraffic">⧉ MarineTraffic</a>
+          <button id="btn-report-detail" class="btn btn-secondary btn-sm"
+                  data-i18n-title="detail.reportTitle" title="Genera report stampabile (PDF)">📄 <span data-i18n="detail.report">Report</span></button>
+        </div>
+      </div>
+      <div id="detail-info-bar" class="detail-info-bar"></div>
+
+      <!-- VesselFinder data -->
+      <div id="vf-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
+          <span id="vf-cache-badge" class="scrape-badge hidden"></span>
+        </h3>
+        <div id="vf-data-body"></div>
+      </div>
+
+      <!-- MarineTraffic data -->
+      <div id="mt-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.mtTitle">Dati MarineTraffic</span>
+          <span id="mt-cache-badge" class="scrape-badge scrape-badge--mt hidden"></span>
+        </h3>
+        <div id="mt-data-body"></div>
+      </div>
+
+      <div id="detail-map"></div>
+      <div id="table-wrap-detail">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="detail.col.time">Ora</th>
+              <th data-i18n="detail.col.type">Tipo</th>
+              <th data-i18n="col.sog">SOG</th>
+              <th data-i18n="detail.col.cog">COG</th>
+              <th data-i18n="detail.col.heading">Prua</th>
+              <th data-i18n="detail.col.lat">Lat</th>
+              <th data-i18n="detail.col.lon">Lon</th>
+              <th data-i18n="detail.col.navStatus">Stato nav.</th>
+            </tr>
+          </thead>
+          <tbody id="detail-body">
+            <tr><td colspan="8" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="detail-prev" disabled data-i18n="page.prev">← Prec</button>
+        <span id="detail-page-info">Pag. 1</span>
+        <button id="detail-next" disabled data-i18n="page.next">Succ →</button>
+      </div>
+
+      <!-- Note operative -->
+      <div class="detail-section">
+        <h3 class="detail-section-title" data-i18n="detail.notesTitle">Note operative</h3>
+        <div class="notes-wrap">
+          <textarea id="detail-notes" class="notes-textarea" rows="3"
+                    data-i18n-placeholder="detail.notesHolder"
+                    placeholder="Aggiungi note su questa nave…"></textarea>
+          <button id="btn-save-notes" class="btn btn-primary btn-sm"
+                  data-i18n="detail.notesSave">Salva note</button>
+        </div>
+      </div>
+
+      <!-- Storico score di rischio -->
+      <div class="detail-section">
+        <h3 class="detail-section-title" data-i18n="detail.riskHistoryTitle">Andamento score di rischio</h3>
+        <div id="risk-history-chart" class="risk-history-chart"></div>
+      </div>
+
+      <!-- Storico visite -->
+      <div class="detail-section">
+        <h3 class="detail-section-title" data-i18n="detail.eventsTitle">Storico visite in porto</h3>
+        <div id="detail-events-wrap">
+          <table class="events-table">
+            <thead>
+              <tr>
+                <th data-i18n="events.col.event">Evento</th>
+                <th data-i18n="events.col.datetime">Data/ora</th>
+                <th data-i18n="events.col.dest">Destinazione</th>
+                <th data-i18n="events.col.draught">Pescaggio</th>
+                <th data-i18n="events.col.stayDur">Durata sosta</th>
+              </tr>
+            </thead>
+            <tbody id="detail-events-body">
+              <tr><td colspan="5" class="empty" data-i18n="empty.events">Nessun evento registrato.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: traffico -->
+    <div id="view-traffico" class="hidden">
+      <div id="stats-cards" class="stats-cards"></div>
+
+      <div class="traffico-grid">
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.byHour">Arrivi per ora del giorno</h3>
+          <div id="chart-hourly" class="hourly-chart"></div>
+        </div>
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.byType">Arrivi per tipo nave</h3>
+          <div id="chart-type" class="type-chart"></div>
+        </div>
+      </div>
+
+      <div class="traffico-grid">
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.riskDist">Distribuzione score rischio</h3>
+          <div id="chart-band"></div>
+        </div>
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.riskFactors">Principali fattori di rischio</h3>
+          <div id="chart-factors"></div>
+        </div>
+      </div>
+
+      <div class="traffico-grid">
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.daily">Arrivi giornalieri (ultimi 30 giorni)</h3>
+          <div id="chart-daily" class="daily-chart"></div>
+        </div>
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.topShips">Navi con score più alto</h3>
+          <div id="chart-top-ships"></div>
+        </div>
+      </div>
+
+      <div class="traffico-grid">
+        <div class="traffico-panel">
+          <h3 class="detail-section-title">
+            <span data-i18n="traffico.expected">Navi attese</span>
+            <span id="expected-keyword" class="info-label"></span>
+          </h3>
+          <div id="expected-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="traffico.col.name">Nome</th>
+                  <th data-i18n="traffico.col.mmsi">MMSI</th>
+                  <th data-i18n="traffico.col.dest">Destinazione</th>
+                  <th data-i18n="col.lastSeen">Ultimo avv.</th>
+                </tr>
+              </thead>
+              <tbody id="expected-body">
+                <tr><td colspan="4" class="empty" data-i18n="empty.expected">Nessuna nave attesa.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.events">Ultimi eventi porto</h3>
+          <div id="events-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="traffico.col.event">Evento</th>
+                  <th data-i18n="traffico.col.name">Nome</th>
+                  <th data-i18n="traffico.col.type">Tipo</th>
+                  <th data-i18n="traffico.col.time">Data/ora</th>
+                </tr>
+              </thead>
+              <tbody id="events-body">
+                <tr><td colspan="4" class="empty" data-i18n="empty.events">Nessun evento registrato.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- View: aree -->
+    <div id="view-areas" class="hidden">
+      <div class="areas-layout">
+        <div class="areas-panel">
+          <h3 class="detail-section-title" data-i18n="areas.addTitle">Aggiungi area</h3>
+          <p class="areas-hint" data-i18n="areas.addHint">Inserisci le coordinate in gradi decimali, oppure inquadra l'area sulla mappa e premi "Cattura vista corrente".</p>
+          <div class="areas-form">
+            <label class="areas-field areas-field-wide">
+              <span data-i18n="areas.fieldName">Nome area</span>
+              <input type="text" id="area-name" maxlength="60" data-i18n-placeholder="areas.fieldNameHolder" placeholder="Es. Porto di Ancona">
+            </label>
+            <label class="areas-field areas-field-wide">
+              <span data-i18n="areas.fieldKeyword">Parola chiave (facoltativa)</span>
+              <input type="text" id="area-keyword" maxlength="40" data-i18n-placeholder="areas.fieldKeywordHolder" placeholder="Es. ANCONA">
+            </label>
+            <label class="areas-field"><span data-i18n="areas.swLat">SW Lat</span><input type="number" step="any" id="area-sw-lat" placeholder="40.95"></label>
+            <label class="areas-field"><span data-i18n="areas.swLon">SW Lon</span><input type="number" step="any" id="area-sw-lon" placeholder="16.60"></label>
+            <label class="areas-field"><span data-i18n="areas.neLat">NE Lat</span><input type="number" step="any" id="area-ne-lat" placeholder="41.30"></label>
+            <label class="areas-field"><span data-i18n="areas.neLon">NE Lon</span><input type="number" step="any" id="area-ne-lon" placeholder="17.10"></label>
+          </div>
+          <div class="areas-actions">
+            <button id="btn-area-capture" class="btn btn-secondary" data-i18n="areas.capture">🎯 Cattura vista corrente</button>
+            <button id="btn-area-add" class="btn btn-primary" data-i18n="areas.add">＋ Aggiungi area</button>
+          </div>
+          <div id="area-add-error" class="areas-error hidden"></div>
+        </div>
+        <div id="areas-map"></div>
+      </div>
+
+      <div class="areas-list-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="areas.col.name">Nome</th>
+              <th data-i18n="areas.col.sw">SW (lat, lon)</th>
+              <th data-i18n="areas.col.ne">NE (lat, lon)</th>
+              <th data-i18n="areas.col.keyword">Parola chiave</th>
+              <th data-i18n="areas.col.status">Stato</th>
+              <th data-i18n="areas.col.data">Dati salvati</th>
+              <th data-i18n="areas.col.actions">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="areas-body">
+            <tr><td colspan="7" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /#app -->
+  </div><!-- /#layout -->
+
+  <!-- Log panel -->
+  <div id="log-panel" class="hidden">
+    <div class="log-panel-header">
+      <div class="log-panel-title">
+        <span data-i18n="log.title">Log API</span>
+        <span id="log-live-badge" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+      </div>
+      <div class="log-panel-actions">
+        <label class="log-autoscroll-label">
+          <input type="checkbox" id="log-autoscroll" checked>
+          <span data-i18n="log.autoscroll">Auto-scroll</span>
+        </label>
+        <button id="btn-log-clear" class="btn btn-clear" data-i18n="log.clear">🗑 Cancella log</button>
+        <button id="btn-log-close" class="btn btn-secondary" data-i18n="log.close">✕ Chiudi</button>
+      </div>
+    </div>
+    <div id="log-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="log.col.n">#</th>
+            <th data-i18n="log.col.time">Ora</th>
+            <th data-i18n="log.col.method">Metodo</th>
+            <th data-i18n="log.col.path">Path</th>
+            <th data-i18n="log.col.status">Status</th>
+            <th data-i18n="log.col.dur">Durata</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="6" class="empty" data-i18n="empty.logs">Nessuna chiamata registrata.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-modal">
+      <div class="modal-header">
+        <h2 data-i18n="settings.title">Impostazioni</h2>
+        <button id="settings-close">&times;</button>
+      </div>
+      <div id="settings-body">
+        <div class="tabs" id="settings-tabs">
+          <button id="settings-tab-general" class="tab tab-active" data-panel="general"
+                  data-i18n="settings.tab.general">Generali</button>
+          <button id="settings-tab-dev" class="tab" data-panel="dev"
+                  data-i18n="settings.tab.dev">Developer options</button>
+        </div>
+        <div id="settings-panel-general" class="settings-panel">
+        <div class="setting-row setting-row-col">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.monitors.name">Monitoraggio aree</div>
+            <div class="setting-desc" data-i18n="settings.monitors.desc">Accendi o spegni lo stream AIS di ciascuna area. Più aree possono essere monitorate in contemporanea.</div>
+          </div>
+          <div id="area-monitors" class="area-monitors"></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.vf.name">Import VesselFinder</div>
+            <div class="setting-desc" data-i18n="settings.vf.desc">Recupera informazioni aggiuntive da VesselFinder (bandiera, GT, DWT, anno costruzione, ecc.). Dati in cache per 6 ore.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-vf">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.mt.name">Import MarineTraffic</div>
+            <div class="setting-desc" data-i18n="settings.mt.desc">Recupera informazioni aggiuntive da MarineTraffic nel dettaglio nave. Dati in cache per 6 ore.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-mt">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.sanctions.name">Screening sanzioni OFAC</div>
+            <div class="setting-desc" data-i18n="settings.sanctions.desc">Confronta ogni nave con la lista sanzioni OFAC SDN (match per IMO, nome o call sign). Un match è un segnale di rischio molto forte. Lista scaricata e aggiornata ogni 24h.</div>
+            <div id="sanctions-status" class="setting-substatus"></div>
+            <button id="btn-sanctions-refresh" class="btn-mini" data-i18n="settings.sanctions.refresh">Aggiorna lista</button>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-sanctions">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.psc.name">Screening Port State Control (Paris/Tokyo MoU)</div>
+            <div class="setting-desc" data-i18n="settings.psc.desc">Confronta ogni nave con le liste di performance bandiera (white/grey/black) dei Memorandum Paris e Tokyo e con la lista delle navi bandite dal Paris MoU (refusal of access dopo fermi multipli). Le liste bandiera sono incluse e aggiornate manualmente ogni anno; la lista banned è scaricata e aggiornata ogni 24h.</div>
+            <div id="psc-status" class="setting-substatus"></div>
+            <button id="btn-psc-refresh" class="btn-mini" data-i18n="settings.psc.refresh">Aggiorna liste</button>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-psc">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notif.name">Notifiche</div>
+            <div class="setting-desc" data-i18n="settings.notif.desc">Abilita o disabilita tutte le notifiche nella barra laterale.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notifications">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-revisit">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifRevisit.name">Notifica rientro nave</div>
+            <div class="setting-desc" data-i18n="settings.notifRevisit.desc">Avvisa quando una nave rientra in un'area dove era già stata in passato.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-revisit">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-area-change">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifAreaChange.name">Notifica cambio area</div>
+            <div class="setting-desc" data-i18n="settings.notifAreaChange.desc">Avvisa quando una nave vista in un'area viene poi vista in un'altra area.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-area-change">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-high-risk">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifHighRisk.name">Notifica score alto</div>
+            <div class="setting-desc" data-i18n="settings.notifHighRisk.desc">Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100).</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-high-risk">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.export.name">Esporta CSV</div>
+            <div class="setting-desc" data-i18n="settings.export.desc">Scarica tutte le letture AIS in formato CSV.</div>
+          </div>
+          <button id="btn-export" class="btn btn-secondary" data-i18n="settings.export.btn">⬇ Esporta</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.backup.name">Backup database</div>
+            <div class="setting-desc" data-i18n="settings.backup.desc">Scarica l'intero database (file .db) come backup locale.</div>
+          </div>
+          <button id="btn-backup" class="btn btn-secondary" data-i18n="settings.backup.btn">⬇ Scarica</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.restore.name">Ripristina database</div>
+            <div class="setting-desc" data-i18n-html="settings.restore.desc">Sostituisce <strong>tutti</strong> i dati attuali con quelli del file di backup selezionato. Operazione irreversibile.</div>
+          </div>
+          <button id="btn-restore" class="btn btn-clear" data-i18n="settings.restore.btn">⬆ Ripristina</button>
+          <input type="file" id="restore-file" accept=".db,.sqlite,application/octet-stream" class="hidden">
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.lang.name">Lingua / Language</div>
+            <div class="setting-desc" data-i18n="settings.lang.desc">Lingua dell'interfaccia. La pagina verrà ricaricata.</div>
+          </div>
+          <select id="lang-select">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        </div>
+        <div id="settings-panel-dev" class="settings-panel hidden">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.devNotifTest.name">Notifica di test</div>
+              <div class="setting-desc" data-i18n="settings.devNotifTest.desc">Inserisce una notifica di prova nel feed della barra laterale per verificarne il funzionamento.</div>
+            </div>
+            <button id="btn-test-notification" class="btn btn-secondary" data-i18n="settings.devNotifTest.btn">🔔 Scatena</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Health modal -->
+  <div id="health-overlay" class="hidden">
+    <div id="health-modal">
+      <div class="modal-header">
+        <h2 data-i18n="health.title">Diagnostica AIS Stream</h2>
+        <button id="health-close">&times;</button>
+      </div>
+      <div id="health-body"></div>
+    </div>
+  </div>
+
+  <!-- Modal lettura singola -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div class="modal-header">
+        <h2 id="modal-title" data-i18n="detail.readingTitle">Dettaglio lettura</h2>
+        <button id="modal-close">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden">
+    <div id="toast-title" class="toast-title"></div>
+    <div id="toast-body" class="toast-body"></div>
+  </div>
+
+  <div id="undo-toast" class="toast undo-toast hidden">
+    <span id="undo-toast-msg" class="undo-toast-msg"></span>
+    <button id="undo-toast-btn" class="btn btn-secondary btn-sm">
+      <span data-i18n="undo.btn">↶ Annulla</span>&nbsp;(<span id="undo-toast-count">10</span>)
+    </button>
+  </div>
+
+  <button id="theme-toggle" type="button"
+          data-i18n-aria="theme.toggle" data-i18n-title="theme.toggle"
+          aria-label="Cambia tema" title="Cambia tema chiaro/scuro">
+    <span class="icon-moon" aria-hidden="true">🌙</span>
+    <span class="icon-sun" aria-hidden="true">☀️</span>
+  </button>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
