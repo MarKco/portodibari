@@ -1751,6 +1751,25 @@ pre {
   margin-left: 0.5rem;
 }
 .scrape-badge--mt { color: #7c9fc0; }
+.scrape-badge--eq { color: #c0a37c; }
+
+/* Equasis: button sits inline in the section title, management sub-tables. */
+#equasis-data-section .detail-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+#btn-equasis-fetch { margin-left: auto; text-transform: none; letter-spacing: 0; flex: none; }
+.eq-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0.75rem 0 0.35rem;
+}
+.eq-subtitle:first-child { margin-top: 0; }
+.eq-addr  { color: var(--text-dim); font-weight: 400; font-size: 0.76rem; }
+.eq-date  { color: var(--text-faint); font-weight: 400; font-size: 0.74rem; }
 
 .vf-photo {
   max-height: 180px;

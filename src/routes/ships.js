@@ -6,7 +6,8 @@ const { computeDirection, isInPort } = require('../services/ship-analysis');
 const { computeRiskScore, isMilitary } = require('../services/risk-score');
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT } = require('../config');
+const { crawlEquasis } = require('../services/scrapers/equasis');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD } = require('../config');
 
 const router = express.Router();
 
@@ -175,6 +176,45 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
         shipId: ship.mt_ship_id || null,
       });
     }
+    res.json({ enabled: true, error: e.message });
+  }
+});
+
+// Equasis ownership/management lookup. Unlike VF/MT this never auto-runs and
+// never expires: the cached result is served forever once obtained, and a live
+// fetch happens only when the client asks (`?fetch=1`, i.e. the detail button).
+router.get('/ships/:mmsi/equasis', async (req, res) => {
+  if (!state.importEquasis) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+
+  const cached = db.getScrapedData(mmsi, 'eq');
+  if (cached) {
+    return res.json({
+      enabled: true,
+      data: JSON.parse(cached.data_json),
+      cached: true,
+      cachedAt: cached.scraped_at,
+    });
+  }
+
+  // No cache. Only scrape on explicit request from the button.
+  if (req.query.fetch !== '1') {
+    return res.json({ enabled: true, data: null, needsFetch: true });
+  }
+  if (!EQUASIS_USER || !EQUASIS_PASSWORD) {
+    return res.json({ enabled: true, error: 'Credenziali Equasis mancanti: imposta EQUASIS_USER e EQUASIS_PASSWORD in local.properties' });
+  }
+  if (!ship.imo_number) {
+    return res.json({ enabled: true, error: 'IMO mancante: Equasis interroga solo per numero IMO' });
+  }
+  try {
+    const data = await crawlEquasis(ship.imo_number);
+    const scraped_at = db.setScrapedData(mmsi, 'eq', data);
+    res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
+  } catch (e) {
+    console.error('[EQUASIS] Crawl error:', e.message);
     res.json({ enabled: true, error: e.message });
   }
 });

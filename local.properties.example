@@ -17,6 +17,14 @@ IMPORT_MT_DATA=false
 # IMO/name/call sign). A match is a very strong risk signal (true | false).
 IMPORT_SANCTIONS=false
 
+# Equasis ownership lookup (true | false). On-demand only: enables the "Recupera
+# informazioni Equasis" button in the ship detail to fetch registered owner / ISM
+# manager / operator by IMO. Never runs automatically. Needs a free Equasis
+# account (register at https://www.equasis.org/) set below.
+IMPORT_EQUASIS=false
+EQUASIS_USER=
+EQUASIS_PASSWORD=
+
 # Port State Control screening (true | false): Paris/Tokyo MoU flag-performance
 # lists (white/grey/black, bundled, updated yearly) + Paris MoU banned-ships list
 # (downloaded daily). Banned = refusal of access after repeated detentions.

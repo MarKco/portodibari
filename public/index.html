@@ -245,6 +245,17 @@
         <div id="mt-data-body"></div>
       </div>
 
+      <!-- Equasis ownership data (manual, on-demand) -->
+      <div id="equasis-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.equasisTitle">Proprietà / gestione (Equasis)</span>
+          <span id="equasis-cache-badge" class="scrape-badge scrape-badge--eq hidden"></span>
+          <button id="btn-equasis-fetch" class="btn btn-secondary btn-sm"
+                  data-i18n="detail.equasisFetch">Recupera informazioni Equasis</button>
+        </h3>
+        <div id="equasis-data-body"></div>
+      </div>
+
       <div id="detail-map"></div>
       <div id="table-wrap-detail">
         <table>
@@ -518,6 +529,16 @@
           </div>
           <label class="toggle">
             <input type="checkbox" id="toggle-import-mt">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.equasis.name">Lookup Equasis (proprietà)</div>
+            <div class="setting-desc" data-i18n="settings.equasis.desc">Abilita il pulsante "Recupera informazioni Equasis" nel dettaglio nave per recuperare proprietario registrato, gestore ISM e operatore (per numero IMO). Mai automatico: parte solo su richiesta. Richiede credenziali Equasis (EQUASIS_USER / EQUASIS_PASSWORD in local.properties). Dati memorizzati una sola volta.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-equasis">
             <span class="toggle-slider"></span>
           </label>
         </div>

@@ -2,10 +2,14 @@
 
 const express = require('express');
 const {
-  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportPsc, setNotificationsEnabled, setNotifyRevisit,
+  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
   setNotifyAreaChange, setNotifyHighRisk, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
+  EQUASIS_USER, EQUASIS_PASSWORD,
 } = require('../config');
+
+// Whether Equasis credentials are present (the lookup is unusable without them).
+const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
 const { enrichAllExisting } = require('../services/enrichment');
 const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
@@ -37,6 +41,8 @@ router.get('/settings', (req, res) => {
     sanctions: sanctions.getStatus(),
     importPsc: state.importPsc,
     psc: psc.getStatus(),
+    importEquasis: state.importEquasis,
+    equasisConfigured,
     notificationsEnabled: state.notificationsEnabled,
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
@@ -66,6 +72,7 @@ function exportSettings() {
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
     importPsc: state.importPsc,
+    importEquasis: state.importEquasis,
     notificationsEnabled: state.notificationsEnabled,
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
@@ -112,6 +119,9 @@ function applyImportedSettings(s) {
     }
   }
 
+  // Equasis is a manual, on-demand lookup: just persist the toggle, never backfill.
+  if (s.importEquasis !== undefined) setImportEquasis(s.importEquasis);
+
   if (s.preset && BBOX_PRESETS[s.preset]) setPreset(s.preset);
 
   return exportSettings();
@@ -138,7 +148,7 @@ router.post('/settings/import', (req, res) => {
 router.post('/settings', (req, res) => {
   const {
     preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
-    importPsc: newPsc,
+    importPsc: newPsc, importEquasis: newEquasis,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk,
   } = req.body;
@@ -192,6 +202,11 @@ router.post('/settings', (req, res) => {
       psc.refresh().catch((e) => console.error(`[PSC] Refresh failed: ${e.message}`));
     }
   }
+  if (newEquasis !== undefined) {
+    // Manual on-demand lookup: persist the toggle only, no backfill/auto-fetch.
+    setImportEquasis(newEquasis);
+    console.log(`[EQUASIS] Import Equasis: ${state.importEquasis}`);
+  }
 
   if (!preset) {
     return res.json({
@@ -202,6 +217,8 @@ router.post('/settings', (req, res) => {
       sanctions: sanctions.getStatus(),
       importPsc: state.importPsc,
       psc: psc.getStatus(),
+      importEquasis: state.importEquasis,
+      equasisConfigured,
       notificationsEnabled: state.notificationsEnabled,
       notifyRevisit: state.notifyRevisit,
       notifyAreaChange: state.notifyAreaChange,
@@ -227,6 +244,7 @@ router.post('/settings', (req, res) => {
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
     importPsc: state.importPsc,
+    importEquasis: state.importEquasis,
   });
 });
 

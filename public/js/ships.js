@@ -712,6 +712,89 @@ export async function loadMtData(mmsi) {
   }
 }
 
+// ── Equasis ownership data (manual, button-triggered) ────────────────────────
+// `doFetch=false` (detail open): show cached data only, no network. If nothing
+// is cached, just expose the fetch button. `doFetch=true` (button): run the live
+// lookup, which the server caches permanently.
+export async function loadEquasisData(mmsi, doFetch = false) {
+  if (!S.importEquasis) {
+    el.equasisDataSection.classList.add('hidden');
+    return;
+  }
+  el.equasisDataSection.classList.remove('hidden');
+  el.equasisCacheBadge.classList.add('hidden');
+  if (doFetch) {
+    el.btnEquasisFetch.disabled = true;
+    el.equasisDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingEquasis')}</p>`;
+  }
+  try {
+    const result = await api(`/api/ships/${mmsi}/equasis${doFetch ? '?fetch=1' : ''}`);
+    if (!result.enabled) {
+      el.equasisDataSection.classList.add('hidden');
+      return;
+    }
+    if (result.error) {
+      el.equasisDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
+      el.btnEquasisFetch.classList.remove('hidden');
+      return;
+    }
+    if (!result.data) {
+      // Nothing cached yet — invite the user to fetch.
+      el.equasisDataBody.innerHTML = `<p class="vf-empty">${t('scrape.equasisHint')}</p>`;
+      el.btnEquasisFetch.classList.remove('hidden');
+      return;
+    }
+    if (result.cachedAt) {
+      el.equasisCacheBadge.textContent = `${t('scrape.stored')} · ${formatTime(result.cachedAt)}`;
+      el.equasisCacheBadge.classList.remove('hidden');
+    }
+    // Already have data: hide the button (lookup is "once").
+    el.btnEquasisFetch.classList.add('hidden');
+    renderEquasisData(el.equasisDataBody, result.data);
+  } catch {
+    el.equasisDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
+    el.btnEquasisFetch.classList.remove('hidden');
+  } finally {
+    el.btnEquasisFetch.disabled = false;
+  }
+}
+
+function renderEquasisData(container, data) {
+  const mgmt = (data && data.management) || [];
+  const particulars = (data && data.particulars) || {};
+  if (!mgmt.length && !Object.keys(particulars).length) {
+    container.innerHTML = `<p class="vf-empty">${t('scrape.noData')}</p>`;
+    return;
+  }
+  let html = '';
+  if (mgmt.length) {
+    const rows = mgmt
+      .map(
+        (m) => `
+      <tr>
+        <td class="vf-td-label">${escHtml(m.role)}</td>
+        <td class="vf-td-val">${escHtml(m.company)}${m.address ? `<br><span class="eq-addr">${escHtml(m.address)}</span>` : ''}${m.date ? `<br><span class="eq-date">${escHtml(m.date)}</span>` : ''}</td>
+      </tr>`
+      )
+      .join('');
+    html += `<h4 class="eq-subtitle">${t('scrape.equasisMgmt')}</h4><table class="vf-table">${rows}</table>`;
+  }
+  const pEntries = Object.entries(particulars);
+  if (pEntries.length) {
+    const rows = pEntries
+      .map(
+        ([label, value]) => `
+      <tr>
+        <td class="vf-td-label">${escHtml(label)}</td>
+        <td class="vf-td-val">${escHtml(value)}</td>
+      </tr>`
+      )
+      .join('');
+    html += `<h4 class="eq-subtitle">${t('scrape.equasisParticulars')}</h4><table class="vf-table">${rows}</table>`;
+  }
+  container.innerHTML = html;
+}
+
 function renderScrapedData(container, data) {
   if (!data || !Object.keys(data).length) {
     container.innerHTML = `<p class="vf-empty">${t('scrape.noData')}</p>`;

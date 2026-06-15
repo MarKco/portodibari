@@ -60,6 +60,12 @@ if (!API_KEY) throw new Error('AIS_API_KEY missing: set in local.properties or e
 const AUTH_USER = props.AUTH_USER || process.env.AUTH_USER || 'admin';
 const AUTH_PASSWORD = props.AUTH_PASSWORD || process.env.AUTH_PASSWORD || '';
 
+// ── Equasis credentials (optional) ───────────────────────────────────────────
+// Needed only for the on-demand Equasis ownership lookup. The feature stays
+// hidden/unusable until both are set.
+const EQUASIS_USER = props.EQUASIS_USER || process.env.EQUASIS_USER || '';
+const EQUASIS_PASSWORD = props.EQUASIS_PASSWORD || process.env.EQUASIS_PASSWORD || '';
+
 // ── Bounding-box presets ─────────────────────────────────────────────────────
 // Loaded from `bounding-boxes.json` so users can add/edit monitoring areas
 // without touching code. Each entry: { name, keyword, sw: [lat,lon], ne: [lat,lon] }.
@@ -168,6 +174,9 @@ const state = {
   importMtData: props.IMPORT_MT_DATA === 'true',
   importSanctions: props.IMPORT_SANCTIONS === 'true',
   importPsc: props.IMPORT_PSC === 'true',
+  // Equasis ownership lookup. Off by default and never auto-runs — only the
+  // detail-view button triggers a fetch. Needs Equasis credentials too.
+  importEquasis: props.IMPORT_EQUASIS === 'true',
   // Notifications default ON unless explicitly disabled in local.properties.
   notificationsEnabled: props.NOTIFICATIONS_ENABLED !== 'false',
   notifyRevisit: props.NOTIFY_REVISIT !== 'false',
@@ -212,6 +221,11 @@ function setImportSanctions(enabled) {
 function setImportPsc(enabled) {
   state.importPsc = !!enabled;
   saveProperty('IMPORT_PSC', state.importPsc);
+}
+
+function setImportEquasis(enabled) {
+  state.importEquasis = !!enabled;
+  saveProperty('IMPORT_EQUASIS', state.importEquasis);
 }
 
 function setNotificationsEnabled(enabled) {
@@ -406,6 +420,8 @@ module.exports = {
   API_KEY_SOURCE,
   AUTH_USER,
   AUTH_PASSWORD,
+  EQUASIS_USER,
+  EQUASIS_PASSWORD,
   PORT,
   AIS_URL,
   MSG_TYPES,
@@ -431,6 +447,7 @@ module.exports = {
   setImportMt,
   setImportSanctions,
   setImportPsc,
+  setImportEquasis,
   setNotificationsEnabled,
   setNotifyRevisit,
   setNotifyAreaChange,

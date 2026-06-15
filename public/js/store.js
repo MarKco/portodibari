@@ -25,6 +25,8 @@ export const S = {
   importMtData: false,
   importSanctions: false,
   importPsc: false,
+  importEquasis: false,
+  equasisConfigured: false,
   notificationsEnabled: true,
   notifyRevisit: true,
   notifyAreaChange: true,

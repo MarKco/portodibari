@@ -41,6 +41,7 @@ export const el = {
   btnNotifMuteDetail: $('btn-notif-mute-detail'),
   btnVfDetail: $('btn-vf-detail'),
   btnMtDetail: $('btn-mt-detail'),
+  btnEquasisFetch: $('btn-equasis-fetch'),
   btnReportDetail: $('btn-report-detail'),
   detailNotesEl: $('detail-notes'),
   btnSaveNotes: $('btn-save-notes'),
@@ -129,6 +130,10 @@ export const el = {
   mtDataSection: $('mt-data-section'),
   mtDataBody: $('mt-data-body'),
   mtCacheBadge: $('mt-cache-badge'),
+  equasisDataSection: $('equasis-data-section'),
+  equasisDataBody: $('equasis-data-body'),
+  equasisCacheBadge: $('equasis-cache-badge'),
+  toggleImportEquasis: $('toggle-import-equasis'),
 
   // Log panel
   btnLog: $('btn-log'),

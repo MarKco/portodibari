@@ -6,6 +6,7 @@ import {
   loadDetail,
   loadVfData,
   loadMtData,
+  loadEquasisData,
   renderDetailInfoBar,
   updateDetailFlagBtn,
   updateDetailSeenBtn,
@@ -49,6 +50,8 @@ export function showView(v, mmsi, shipData) {
     loadDetail();
     loadTrack(mmsi);
     Promise.all([loadVfData(mmsi), loadMtData(mmsi)]).then(() => loadDetail());
+    // Equasis is manual: only show cached data here, never auto-fetch.
+    loadEquasisData(mmsi, false);
   } else if (v === 'active') {
     loadActive();
   } else if (v === 'past') {

@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadDetail, loadVfData, loadMtData } from './ships.js';
+import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initLogPanel } from './logs.js';
@@ -107,6 +107,9 @@ async function loadSettings() {
     S.importPsc = !!s.importPsc;
     if (el.toggleImportPsc) el.toggleImportPsc.checked = S.importPsc;
     renderPscStatus(s.psc);
+    S.importEquasis = !!s.importEquasis;
+    S.equasisConfigured = !!s.equasisConfigured;
+    if (el.toggleImportEquasis) el.toggleImportEquasis.checked = S.importEquasis;
     S.notificationsEnabled = s.notificationsEnabled !== false;
     S.notifyRevisit = s.notifyRevisit !== false;
     S.notifyAreaChange = s.notifyAreaChange !== false;
@@ -258,6 +261,25 @@ function initSettingsModal() {
       el.toggleImportMt.checked = !enabled;
     }
   });
+
+  if (el.toggleImportEquasis) {
+    el.toggleImportEquasis.addEventListener('change', async () => {
+      const enabled = el.toggleImportEquasis.checked;
+      try {
+        await api('/api/settings', 'POST', { importEquasis: enabled });
+        S.importEquasis = enabled;
+        if (S.view === 'detail' && S.detailMmsi != null) loadEquasisData(S.detailMmsi, false);
+      } catch {
+        el.toggleImportEquasis.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.btnEquasisFetch) {
+    el.btnEquasisFetch.addEventListener('click', () => {
+      if (S.detailMmsi != null) loadEquasisData(S.detailMmsi, true);
+    });
+  }
 
   if (el.toggleImportSanctions) {
     el.toggleImportSanctions.addEventListener('change', async () => {
