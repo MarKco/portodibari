@@ -1660,6 +1660,17 @@ pre {
 .setting-row:last-child { border-bottom: none; }
 .setting-row.disabled { opacity: 0.45; pointer-events: none; }
 
+/* Group heading inside a settings panel (e.g. the Backup / Restore tab). */
+.settings-group-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 1.4rem 0 0.2rem;
+}
+.settings-group-title:first-child { margin-top: 0.4rem; }
+
 /* Child notification toggles: indented under the master "Notifiche" switch
    with a left accent line to show the dependency. */
 .setting-row-child {

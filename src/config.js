@@ -306,6 +306,60 @@ function addArea({ name, sw, ne, keyword }) {
 }
 
 /**
+ * Merge a set of area definitions (the `bounding-boxes.json` shape) into the
+ * current presets. Keys starting with `_` (e.g. `_comment`) are ignored. An
+ * incoming key that already exists is updated in place; a new key is added.
+ * Corners are normalized to a true SW/NE pair. Re-importing the same export is
+ * idempotent. Returns `{ added: [keys], updated: [keys], skipped: [{key,reason}] }`.
+ */
+function importAreas(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('File aree non valido');
+  const ok = (c) => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isFinite(Number(n)));
+  const added = [];
+  const updated = [];
+  const skipped = [];
+  for (const [key, v] of Object.entries(raw)) {
+    if (key.startsWith('_')) continue;
+    if (!v || typeof v !== 'object' || !ok(v.sw) || !ok(v.ne)) {
+      skipped.push({ key, reason: 'coordinate non valide' });
+      continue;
+    }
+    const swLat = Math.min(Number(v.sw[0]), Number(v.ne[0]));
+    const neLat = Math.max(Number(v.sw[0]), Number(v.ne[0]));
+    const swLon = Math.min(Number(v.sw[1]), Number(v.ne[1]));
+    const neLon = Math.max(Number(v.sw[1]), Number(v.ne[1]));
+    if (swLat < -90 || neLat > 90 || swLon < -180 || neLon > 180 || swLat === neLat || swLon === neLon) {
+      skipped.push({ key, reason: 'coordinate fuori range o degeneri' });
+      continue;
+    }
+    const existed = !!BBOX_PRESETS[key];
+    BBOX_PRESETS[key] = {
+      box: [[[swLat, swLon], [neLat, neLon]]],
+      name: v.name && String(v.name).trim() ? String(v.name).trim() : key,
+      keyword: v.keyword && String(v.keyword).trim() ? String(v.keyword).trim() : null,
+    };
+    (existed ? updated : added).push(key);
+  }
+  if (!added.length && !updated.length) {
+    throw new Error('Nessuna area valida nel file');
+  }
+  saveBboxPresets();
+  return { added, updated, skipped };
+}
+
+/**
+ * Serialize the current presets to the portable `bounding-boxes.json` shape
+ * (`{ key: { name, keyword, sw, ne } }`) for download/export.
+ */
+function exportAreas() {
+  const out = {};
+  for (const [k, v] of Object.entries(BBOX_PRESETS)) {
+    out[k] = { name: v.name, keyword: v.keyword || null, sw: v.box[0][0], ne: v.box[0][1] };
+  }
+  return out;
+}
+
+/**
  * Remove an area. Refuses to drop the last remaining one. If the removed area
  * was the active view preset, switches to another and persists the change.
  * Returns `{ switched }` (the new preset key, or null).
@@ -385,4 +439,6 @@ module.exports = {
   areaForPoint,
   addArea,
   removeArea,
+  importAreas,
+  exportAreas,
 };

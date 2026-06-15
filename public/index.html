@@ -490,6 +490,8 @@
                   data-i18n="settings.tab.general">Generali</button>
           <button id="settings-tab-dev" class="tab" data-panel="dev"
                   data-i18n="settings.tab.dev">Developer options</button>
+          <button id="settings-tab-backup" class="tab" data-panel="backup"
+                  data-i18n="settings.tab.backup">Backup / Ripristino</button>
         </div>
         <div id="settings-panel-general" class="settings-panel">
         <div class="setting-row setting-row-col">
@@ -585,28 +587,6 @@
         </div>
         <div class="setting-row">
           <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.export.name">Esporta CSV</div>
-            <div class="setting-desc" data-i18n="settings.export.desc">Scarica tutte le letture AIS in formato CSV.</div>
-          </div>
-          <button id="btn-export" class="btn btn-secondary" data-i18n="settings.export.btn">⬇ Esporta</button>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.backup.name">Backup database</div>
-            <div class="setting-desc" data-i18n="settings.backup.desc">Scarica l'intero database (file .db) come backup locale.</div>
-          </div>
-          <button id="btn-backup" class="btn btn-secondary" data-i18n="settings.backup.btn">⬇ Scarica</button>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.restore.name">Ripristina database</div>
-            <div class="setting-desc" data-i18n-html="settings.restore.desc">Sostituisce <strong>tutti</strong> i dati attuali con quelli del file di backup selezionato. Operazione irreversibile.</div>
-          </div>
-          <button id="btn-restore" class="btn btn-clear" data-i18n="settings.restore.btn">⬆ Ripristina</button>
-          <input type="file" id="restore-file" accept=".db,.sqlite,application/octet-stream" class="hidden">
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
             <div class="setting-name" data-i18n="settings.lang.name">Lingua / Language</div>
             <div class="setting-desc" data-i18n="settings.lang.desc">Lingua dell'interfaccia. La pagina verrà ricaricata.</div>
           </div>
@@ -623,6 +603,82 @@
               <div class="setting-desc" data-i18n="settings.devNotifTest.desc">Inserisce una notifica di prova nel feed della barra laterale per verificarne il funzionamento.</div>
             </div>
             <button id="btn-test-notification" class="btn btn-secondary" data-i18n="settings.devNotifTest.btn">🔔 Scatena</button>
+          </div>
+        </div>
+        <div id="settings-panel-backup" class="settings-panel hidden">
+          <h3 class="settings-group-title" data-i18n="settings.group.full">Backup completo</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.bundle.name">Esporta tutto</div>
+              <div class="setting-desc" data-i18n="settings.bundle.desc">Scarica un unico file con database, aree e impostazioni. Re-importabile per ripristinare l'intero stato dell'app.</div>
+            </div>
+            <button id="btn-bundle-export" class="btn btn-secondary" data-i18n="settings.bundle.btn">⬇ Esporta tutto</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.bundleImport.name">Importa tutto</div>
+              <div class="setting-desc" data-i18n-html="settings.bundleImport.desc">Ripristina database, aree e impostazioni da un file di backup completo. Sostituisce <strong>tutti</strong> i dati attuali. Operazione irreversibile.</div>
+            </div>
+            <button id="btn-bundle-import" class="btn btn-clear" data-i18n="settings.bundleImport.btn">⬆ Importa tutto</button>
+            <input type="file" id="bundle-file" accept=".json,application/json" class="hidden">
+          </div>
+
+          <h3 class="settings-group-title" data-i18n="settings.group.data">Dati</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.export.name">Esporta CSV</div>
+              <div class="setting-desc" data-i18n="settings.export.desc">Scarica tutte le letture AIS in formato CSV.</div>
+            </div>
+            <button id="btn-export" class="btn btn-secondary" data-i18n="settings.export.btn">⬇ Esporta</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.backup.name">Backup database</div>
+              <div class="setting-desc" data-i18n="settings.backup.desc">Scarica l'intero database (file .db) come backup locale.</div>
+            </div>
+            <button id="btn-backup" class="btn btn-secondary" data-i18n="settings.backup.btn">⬇ Scarica</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.restore.name">Ripristina database</div>
+              <div class="setting-desc" data-i18n-html="settings.restore.desc">Sostituisce <strong>tutti</strong> i dati attuali con quelli del file di backup selezionato. Operazione irreversibile.</div>
+            </div>
+            <button id="btn-restore" class="btn btn-clear" data-i18n="settings.restore.btn">⬆ Ripristina</button>
+            <input type="file" id="restore-file" accept=".db,.sqlite,application/octet-stream" class="hidden">
+          </div>
+
+          <h3 class="settings-group-title" data-i18n="settings.group.areas">Aree</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.areasExport.name">Esporta aree</div>
+              <div class="setting-desc" data-i18n="settings.areasExport.desc">Scarica l'elenco delle aree di monitoraggio in formato JSON.</div>
+            </div>
+            <button id="btn-areas-export" class="btn btn-secondary" data-i18n="settings.areasExport.btn">⬇ Esporta aree</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.areasImport.name">Importa aree</div>
+              <div class="setting-desc" data-i18n="settings.areasImport.desc">Aggiunge o aggiorna le aree da un file JSON esportato. Le aree esistenti non vengono rimosse.</div>
+            </div>
+            <button id="btn-areas-import" class="btn btn-secondary" data-i18n="settings.areasImport.btn">⬆ Importa aree</button>
+            <input type="file" id="areas-file" accept=".json,application/json" class="hidden">
+          </div>
+
+          <h3 class="settings-group-title" data-i18n="settings.group.settings">Impostazioni</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.settingsExport.name">Esporta impostazioni</div>
+              <div class="setting-desc" data-i18n="settings.settingsExport.desc">Scarica lo stato di tutti i toggle (import dati, screening, notifiche) in formato JSON.</div>
+            </div>
+            <button id="btn-settings-export" class="btn btn-secondary" data-i18n="settings.settingsExport.btn">⬇ Esporta impostazioni</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.settingsImport.name">Importa impostazioni</div>
+              <div class="setting-desc" data-i18n="settings.settingsImport.desc">Applica lo stato dei toggle da un file di impostazioni esportato.</div>
+            </div>
+            <button id="btn-settings-import" class="btn btn-secondary" data-i18n="settings.settingsImport.btn">⬆ Importa impostazioni</button>
+            <input type="file" id="settings-file" accept=".json,application/json" class="hidden">
           </div>
         </div>
       </div>

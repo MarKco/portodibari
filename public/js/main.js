@@ -163,6 +163,26 @@ function renderPscStatus(st) {
     .replace('{date}', when);
 }
 
+// Upload a user-selected file to an import endpoint, showing a busy label on the
+// triggering button. Runs onDone(responseData) on success.
+async function runImport({ file, url, contentType, btn, busyLabel, onDone }) {
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = busyLabel;
+  try {
+    const body = await file.text();
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': contentType }, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    await onDone(data);
+  } catch (e) {
+    alert(t('toast.importFail') + (e.message || String(e)));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+}
+
 function initSettingsModal() {
   el.btnSettings.addEventListener('click', () => el.settingsOverlay.classList.remove('hidden'));
   el.settingsClose.addEventListener('click', () => el.settingsOverlay.classList.add('hidden'));
@@ -173,15 +193,14 @@ function initSettingsModal() {
     if (e.key === 'Escape') el.settingsOverlay.classList.add('hidden');
   });
 
-  // Settings tabs — switch between the general panel and developer options.
+  // Settings tabs — switch between the panels (general / dev / backup).
   el.settingsTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
     el.settingsTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
     tab.classList.add('tab-active');
-    const isDev = tab.dataset.panel === 'dev';
-    el.settingsPanelGeneral.classList.toggle('hidden', isDev);
-    el.settingsPanelDev.classList.toggle('hidden', !isDev);
+    const target = `settings-panel-${tab.dataset.panel}`;
+    el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
   });
 
   // Developer option — inject a test notification and refresh the feed.
@@ -374,6 +393,64 @@ function initSettingsModal() {
       el.btnRestore.disabled = false;
       el.btnRestore.textContent = prevLabel;
     }
+  });
+
+  // ── Backup / restore tab — granular and full-bundle export/import ──────────
+  el.btnBundleExport.addEventListener('click', () => { window.location = '/api/bundle'; });
+  el.btnAreasExport.addEventListener('click', () => { window.location = '/api/areas/export'; });
+  el.btnSettingsExport.addEventListener('click', () => { window.location = '/api/settings/export'; });
+
+  el.btnAreasImport.addEventListener('click', () => el.areasFile.click());
+  el.areasFile.addEventListener('change', async () => {
+    const file = el.areasFile.files[0];
+    el.areasFile.value = '';
+    if (!file) return;
+    await runImport({
+      file, url: '/api/areas/import', contentType: 'application/json',
+      btn: el.btnAreasImport, busyLabel: t('toast.importing'),
+      onDone: async (d) => {
+        const n = (d.added?.length || 0) + (d.updated?.length || 0);
+        showAlert(t('toast.areasImported'), t('toast.areasImportedBody', { n }));
+        window.dispatchEvent(new CustomEvent('areas-changed'));
+      },
+    });
+  });
+
+  el.btnSettingsImport.addEventListener('click', () => el.settingsFile.click());
+  el.settingsFile.addEventListener('change', async () => {
+    const file = el.settingsFile.files[0];
+    el.settingsFile.value = '';
+    if (!file) return;
+    await runImport({
+      file, url: '/api/settings/import', contentType: 'application/json',
+      btn: el.btnSettingsImport, busyLabel: t('toast.importing'),
+      onDone: async () => {
+        showAlert(t('toast.settingsImported'), '');
+        await loadSettings();
+        updateStatus();
+        tick();
+      },
+    });
+  });
+
+  el.btnBundleImport.addEventListener('click', () => el.bundleFile.click());
+  el.bundleFile.addEventListener('change', async () => {
+    const file = el.bundleFile.files[0];
+    el.bundleFile.value = '';
+    if (!file) return;
+    if (!confirm(t('confirm.bundleImport', { file: file.name }))) return;
+    await runImport({
+      file, url: '/api/bundle/import', contentType: 'application/octet-stream',
+      btn: el.btnBundleImport, busyLabel: t('toast.restoring'),
+      onDone: async (d) => {
+        const total = Object.values(d.counts || {}).reduce((a, b) => a + b, 0);
+        showAlert(t('toast.bundleImported'), t('toast.bundleImportedBody', { n: total.toLocaleString() }));
+        el.settingsOverlay.classList.add('hidden');
+        await loadSettings();
+        window.dispatchEvent(new CustomEvent('areas-changed'));
+        tick();
+      },
+    });
   });
 }
 

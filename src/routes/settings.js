@@ -57,6 +57,84 @@ router.post('/psc/refresh', (req, res) => {
   res.json({ ok: true, psc: psc.getStatus() });
 });
 
+// The persisted, portable subset of settings (all the on/off toggles + the
+// active view preset). Shared by the export route and the full-bundle export.
+function exportSettings() {
+  return {
+    preset: state.preset,
+    importVfData: state.importVfData,
+    importMtData: state.importMtData,
+    importSanctions: state.importSanctions,
+    importPsc: state.importPsc,
+    notificationsEnabled: state.notificationsEnabled,
+    notifyRevisit: state.notifyRevisit,
+    notifyAreaChange: state.notifyAreaChange,
+    notifyHighRisk: state.notifyHighRisk,
+  };
+}
+
+// Apply an imported settings object, firing the same "freshly enabled" side
+// effects as the interactive POST /settings handler (enrichment backfill,
+// list downloads). Unknown/absent fields are left untouched. The preset is only
+// switched when it names an existing area. Shared by /settings/import and the
+// full-bundle import. Returns the resulting exportSettings() snapshot.
+function applyImportedSettings(s) {
+  if (!s || typeof s !== 'object') throw new Error('File impostazioni non valido');
+
+  if (s.notificationsEnabled !== undefined) setNotificationsEnabled(s.notificationsEnabled);
+  if (s.notifyRevisit !== undefined) setNotifyRevisit(s.notifyRevisit);
+  if (s.notifyAreaChange !== undefined) setNotifyAreaChange(s.notifyAreaChange);
+  if (s.notifyHighRisk !== undefined) setNotifyHighRisk(s.notifyHighRisk);
+
+  if (s.importVfData !== undefined) {
+    const wasDisabled = !state.importVfData;
+    setImportVf(s.importVfData);
+    if (state.importVfData && wasDisabled) enrichAllExisting('vf');
+  }
+  if (s.importMtData !== undefined) {
+    const wasDisabled = !state.importMtData;
+    setImportMt(s.importMtData);
+    if (state.importMtData && wasDisabled) enrichAllExisting('mt');
+  }
+  if (s.importSanctions !== undefined) {
+    const wasDisabled = !state.importSanctions;
+    setImportSanctions(s.importSanctions);
+    if (state.importSanctions && (wasDisabled || !sanctions.getStatus().loaded)) {
+      sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
+    }
+  }
+  if (s.importPsc !== undefined) {
+    const wasDisabled = !state.importPsc;
+    setImportPsc(s.importPsc);
+    if (state.importPsc && (wasDisabled || !psc.bannedLoaded())) {
+      psc.loadFromDisk();
+      psc.refresh().catch((e) => console.error(`[PSC] Refresh failed: ${e.message}`));
+    }
+  }
+
+  if (s.preset && BBOX_PRESETS[s.preset]) setPreset(s.preset);
+
+  return exportSettings();
+}
+
+// Download the portable settings subset as a JSON file (re-importable).
+router.get('/settings/export', (req, res) => {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="tracker-porti-impostazioni-${ts}.json"`);
+  res.send(JSON.stringify(exportSettings(), null, 2) + '\n');
+});
+
+// Apply settings from an uploaded JSON file.
+router.post('/settings/import', (req, res) => {
+  try {
+    const applied = applyImportedSettings(req.body);
+    res.json({ ok: true, settings: applied });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 router.post('/settings', (req, res) => {
   const {
     preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
@@ -153,3 +231,5 @@ router.post('/settings', (req, res) => {
 });
 
 module.exports = router;
+module.exports.exportSettings = exportSettings;
+module.exports.applyImportedSettings = applyImportedSettings;
