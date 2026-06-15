@@ -84,10 +84,10 @@ export const el = {
   btnAreaAdd: $('btn-area-add'),
   areaAddError: $('area-add-error'),
 
-  // Settings modal
+  // Settings view
   btnSettings: $('btn-settings'),
-  settingsOverlay: $('settings-overlay'),
-  settingsClose: $('settings-close'),
+  viewSettings: $('view-settings'),
+  btnSettingsBack: $('btn-settings-back'),
   toggleImportVf: $('toggle-import-vf'),
   toggleImportMt: $('toggle-import-mt'),
   toggleImportSanctions: $('toggle-import-sanctions'),
@@ -119,9 +119,12 @@ export const el = {
   settingsTabs: $('settings-tabs'),
   settingsPanels: document.querySelectorAll('.settings-panel'),
   settingsPanelGeneral: $('settings-panel-general'),
+  settingsPanelAreas: $('settings-panel-areas'),
   settingsPanelDev: $('settings-panel-dev'),
   settingsPanelBackup: $('settings-panel-backup'),
   btnTestNotification: $('btn-test-notification'),
+  btnManualBackup: $('btn-manual-backup'),
+  autoBackupList: $('auto-backup-list'),
 
   // Scraped data sections
   vfDataSection: $('vf-data-section'),

@@ -320,8 +320,13 @@ export default {
   'detail.notifMuteRemove': 'Unmute notifications for this ship',
 
   'settings.tab.general':    'General',
+  'settings.tab.areas':      'Areas',
   'settings.tab.dev':        'Developer options',
   'settings.tab.backup':     'Backup / Restore',
+  'settings.group.autobackup':      'Local auto-backup',
+  'settings.autobackup.name':       'Automatic backup',
+  'settings.autobackup.desc':       'Automatic backup every 30 minutes, saved on the server. The last 5 are kept. You can also save a manual backup now.',
+  'settings.autobackup.btn':        '💾 Save now',
   'settings.group.full':     'Full backup',
   'settings.group.data':     'Data',
   'settings.group.areas':    'Areas',

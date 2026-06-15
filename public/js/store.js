@@ -11,9 +11,10 @@ export const S = {
   trackSogStop: 0.5,
   notifDeleteUndoSeconds: 5,
   // View / detail
-  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'areas'
+  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'areas' | 'settings'
   detailMmsi: null,
   detailFrom: 'active',
+  settingsFrom: 'active',
   detailShipData: null,
   detailPage: 0,
   detailTotal: 0,

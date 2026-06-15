@@ -450,68 +450,23 @@
       </div>
     </div>
 
-  </div><!-- /#app -->
-  </div><!-- /#layout -->
-
-  <!-- Log panel -->
-  <div id="log-panel" class="hidden">
-    <div class="log-panel-header">
-      <div class="log-panel-title">
-        <span data-i18n="log.title">Log API</span>
-        <span id="log-live-badge" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+    <!-- View: settings -->
+    <div id="view-settings" class="hidden">
+      <div class="detail-nav">
+        <button id="btn-settings-back" class="btn btn-secondary" data-i18n="detail.back">← Indietro</button>
       </div>
-      <div class="log-panel-actions">
-        <label class="log-autoscroll-label">
-          <input type="checkbox" id="log-autoscroll" checked>
-          <span data-i18n="log.autoscroll">Auto-scroll</span>
-        </label>
-        <button id="btn-log-clear" class="btn btn-clear" data-i18n="log.clear">🗑 Cancella log</button>
-        <button id="btn-log-close" class="btn btn-secondary" data-i18n="log.close">✕ Chiudi</button>
-      </div>
-    </div>
-    <div id="log-table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th data-i18n="log.col.n">#</th>
-            <th data-i18n="log.col.time">Ora</th>
-            <th data-i18n="log.col.method">Metodo</th>
-            <th data-i18n="log.col.path">Path</th>
-            <th data-i18n="log.col.status">Status</th>
-            <th data-i18n="log.col.dur">Durata</th>
-          </tr>
-        </thead>
-        <tbody id="log-body">
-          <tr><td colspan="6" class="empty" data-i18n="empty.logs">Nessuna chiamata registrata.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Settings modal -->
-  <div id="settings-overlay" class="hidden">
-    <div id="settings-modal">
-      <div class="modal-header">
-        <h2 data-i18n="settings.title">Impostazioni</h2>
-        <button id="settings-close">&times;</button>
-      </div>
-      <div id="settings-body">
+      <div class="settings-content">
         <div class="tabs" id="settings-tabs">
           <button id="settings-tab-general" class="tab tab-active" data-panel="general"
                   data-i18n="settings.tab.general">Generali</button>
+          <button id="settings-tab-areas" class="tab" data-panel="areas"
+                  data-i18n="settings.tab.areas">Aree</button>
           <button id="settings-tab-dev" class="tab" data-panel="dev"
                   data-i18n="settings.tab.dev">Developer options</button>
           <button id="settings-tab-backup" class="tab" data-panel="backup"
                   data-i18n="settings.tab.backup">Backup / Ripristino</button>
         </div>
         <div id="settings-panel-general" class="settings-panel">
-        <div class="setting-row setting-row-col">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.monitors.name">Monitoraggio aree</div>
-            <div class="setting-desc" data-i18n="settings.monitors.desc">Accendi o spegni lo stream AIS di ciascuna area. Più aree possono essere monitorate in contemporanea.</div>
-          </div>
-          <div id="area-monitors" class="area-monitors"></div>
-        </div>
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.vf.name">Import VesselFinder</div>
@@ -618,6 +573,15 @@
           </select>
         </div>
         </div>
+        <div id="settings-panel-areas" class="settings-panel hidden">
+          <div class="setting-row setting-row-col">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.monitors.name">Monitoraggio aree</div>
+              <div class="setting-desc" data-i18n="settings.monitors.desc">Accendi o spegni lo stream AIS di ciascuna area. Più aree possono essere monitorate in contemporanea.</div>
+            </div>
+            <div id="area-monitors" class="area-monitors"></div>
+          </div>
+        </div>
         <div id="settings-panel-dev" class="settings-panel hidden">
           <div class="setting-row">
             <div class="setting-info">
@@ -628,6 +592,16 @@
           </div>
         </div>
         <div id="settings-panel-backup" class="settings-panel hidden">
+          <h3 class="settings-group-title" data-i18n="settings.group.autobackup">Auto-backup locale</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.autobackup.name">Backup automatico</div>
+              <div class="setting-desc" data-i18n="settings.autobackup.desc">Backup automatico ogni 30 minuti, salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.</div>
+            </div>
+            <button id="btn-manual-backup" class="btn btn-secondary" data-i18n="settings.autobackup.btn">💾 Salva ora</button>
+          </div>
+          <div id="auto-backup-list" class="auto-backup-list"></div>
+
           <h3 class="settings-group-title" data-i18n="settings.group.full">Backup completo</h3>
           <div class="setting-row">
             <div class="setting-info">
@@ -704,6 +678,43 @@
           </div>
         </div>
       </div>
+    </div>
+
+  </div><!-- /#app -->
+  </div><!-- /#layout -->
+
+  <!-- Log panel -->
+  <div id="log-panel" class="hidden">
+    <div class="log-panel-header">
+      <div class="log-panel-title">
+        <span data-i18n="log.title">Log API</span>
+        <span id="log-live-badge" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+      </div>
+      <div class="log-panel-actions">
+        <label class="log-autoscroll-label">
+          <input type="checkbox" id="log-autoscroll" checked>
+          <span data-i18n="log.autoscroll">Auto-scroll</span>
+        </label>
+        <button id="btn-log-clear" class="btn btn-clear" data-i18n="log.clear">🗑 Cancella log</button>
+        <button id="btn-log-close" class="btn btn-secondary" data-i18n="log.close">✕ Chiudi</button>
+      </div>
+    </div>
+    <div id="log-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="log.col.n">#</th>
+            <th data-i18n="log.col.time">Ora</th>
+            <th data-i18n="log.col.method">Metodo</th>
+            <th data-i18n="log.col.path">Path</th>
+            <th data-i18n="log.col.status">Status</th>
+            <th data-i18n="log.col.dur">Durata</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="6" class="empty" data-i18n="empty.logs">Nessuna chiamata registrata.</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 

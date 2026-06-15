@@ -5,6 +5,7 @@ const db = require('./db');
 const stream = require('./services/ais-stream');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
+const { startAutoBackup } = require('./routes/export');
 const { PORT, API_KEY, API_KEY_SOURCE, state, BBOX_PRESETS, areaForPoint } = require('./config');
 
 const app = createApp();
@@ -60,4 +61,5 @@ app.listen(PORT, () => {
   }
 
   stream.startStream(state.preset);
+  startAutoBackup();
 });

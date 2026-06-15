@@ -890,7 +890,6 @@ td.empty {
 
 /* ── Modals (shared) ──────────────────────────────────────────────────── */
 #modal-overlay,
-#settings-overlay,
 #health-overlay {
   position: fixed;
   inset: 0;
@@ -907,7 +906,6 @@ td.empty {
 @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
 
 #modal,
-#settings-modal,
 #health-modal {
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
@@ -918,9 +916,8 @@ td.empty {
   overflow: hidden;
   animation: modal-in var(--t-base) var(--ease);
 }
-#modal          { width: min(700px, 95vw); max-height: 85vh; }
-#settings-modal { width: min(520px, 95vw); }
-#health-modal   { width: min(620px, 95vw); max-height: 85vh; }
+#modal        { width: min(700px, 95vw); max-height: 85vh; }
+#health-modal { width: min(620px, 95vw); max-height: 85vh; }
 
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
@@ -936,7 +933,6 @@ td.empty {
 }
 .modal-header h2 { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
 #modal-close,
-#settings-close,
 #health-close {
   background: none;
   border: none;
@@ -950,7 +946,6 @@ td.empty {
   transition: color var(--t-fast), background var(--t-fast);
 }
 #modal-close:hover,
-#settings-close:hover,
 #health-close:hover { color: var(--text); background: var(--surface-3); }
 
 #modal-body { overflow-y: auto; padding: 1.25rem; }
@@ -1646,8 +1641,9 @@ pre {
 
 .info-label { color: var(--text-dim); font-size: 0.78rem; }
 
-/* ── Settings modal ───────────────────────────────────────────────────── */
-#settings-body { padding: 0.5rem 1.25rem 1.25rem; }
+/* ── Settings view ────────────────────────────────────────────────────── */
+.settings-content { max-width: 680px; }
+.settings-content .tabs { margin-bottom: 0; }
 
 .setting-row {
   display: flex;
@@ -2021,3 +2017,38 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 }
 .notif-clear-all:hover { color: var(--red); border-color: var(--red); background: rgba(220,38,38,0.07); }
 #sidebar.collapsed .notif-clear-all { display: none; }
+
+/* ── Auto-backup list ─────────────────────────────────────────────────────── */
+.auto-backup-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }
+.auto-backup-empty { color: var(--text-dim); font-size: 0.85rem; padding: 0.5rem 0; }
+.auto-backup-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; padding: 0.5rem 0.75rem;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.auto-backup-info { display: flex; align-items: center; gap: 0.6rem; min-width: 0; flex: 1; }
+.auto-backup-label {
+  font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.45rem;
+  border-radius: var(--r-sm); background: var(--surface-4); color: var(--text-dim);
+  white-space: nowrap; flex-shrink: 0;
+}
+.auto-backup-label.manual { background: var(--accent-soft); color: var(--accent-text); }
+.auto-backup-meta { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auto-backup-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.btn-mini-clear {
+  background: transparent; color: var(--red, #dc2626);
+  border: 1px solid var(--red, #dc2626); border-radius: var(--r-sm);
+  padding: 0.2rem 0.55rem; font-size: 0.78rem; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-mini-clear:hover { background: rgba(220,38,38,0.1); }
+
+/* ── Restore-parts dialog ─────────────────────────────────────────────────── */
+.restore-parts { display: flex; flex-direction: column; gap: 0.6rem; margin: 0.5rem 0 1rem; }
+.restore-part-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  cursor: pointer; font-size: 0.9rem; color: var(--text);
+}
+.restore-part-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+.restore-dialog-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }

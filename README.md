@@ -73,6 +73,11 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │       ├── api.js, dom.js, store.js, toast.js, helpers.js
 │       ├── theme.js           # Toggle tema chiaro/scuro + persistenza localStorage
 ├── bounding-boxes.json       # Preset aree di monitoraggio (personalizzabili)
+├── data/                     # Dataset statici e backup locali
+│   ├── backups/              # Auto-backup locali (creati a runtime, gitignored)
+│   ├── ofac-sdn.csv          # Lista sanzioni OFAC SDN (cache su disco)
+│   ├── paris-mou-*.json/csv  # Liste Paris MoU (flag + banned)
+│   └── tokyo-mou-flags.json  # Liste Tokyo MoU
 ├── local.properties          # Config + API key (gitignored)
 ├── local.properties.example  # Template di configurazione
 └── ais_data.db               # Database SQLite (creato al primo avvio, gitignored)
@@ -190,7 +195,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
-Modali accessori: **Impostazioni** (pannello Monitoraggio aree con toggle start/stop per ogni area, toggle import VF/MT, esporta CSV, backup/ripristino database), **Diagnostica AIS Stream** (uptime, msg/min, riconnessioni, ultimo errore), **Log** (pannello live delle richieste API via SSE). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
+Modali accessori: **Impostazioni** (4 tab: Generali con toggle import VF/MT/sanzioni/PSC/Equasis e notifiche; **Aree** con toggle start/stop stream per ogni area; Developer options; **Backup/Ripristino** con auto-backup, esporta CSV, backup/ripristino database), **Diagnostica AIS Stream** (uptime, msg/min, riconnessioni, ultimo errore), **Log** (pannello live delle richieste API via SSE). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
 
 Una nave "entra" nella lista presenti appena riceve la prima lettura. La finestra è ampia (6 ore) perché le navi in sosta trasmettono di rado: una nave ormeggiata può aggiornare la posizione anche solo ogni 3 ore (standard AIS classe A). Le navi **in porto** (vedi sotto) hanno una retention ancora più larga (24 ore), così restano visibili anche dopo un riavvio del server prima della successiva trasmissione.
 
@@ -461,7 +466,11 @@ npm run format   # Prettier
 8. **← Indietro** per tornare alla lista precedente
 9. Tab **Navi passate**: navi non più nel criterio "presenti"; cliccare ★ per segnalarle / ✓ per marcarle viste
 10. Tab **Traffico**: statistiche, grafici arrivi per ora/tipo; distribuzione score rischio (verde/giallo/rosso), fattori più frequenti, arrivi per giorno (30gg), top 8 navi per score (cliccabili); navi attese, ultimi eventi porto
-11. **⚙ Impostazioni**: pannello **Monitoraggio aree** (toggle start/stop per ogni area, con stato 🟢/⚪); abilita/disabilita import VesselFinder e MarineTraffic; **Esporta CSV** (ZIP con un CSV per tipo messaggio); **backup** e **ripristino** dell'intero database (vedi sotto)
+11. **⚙ Impostazioni** — 4 tab:
+    - **Generali**: abilita/disabilita import VesselFinder, MarineTraffic, Equasis, screening sanzioni OFAC, Port State Control, notifiche
+    - **Aree**: toggle start/stop stream per ogni area (stato 🟢/⚪)
+    - **Developer options**: notifica di test
+    - **Backup/Ripristino**: auto-backup locale + esportazione manuale + ripristino selettivo (vedi [Backup e ripristino](#backup-e-ripristino-del-database))
 11b. **🗺 Aree**: gestione aree a runtime — elenco con coordinate, stato e dati salvati; mappa di tutte le aree; aggiunta di una nuova area per **coordinate GPS** o con **🎯 Cattura vista corrente** (inquadrando l'area sulla mappa); eliminazione di un'area e del relativo storico, con **toast di annullamento (10s)**. Il bottone **🏠 Monitoraggi** torna alla home.
 12. **📡 Diagnostica AIS**: stato connessione (uptime, msg/min, riconnessioni, errori) per l'area correntemente visualizzata
 13. **🗑 Cancella dati** → elimina le letture, le navi e gli eventi porto dell'**area correntemente visualizzata** (con conferma che mostra il nome dell'area)
@@ -472,7 +481,24 @@ Il database `ais_data.db` persiste tra i riavvii dell'app.
 
 ### Backup e ripristino del database
 
-Dal modal **⚙ Impostazioni**:
+Dal modal **⚙ Impostazioni**, tab **Backup/Ripristino**:
+
+#### Auto-backup locale (nuovo)
+
+Il server crea automaticamente un backup "bundle" completo (database + aree + impostazioni) ogni **30 minuti** nella cartella `data/backups/`. Vengono conservati gli **ultimi 5 backup**; i più vecchi vengono cancellati automaticamente. Il primo backup parte 30 secondi dopo l'avvio del server.
+
+- **💾 Salva ora** → crea immediatamente un backup manuale (stesso formato dei backup automatici).
+- **Lista backup** → mostra i backup salvati con data, dimensione e tipo (Auto/Manuale). Per ciascuno:
+  - **⬇** → scarica il file bundle localmente (download nel browser).
+  - **↩ Ripristina** → apre un dialogo per scegliere cosa ripristinare:
+    - **Database** (letture AIS, navi, eventi porto)
+    - **Aree di monitoraggio**
+    - **Impostazioni**
+    - Qualsiasi combinazione delle tre. Il ripristino è irreversibile (con conferma).
+
+I backup automatici si trovano in `data/backups/tracker-porti-autobackup-<timestamp>.json`; i manuali in `tracker-porti-manualbackup-<timestamp>.json`.
+
+#### Backup manuale (singolo componente)
 
 - **Backup database** → scarica l'intero DB come singolo file `.db` (`tracker-porti-backup-<timestamp>.db`). È uno snapshot consistente (`VACUUM INTO`), sicuro anche con lo stream AIS attivo e senza file sidecar WAL/`-shm`.
 - **Ripristina database** → carica un file `.db` di backup: **tutti** i dati attuali vengono sostituiti (operazione irreversibile, con conferma). Il file viene validato (header SQLite) e le tabelle copiate colonna-per-colonna sull'intersezione delle colonne, quindi un backup con schema più vecchio si ripristina comunque. Non serve riavviare l'app. Dopo il ripristino, le righe con `area` non valorizzata vengono automaticamente assegnate all'area corretta in base alle coordinate (bounding box più specifica che contiene il punto).
@@ -724,6 +750,10 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 | GET | `/api/export` | Download ZIP con CSV per tipo messaggio |
 | GET | `/api/backup` | Download intero database come file `.db` (snapshot `VACUUM INTO`) |
 | POST | `/api/restore` | Ripristina l'intero DB da un file `.db` caricato (body `application/octet-stream`) |
+| GET | `/api/backups` | Lista dei backup locali salvati in `data/backups/` — `{backups:[{filename,size,mtime}]}` |
+| POST | `/api/backups/save` | Crea e salva un bundle manuale in `data/backups/` — `{ok, filename, mtime, size}` |
+| GET | `/api/backups/:filename/download` | Download di un backup locale specifico |
+| POST | `/api/backups/:filename/restore` | Ripristino selettivo da backup locale — body `{parts:['db','areas','settings']}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
 | POST | `/api/settings` | Cambia preset, toggle import e toggle notifiche `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |

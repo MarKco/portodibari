@@ -14,6 +14,79 @@ const { exportSettings, applyImportedSettings } = require('./settings');
 const router = express.Router();
 
 const BUNDLE_FORMAT = 'tracker-porti-bundle';
+const BACKUP_DIR = path.join(__dirname, '..', '..', 'data', 'backups');
+const MAX_BACKUPS = 5;
+const BACKUP_INTERVAL_MS = 30 * 60 * 1000;
+
+fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+// ── Auto-backup helpers ───────────────────────────────────────────────────────
+
+function listSavedBackups() {
+  try {
+    return fs.readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith('tracker-porti-') && f.endsWith('.json'))
+      .map((filename) => {
+        const stat = fs.statSync(path.join(BACKUP_DIR, filename));
+        return { filename, size: stat.size, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+  } catch {
+    return [];
+  }
+}
+
+function pruneOldBackups() {
+  const files = listSavedBackups();
+  for (const f of files.slice(MAX_BACKUPS)) {
+    try { fs.unlinkSync(path.join(BACKUP_DIR, f.filename)); } catch { /* ignore */ }
+  }
+}
+
+function createAndSaveBundle(label = 'auto') {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `tracker-porti-${label}backup-${ts}.json`;
+  const filePath = path.join(BACKUP_DIR, filename);
+  const tmp = path.join(os.tmpdir(), `tracker-porti-bundle-save-${ts}-${process.pid}.db`);
+  try {
+    db.backupTo(tmp);
+    const dbB64 = fs.readFileSync(tmp).toString('base64');
+    const bundle = {
+      format: BUNDLE_FORMAT,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      label,
+      areas: exportAreas(),
+      settings: exportSettings(),
+      db: dbB64,
+    };
+    fs.writeFileSync(filePath, JSON.stringify(bundle), 'utf8');
+    pruneOldBackups();
+    return { filename, mtime: fs.statSync(filePath).mtimeMs, size: fs.statSync(filePath).size };
+  } finally {
+    fs.unlink(tmp, () => {});
+  }
+}
+
+function startAutoBackup() {
+  setTimeout(() => {
+    try {
+      createAndSaveBundle('auto');
+      console.log('[BACKUP] Auto-backup iniziale creato');
+    } catch (e) {
+      console.error(`[BACKUP] Auto-backup iniziale fallito: ${e.message}`);
+    }
+  }, 30000);
+
+  setInterval(() => {
+    try {
+      createAndSaveBundle('auto');
+      console.log('[BACKUP] Auto-backup creato');
+    } catch (e) {
+      console.error(`[BACKUP] Auto-backup fallito: ${e.message}`);
+    }
+  }, BACKUP_INTERVAL_MS);
+}
 
 // Stream a ZIP of one CSV per AIS message type. Each row merges the flat
 // reading columns with the flattened raw AIS payload for that type.
@@ -202,4 +275,98 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: '1024mb' })
   }
 });
 
+// ── Auto-backup routes ────────────────────────────────────────────────────────
+
+// List saved backups.
+router.get('/backups', (req, res) => {
+  res.json({ backups: listSavedBackups() });
+});
+
+// Manually trigger a bundle save to disk.
+router.post('/backups/save', (req, res) => {
+  try {
+    const result = createAndSaveBundle('manual');
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: `Salvataggio fallito: ${e.message}` });
+  }
+});
+
+// Download a specific backup file.
+router.get('/backups/:filename/download', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.json$/.test(filename)) {
+    return res.status(400).json({ error: 'Nome file non valido' });
+  }
+  const filePath = path.join(BACKUP_DIR, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Backup non trovato' });
+  res.download(filePath, filename);
+});
+
+// Selective restore from a saved backup. Body: { parts: ['db','areas','settings'] }.
+router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req, res) => {
+  const filename = path.basename(req.params.filename);
+  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.json$/.test(filename)) {
+    return res.status(400).json({ error: 'Nome file non valido' });
+  }
+  const filePath = path.join(BACKUP_DIR, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Backup non trovato' });
+
+  const parts = req.body?.parts;
+  const VALID = new Set(['db', 'areas', 'settings']);
+  if (!Array.isArray(parts) || parts.length === 0 || !parts.every((p) => VALID.has(p))) {
+    return res.status(400).json({ error: 'Parti non valide. Usa: db, areas, settings' });
+  }
+
+  let bundle;
+  try {
+    bundle = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (e) {
+    return res.status(400).json({ error: `File non leggibile: ${e.message}` });
+  }
+  if (!bundle || bundle.format !== BUNDLE_FORMAT) {
+    return res.status(400).json({ error: 'Non è un backup valido di tracker-porti' });
+  }
+
+  const tmp = path.join(os.tmpdir(), `tracker-porti-backup-restore-${process.pid}.db`);
+  try {
+    let counts = null;
+    let areas = null;
+    let settings = null;
+
+    if (parts.includes('db') && bundle.db) {
+      const buf = Buffer.from(bundle.db, 'base64');
+      if (buf.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
+        return res.status(400).json({ error: 'Database nel backup non valido' });
+      }
+      fs.writeFileSync(tmp, buf);
+      counts = db.restoreFrom(tmp);
+    }
+
+    if (parts.includes('areas') && bundle.areas) {
+      try { areas = importAreasAndStart(bundle.areas); } catch (e) {
+        console.error(`[BACKUP] Import aree: ${e.message}`);
+      }
+    }
+
+    if (parts.includes('db') || parts.includes('areas')) {
+      db.tagLegacyArea(state.preset, areaForPoint);
+      db.reconcileAreasByCoords(areaForPoint);
+    }
+
+    if (parts.includes('settings') && bundle.settings) {
+      try { settings = applyImportedSettings(bundle.settings); } catch (e) {
+        console.error(`[BACKUP] Import impostazioni: ${e.message}`);
+      }
+    }
+
+    res.json({ ok: true, counts, areas, settings });
+  } catch (e) {
+    res.status(400).json({ error: `Ripristino fallito: ${e.message}` });
+  } finally {
+    fs.unlink(tmp, () => {});
+  }
+});
+
 module.exports = router;
+module.exports.startAutoBackup = startAutoBackup;

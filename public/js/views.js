@@ -27,7 +27,8 @@ export function showView(v, mmsi, shipData) {
   el.viewDetail.classList.toggle('hidden', v !== 'detail');
   el.viewTraffco.classList.toggle('hidden', v !== 'traffico');
   el.viewAreas.classList.toggle('hidden', v !== 'areas');
-  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'areas');
+  el.viewSettings.classList.toggle('hidden', v !== 'settings');
+  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'areas' || v === 'settings');
 
   el.tabActive.classList.toggle('tab-active', v === 'active');
   el.tabPast.classList.toggle('tab-active', v === 'past');

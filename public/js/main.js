@@ -213,16 +213,13 @@ async function showEquasisLog() {
 }
 
 function initSettingsModal() {
-  el.btnSettings.addEventListener('click', () => el.settingsOverlay.classList.remove('hidden'));
-  el.settingsClose.addEventListener('click', () => el.settingsOverlay.classList.add('hidden'));
-  el.settingsOverlay.addEventListener('click', (e) => {
-    if (e.target === el.settingsOverlay) el.settingsOverlay.classList.add('hidden');
+  el.btnSettings.addEventListener('click', () => {
+    if (S.view !== 'settings') S.settingsFrom = S.view;
+    showView('settings');
   });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') el.settingsOverlay.classList.add('hidden');
-  });
+  el.btnSettingsBack.addEventListener('click', () => showView(S.settingsFrom || 'active'));
 
-  // Settings tabs — switch between the panels (general / dev / backup).
+  // Settings tabs — switch between the panels (general / areas / dev / backup).
   el.settingsTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
@@ -230,6 +227,7 @@ function initSettingsModal() {
     tab.classList.add('tab-active');
     const target = `settings-panel-${tab.dataset.panel}`;
     el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
+    if (tab.dataset.panel === 'backup') loadAutoBackups();
   });
 
   // Developer option — inject a test notification and refresh the feed.
@@ -436,7 +434,7 @@ function initSettingsModal() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       const total = Object.values(data.counts || {}).reduce((a, b) => a + b, 0);
       showAlert(t('toast.restored'), `${total.toLocaleString()} righe importate`);
-      el.settingsOverlay.classList.add('hidden');
+      showView(S.settingsFrom || 'active');
       await loadSettings();
       tick();
     } catch (e) {
@@ -497,13 +495,144 @@ function initSettingsModal() {
       onDone: async (d) => {
         const total = Object.values(d.counts || {}).reduce((a, b) => a + b, 0);
         showAlert(t('toast.bundleImported'), t('toast.bundleImportedBody', { n: total.toLocaleString() }));
-        el.settingsOverlay.classList.add('hidden');
+        showView(S.settingsFrom || 'active');
         await loadSettings();
         window.dispatchEvent(new CustomEvent('areas-changed'));
         tick();
       },
     });
   });
+
+  // ── Auto-backup: manual save ──────────────────────────────────────────────
+  if (el.btnManualBackup) {
+    el.btnManualBackup.addEventListener('click', async () => {
+      const prev = el.btnManualBackup.textContent;
+      el.btnManualBackup.disabled = true;
+      el.btnManualBackup.textContent = '⏳ Salvataggio…';
+      try {
+        await api('/api/backups/save', 'POST');
+        await loadAutoBackups();
+        showAlert('Backup salvato', '');
+      } catch (e) {
+        alert('Errore salvataggio backup: ' + (e.message || String(e)));
+      } finally {
+        el.btnManualBackup.disabled = false;
+        el.btnManualBackup.textContent = prev;
+      }
+    });
+  }
+
+  // ── Auto-backup: download / restore from list ─────────────────────────────
+  if (el.autoBackupList) {
+    el.autoBackupList.addEventListener('click', (e) => {
+      const dlBtn = e.target.closest('[data-download]');
+      const restoreBtn = e.target.closest('[data-restore]');
+      if (dlBtn) window.location = `/api/backups/${encodeURIComponent(dlBtn.dataset.download)}/download`;
+      if (restoreBtn) showBackupRestoreDialog(restoreBtn.dataset.restore);
+    });
+  }
+}
+
+// ── Auto-backup management ────────────────────────────────────────────────────
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function renderAutoBackupList(backups) {
+  if (!el.autoBackupList) return;
+  if (!backups || backups.length === 0) {
+    el.autoBackupList.innerHTML = '<p class="auto-backup-empty">Nessun backup locale disponibile.</p>';
+    return;
+  }
+  el.autoBackupList.innerHTML = backups.map((b) => {
+    const date = new Date(b.mtime).toLocaleString();
+    const size = formatFileSize(b.size);
+    const isManual = b.filename.includes('-manualbackup-');
+    const label = isManual ? '🖐 Manuale' : '⏱ Auto';
+    return `<div class="auto-backup-item">
+      <div class="auto-backup-info">
+        <span class="auto-backup-label${isManual ? ' manual' : ''}">${label}</span>
+        <span class="auto-backup-meta">${date} &middot; ${size}</span>
+      </div>
+      <div class="auto-backup-actions">
+        <button class="btn-mini" data-download="${escHtml(b.filename)}" title="Scarica">⬇</button>
+        <button class="btn-mini btn-mini-clear" data-restore="${escHtml(b.filename)}">↩ Ripristina</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadAutoBackups() {
+  if (!el.autoBackupList) return;
+  try {
+    const r = await api('/api/backups');
+    renderAutoBackupList(r.backups || []);
+  } catch {
+    /* ignore */
+  }
+}
+
+function showBackupRestoreDialog(filename) {
+  el.modalTitle.textContent = 'Ripristina backup';
+  el.modalBody.innerHTML = `
+    <p style="margin-bottom:1rem">Scegli cosa ripristinare da:<br><strong>${escHtml(filename)}</strong></p>
+    <div class="restore-parts">
+      <label class="restore-part-row"><input type="checkbox" id="rp-db" checked> <span>Database (letture AIS, navi, eventi porto)</span></label>
+      <label class="restore-part-row"><input type="checkbox" id="rp-areas" checked> <span>Aree di monitoraggio</span></label>
+      <label class="restore-part-row"><input type="checkbox" id="rp-settings" checked> <span>Impostazioni</span></label>
+    </div>
+    <div class="restore-dialog-actions">
+      <button id="btn-cancel-restore" class="btn btn-secondary">Annulla</button>
+      <button id="btn-confirm-restore" class="btn btn-clear">↩ Ripristina selezionati</button>
+    </div>`;
+
+  document.getElementById('btn-cancel-restore').addEventListener('click', () => {
+    el.modalOverlay.classList.add('hidden');
+  });
+
+  document.getElementById('btn-confirm-restore').addEventListener('click', async () => {
+    const parts = [];
+    if (document.getElementById('rp-db')?.checked) parts.push('db');
+    if (document.getElementById('rp-areas')?.checked) parts.push('areas');
+    if (document.getElementById('rp-settings')?.checked) parts.push('settings');
+    if (parts.length === 0) { alert('Seleziona almeno una parte da ripristinare.'); return; }
+
+    const partsLabel = { db: 'database', areas: 'aree', settings: 'impostazioni' };
+    const partsStr = parts.map((p) => partsLabel[p]).join(', ');
+    if (!confirm(`Ripristinare ${partsStr} dal backup?\nL'operazione è irreversibile.`)) return;
+
+    const btn = document.getElementById('btn-confirm-restore');
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Ripristino…';
+
+    try {
+      const r = await api(`/api/backups/${encodeURIComponent(filename)}/restore`, 'POST', { parts });
+      el.modalOverlay.classList.add('hidden');
+      showView(S.settingsFrom || 'active');
+      let msg = '';
+      if (r.counts) {
+        const total = Object.values(r.counts).reduce((a, b) => a + b, 0);
+        msg += `${total.toLocaleString()} righe database importate. `;
+      }
+      if (r.areas) {
+        const n = (r.areas.added?.length || 0) + (r.areas.updated?.length || 0);
+        msg += `${n} aree ripristinate.`;
+      }
+      showAlert('Ripristino completato', msg.trim());
+      await loadSettings();
+      if (parts.includes('areas')) window.dispatchEvent(new CustomEvent('areas-changed'));
+      tick();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = prev;
+      alert('Errore ripristino: ' + (e.message || String(e)));
+    }
+  });
+
+  el.modalOverlay.classList.remove('hidden');
 }
 
 function initBboxSelect() {

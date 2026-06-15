@@ -320,8 +320,13 @@ export default {
   'detail.notifMuteRemove': 'Riabilita notifiche per questa nave',
 
   'settings.tab.general':    'Generali',
+  'settings.tab.areas':      'Aree',
   'settings.tab.dev':        'Developer options',
   'settings.tab.backup':     'Backup / Ripristino',
+  'settings.group.autobackup':      'Auto-backup locale',
+  'settings.autobackup.name':       'Backup automatico',
+  'settings.autobackup.desc':       'Backup automatico ogni 30 minuti, salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.',
+  'settings.autobackup.btn':        '💾 Salva ora',
   'settings.group.full':     'Backup completo',
   'settings.group.data':     'Dati',
   'settings.group.areas':    'Aree',
