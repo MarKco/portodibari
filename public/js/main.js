@@ -186,6 +186,32 @@ async function runImport({ file, url, contentType, btn, busyLabel, onDone }) {
   }
 }
 
+// Show the Equasis lookup audit log in the generic modal, with a Clear button.
+async function showEquasisLog() {
+  try {
+    const r = await api('/api/equasis-log');
+    const body = (r && r.text && r.text.trim())
+      ? `${r.truncated ? `<p class="vf-empty">${t('equasis.log.truncated')}</p>` : ''}<pre>${escHtml(r.text)}</pre>`
+      : `<p class="vf-empty">${t('equasis.log.empty')}</p>`;
+    el.modalTitle.textContent = t('equasis.log.title');
+    el.modalBody.innerHTML = `
+      <div style="text-align:right;margin-bottom:0.5rem">
+        <button id="btn-equasis-log-clear" class="btn btn-clear">${escHtml(t('equasis.log.clear'))}</button>
+      </div>
+      ${body}`;
+    const clearBtn = document.getElementById('btn-equasis-log-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        await api('/api/equasis-log', 'DELETE');
+        showEquasisLog();
+      });
+    }
+    el.modalOverlay.classList.remove('hidden');
+  } catch {
+    showToast(t('scrape.error'));
+  }
+}
+
 function initSettingsModal() {
   el.btnSettings.addEventListener('click', () => el.settingsOverlay.classList.remove('hidden'));
   el.settingsClose.addEventListener('click', () => el.settingsOverlay.classList.add('hidden'));
@@ -279,6 +305,10 @@ function initSettingsModal() {
     el.btnEquasisFetch.addEventListener('click', () => {
       if (S.detailMmsi != null) loadEquasisData(S.detailMmsi, true);
     });
+  }
+
+  if (el.btnEquasisLog) {
+    el.btnEquasisLog.addEventListener('click', showEquasisLog);
   }
 
   if (el.toggleImportSanctions) {

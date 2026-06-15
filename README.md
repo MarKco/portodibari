@@ -53,10 +53,12 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── enrichment.js      # Arricchimento proattivo VF/MT alla prima rilevazione nave
 │   │   ├── sanctions.js       # Lista sanzioni OFAC SDN: download, indice, match per IMO/nome/call sign
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): performance bandiera + navi bandite
+│   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/curl + parsing HTML
 │   │       ├── vesselfinder.js
-│   │       └── marinetraffic.js
+│   │       ├── marinetraffic.js
+│   │       └── equasis.js     # Lookup proprietà/gestione per IMO (on-demand, login richiesto)
 │   ├── routes/                # Router Express, uno per dominio (ships, readings, …)
 │   └── lib/
 │       └── csv.js             # Helper export CSV (flatten + escape)
@@ -88,6 +90,9 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `IMPORT_MT_DATA` | Abilita scraping MarineTraffic (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS` | Abilita screening lista sanzioni OFAC SDN (`true`/`false`) | `false` |
 | `IMPORT_PSC` | Abilita screening Port State Control Paris/Tokyo MoU: performance bandiera + navi bandite (`true`/`false`) | `false` |
+| `IMPORT_EQUASIS` | Abilita il lookup Equasis on-demand (proprietà/gestione) nel dettaglio nave (`true`/`false`) | `false` |
+| `EQUASIS_USER` | Email account Equasis (registrazione gratuita su [equasis.org](https://www.equasis.org/)) — richiesta dal lookup Equasis | *(vuota)* |
+| `EQUASIS_PASSWORD` | Password account Equasis — richiesta dal lookup Equasis | *(vuota)* |
 | `AUTH_USER` | Username per l'autenticazione HTTP Basic (vedi [Autenticazione](#-autenticazione)) | `admin` |
 | `AUTH_PASSWORD` | Password per l'autenticazione HTTP Basic. **Vuota = auth disattivata** | *(vuota)* |
 
@@ -380,6 +385,21 @@ Garanzie:
 - **Non bloccante**: fire-and-forget, nessun `await` nel loop di ingest AIS. Errori loggati (`[ENRICH:vf|mt]`), mai propagati.
 - Se l'MMSI compare prima dei dati statici (IMO/callsign assenti), VF/MT risolvono comunque tramite MMSI.
 
+### Lookup Equasis (proprietà/gestione, on-demand)
+
+[Equasis](https://www.equasis.org/) è un database gratuito EU/US che espone i dati di **proprietà e gestione** della nave (registered owner, ISM manager, operator, DOC company) che l'AIS non trasmette e che VF/MT non offrono gratis. Lo scraper [`src/services/scrapers/equasis.js`](src/services/scrapers/equasis.js) (`crawlEquasis(imo)`) è volutamente **fuori** dal percorso di arricchimento proattivo: parte **solo** quando l'utente preme **Recupera informazioni Equasis** nel dettaglio.
+
+Differenze rispetto a VF/MT:
+
+- **Solo su richiesta**: nessun fetch automatico né alla comparsa né all'apertura del dettaglio. L'endpoint serve la cache; scrapa solo con `?fetch=1` (il pulsante).
+- **Nessuna scadenza**: il risultato è salvato in `ship_scrape_cache` con source `eq` e mostrato per sempre (a differenza del TTL `SCRAPE_CACHE_TTL` di VF/MT). Dopo il primo recupero il pulsante sparisce.
+- **Interroga per IMO**: Equasis è indicizzato solo per numero IMO; senza IMO il lookup fallisce con errore.
+- **Login richiesto**: ogni query richiede una sessione autenticata, quindi servono `EQUASIS_USER` / `EQUASIS_PASSWORD`. Senza credenziali la feature resta nascosta/inutilizzabile (`equasisConfigured`).
+
+Flusso (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`j_email`+`j_password`) → cookie di sessione → `POST /EquasisWeb/restricted/ShipInfo` (`P_IMO`) → HTML dettaglio. I cookie stanno in un jar temporaneo per la durata delle due chiamate. Come MarineTraffic, **usa `curl`** in subprocess (stessa dipendenza di deploy). Il parser estrae la tabella *Management detail(s)* (`parseManagement`) e un set curato di *ship particulars* (`parseParticulars`).
+
+**Log di audit**: ogni lookup (successo o errore) viene aggiunto in append a un file di testo `equasis.log` (root di progetto, gitignored) da [`src/services/equasis-log.js`](src/services/equasis-log.js): timestamp, MMSI, IMO, nome nave e i dati recuperati (o il messaggio d'errore). Il log è consultabile dalla UI col pulsante **Visualizza log Equasis** nelle impostazioni (endpoint `GET /api/equasis-log`, lettura tail-troncata a 256 KB; `DELETE /api/equasis-log` lo svuota).
+
 ## 📋 Eventi porto, statistiche e alert
 
 **Eventi porto** (tabella `port_events`) — il backend rileva automaticamente:
@@ -616,7 +636,7 @@ pm2 save
 | `src/config.js`               | Config (local.properties/env), preset bbox, costanti, stato runtime; aggiunta/rimozione aree a runtime (`addArea`/`removeArea`, persistite in `bounding-boxes.json`); esporta `areaForPoint(lat, lon)` per risolvere una coordinata al preset più specifico |
 | `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`, insert/upsert, query, predicato attive |
 | `src/services/ais-stream.js`  | Client WebSocket AISStream multi-area (`Map<areaKey, state>`) + riconnessione + eventi porto + notifiche di rientro e cambio area |
-| `src/services/scrapers/`      | Scraping VesselFinder (https) e MarineTraffic (curl)              |
+| `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (curl) ed Equasis (curl, login, on-demand) |
 | `src/services/risk-score.js`  | Score di rischio trasporto armi (0–100) da firme comportamentali AIS + dati registro VF/MT in cache |
 | `src/services/enrichment.js`  | Arricchimento proattivo VF/MT (una volta) alla prima rilevazione di una nave |
 | `src/services/sanctions.js`   | Lista sanzioni OFAC SDN: download CSV, indice in memoria, match nave per IMO/nome/call sign |
@@ -655,7 +675,7 @@ pm2 save
 | `mt_ship_id` | INTEGER | `shipid` interno MarineTraffic (risolto al primo scraping MT) |
 | `last_area` | TEXT NOT NULL DEFAULT '' | Chiave dell'ultima area in cui la nave è stata rilevata |
 
-Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da VesselFinder / MarineTraffic per `(mmsi, source)`, con `scraped_at` per il TTL.
+Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da VesselFinder / MarineTraffic / Equasis per `(mmsi, source)`, con `scraped_at`. Source: `vf`/`mt` con TTL `SCRAPE_CACHE_TTL`; `eq` (Equasis) senza scadenza (salvato una volta).
 
 **`port_events`** — eventi arrivo/partenza rilevati automaticamente: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area in cui è avvenuto l'evento).
 
@@ -680,6 +700,8 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 | GET | `/api/ships/:mmsi/track` | Punti posizione per il tracciato mappa (`?limit=500`) |
 | GET | `/api/ships/:mmsi/vfdata` | Dati scaricati da VesselFinder (con cache) |
 | GET | `/api/ships/:mmsi/mtdata` | Dati scaricati da MarineTraffic (con cache); risolve e salva `mt_ship_id` |
+| GET | `/api/ships/:mmsi/equasis` | Dati Equasis (proprietà/gestione) dalla cache; scrapa solo con `?fetch=1` (pulsante dettaglio). Mai automatico, nessuna scadenza |
+| GET / DELETE | `/api/equasis-log` | Legge (tail 256 KB) / svuota il log di audit testuale dei lookup Equasis (`equasis.log`) |
 | GET | `/api/ships/:mmsi/events` | Eventi porto (arrivi/partenze) di una nave |
 | GET | `/api/ships/:mmsi/risk-history` | Serie storica degli snapshot di score di rischio della nave (`{history:[{ts,score,band}]}`) |
 | GET | `/api/ships/expected` | Navi attese nell'area (`?area=`): destinazione = keyword preset, uscite < 48h |

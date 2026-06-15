@@ -164,6 +164,10 @@ List of factors that contributed to the score, with points assigned by each. If 
 
 If enabled in settings, additional information fetched from these services is shown (flag, gross tonnage, year built, etc.), with an indication of whether the data is cached.
 
+### Ownership / management (Equasis)
+
+If the Equasis lookup is enabled in settings, the detail view shows an **Ownership / management (Equasis)** panel with a **Fetch Equasis information** button. Unlike VesselFinder/MarineTraffic it **never runs automatically**: the lookup happens only when you press the button, and queries Equasis by **IMO number** (if the ship has no IMO the lookup is not possible). It returns registered owner, ISM manager, operator and other ship particulars. The result is **stored once** and shown indefinitely (no expiry); the button disappears after the first fetch. Requires a free Equasis account configured in `local.properties`. Every fetch is also recorded in a log viewable from settings (see **View Equasis log**).
+
 ### Position map
 
 Map showing the vessel's last known position.
@@ -195,6 +199,7 @@ Open with the **⚙ Settings** button in the sidebar.
 | **MarineTraffic** (toggle) | Fetch additional data from MarineTraffic in the vessel detail view. Data cached for 6 hours. |
 | **OFAC sanctions screening** (toggle) | Matches every ship against the OFAC SDN sanctions list (US Treasury), downloaded locally. Matching is done by IMO number, name or call sign. A match is a very strong risk signal (large score contribution). The list is downloaded on enable and refreshed every 24 hours; the **Refresh list** button forces an immediate download. The number of sanctioned vessels loaded and the last refresh date are shown below the toggle. |
 | **Port State Control screening (Paris/Tokyo MoU)** (toggle) | Matches every ship against two official Memorandum of Understanding lists: (1) the **flag performance** white/grey/black lists of Paris MoU and Tokyo MoU — a black-listed flag is a high-risk registry for detentions/inspections (medium-high score contribution), a white-listed one carries no penalty; (2) the **banned-ships list** of the Paris MoU (refusal of access after repeated detentions) — a strong signal, matched by IMO/name. The flag lists are bundled with the app and must be updated manually ~once a year; the banned-ships list is downloaded on enable and refreshed every 24 hours. The **Refresh lists** button forces a download. Below the toggle the flag counts (black/grey/white) and banned-ship count are shown with the last refresh date. |
+| **Equasis lookup (ownership)** (toggle) | Enables the **Fetch Equasis information** button in the ship detail to retrieve registered owner, ISM manager and operator (by IMO number). **Never automatic**: runs only on request, one ship at a time. Data is stored once (no expiry). Requires Equasis credentials (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); without credentials the button stays unusable. The **View Equasis log** button (below the description) opens the plain-text record of every lookup performed, with date, ship and retrieved data; the same window lets you **Clear the log**. |
 | **Notifications** (toggle) | Master switch: enable or disable all sidebar notifications. When off, the toggles below are disabled. |
 | **Ship revisit alert** (toggle) | Alert when a ship returns to an area it had visited before. |
 | **Area change alert** (toggle) | Alert when a ship seen in one area is later detected in a **different** area. |
@@ -256,6 +261,9 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `IMPORT_MT_DATA` | `true`/`false` — enable MarineTraffic data import |
 | `IMPORT_SANCTIONS` | `true`/`false` — enable screening against the OFAC SDN sanctions list |
 | `IMPORT_PSC` | `true`/`false` — enable Port State Control screening (Paris/Tokyo MoU flag performance + Paris MoU banned vessels) |
+| `IMPORT_EQUASIS` | `true`/`false` — enable the on-demand Equasis lookup (ownership/management) in the ship detail |
+| `EQUASIS_USER` | Equasis account email (free registration at https://www.equasis.org/) — required by the Equasis lookup |
+| `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the interface (area selector / Settings) and are rewritten to the file automatically.
 

@@ -164,6 +164,10 @@ Lista dei fattori che hanno contribuito al punteggio, con i punti assegnati da c
 
 Se abilitati nelle impostazioni, vengono mostrate informazioni aggiuntive recuperate da questi servizi (bandiera, stazza lorda, anno di costruzione, ecc.), con indicazione se i dati sono in cache.
 
+### Proprietà / gestione (Equasis)
+
+Se il lookup Equasis è abilitato nelle impostazioni, nel dettaglio compare il pannello **Proprietà / gestione (Equasis)** con il pulsante **Recupera informazioni Equasis**. A differenza di VesselFinder/MarineTraffic **non parte mai in automatico**: la ricerca avviene solo quando premi il pulsante, e interroga Equasis per **numero IMO** (se la nave non ha IMO il lookup non è possibile). Restituisce proprietario registrato, gestore ISM, operatore e altri dati nave. Il risultato viene **memorizzato una sola volta** e mostrato senza limite di tempo (nessuna scadenza); il pulsante sparisce dopo il primo recupero. Richiede un account Equasis gratuito configurato in `local.properties`. Ogni recupero viene anche registrato in un log consultabile dalle impostazioni (vedi **Visualizza log Equasis**).
+
 ### Mappa posizione
 
 Mappa con la traccia dell'ultima posizione nota della nave.
@@ -195,6 +199,7 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **MarineTraffic** (toggle) | Recupera dati aggiuntivi da MarineTraffic nel dettaglio nave. Dati in cache per 6 ore. |
 | **Screening sanzioni OFAC** (toggle) | Confronta ogni nave con la lista sanzioni OFAC SDN (US Treasury), scaricata localmente. Il match avviene per numero IMO, nome o call sign. Un match è un segnale di rischio molto forte (contributo elevato allo score). La lista viene scaricata all'attivazione e aggiornata ogni 24 ore; il pulsante **Aggiorna lista** forza un download immediato. Sotto al toggle viene mostrato il numero di navi sanzionate in lista e la data dell'ultimo aggiornamento. |
 | **Screening Port State Control (Paris/Tokyo MoU)** (toggle) | Confronta ogni nave con due liste ufficiali dei Memorandum d'Intesa: (1) la **performance bandiera** white/grey/black di Paris MoU e Tokyo MoU — una bandiera in black list è un registro ad alto rischio per fermi/ispezioni (contributo medio-alto allo score), una in white list non penalizza; (2) la **lista delle navi bandite** dal Paris MoU (refusal of access dopo fermi multipli) — segnale forte, match per IMO/nome. Le liste bandiera sono incluse nell'applicazione e vanno aggiornate manualmente ~1 volta l'anno; la lista navi bandite è scaricata all'attivazione e aggiornata ogni 24 ore. Il pulsante **Aggiorna liste** forza il download. Sotto al toggle sono mostrati i conteggi bandiere (black/grey/white) e navi bandite con la data dell'ultimo aggiornamento. |
+| **Lookup Equasis (proprietà)** (toggle) | Abilita il pulsante **Recupera informazioni Equasis** nel dettaglio nave per recuperare proprietario registrato, gestore ISM e operatore (per numero IMO). **Mai automatico**: parte solo su richiesta, una nave alla volta. I dati vengono memorizzati una sola volta (nessuna scadenza). Richiede credenziali Equasis (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); senza credenziali il pulsante resta inutilizzabile. Il pulsante **Visualizza log Equasis** (sotto la descrizione) apre il registro testuale di tutti i lookup effettuati, con data, nave e dati recuperati; dalla stessa finestra è possibile **Cancellare il log**. |
 | **Notifiche** (toggle) | Interruttore generale: abilita o disabilita tutte le notifiche nella barra laterale. Se spento, i toggle sottostanti sono disattivati. |
 | **Notifica rientro nave** (toggle) | Avvisa quando una nave rientra in un'area dove era già stata in passato. |
 | **Notifica cambio area** (toggle) | Avvisa quando una nave vista in un'area viene poi rilevata in un'**altra** area. |
@@ -256,6 +261,9 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | `IMPORT_MT_DATA` | `true`/`false` — abilita l'import dati MarineTraffic |
 | `IMPORT_SANCTIONS` | `true`/`false` — abilita lo screening contro la lista sanzioni OFAC SDN |
 | `IMPORT_PSC` | `true`/`false` — abilita lo screening Port State Control (performance bandiera Paris/Tokyo MoU + navi bandite Paris MoU) |
+| `IMPORT_EQUASIS` | `true`/`false` — abilita il lookup Equasis on-demand (proprietà/gestione) nel dettaglio nave |
+| `EQUASIS_USER` | Email dell'account Equasis (registrazione gratuita su https://www.equasis.org/) — richiesta dal lookup Equasis |
+| `EQUASIS_PASSWORD` | Password dell'account Equasis — richiesta dal lookup Equasis |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` si cambiano anche dall'interfaccia (selettore area / Impostazioni) e vengono riscritti nel file automaticamente.
 

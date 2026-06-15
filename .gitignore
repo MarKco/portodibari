@@ -3,6 +3,7 @@ local.properties
 ais_data.db
 ais_data.db-shm
 ais_data.db-wal
+equasis.log
 *.zip
 .claude
 .DS_Store

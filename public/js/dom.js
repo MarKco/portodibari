@@ -134,6 +134,7 @@ export const el = {
   equasisDataBody: $('equasis-data-body'),
   equasisCacheBadge: $('equasis-cache-badge'),
   toggleImportEquasis: $('toggle-import-equasis'),
+  btnEquasisLog: $('btn-equasis-log'),
 
   // Log panel
   btnLog: $('btn-log'),

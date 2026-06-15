@@ -13,8 +13,20 @@ const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
 const { enrichAllExisting } = require('../services/enrichment');
 const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
+const equasisLog = require('../services/equasis-log');
 
 const router = express.Router();
+
+// Equasis lookup audit log — read the plain-text trail of past lookups (shown in
+// the Settings modal) and clear it.
+router.get('/equasis-log', (req, res) => {
+  res.json(equasisLog.read());
+});
+
+router.delete('/equasis-log', (req, res) => {
+  equasisLog.clear();
+  res.json({ ok: true });
+});
 
 router.get('/config', (req, res) => {
   res.json({

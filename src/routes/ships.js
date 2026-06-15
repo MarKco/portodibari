@@ -7,6 +7,7 @@ const { computeRiskScore, isMilitary } = require('../services/risk-score');
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
+const equasisLog = require('../services/equasis-log');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD } = require('../config');
 
 const router = express.Router();
@@ -212,9 +213,11 @@ router.get('/ships/:mmsi/equasis', async (req, res) => {
   try {
     const data = await crawlEquasis(ship.imo_number);
     const scraped_at = db.setScrapedData(mmsi, 'eq', data);
+    equasisLog.append({ mmsi, imo: ship.imo_number, name: ship.ship_name, ok: true, data });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
   } catch (e) {
     console.error('[EQUASIS] Crawl error:', e.message);
+    equasisLog.append({ mmsi, imo: ship.imo_number, name: ship.ship_name, ok: false, error: e.message });
     res.json({ enabled: true, error: e.message });
   }
 });
