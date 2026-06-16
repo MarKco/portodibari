@@ -442,13 +442,15 @@ Flow (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`
 
 **Flagged ship alerts** (`/api/alerts`) — when a flagged (★) ship re-enters the area, the arrival is queued and shown as a toast in the frontend on the next poll.
 
-**Notifications** (table `notifications`, `/api/notifications`) — persistent history shown in the sidebar. Three notification types are generated (each can be enabled/disabled independently from Settings, on top of the master `notificationsEnabled` switch):
+**Notifications** (table `notifications`, `/api/notifications`) — persistent history shown in the sidebar. Five notification types are generated (each can be enabled/disabled independently from Settings, on top of the master `notificationsEnabled` switch):
 
 - `revisit` — a ship **that already arrived in the same area in the past** returns to it after an absence (`db.insert` returns `revisit`); controlled by `notifyRevisit` / `NOTIFY_REVISIT`.
 - `area_change` — a ship seen in one area is later detected in a **different** area (`db.insert` returns `areaChange` by comparing the ship's `last_area` with the message's area before the upsert); the notification stores the origin area in `from_area` and the destination in `area`; controlled by `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
 - `high_risk` — a ship **arrives** (new, or after > 60 min absence, `db.insert` returns `arrived`) with a **risk score in the red band** (71–100); controlled by `notifyHighRisk` / `NOTIFY_HIGH_RISK`. Useful for immediate triage of critical cases without waiting for the Traffic view.
+- `berth_new` — during the berth recompute (`berths.recomputeArea`) a **new automatic berth** is detected (a cluster with no inherited identity); controlled by `notifyBerthNew` / `NOTIFY_BERTH_NEW`.
+- `berth_characterized` — a berth (automatic or manual) is **characterized for the first time** (its computed `char_label` goes from `NULL` to a category); the category is stored in `band`; controlled by `notifyBerthChar` / `NOTIFY_BERTH_CHAR`.
 
-In all cases `ais-stream` computes the score and calls `db.addNotification` (ships with `notif_muted` are skipped). Each notification stores the risk band (`band`) and `score` computed at event time, shown as a green/yellow/red dot. Endpoints: `GET /api/notifications` (list + unread count), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (single), `DELETE /api/notifications` (all). The last 100 are retained (automatic rotation on every insert).
+For ship notifications `ais-stream` computes the score and calls `db.addNotification` (ships with `notif_muted` are skipped); for berth notifications `berths.recomputeArea` calls it, storing the referenced berth in `berth_id` for navigation. The first recompute on an area with no pre-existing berths does **not** generate notifications (to avoid a burst of "new berth" alerts on the initial backfill). Each ship notification stores the risk band (`band`) and `score` computed at event time, shown as a green/yellow/red dot; berth notifications show a dedicated dot. **Clicking** a ship notification opens the ship detail view; clicking a berth notification jumps to that area's map with the berth centred. Endpoints: `GET /api/notifications` (list + unread count), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (single), `DELETE /api/notifications` (all). The last 100 are retained (automatic rotation on every insert).
 
 **Delete with undo** — both a single notification (🗑 trash on the row) and the **🗑 clear-all** button (next to the unread badge in the sidebar) delete with an **undo window** ("↶ Undo" toast) before the deletion becomes effective. The bounce duration is configurable in `app.config.properties` via `NOTIF_DELETE_UNDO_SECONDS` (default 5 s; `0` = immediate delete) and exposed to the frontend via `/api/config`.
 
@@ -676,7 +678,7 @@ pm2 save
 | `src/config.js`               | Config (local.properties/env), bbox presets, constants, runtime state; runtime add/remove of areas (`addArea`/`removeArea`, persisted to `bounding-boxes.json`); exports `areaForPoint(lat, lon)` to resolve a coordinate to the most specific containing preset key |
 | `src/db.js`                   | SQLite wrapper: `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths` schema, insert/upsert, queries, active predicate |
 | `src/services/ais-stream.js`  | Multi-area AISStream WebSocket client (`Map<areaKey, state>`) + reconnection + port events + revisit and area-change notifications |
-| `src/services/berths.js`      | Mooring detection + DBSCAN clustering + berth characterization (convex hull, point-in-polygon, backfill/recompute) |
+| `src/services/berths.js`      | Mooring detection + DBSCAN clustering + berth characterization (convex hull, point-in-polygon, backfill/recompute) + new-berth and characterization notifications |
 | `src/services/ship-categories.js` | AIS ship-type code → broad category (cargo/tanker/passenger/…) + hazmat flag, used to characterize berths |
 | `src/services/scrapers/`      | VesselFinder (https), MarineTraffic (curl) and Equasis (curl, login, on-demand) scraping |
 | `src/services/risk-score.js`  | Arms transport risk score (0–100) from AIS behavioural signatures + cached VF/MT registry data |
@@ -723,7 +725,7 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 
 **`api_log`** — HTTP request log (max 20,000, automatic rotation): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
-**`notifications`** — notification feed shown in the sidebar (max 100, automatic rotation): `type` (`revisit`, `area_change` or `high_risk`), `mmsi`, `ship_name`, `area` (destination area), `from_area` (origin area, only for `area_change`), `band` (`low`/`med`/`high`) and risk `score` computed at event time, `ts`, `read` (0/1).
+**`notifications`** — notification feed shown in the sidebar (max 100, automatic rotation): `type` (`revisit`, `area_change`, `high_risk`, `berth_new` or `berth_characterized`), `mmsi`, `ship_name` (for berths: the berth name, if it has one), `area` (destination area), `from_area` (origin area, only for `area_change`), `band` (`low`/`med`/`high` for ship notifications; the berth category for `berth_characterized`) and risk `score` computed at event time, `berth_id` (referenced berth, only for berth notifications), `ts`, `read` (0/1).
 
 **`risk_history`** — risk-score snapshots over time for the trend chart (see [Risk score history](#-risk-score-history)): `mmsi`, `ts`, `score`, `band`. Sparsely sampled (max 1/hour per ship) and globally capped (rotation at 20,000 rows).
 
@@ -773,7 +775,7 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 | GET | `/api/app-config` | `app.config.properties` parameters grouped, with descriptions extracted from the file comments; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Write edited parameters `{values:{KEY:value}}` (only keys already present in the file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Current bbox preset, preset list, VF/MT import status |
-| POST | `/api/settings` | Change preset, import toggles and notification toggles `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?}` |
+| POST | `/api/settings` | Change preset, import toggles and notification toggles `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?}` |
 | GET | `/api/areas` | List of areas with bbox, stream status, `current` flag and data `counts`; `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Add an area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → saves to `bounding-boxes.json` and starts the stream (unless `autostart:false`) |
 | DELETE | `/api/areas/:key` | Delete an area and all its history (readings/ships/events); refuses if it's the only one left. If it was the active area, selects another |

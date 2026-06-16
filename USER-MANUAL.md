@@ -232,6 +232,9 @@ Open with the **⚙ Settings** button in the sidebar.
 | **Notifications** (toggle) | Master switch: enable or disable all sidebar notifications. When off, the toggles below are disabled. |
 | **Ship revisit alert** (toggle) | Alert when a ship returns to an area it had visited before. |
 | **Area change alert** (toggle) | Alert when a ship seen in one area is later detected in a **different** area. |
+| **High-risk score alert** (toggle) | Alert when a ship arrives with a risk score in the red band (71–100). |
+| **New berth alert** (toggle) | Alert when a new berth is detected in an area. |
+| **Berth characterisation alert** (toggle) | Alert when a berth is characterised for the first time (dominant ship category). |
 | **⬇ Export CSV** | Download all readings as a CSV file (importable in Excel) |
 | **⬇ Download backup** | Download the database file (.db) as a backup |
 | **⬆ Restore** | Load a previously saved .db file to restore data |
@@ -411,21 +414,27 @@ In addition to the temporary alerts, the application keeps a **notification hist
 
 **When a notification is generated**
 
-Automatic notifications are created in two cases (both can be enabled/disabled from [Settings](#settings)):
+Automatic notifications are created in the following cases (each can be enabled/disabled independently from [Settings](#settings)):
 
+Vessel events:
 - **Ship revisit** — a vessel **previously seen in an area is detected again in that same area** (a new arrival after an absence). The very first sighting of a vessel does not generate a notification.
 - **Area change** — a vessel seen in one area is later detected in a **different** monitored area (the move from one area to another).
+- **High-risk score** — a vessel arrives with a risk score in the red band (71–100).
+
+Berth events (see [Berths](#berths-automatic-mooring-characterization)):
+- **New berth** — during the automatic recompute a new berth is detected in an area.
+- **Berth characterisation** — a berth is characterised for the first time (it reaches its dominant ship category). The initial analysis (*backfill*) on an area with no berths does not generate notifications.
 
 **Reading a notification**
 
 | Element | Meaning |
 |---|---|
-| 🟢 / 🟡 / 🔴 dot | Colour based on the risk score computed for that vessel (green low, yellow medium, red high — see [Risk score](#risk-score)) |
-| Text | Vessel name and the area it returned to, or the origin and destination areas for an area change |
+| 🟢 / 🟡 / 🔴 dot | Vessel notifications: colour based on the computed risk score (green low, yellow medium, red high — see [Risk score](#risk-score)). Berth notifications have a dedicated dot. |
+| Text | Vessel name and area (revisit/high-risk), origin and destination areas (area change), or berth name/category and area (berth events) |
 | ✓ button | Mark the notification as read |
 | 🗑 button | Delete the notification (visible on hover) |
 
-**Click a notification** (outside the ✓ and 🗑 buttons) to open the vessel detail view directly.
+**Click a notification** (outside the ✓ and 🗑 buttons): a vessel notification opens the vessel detail view; a berth notification jumps to the corresponding area's map (switching area if needed) and centres the berth, opening its details.
 
 **Deleting a notification**
 

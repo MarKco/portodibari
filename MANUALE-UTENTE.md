@@ -232,6 +232,9 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **Notifiche** (toggle) | Interruttore generale: abilita o disabilita tutte le notifiche nella barra laterale. Se spento, i toggle sottostanti sono disattivati. |
 | **Notifica rientro nave** (toggle) | Avvisa quando una nave rientra in un'area dove era già stata in passato. |
 | **Notifica cambio area** (toggle) | Avvisa quando una nave vista in un'area viene poi rilevata in un'**altra** area. |
+| **Notifica score alto** (toggle) | Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100). |
+| **Notifica nuova banchina** (toggle) | Avvisa quando viene rilevata una nuova banchina in un'area. |
+| **Notifica caratterizzazione banchina** (toggle) | Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente). |
 | **⬇ Esporta CSV** | Scarica tutte le letture come file CSV (importabile in Excel) |
 | **⬇ Scarica backup** | Scarica il file del database (.db) come backup |
 | **⬆ Ripristina** | Carica un file .db precedentemente salvato per ripristinare i dati |
@@ -411,21 +414,27 @@ Oltre agli avvisi temporanei, l'applicazione tiene uno **storico delle notifiche
 
 **Quando viene generata una notifica**
 
-Vengono create notifiche automatiche in due casi (entrambi abilitabili/disabilitabili dalle [Impostazioni](#impostazioni)):
+Vengono create notifiche automatiche nei seguenti casi (ciascuno abilitabile/disabilitabile in modo indipendente dalle [Impostazioni](#impostazioni)):
 
+Eventi nave:
 - **Rientro nave** — una nave **già vista in passato in un'area torna a essere rilevata nella stessa area** (un nuovo arrivo dopo un'assenza). Il primo avvistamento in assoluto di una nave non genera notifica.
 - **Cambio area** — una nave vista in un'area viene poi rilevata in un'**altra** area monitorata (lo spostamento da un'area all'altra).
+- **Score alto** — una nave arriva con score di rischio in fascia rossa (71–100).
+
+Eventi banchina (vedi [Banchine](#banchine-caratterizzazione-automatica-degli-attracchi)):
+- **Nuova banchina** — durante il ricalcolo automatico viene rilevata una nuova banchina in un'area.
+- **Caratterizzazione banchina** — una banchina viene caratterizzata per la prima volta (raggiunge la categoria di navi prevalente). Il primo calcolo iniziale (*backfill*) su un'area senza banchine non genera notifiche.
 
 **Lettura di una notifica**
 
 | Elemento | Significato |
 |---|---|
-| Bollino 🟢 / 🟡 / 🔴 | Colore in base allo score di rischio calcolato per quella nave (verde basso, giallo medio, rosso alto — vedi [Punteggio di rischio](#punteggio-di-rischio)) |
-| Testo | Nome della nave e area in cui è rientrata, oppure area di partenza e di arrivo per un cambio area |
+| Bollino 🟢 / 🟡 / 🔴 | Notifiche nave: colore in base allo score di rischio calcolato (verde basso, giallo medio, rosso alto — vedi [Punteggio di rischio](#punteggio-di-rischio)). Le notifiche banchina hanno un bollino dedicato. |
+| Testo | Nome della nave e area (rientro/score alto), area di partenza e di arrivo (cambio area), oppure nome/categoria della banchina e area (eventi banchina) |
 | Pulsante ✓ | Segna la notifica come letta |
 | Pulsante 🗑 | Elimina la notifica (visibile al passaggio del cursore) |
 
-**Clicca sulla notifica** (fuori dai pulsanti ✓ e 🗑) per aprire direttamente la scheda della nave.
+**Clicca sulla notifica** (fuori dai pulsanti ✓ e 🗑): per una notifica nave apre la scheda della nave; per una notifica banchina passa alla mappa dell'area corrispondente (cambiando area se necessario) e centra la banchina aprendone il dettaglio.
 
 **Eliminare una notifica**
 

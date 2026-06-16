@@ -445,13 +445,15 @@ Flusso (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` 
 
 **Alert navi segnalate** (`/api/alerts`) — quando una nave con flag ★ (segnalata) rientra nell'area, l'arrivo viene accodato e mostrato come toast nel frontend al polling successivo.
 
-**Notifiche** (tabella `notifications`, `/api/notifications`) — storico persistente mostrato nella barra laterale. Tre tipi di notifica vengono generati (tutti abilitabili/disabilitabili indipendentemente dalle Impostazioni, oltre all'interruttore generale `notificationsEnabled`):
+**Notifiche** (tabella `notifications`, `/api/notifications`) — storico persistente mostrato nella barra laterale. Cinque tipi di notifica vengono generati (tutti abilitabili/disabilitabili indipendentemente dalle Impostazioni, oltre all'interruttore generale `notificationsEnabled`):
 
 - `revisit` — una nave **già arrivata in passato nella stessa area** vi rientra dopo un'assenza (`db.insert` ritorna `revisit`); controllata da `notifyRevisit` / `NOTIFY_REVISIT`.
 - `area_change` — una nave vista in un'area viene poi rilevata in un'**altra** area (`db.insert` ritorna `areaChange` confrontando `last_area` della nave con l'area del messaggio prima dell'upsert); la notifica memorizza l'area di partenza in `from_area` e quella di arrivo in `area`; controllata da `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
 - `high_risk` — una nave **arriva** (nuova o dopo > 60 min di assenza, `db.insert` ritorna `arrived`) con **score di rischio in fascia rossa** (71–100); controllata da `notifyHighRisk` / `NOTIFY_HIGH_RISK`. Utile per il triage immediato dei casi critici senza aspettare la vista Traffico.
+- `berth_new` — durante il ricalcolo banchine (`berths.recomputeArea`) viene rilevata una **nuova banchina automatica** (cluster senza identità ereditata); controllata da `notifyBerthNew` / `NOTIFY_BERTH_NEW`.
+- `berth_characterized` — una banchina (automatica o manuale) viene **caratterizzata per la prima volta** (il `char_label` calcolato passa da `NULL` a una categoria); la categoria è memorizzata in `band`; controllata da `notifyBerthChar` / `NOTIFY_BERTH_CHAR`.
 
-In tutti i casi `ais-stream` calcola lo score e chiama `db.addNotification` (le navi con `notif_muted` sono escluse). Ogni notifica conserva la fascia di rischio (`band`) e lo `score` calcolati al momento dell'evento, mostrati come bollino verde/giallo/rosso. Endpoint: `GET /api/notifications` (lista + conteggio non lette), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (singola), `DELETE /api/notifications` (tutte). Conservate le ultime 100 (rotazione automatica a ogni inserimento).
+Per le notifiche nave `ais-stream` calcola lo score e chiama `db.addNotification` (le navi con `notif_muted` sono escluse); per le notifiche banchina è `berths.recomputeArea` a chiamarlo, memorizzando in `berth_id` la banchina di riferimento per la navigazione. Il primo ricalcolo su un'area senza banchine preesistenti **non** genera notifiche (per evitare una raffica di "nuova banchina" sul backfill iniziale). Ogni notifica nave conserva la fascia di rischio (`band`) e lo `score` calcolati al momento dell'evento, mostrati come bollino verde/giallo/rosso; le notifiche banchina mostrano un bollino dedicato. Un **clic** su una notifica nave apre la scheda della nave, su una notifica banchina porta alla mappa dell'area corrispondente con la banchina centrata. Endpoint: `GET /api/notifications` (lista + conteggio non lette), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (singola), `DELETE /api/notifications` (tutte). Conservate le ultime 100 (rotazione automatica a ogni inserimento).
 
 **Eliminazione con annullamento** — sia la singola notifica (cestino 🗑 sulla riga) sia il pulsante **🗑 cancella tutte** (accanto al badge non-lette nella sidebar) eliminano con una **finestra di annullamento** (toast "↶ Annulla") prima che la cancellazione diventi effettiva. La durata del bounce è configurabile in `app.config.properties` con `NOTIF_DELETE_UNDO_SECONDS` (default 5 s; `0` = eliminazione immediata) ed è esposta al frontend via `/api/config`.
 
@@ -698,7 +700,7 @@ pm2 save
 | `src/config.js`               | Config (local.properties/env), preset bbox, costanti, stato runtime; aggiunta/rimozione aree a runtime (`addArea`/`removeArea`, persistite in `bounding-boxes.json`); esporta `areaForPoint(lat, lon)` per risolvere una coordinata al preset più specifico |
 | `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths`, insert/upsert, query, predicato attive |
 | `src/services/ais-stream.js`  | Client WebSocket AISStream multi-area (`Map<areaKey, state>`) + riconnessione + eventi porto + notifiche di rientro e cambio area |
-| `src/services/berths.js`      | Rilevamento attracchi + clustering DBSCAN + caratterizzazione banchine (convex hull, point-in-polygon, backfill/ricalcolo) |
+| `src/services/berths.js`      | Rilevamento attracchi + clustering DBSCAN + caratterizzazione banchine (convex hull, point-in-polygon, backfill/ricalcolo) + notifiche di nuova banchina e caratterizzazione |
 | `src/services/ship-categories.js` | Mappa codice tipo nave AIS → categoria larga (cargo/tanker/passeggeri/…) + flag hazmat, usata per caratterizzare le banchine |
 | `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (curl) ed Equasis (curl, login, on-demand) |
 | `src/services/risk-score.js`  | Score di rischio trasporto armi (0–100) da firme comportamentali AIS + dati registro VF/MT in cache |
@@ -745,7 +747,7 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 
 **`api_log`** — log delle richieste HTTP (max 20.000, rotazione automatica): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
-**`notifications`** — feed notifiche mostrato in sidebar (max 100, rotazione automatica): `type` (`revisit`, `area_change` o `high_risk`), `mmsi`, `ship_name`, `area` (area di arrivo), `from_area` (area di partenza, solo per `area_change`), `band` (`low`/`med`/`high`) e `score` di rischio calcolati al momento dell'evento, `ts`, `read` (0/1).
+**`notifications`** — feed notifiche mostrato in sidebar (max 100, rotazione automatica): `type` (`revisit`, `area_change`, `high_risk`, `berth_new` o `berth_characterized`), `mmsi`, `ship_name` (per le banchine: il nome della banchina, se ha un nome), `area` (area di arrivo), `from_area` (area di partenza, solo per `area_change`), `band` (`low`/`med`/`high` per le notifiche nave; la categoria di banchina per `berth_characterized`) e `score` di rischio calcolati al momento dell'evento, `berth_id` (banchina di riferimento, solo per le notifiche banchina), `ts`, `read` (0/1).
 
 **`risk_history`** — snapshot dello score di rischio nel tempo per il grafico di andamento (vedi [Storico dello score](#-storico-dello-score-di-rischio)): `mmsi`, `ts`, `score`, `band`. Campionata sparsa (max 1/ora per nave) e limitata globalmente (rotazione a 20.000 righe).
 
@@ -799,7 +801,7 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 | GET | `/api/app-config` | Parametri di `app.config.properties` raggruppati, con descrizioni estratte dai commenti del file; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Scrive i parametri modificati `{values:{CHIAVE:valore}}` (solo chiavi già presenti nel file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
-| POST | `/api/settings` | Cambia preset, toggle import e toggle notifiche `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?}` |
+| POST | `/api/settings` | Cambia preset, toggle import e toggle notifiche `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Aggiunge un'area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → salva in `bounding-boxes.json` e avvia lo stream (salvo `autostart:false`) |
 | DELETE | `/api/areas/:key` | Elimina un'area e tutto il suo storico (letture/navi/eventi); rifiuta se è l'unica rimasta. Se era l'area attiva, ne seleziona un'altra |
