@@ -255,20 +255,6 @@ function initSettingsModal() {
     if (tab.dataset.panel === 'params') loadAppConfig();
   });
 
-  // Developer option — inject a test notification and refresh the feed.
-  el.btnTestNotification.addEventListener('click', async () => {
-    el.btnTestNotification.disabled = true;
-    try {
-      await api('/api/notifications/test', 'POST');
-      await loadNotifications();
-      showAlert(t('settings.devNotifTest.done'), '');
-    } catch (err) {
-      showAlert(t('settings.devNotifTest.fail'), escHtml(err.message || String(err)));
-    } finally {
-      el.btnTestNotification.disabled = false;
-    }
-  });
-
   // Per-area monitor toggles — start/stop a stream without leaving Settings.
   el.areaMonitors.addEventListener('change', async (e) => {
     const input = e.target.closest('input[data-area]');

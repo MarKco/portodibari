@@ -14,9 +14,15 @@ function flattenObject(obj, prefix) {
   return result;
 }
 
-/** Quote a CSV field if it contains a comma, quote, or newline. */
+/**
+ * Quote a CSV field if it contains a comma, quote, or newline. Also defuses
+ * spreadsheet formula injection: a field that begins with =, +, -, @ (or a
+ * leading tab/CR) is prefixed with a single quote so Excel/Sheets treat it as
+ * text, not a formula — ship names/destinations come from untrusted AIS data.
+ */
 function csvEscape(val) {
-  const s = String(val);
+  let s = String(val);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (s.includes(',') || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`;
   }

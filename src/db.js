@@ -2,13 +2,18 @@
 
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
-const {
-  ACTIVE_WINDOW_HOURS,
-  PORT_WINDOW_HOURS,
-  MAX_READINGS_PER_TYPE,
-  MAX_API_LOG_RECORDS,
-  SOG_FERMA: DB_SOG_FERMA,
-} = require('./config');
+const cfg = require('./config');
+
+// These values are interpolated into SQL strings below (parameter binding can't
+// be used for LIMIT-in-subquery / datetime modifiers / predicate literals), so
+// force each to a finite number first. They already come from config.num(), but
+// this makes the interpolation injection-proof regardless of upstream changes.
+const numOr = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+const ACTIVE_WINDOW_HOURS = numOr(cfg.ACTIVE_WINDOW_HOURS, 6);
+const PORT_WINDOW_HOURS = numOr(cfg.PORT_WINDOW_HOURS, 24);
+const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
+const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 20000);
+const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
 
 // The SQLite file lives at the project root (one level above src/).
 const DB_PATH = path.join(__dirname, '..', 'ais_data.db');
@@ -149,6 +154,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_berths_area ON berths(area);
 `);
 
+// Small key/value store for app-internal bookkeeping that must survive restarts
+// (e.g. "areas already reconciled for this bbox signature"). Created with
+// IF NOT EXISTS and copied as a column-intersection by restoreFrom, so restoring
+// an older backup that lacks it never errors — the key is simply re-derived.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+`);
+
 // Migrate existing DB: add new columns if missing
 for (const col of [
   'ship_type INTEGER',
@@ -236,6 +252,18 @@ function setScrapedData(mmsi, source, data) {
   const scraped_at = new Date().toISOString();
   upsertScrapeStmt.run(mmsi, source, JSON.stringify(data), scraped_at);
   return scraped_at;
+}
+
+// ── Meta key/value ───────────────────────────────────────────────────────────
+const getMetaStmt = db.prepare('SELECT value FROM meta WHERE key = ?');
+const setMetaStmt = db.prepare(
+  'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+);
+function getMeta(key) {
+  return getMetaStmt.get(key)?.value ?? null;
+}
+function setMeta(key, value) {
+  setMetaStmt.run(key, value == null ? null : String(value));
 }
 
 const insertReading = db.prepare(`
@@ -1111,7 +1139,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history', 'moorings', 'berths'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history', 'moorings', 'berths', 'meta'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -1226,6 +1254,8 @@ module.exports = {
   getAllByType,
   tagLegacyArea,
   reconcileAreasByCoords,
+  getMeta,
+  setMeta,
   deleteAll,
   getScrapedData,
   setScrapedData,

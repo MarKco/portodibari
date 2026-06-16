@@ -17,6 +17,56 @@ const router = express.Router();
 
 const KEY_RE = /^[A-Z0-9_]+$/;
 
+// Accepted numeric range [min, max] per key. Prevents nonsensical/dangerous
+// values (e.g. an interval of 0 → busy loop, a retention of 0 → data wipe,
+// negatives). Keys absent here fall back to a generic guardrail (see boundsFor).
+const BOUNDS = {
+  SOG_FERMA_KN: [0, 20],
+  STILL_RADIUS_M: [1, 100000],
+  ACTIVE_WINDOW_HOURS: [1, 8760],
+  PORT_WINDOW_HOURS: [1, 8760],
+  RECONNECT_DELAY_MS: [500, 3600000],
+  POLL_INTERVAL_MS: [5000, 86400000],
+  TRACK_MERGE_RADIUS_M: [1, 100000],
+  TRACK_DEFAULT_LIMIT: [1, 100000],
+  TRACK_MAX_LIMIT: [1, 1000000],
+  MAX_READINGS_PER_TYPE: [100, 100000000],
+  MAX_API_LOG_RECORDS: [100, 100000000],
+  SCRAPE_CACHE_TTL_HOURS: [1, 8760],
+  MAX_BODY_BYTES: [256, 16777216],
+  MAX_UPLOAD_MB: [1, 8192],
+  NOTIF_DELETE_UNDO_SECONDS: [0, 600],
+  BACKUP_INTERVAL_MIN: [1, 43200],
+  BERTH_CLUSTER_EPS_M: [1, 100000],
+  BERTH_MIN_PTS: [1, 10000],
+  BERTH_MIN_MOORINGS: [1, 1000000],
+  BERTH_DOMINANT_PCT: [1, 100],
+  BERTH_RECOMPUTE_MIN: [1, 43200],
+  BERTH_DIRTY_FLUSH_MIN: [1, 1440],
+  RISK_DARK_MIN_H: [0, 168],
+  RISK_DARK_MAX_H: [0, 168],
+  RISK_SPOOF_IMPOSSIBLE_KN: [0, 1000],
+  RISK_SPOOF_ANOMALOUS_KN: [0, 1000],
+  RISK_LOITERING_MIN_POSITIONS: [1, 100000],
+  RISK_LOITERING_FAR_KM: [0, 20000],
+  RISK_DRAUGHT_FACTOR: [0, 1000],
+  RISK_DRAUGHT_MIN_DELTA_M: [0, 100],
+  RISK_DEST_PER_CHANGE: [0, 100],
+  RISK_OLD_VESSEL_MIN_AGE: [0, 300],
+  RISK_MULT_HIGH_RISK: [0, 10],
+  RISK_MULT_FOC: [0, 10],
+};
+
+// Range to enforce for `key`. Explicit entry wins; otherwise a generic guardrail:
+// *_POINTS weights are 0–100, anything else must be non-negative (and counters /
+// intervals / limits at least 1).
+function boundsFor(key) {
+  if (BOUNDS[key]) return BOUNDS[key];
+  if (/_POINTS$/.test(key)) return [0, 100];
+  if (/(_MIN|_INTERVAL|_LIMIT|_PTS|_MOORINGS)$/.test(key)) return [1, Number.MAX_SAFE_INTEGER];
+  return [0, Number.MAX_SAFE_INTEGER];
+}
+
 // Unit of measure shown next to each value (outside the input box). Exact-key
 // map first, then a suffix-based fallback so future keys get a sensible unit.
 const UNITS = {
@@ -191,6 +241,8 @@ router.post('/app-config', (req, res) => {
       } else {
         const n = Number(rawVal);
         if (!Number.isFinite(n)) throw new Error(`${key}: valore numerico non valido`);
+        const [min, max] = boundsFor(key);
+        if (n < min || n > max) throw new Error(`${key}: valore fuori intervallo consentito (${min}–${max})`);
         out = String(n);
       }
 

@@ -8,6 +8,7 @@
 
 const db = require('./../db');
 const { state } = require('../config');
+const { invalidateRiskCache } = require('./risk-score');
 const { crawlVesselFinder } = require('./scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('./scrapers/marinetraffic');
 
@@ -29,6 +30,7 @@ async function fetchSource(ship, source) {
       if (shipId && shipId !== ship.mt_ship_id) db.setMtShipId(ship.mmsi, shipId);
       db.setScrapedData(ship.mmsi, 'mt', data);
     }
+    invalidateRiskCache(ship.mmsi); // newly cached flag/year/home-port may shift the score
   } catch (e) {
     console.error(`[ENRICH:${source}] ${ship.mmsi}: ${e.message}`);
   } finally {

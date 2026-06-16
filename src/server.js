@@ -16,7 +16,7 @@ const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
-const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, BERTH, AUTO_RESTORE_ON_DEPLOY } = require('./config');
+const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY } = require('./config');
 
 const app = createApp();
 
@@ -53,11 +53,20 @@ app.listen(PORT, () => {
     }
   }
 
-  // Tag legacy rows (area='') by coordinates, then repair any rows a previous
-  // blind migration mis-assigned (e.g. Taranto ships stamped as the startup area).
+  // Tag legacy rows (area='') by coordinates. Cheap after the first run (no rows
+  // left with area=''), so it always runs.
   db.tagLegacyArea(state.preset, areaForPoint);
-  const moved = db.reconcileAreasByCoords(areaForPoint);
-  if (moved) console.log(`[AIS] Aree riconciliate per coordinate: ${moved} righe corrette`);
+
+  // Reconcile mis-tagged rows by coordinates only when the area definitions have
+  // changed since last time (it scans every row, so skip the full O(rows) sweep
+  // when nothing moved). The signature is persisted in `meta`; a restore of an
+  // older backup lacks it → sweep runs once, then the signature is stored.
+  const sig = bboxSignature();
+  if (db.getMeta('areas_sig') !== sig) {
+    const moved = db.reconcileAreasByCoords(areaForPoint);
+    if (moved) console.log(`[AIS] Aree riconciliate per coordinate: ${moved} righe corrette`);
+    db.setMeta('areas_sig', sig);
+  }
 
   // Catch departures that crossed the 60-min threshold while the server was down,
   // then keep checking every minute.
@@ -106,6 +115,9 @@ app.listen(PORT, () => {
       console.error(`[BERTHS] Ricalcolo periodico fallito: ${e.message}`);
     }
   }, BERTH.RECOMPUTE_MIN * 60 * 1000);
+
+  // Fast incremental recompute of only the areas that just saw new arrivals.
+  berths.startDirtyFlush();
 
   stream.startStream(state.preset);
   startAutoBackup();

@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const db = require('../db');
 const berths = require('../services/berths');
-const { state, areaForPoint, exportAreas, BACKUP_INTERVAL_MIN } = require('../config');
+const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
@@ -18,6 +18,7 @@ const BUNDLE_FORMAT = 'tracker-porti-bundle';
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'data', 'backups');
 const MAX_BACKUPS = 5;
 const BACKUP_INTERVAL_MS = BACKUP_INTERVAL_MIN * 60 * 1000;
+const UPLOAD_LIMIT = `${MAX_UPLOAD_MB}mb`;
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
@@ -212,7 +213,7 @@ router.get('/backup', (req, res) => {
 
 // Replace the whole database with an uploaded backup (.db) file.
 // The raw file is sent as the request body (application/octet-stream).
-router.post('/restore', express.raw({ type: () => true, limit: '1024mb' }), (req, res) => {
+router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
   if (!req.body || !req.body.length) {
     return res.status(400).json({ error: 'Nessun file ricevuto' });
   }
@@ -230,6 +231,7 @@ router.post('/restore', express.raw({ type: () => true, limit: '1024mb' }), (req
     // riconcilia eventuali righe mal-taggate, come fa l'avvio del server.
     db.tagLegacyArea(state.preset, areaForPoint);
     db.reconcileAreasByCoords(areaForPoint);
+    db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     rebuildBerthsAfterRestore();
     res.json({ ok: true, counts });
   } catch (e) {
@@ -272,7 +274,7 @@ router.get('/bundle', (req, res) => {
 // Restore a full bundle: replaces the database, merges the areas and applies the
 // settings. The raw JSON file is sent as the request body (large: contains the
 // base64 database), so it bypasses the global express.json() size limit.
-router.post('/bundle/import', express.raw({ type: () => true, limit: '1024mb' }), (req, res) => {
+router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
   if (!req.body || !req.body.length) {
     return res.status(400).json({ error: 'Nessun file ricevuto' });
   }
@@ -307,6 +309,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: '1024mb' })
     // rows can be matched against the freshly merged bounding boxes.
     db.tagLegacyArea(state.preset, areaForPoint);
     db.reconcileAreasByCoords(areaForPoint);
+    db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
 
     let settings = null;
     if (bundle.settings) {
@@ -403,6 +406,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     if (parts.includes('db') || parts.includes('areas')) {
       db.tagLegacyArea(state.preset, areaForPoint);
       db.reconcileAreasByCoords(areaForPoint);
+      db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     }
     if (parts.includes('db')) rebuildBerthsAfterRestore();
 

@@ -2,16 +2,17 @@
 
 const express = require('express');
 const db = require('../db');
-const { computeRiskScore } = require('../services/risk-score');
+const { computeRiskScoreCached } = require('../services/risk-score');
 const { pendingAlerts } = require('../realtime');
+const { clampLimit, clampOffset } = require('../lib/params');
 
 const router = express.Router();
 
 const { state } = require('../config');
 
 router.get('/events', (req, res) => {
-  const { limit = 100, offset = 0, area } = req.query;
-  res.json(db.getPortEvents(Number(limit), Number(offset), area || state.preset));
+  const { area } = req.query;
+  res.json(db.getPortEvents(clampLimit(req.query.limit, 100), clampOffset(req.query.offset), area || state.preset));
 });
 
 router.get('/stats', (req, res) => {
@@ -26,7 +27,7 @@ router.get('/stats/scores', (req, res) => {
   const byBand = { low: 0, med: 0, high: 0 };
   const factorCounts = {};
   const scored = ships.map((s) => {
-    const risk = computeRiskScore(s, lang);
+    const risk = computeRiskScoreCached(s, lang);
     byBand[risk.band] = (byBand[risk.band] || 0) + 1;
     (risk.factors || []).forEach((f) => {
       factorCounts[f.label] = (factorCounts[f.label] || 0) + 1;

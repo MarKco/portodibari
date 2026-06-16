@@ -114,21 +114,53 @@ function centroidOf(points) {
 // ── DBSCAN ─────────────────────────────────────────────────────────────────
 // Density clustering with haversine distance. Returns an array of clusters
 // (each an array of the input points). Noise points are dropped.
+//
+// Neighbour lookup is accelerated with a uniform grid: points are bucketed into
+// cells of side ~epsM, so the candidates for a point are only its own cell plus
+// the 8 adjacent ones — turning the previous O(n²) all-pairs scan into roughly
+// O(n) for the spatially-spread mooring sets seen in practice.
 function dbscan(points, epsM, minPts) {
   const n = points.length;
-  const visited = new Array(n).fill(false);
-  const assigned = new Array(n).fill(false);
-  const clusters = [];
+  if (!n) return [];
+
+  // Fixed degrees-per-cell for the whole set (a port area spans little latitude,
+  // so one reference latitude keeps cell boundaries consistent).
+  const latDeg = epsM / 111320;
+  const refLat = points.reduce((s, p) => s + p.lat, 0) / n;
+  const lonDeg = epsM / (111320 * Math.max(Math.cos(toRad(refLat)), 1e-6));
+  const cellX = (p) => Math.floor(p.lon / lonDeg);
+  const cellY = (p) => Math.floor(p.lat / latDeg);
+  const cellKey = (cx, cy) => `${cx},${cy}`;
+
+  const grid = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = cellKey(cellX(points[i]), cellY(points[i]));
+    const arr = grid.get(k);
+    if (arr) arr.push(i);
+    else grid.set(k, [i]);
+  }
 
   const neighbours = (i) => {
     const out = [];
-    for (let j = 0; j < n; j++) {
-      if (j === i) continue;
-      if (haversineM(points[i].lat, points[i].lon, points[j].lat, points[j].lon) <= epsM)
-        out.push(j);
+    const cx = cellX(points[i]);
+    const cy = cellY(points[i]);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const arr = grid.get(cellKey(cx + dx, cy + dy));
+        if (!arr) continue;
+        for (const j of arr) {
+          if (j === i) continue;
+          if (haversineM(points[i].lat, points[i].lon, points[j].lat, points[j].lon) <= epsM)
+            out.push(j);
+        }
+      }
     }
     return out;
   };
+
+  const visited = new Array(n).fill(false);
+  const assigned = new Array(n).fill(false);
+  const clusters = [];
 
   for (let i = 0; i < n; i++) {
     if (visited[i]) continue;
@@ -138,12 +170,13 @@ function dbscan(points, epsM, minPts) {
     const cluster = [i];
     assigned[i] = true;
     const queue = [...nbrs];
+    const inQueue = new Set(queue);
     for (let q = 0; q < queue.length; q++) {
       const j = queue[q];
       if (!visited[j]) {
         visited[j] = true;
         const jn = neighbours(j);
-        if (jn.length + 1 >= minPts) for (const k of jn) if (!queue.includes(k)) queue.push(k);
+        if (jn.length + 1 >= minPts) for (const k of jn) if (!inQueue.has(k)) { inQueue.add(k); queue.push(k); }
       }
       if (!assigned[j]) {
         assigned[j] = true;
@@ -257,13 +290,16 @@ function recomputeArea(area) {
   const usedOld = new Set();
   for (const members of clusters) {
     const c = centroidOf(members);
-    // Inherit name/override from the nearest old auto berth within eps.
+    // Inherit name/override/identity from the nearest old auto berth. The match
+    // radius is widened to 2× eps so a cluster whose centroid drifts a little
+    // between recomputes still keeps its identity — otherwise it would be
+    // treated as brand-new and re-fire a "new berth" notification every cycle.
     let inherit = null;
     let best = Infinity;
     for (const ob of oldAuto) {
       if (usedOld.has(ob.id)) continue;
       const d = haversineM(c.lat, c.lon, ob.centroid_lat, ob.centroid_lon);
-      if (d < best && d <= BERTH.CLUSTER_EPS_M) {
+      if (d < best && d <= BERTH.CLUSTER_EPS_M * 2) {
         best = d;
         inherit = ob;
       }
@@ -316,11 +352,45 @@ function recomputeAll() {
   return out;
 }
 
+// ── Incremental "dirty" recompute ────────────────────────────────────────────
+// Arrivals/departures change an area's mooring set. Rather than recompute every
+// area on a fixed timer, the AIS ingestion marks the affected area dirty and a
+// short-interval flush recomputes only those — keeping the berth list fresh
+// without a full sweep on every tick.
+const dirtyAreas = new Set();
+let flushTimer = null;
+
+function markAreaDirty(area) {
+  if (area) dirtyAreas.add(area);
+}
+
+function flushDirtyAreas() {
+  if (!dirtyAreas.size) return;
+  const areas = [...dirtyAreas];
+  dirtyAreas.clear();
+  for (const area of areas) {
+    try {
+      recomputeArea(area);
+    } catch (e) {
+      console.error(`[BERTHS] Flush ricalcolo fallito per ${area}: ${e.message}`);
+    }
+  }
+}
+
+/** Start the periodic flush of dirty areas (idempotent). */
+function startDirtyFlush() {
+  if (flushTimer) return;
+  flushTimer = setInterval(flushDirtyAreas, BERTH.DIRTY_FLUSH_MIN * 60 * 1000);
+}
+
 module.exports = {
   detectMoorings,
   characterize,
   recomputeArea,
   recomputeAll,
+  markAreaDirty,
+  flushDirtyAreas,
+  startDirtyFlush,
   // exposed for tests / reuse
   dbscan,
   convexHull,

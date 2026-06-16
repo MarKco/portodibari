@@ -35,19 +35,4 @@ router.post('/notifications/read-all', (req, res) => {
   res.json({ ok: true, unread: 0 });
 });
 
-// Developer option: inject a fake notification into the feed to verify the
-// end-to-end flow (badge, list rendering, mark-as-read) without waiting for a
-// real AIS event.
-router.post('/notifications/test', (req, res) => {
-  const notification = db.addNotification({
-    type: 'revisit',
-    mmsi: 0,
-    ship_name: 'TEST VESSEL',
-    area: 'test',
-    band: 'high',
-    score: 99,
-  });
-  res.json({ ok: true, notification, unread: db.getUnreadNotificationCount() });
-});
-
 module.exports = router;

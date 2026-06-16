@@ -12,6 +12,7 @@ const {
 // Whether Equasis credentials are present (the lookup is unusable without them).
 const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
 const { enrichAllExisting } = require('../services/enrichment');
+const { clearRiskCache } = require('../services/risk-score');
 const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
 const equasisLog = require('../services/equasis-log');
@@ -70,13 +71,19 @@ router.get('/settings', (req, res) => {
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
 // returns the dataset status so the UI can reflect "refreshing in progress".
 router.post('/sanctions/refresh', (req, res) => {
-  sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Manual refresh failed: ${e.message}`));
+  sanctions
+    .refresh()
+    .then(() => clearRiskCache()) // new list contents can change matches
+    .catch((e) => console.error(`[SANCTIONS] Manual refresh failed: ${e.message}`));
   res.json({ ok: true, sanctions: sanctions.getStatus() });
 });
 
 // Manually re-download the PSC banned list + reload bundled flag lists.
 router.post('/psc/refresh', (req, res) => {
-  psc.refresh().catch((e) => console.error(`[PSC] Manual refresh failed: ${e.message}`));
+  psc
+    .refresh()
+    .then(() => clearRiskCache()) // new flag/banned data can change matches
+    .catch((e) => console.error(`[PSC] Manual refresh failed: ${e.message}`));
   res.json({ ok: true, psc: psc.getStatus() });
 });
 
@@ -149,6 +156,7 @@ function applyImportedSettings(s) {
 
   if (s.preset && BBOX_PRESETS[s.preset]) setPreset(s.preset);
 
+  clearRiskCache(); // import may have flipped sources that feed the score
   return exportSettings();
 }
 
@@ -256,6 +264,10 @@ router.post('/settings', (req, res) => {
     setImportEquasis(newEquasis);
     console.log(`[EQUASIS] Import Equasis: ${state.importEquasis}`);
   }
+
+  // Any toggle above (VF/MT/sanctions/PSC/Equasis) can change which signals feed
+  // the risk score, so drop the memoised scores.
+  clearRiskCache();
 
   if (!preset) {
     return res.json({

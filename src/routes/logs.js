@@ -3,6 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const { logClients } = require('../realtime');
+const { clampLimit, clampOffset, parseId } = require('../lib/params');
 
 const router = express.Router();
 
@@ -21,14 +22,15 @@ router.get('/logs/stream', (req, res) => {
 });
 
 router.get('/logs/:id', (req, res) => {
-  const row = db.getLog(Number(req.params.id));
+  const id = parseId(req.params.id);
+  if (id == null) return res.status(400).json({ error: 'ID non valido' });
+  const row = db.getLog(id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
 });
 
 router.get('/logs', (req, res) => {
-  const { limit = 200, offset = 0 } = req.query;
-  res.json({ logs: db.getLogs(Number(limit), Number(offset)) });
+  res.json({ logs: db.getLogs(clampLimit(req.query.limit, 200), clampOffset(req.query.offset)) });
 });
 
 router.delete('/logs', (req, res) => {

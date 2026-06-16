@@ -142,6 +142,11 @@ const TRACK_MAX_LIMIT = num('TRACK_MAX_LIMIT', 2000);
 const MAX_BODY = num('MAX_BODY_BYTES', 8192);
 const NOTIF_DELETE_UNDO_SECONDS = num('NOTIF_DELETE_UNDO_SECONDS', 5);
 
+// Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer
+// express.raw() allocates, so a single request can't exhaust memory. Generous
+// by default to fit a large base64-encoded database (~1.3× the .db size).
+const MAX_UPLOAD_MB = num('MAX_UPLOAD_MB', 512);
+
 // Interval (minutes) between automatic on-disk backups. Default 2 hours.
 const BACKUP_INTERVAL_MIN = num('BACKUP_INTERVAL_MIN', 120);
 
@@ -159,6 +164,9 @@ const BERTH = {
   MIN_MOORINGS: num('BERTH_MIN_MOORINGS', 10),
   DOMINANT_PCT: num('BERTH_DOMINANT_PCT', 60),
   RECOMPUTE_MIN: num('BERTH_RECOMPUTE_MIN', 30),
+  // How often (minutes) to recompute only the areas that received new arrivals
+  // since the last flush, so the berth list stays fresh without a full sweep.
+  DIRTY_FLUSH_MIN: num('BERTH_DIRTY_FLUSH_MIN', 2),
 };
 
 // ── Risk score weights (from app.config.properties) ──────────────────────────
@@ -307,6 +315,18 @@ function setNotifyBerthChar(enabled) {
 /** Keyword for a preset (used to flag "expected" ships by destination). */
 function currentKeyword(area) {
   return BBOX_PRESETS[area || state.preset]?.keyword || null;
+}
+
+/**
+ * Stable signature of the current area definitions (keys + corner coordinates).
+ * Used to decide whether a coordinate-based area reconcile needs to run again:
+ * the expensive full-table reconcile is skipped at startup unless this changed.
+ */
+function bboxSignature() {
+  const parts = Object.keys(BBOX_PRESETS)
+    .sort()
+    .map((k) => `${k}:${JSON.stringify(BBOX_PRESETS[k].box[0])}`);
+  return parts.join('|');
 }
 
 // ── Runtime area management ───────────────────────────────────────────────────
@@ -494,6 +514,7 @@ module.exports = {
   TRACK_DEFAULT_LIMIT,
   TRACK_MAX_LIMIT,
   MAX_BODY,
+  MAX_UPLOAD_MB,
   NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   AUTO_RESTORE_ON_DEPLOY,
@@ -517,6 +538,7 @@ module.exports = {
   setNotifyBerthNew,
   setNotifyBerthChar,
   currentKeyword,
+  bboxSignature,
   areaForPoint,
   addArea,
   removeArea,

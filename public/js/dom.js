@@ -140,9 +140,7 @@ export const el = {
   settingsPanels: document.querySelectorAll('.settings-panel'),
   settingsPanelGeneral: $('settings-panel-general'),
   settingsPanelAreas: $('settings-panel-areas'),
-  settingsPanelDev: $('settings-panel-dev'),
   settingsPanelBackup: $('settings-panel-backup'),
-  btnTestNotification: $('btn-test-notification'),
   btnManualBackup: $('btn-manual-backup'),
   autoBackupList: $('auto-backup-list'),
 
