@@ -6,7 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const db = require('../db');
-const { state, areaForPoint, exportAreas } = require('../config');
+const berths = require('../services/berths');
+const { state, areaForPoint, exportAreas, BACKUP_INTERVAL_MIN } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
@@ -16,7 +17,7 @@ const router = express.Router();
 const BUNDLE_FORMAT = 'tracker-porti-bundle';
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'data', 'backups');
 const MAX_BACKUPS = 5;
-const BACKUP_INTERVAL_MS = 30 * 60 * 1000;
+const BACKUP_INTERVAL_MS = BACKUP_INTERVAL_MIN * 60 * 1000;
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
@@ -65,6 +66,54 @@ function createAndSaveBundle(label = 'auto') {
     return { filename, mtime: fs.statSync(filePath).mtimeMs, size: fs.statSync(filePath).size };
   } finally {
     fs.unlink(tmp, () => {});
+  }
+}
+
+// Restore ONLY the database from the most recent saved backup. Used at startup
+// when the .db file was wiped by a deploy. Areas (bounding-boxes.json) and
+// settings (local.properties) survive a deploy as plain files, so they are left
+// as-is — restoring them from an older backup could regress current config.
+// Returns { filename, counts } or null when no backup is available; throws on a
+// corrupt/unreadable backup.
+function restoreDbFromLatestBackup() {
+  const backups = listSavedBackups();
+  if (!backups.length) return null;
+  const { filename } = backups[0];
+  const filePath = path.join(BACKUP_DIR, filename);
+
+  let bundle;
+  try {
+    bundle = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (e) {
+    throw new Error(`backup non leggibile (${filename}): ${e.message}`);
+  }
+  if (!bundle || bundle.format !== BUNDLE_FORMAT || !bundle.db) {
+    throw new Error(`formato backup non valido (${filename})`);
+  }
+
+  const tmp = path.join(os.tmpdir(), `tracker-porti-autorestore-${process.pid}.db`);
+  try {
+    const buf = Buffer.from(bundle.db, 'base64');
+    if (buf.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
+      throw new Error(`database nel backup non valido (${filename})`);
+    }
+    fs.writeFileSync(tmp, buf);
+    const counts = db.restoreFrom(tmp);
+    return { filename, counts };
+  } finally {
+    fs.unlink(tmp, () => {});
+  }
+}
+
+// After any DB restore the moorings/berths tables may be stale: an older backup
+// (pre-berths schema) has no such tables, so restoreFrom leaves the current ones
+// untouched — pointing at data that no longer exists. Rebuild them so the
+// overlay matches the restored database immediately (manual berths are kept).
+function rebuildBerthsAfterRestore() {
+  try {
+    berths.recomputeAll();
+  } catch (e) {
+    console.error(`[BERTHS] Ricalcolo post-restore fallito: ${e.message}`);
   }
 }
 
@@ -181,6 +230,7 @@ router.post('/restore', express.raw({ type: () => true, limit: '1024mb' }), (req
     // riconcilia eventuali righe mal-taggate, come fa l'avvio del server.
     db.tagLegacyArea(state.preset, areaForPoint);
     db.reconcileAreasByCoords(areaForPoint);
+    rebuildBerthsAfterRestore();
     res.json({ ok: true, counts });
   } catch (e) {
     res.status(400).json({ error: `Ripristino fallito: ${e.message}` });
@@ -267,6 +317,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: '1024mb' })
       }
     }
 
+    rebuildBerthsAfterRestore();
     res.json({ ok: true, counts, areas, settings });
   } catch (e) {
     res.status(400).json({ error: `Importazione fallita: ${e.message}` });
@@ -353,6 +404,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       db.tagLegacyArea(state.preset, areaForPoint);
       db.reconcileAreasByCoords(areaForPoint);
     }
+    if (parts.includes('db')) rebuildBerthsAfterRestore();
 
     if (parts.includes('settings') && bundle.settings) {
       try { settings = applyImportedSettings(bundle.settings); } catch (e) {
@@ -370,3 +422,4 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
 
 module.exports = router;
 module.exports.startAutoBackup = startAutoBackup;
+module.exports.restoreDbFromLatestBackup = restoreDbFromLatestBackup;

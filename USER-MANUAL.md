@@ -239,6 +239,8 @@ Open with the **⚙ Settings** button in the sidebar.
 
 > **Warning:** Restoring the database replaces **all** current data. This operation is irreversible. Download a backup before proceeding. After restore, data is automatically assigned to the correct area based on geographic coordinates.
 
+> **Auto-restore after a deploy:** the database is wiped when you update the application (deploy). If at startup the database **does not exist** and saved **auto-backups** are present (folder `data/backups/`), the app automatically restores the most recent backup (database only). This requires the backups folder to survive the deploy. It does not trigger if the database exists but was merely emptied via "Clear data". Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
+
 ---
 
 ## Area management

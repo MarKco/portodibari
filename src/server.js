@@ -1,13 +1,22 @@
 'use strict';
 
+// Detect a missing database file BEFORE anything requires ./db (requiring it —
+// directly or via ./app → routes — creates an empty ais_data.db). This is the
+// signal that a deploy wiped the DB, used below to auto-restore the latest
+// backup. Must stay the very first statements in this file.
+const fs = require('fs');
+const path = require('path');
+const DB_PATH = path.join(__dirname, '..', 'ais_data.db');
+const dbFileExisted = fs.existsSync(DB_PATH);
+
 const createApp = require('./app');
 const db = require('./db');
 const stream = require('./services/ais-stream');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
-const { startAutoBackup } = require('./routes/export');
-const { PORT, API_KEY, API_KEY_SOURCE, state, BBOX_PRESETS, areaForPoint, BERTH } = require('./config');
+const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
+const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, BERTH, AUTO_RESTORE_ON_DEPLOY } = require('./config');
 
 const app = createApp();
 
@@ -25,6 +34,24 @@ app.listen(PORT, () => {
     duration_ms: 0,
     response_body: `Porta ${PORT} | API key da: ${API_KEY_SOURCE} | key: ${keyHint}`,
   });
+
+  // Auto-restore after a deploy: the .db file was absent at startup (just
+  // re-created empty), so pull the most recent auto-backup back in. Runs before
+  // the area reconcile below so the restored rows get re-tagged. Skipped when
+  // the file already existed (an empty DB from "Clear data" is left untouched).
+  if (!dbFileExisted && AUTO_RESTORE_ON_DEPLOY) {
+    try {
+      const r = restoreDbFromLatestBackup();
+      if (r) {
+        const total = Object.values(r.counts || {}).reduce((a, b) => a + b, 0);
+        console.log(`[RESTORE] DB assente dopo il deploy → ripristinato l'ultimo backup ${r.filename} (${total.toLocaleString()} righe)`);
+      } else {
+        console.log('[RESTORE] DB assente e nessun backup disponibile: avvio con database vuoto');
+      }
+    } catch (e) {
+      console.error(`[RESTORE] Auto-ripristino fallito, avvio con DB vuoto: ${e.message}`);
+    }
+  }
 
   // Tag legacy rows (area='') by coordinates, then repair any rows a previous
   // blind migration mis-assigned (e.g. Taranto ships stamped as the startup area).

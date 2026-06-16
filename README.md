@@ -178,6 +178,8 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Attracchi minimi caratterizzazione | `app.config.properties`        | `BERTH_MIN_MOORINGS`                  | 10             |
 | Soglia % categoria dominante    | `app.config.properties`           | `BERTH_DOMINANT_PCT`                  | 60 %           |
 | Intervallo ricalcolo banchine   | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
+| Auto-ripristino DB dopo deploy  | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
+| Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 
 ### Applicare le modifiche
 
@@ -506,7 +508,7 @@ Dal modal **⚙ Impostazioni**, tab **Backup/Ripristino**:
 
 #### Auto-backup locale (nuovo)
 
-Il server crea automaticamente un backup "bundle" completo (database + aree + impostazioni) ogni **30 minuti** nella cartella `data/backups/`. Vengono conservati gli **ultimi 5 backup**; i più vecchi vengono cancellati automaticamente. Il primo backup parte 30 secondi dopo l'avvio del server.
+Il server crea automaticamente un backup "bundle" completo (database + aree + impostazioni) a intervalli regolari (default **ogni 2 ore**, configurabile con `BACKUP_INTERVAL_MIN` in `app.config.properties`) nella cartella `data/backups/`. Vengono conservati gli **ultimi 5 backup**; i più vecchi vengono cancellati automaticamente. Il primo backup parte 30 secondi dopo l'avvio del server.
 
 - **💾 Salva ora** → crea immediatamente un backup manuale (stesso formato dei backup automatici).
 - **Lista backup** → mostra i backup salvati con data, dimensione e tipo (Auto/Manuale). Per ciascuno:
@@ -518,6 +520,14 @@ Il server crea automaticamente un backup "bundle" completo (database + aree + im
     - Qualsiasi combinazione delle tre. Il ripristino è irreversibile (con conferma).
 
 I backup automatici si trovano in `data/backups/tracker-porti-autobackup-<timestamp>.json`; i manuali in `tracker-porti-manualbackup-<timestamp>.json`.
+
+#### Auto-ripristino dopo un deploy
+
+Il database `ais_data.db` è gitignored: un deploy che ricrea la cartella applicativa lo **cancella**. All'avvio, se il file del database **non esiste** (è appena stato ricreato vuoto) e in `data/backups/` c'è almeno un auto-backup, il server **ripristina automaticamente l'ultimo backup** — solo il database (le aree in `bounding-boxes.json` e le impostazioni in `local.properties` sono file che sopravvivono al deploy, quindi non vengono toccati). Vedi log `[RESTORE] DB assente dopo il deploy → ripristinato l'ultimo backup …`.
+
+- Scatta **solo** quando il file `.db` era assente all'avvio: un DB esistente ma vuoto (es. dopo **🗑 Cancella dati** + riavvio) **non** viene ripristinato, così non si "resuscitano" dati cancellati di proposito.
+- Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
+- **Importante**: perché funzioni, la cartella `data/backups/` deve **sopravvivere al deploy** (es. su un volume persistente / fuori dalla dir sostituita dal deploy). Vedi [Deploy su server Linux](#-deploy-su-server-linux-vps).
 
 #### Backup manuale (singolo componente)
 
@@ -577,6 +587,8 @@ ssh user@server
 cd /opt/tracker-porti
 npm install --omit=dev
 ```
+
+> **Persistenza tra deploy**: `ais_data.db` è gitignored e viene ricreato vuoto ad ogni deploy che sostituisce la cartella. Se conservi la cartella `data/backups/` tra un deploy e l'altro (non sovrascriverla — es. tienila su un volume persistente o escludila dall'`rsync --delete`), all'avvio l'app **ripristina automaticamente l'ultimo auto-backup** (vedi [Auto-ripristino dopo un deploy](#auto-ripristino-dopo-un-deploy)). In alternativa, conserva direttamente `ais_data.db`.
 
 ### Avvio con PM2 (processo persistente)
 

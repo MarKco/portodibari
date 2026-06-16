@@ -126,6 +126,16 @@ const TRACK_MAX_LIMIT = num('TRACK_MAX_LIMIT', 2000);
 const MAX_BODY = num('MAX_BODY_BYTES', 8192);
 const NOTIF_DELETE_UNDO_SECONDS = num('NOTIF_DELETE_UNDO_SECONDS', 5);
 
+// Interval (minutes) between automatic on-disk backups. Default 2 hours.
+const BACKUP_INTERVAL_MIN = num('BACKUP_INTERVAL_MIN', 120);
+
+// If the database file is missing at startup (e.g. wiped by a deploy) and at
+// least one auto-backup exists on disk, restore the most recent one. Defaults
+// on; set to 'false' to disable. Only triggers when the .db file was ABSENT
+// before this process started — never when the DB merely has no rows (so
+// "Clear data" + restart does not resurrect data).
+const AUTO_RESTORE_ON_DEPLOY = (appCfg.AUTO_RESTORE_ON_DEPLOY ?? 'true') !== 'false';
+
 // ── Berth (mooring characterization) parameters ──────────────────────────────
 const BERTH = {
   CLUSTER_EPS_M: num('BERTH_CLUSTER_EPS_M', 80),
@@ -448,6 +458,8 @@ module.exports = {
   TRACK_MAX_LIMIT,
   MAX_BODY,
   NOTIF_DELETE_UNDO_SECONDS,
+  BACKUP_INTERVAL_MIN,
+  AUTO_RESTORE_ON_DEPLOY,
   BERTH,
   RISK,
   BBOX_PRESETS,

@@ -239,6 +239,8 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 
 > **Attenzione:** Il ripristino del database sostituisce **tutti** i dati attuali. L'operazione è irreversibile. Scarica un backup prima di procedere. Dopo il ripristino, i dati vengono automaticamente assegnati all'area corretta in base alle coordinate geografiche.
 
+> **Auto-ripristino dopo un deploy:** il database viene cancellato quando si aggiorna l'applicazione (deploy). Se all'avvio il database **non esiste** e sono presenti degli **auto-backup** salvati (cartella `data/backups/`), l'app ripristina automaticamente l'ultimo backup (solo il database). Questo richiede che la cartella dei backup sopravviva al deploy. Non scatta se il database esiste ma è stato semplicemente svuotato con "Cancella dati". Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
+
 ---
 
 ## Gestione aree

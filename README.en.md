@@ -175,6 +175,8 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Minimum moorings to characterize| `app.config.properties`           | `BERTH_MIN_MOORINGS`                  | 10             |
 | Dominant-category threshold     | `app.config.properties`           | `BERTH_DOMINANT_PCT`                  | 60 %           |
 | Berth recompute interval        | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
+| Auto-restore DB after deploy    | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
+| On-disk auto-backup interval    | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 
 ### Applying changes
 
@@ -500,6 +502,16 @@ From the **⚙ Settings** modal:
 - **Backup database** → downloads the entire DB as a single `.db` file (`tracker-porti-backup-<timestamp>.db`). This is a consistent snapshot (`VACUUM INTO`), safe even with the AIS stream active and without WAL/`-shm` sidecar files.
 - **Restore database** → uploads a backup `.db` file: **all** current data is replaced (irreversible operation, with confirmation). The file is validated (SQLite header) and tables are copied column-by-column on the column intersection, so a backup with an older schema restores correctly. No app restart required. After restore, rows with an empty `area` value are automatically assigned to the correct area based on coordinates (most specific bounding box containing the point).
 
+The server also writes a full **auto-backup** bundle (database + areas + settings) at a regular interval (default **every 2 hours**, configurable via `BACKUP_INTERVAL_MIN` in `app.config.properties`) to `data/backups/` (last 5 kept), plus on-demand from the Backup/Restore tab.
+
+#### Auto-restore after a deploy
+
+`ais_data.db` is gitignored: a deploy that recreates the app folder **wipes it**. At startup, if the database file **does not exist** (just re-created empty) and `data/backups/` holds at least one auto-backup, the server **automatically restores the most recent backup** — the database only (areas in `bounding-boxes.json` and settings in `local.properties` are files that survive a deploy, so they are left untouched). See the log `[RESTORE] DB assente dopo il deploy → ripristinato l'ultimo backup …`.
+
+- Triggers **only** when the `.db` file was absent at startup: an existing-but-empty DB (e.g. after **🗑 Clear data** + restart) is **not** restored, so intentionally deleted data is never resurrected.
+- Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
+- **Important**: for this to work, `data/backups/` must **survive the deploy** (e.g. on a persistent volume / outside the replaced directory). See [Deploy on a Linux server](#-deploy-on-a-linux-server-vps).
+
 ---
 
 ## 🔐 Authentication
@@ -553,6 +565,8 @@ ssh user@server
 cd /opt/tracker-porti
 npm install --omit=dev
 ```
+
+> **Persistence across deploys**: `ais_data.db` is gitignored and is re-created empty on every deploy that replaces the folder. If you keep the `data/backups/` folder across deploys (don't overwrite it — e.g. on a persistent volume, or exclude it from `rsync --delete`), the app **automatically restores the most recent auto-backup** at startup (see [Auto-restore after a deploy](#auto-restore-after-a-deploy)). Alternatively, preserve `ais_data.db` directly.
 
 ### Starting with PM2 (persistent process)
 
