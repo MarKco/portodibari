@@ -3,14 +3,23 @@
 const express = require('express');
 const db = require('../db');
 const { computeDirection, isInPort } = require('../services/ship-analysis');
-const { computeRiskScore, isMilitary } = require('../services/risk-score');
+const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache, isMilitary } = require('../services/risk-score');
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const equasisLog = require('../services/equasis-log');
+const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD } = require('../config');
 
 const router = express.Router();
+
+// Reject a non-numeric :mmsi once for every route below, so handlers never bind
+// NaN into a query.
+router.param('mmsi', (req, res, next, val) => {
+  const n = Number(val);
+  if (!Number.isInteger(n) || n < 0) return res.status(400).json({ error: 'MMSI non valido' });
+  next();
+});
 
 // Literal sub-paths must be declared before the `:mmsi` parameter route.
 router.get('/ships/active', (req, res) => {
@@ -20,7 +29,7 @@ router.get('/ships/active', (req, res) => {
     .getActiveShips(area)
     .map((s) => {
       const mil = isMilitary(s);
-      return { ...s, direction: computeDirection(s), in_port: isInPort(s), risk: computeRiskScore(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
+      return { ...s, direction: computeDirection(s), in_port: isInPort(s), risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
     });
   res.json({ ships });
 });
@@ -30,7 +39,7 @@ router.get('/ships/past', (req, res) => {
   const area = req.query.area || state.preset;
   const ships = db.getPastShips(area).map((s) => {
     const mil = isMilitary(s);
-    return { ...s, risk: computeRiskScore(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
+    return { ...s, risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
   });
   res.json({ ships });
 });
@@ -60,8 +69,7 @@ router.get('/ships/:mmsi/risk-history', (req, res) => {
 
 router.get('/ships/:mmsi/readings', (req, res) => {
   const mmsi = Number(req.params.mmsi);
-  const { limit = 50, offset = 0 } = req.query;
-  const result = db.getShipReadings(mmsi, Number(limit), Number(offset));
+  const result = db.getShipReadings(mmsi, clampLimit(req.query.limit), clampOffset(req.query.offset));
   res.json(result);
 });
 
@@ -82,6 +90,7 @@ router.patch('/ships/:mmsi/military', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { is_military } = req.body;
   db.setMilitary(mmsi, is_military);
+  invalidateRiskCache(mmsi); // military status flips the score to 100
   res.json({ ok: true });
 });
 
@@ -129,6 +138,7 @@ router.get('/ships/:mmsi/vfdata', async (req, res) => {
   try {
     const data = await crawlVesselFinder(identifier);
     const scraped_at = db.setScrapedData(mmsi, 'vf', data);
+    invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
   } catch (e) {
     console.error('[VF] Crawl error:', e.message);
@@ -164,6 +174,7 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
     const { data, shipId } = await crawlMarineTraffic(ship);
     if (shipId && shipId !== ship.mt_ship_id) db.setMtShipId(mmsi, shipId);
     const scraped_at = db.setScrapedData(mmsi, 'mt', data);
+    invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at, shipId });
   } catch (e) {
     console.error('[MT] Crawl error:', e.message);

@@ -416,4 +416,47 @@ function isMilitary(ship) {
   return MILITARY_NAME_TOKENS.some((tok) => name.includes(tok));
 }
 
-module.exports = { computeRiskScore, bandOf, isMilitary };
+// ── Memoisation ──────────────────────────────────────────────────────────────
+// computeRiskScore is heavy (several DB reads + geometry per ship). The list /
+// stats endpoints score hundreds of ships per request on a synchronous SQLite
+// connection, which stalls the event loop. Cache the result per (mmsi, lang)
+// with a TTL, invalidated whenever a ship gets new data (a fresh AIS reading,
+// a manual military toggle, or new scraped enrichment) or a global input
+// changes (settings toggles, sanctions/PSC refresh). The ingestion path and the
+// single-ship detail view keep calling the uncached computeRiskScore so they
+// always see the freshest inputs.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 50000; // hard cap so a flood of distinct MMSIs can't grow it unbounded
+const _cache = new Map(); // `${mmsi}:${lang}` -> { at, val }
+
+function computeRiskScoreCached(ship, lang) {
+  const key = `${ship.mmsi}:${lang}`;
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.val;
+  const val = computeRiskScore(ship, lang);
+  if (_cache.size >= CACHE_MAX) _cache.clear();
+  _cache.set(key, { at: Date.now(), val });
+  return val;
+}
+
+/** Drop cached scores for one MMSI (all languages). */
+function invalidateRiskCache(mmsi) {
+  if (mmsi == null) return;
+  for (const key of _cache.keys()) {
+    if (key.startsWith(`${mmsi}:`)) _cache.delete(key);
+  }
+}
+
+/** Drop the whole cache (use when a global scoring input changes). */
+function clearRiskCache() {
+  _cache.clear();
+}
+
+module.exports = {
+  computeRiskScore,
+  computeRiskScoreCached,
+  invalidateRiskCache,
+  clearRiskCache,
+  bandOf,
+  isMilitary,
+};

@@ -4,8 +4,9 @@ const WebSocket = require('ws');
 
 const db = require('../db');
 const enrichment = require('./enrichment');
-const { computeRiskScore } = require('./risk-score');
-const { broadcastLog, pendingAlerts } = require('../realtime');
+const berths = require('./berths');
+const { computeRiskScore, invalidateRiskCache } = require('./risk-score');
+const { broadcastLog, pushAlert } = require('../realtime');
 const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS, state } = require('../config');
 
 // Map of areaKey → per-stream state object
@@ -108,8 +109,13 @@ function startStream(areaKey) {
       if (parsed.MessageType) {
         const t0 = Date.now();
         const { arrivedFlagged, newShip, revisit, areaChange, arrived } = db.insert(parsed, areaKey);
-        if (arrivedFlagged) pendingAlerts.push(arrivedFlagged);
+        // New data for this ship → its cached risk score is stale.
+        invalidateRiskCache(parsed.MetaData?.MMSI);
+        if (arrivedFlagged) pushAlert(arrivedFlagged);
         if (newShip) enrichment.enrichNewShip(newShip);
+        // Arrivals/departures change the mooring set for this area: mark it for
+        // the next dirty-flush recompute so the berth list stays fresh.
+        if (arrived) berths.markAreaDirty(areaKey);
 
         // On any arrival: snapshot the score for the history chart, and notify
         // when the ship is in the high-risk band (independent toggle).
