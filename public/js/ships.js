@@ -944,6 +944,21 @@ const SCRAPE_LABEL_GLOSSARY = {
   'position received': 'Data e ora dell’ultima posizione AIS ricevuta. Indica quanto è recente il dato.',
   'last port': 'Ultimo porto in cui la nave ha fatto scalo.',
   atd: 'ATD (Actual Time of Departure): orario effettivo di partenza dall’ultimo porto.',
+  // MarineTraffic uses its own fixed Italian labels (see MT_FIELD_LABELS in
+  // src/services/scrapers/marinetraffic.js), distinct from VesselFinder's.
+  // 'mmsi' is already covered above and must not be repeated here.
+  nome: 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO.',
+  imo: 'Numero IMO: identificativo univoco a 7 cifre dell’Organizzazione Marittima Internazionale. Non cambia mai per tutta la vita della nave.',
+  nominativo: 'Nominativo internazionale (call sign): codice radio univoco assegnato alla nave per le comunicazioni.',
+  bandiera: 'Stato di bandiera: il Paese in cui la nave è registrata. Determina giurisdizione e regole applicabili.',
+  tipo: 'Tipo di nave secondo il database MarineTraffic.',
+  'stazza lorda': 'Stazza lorda (GT): misura adimensionale del volume interno totale della nave. Usata per tasse e normative; non è un peso.',
+  'portata lorda': 'Portata lorda (DWT, deadweight): peso massimo trasportabile in tonnellate (carico + combustibile + provviste + equipaggio).',
+  lunghezza: 'Lunghezza fuori tutto (LOA): lunghezza massima della nave da prua a poppa, in metri.',
+  larghezza: 'Baglio: larghezza massima dello scafo, in metri.',
+  'anno costruzione': 'Anno di costruzione (consegna) della nave. L’età incide su rischio e frequenza delle ispezioni.',
+  stato: 'Stato operativo della nave secondo MarineTraffic (es. in servizio, in disarmo).',
+  'porto di armamento': 'Home port: porto di armamento, base amministrativa della nave. Non indica necessariamente dove si trova ora.',
 };
 
 function scrapeNormLabel(label) {
