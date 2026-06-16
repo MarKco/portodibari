@@ -21,6 +21,10 @@ function append({ mmsi, imo, name, ok, data, error }) {
   if (ok) {
     const mgmt = (data && data.management) || [];
     const particulars = (data && data.particulars) || {};
+    const classification = (data && data.classification) || [];
+    const pi = (data && data.pi) || [];
+    const risk = (data && data.risk) || {};
+    const positions = (data && data.positions) || [];
     for (const m of mgmt) {
       block += `    ${m.role}: ${m.company}`;
       if (m.address) block += ` | ${m.address}`;
@@ -30,7 +34,21 @@ function append({ mmsi, imo, name, ok, data, error }) {
     for (const [k, v] of Object.entries(particulars)) {
       block += `    ${k}: ${v}\n`;
     }
-    if (!mgmt.length && !Object.keys(particulars).length) block += '    (no data)\n';
+    for (const c of classification) {
+      block += `    Class: ${c.society} — ${c.status}${c.date ? ` | ${c.date}` : ''}\n`;
+    }
+    for (const c of pi) {
+      block += `    P&I: ${c.club}${c.date ? ` | ${c.date}` : ''}\n`;
+    }
+    for (const [k, v] of Object.entries(risk)) {
+      block += `    ${k}: ${v}\n`;
+    }
+    for (const p of positions) {
+      block += `    Seen ${p.date}: ${p.area}${p.source ? ` (${p.source})` : ''}\n`;
+    }
+    const empty = !mgmt.length && !Object.keys(particulars).length && !classification.length
+      && !pi.length && !Object.keys(risk).length && !positions.length;
+    if (empty) block += '    (no data)\n';
   } else {
     block += `    ${error || 'unknown error'}\n`;
   }

@@ -178,6 +178,10 @@ export default {
   'scrape.equasisHint':        'Press "Fetch Equasis information" to look up owner and managers (by IMO number).',
   'scrape.equasisMgmt':        'Ownership & management',
   'scrape.equasisParticulars': 'Ship particulars',
+  'scrape.equasisClass':       'Classification',
+  'scrape.equasisPI':          'P&I cover',
+  'scrape.equasisRisk':        'Performance / risk',
+  'scrape.equasisPositions':   'Recent positions',
 
   // ── Alerts / toasts ────────────────────────────────────────────────────────
   'alert.flagged':   '⚠️ Flagged ship in area!',

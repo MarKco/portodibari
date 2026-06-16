@@ -178,6 +178,10 @@ export default {
   'scrape.equasisHint':       'Premi "Recupera informazioni Equasis" per cercare proprietario e gestori (per numero IMO).',
   'scrape.equasisMgmt':       'Proprietà e gestione',
   'scrape.equasisParticulars': 'Dati nave',
+  'scrape.equasisClass':       'Classificazione',
+  'scrape.equasisPI':          'Copertura P&I',
+  'scrape.equasisRisk':        'Performance / rischio',
+  'scrape.equasisPositions':   'Posizioni recenti',
 
   // ── Alerts / toasts ────────────────────────────────────────────────────────
   'alert.flagged':    '⚠️ Nave segnalata in area!',

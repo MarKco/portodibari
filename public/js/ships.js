@@ -759,10 +759,32 @@ export async function loadEquasisData(mmsi, doFetch = false) {
   }
 }
 
+// One label/value <table> from a {label: value} map (used for particulars + risk).
+function eqKvTable(titleKey, map) {
+  const entries = Object.entries(map || {});
+  if (!entries.length) return '';
+  const rows = entries
+    .map(
+      ([label, value]) => `
+      <tr>
+        <td class="vf-td-label">${escHtml(label)}</td>
+        <td class="vf-td-val">${escHtml(value)}</td>
+      </tr>`
+    )
+    .join('');
+  return `<h4 class="eq-subtitle">${t(titleKey)}</h4><table class="vf-table">${rows}</table>`;
+}
+
 function renderEquasisData(container, data) {
   const mgmt = (data && data.management) || [];
   const particulars = (data && data.particulars) || {};
-  if (!mgmt.length && !Object.keys(particulars).length) {
+  const classification = (data && data.classification) || [];
+  const pi = (data && data.pi) || [];
+  const risk = (data && data.risk) || {};
+  const positions = (data && data.positions) || [];
+  const anything = mgmt.length || Object.keys(particulars).length || classification.length
+    || pi.length || Object.keys(risk).length || positions.length;
+  if (!anything) {
     container.innerHTML = `<p class="vf-empty">${t('scrape.noData')}</p>`;
     return;
   }
@@ -779,18 +801,43 @@ function renderEquasisData(container, data) {
       .join('');
     html += `<h4 class="eq-subtitle">${t('scrape.equasisMgmt')}</h4><table class="vf-table">${rows}</table>`;
   }
-  const pEntries = Object.entries(particulars);
-  if (pEntries.length) {
-    const rows = pEntries
+  html += eqKvTable('scrape.equasisParticulars', particulars);
+  if (classification.length) {
+    const rows = classification
       .map(
-        ([label, value]) => `
+        (c) => `
       <tr>
-        <td class="vf-td-label">${escHtml(label)}</td>
-        <td class="vf-td-val">${escHtml(value)}</td>
+        <td class="vf-td-label">${escHtml(c.society)}</td>
+        <td class="vf-td-val">${escHtml(c.status)}${c.date ? `<br><span class="eq-date">${escHtml(c.date)}</span>` : ''}${c.reason ? `<br><span class="eq-addr">${escHtml(c.reason)}</span>` : ''}</td>
       </tr>`
       )
       .join('');
-    html += `<h4 class="eq-subtitle">${t('scrape.equasisParticulars')}</h4><table class="vf-table">${rows}</table>`;
+    html += `<h4 class="eq-subtitle">${t('scrape.equasisClass')}</h4><table class="vf-table">${rows}</table>`;
+  }
+  if (pi.length) {
+    const rows = pi
+      .map(
+        (c) => `
+      <tr>
+        <td class="vf-td-label">${escHtml(c.club)}</td>
+        <td class="vf-td-val">${c.date ? escHtml(c.date) : ''}</td>
+      </tr>`
+      )
+      .join('');
+    html += `<h4 class="eq-subtitle">${t('scrape.equasisPI')}</h4><table class="vf-table">${rows}</table>`;
+  }
+  html += eqKvTable('scrape.equasisRisk', risk);
+  if (positions.length) {
+    const rows = positions
+      .map(
+        (p) => `
+      <tr>
+        <td class="vf-td-label">${escHtml(p.date)}</td>
+        <td class="vf-td-val">${escHtml(p.area)}${p.source ? `<br><span class="eq-addr">${escHtml(p.source)}</span>` : ''}</td>
+      </tr>`
+      )
+      .join('');
+    html += `<h4 class="eq-subtitle">${t('scrape.equasisPositions')}</h4><table class="vf-table">${rows}</table>`;
   }
   container.innerHTML = html;
 }
