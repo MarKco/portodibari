@@ -5,8 +5,9 @@ const db = require('./db');
 const stream = require('./services/ais-stream');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
+const berths = require('./services/berths');
 const { startAutoBackup } = require('./routes/export');
-const { PORT, API_KEY, API_KEY_SOURCE, state, BBOX_PRESETS, areaForPoint } = require('./config');
+const { PORT, API_KEY, API_KEY_SOURCE, state, BBOX_PRESETS, areaForPoint, BERTH } = require('./config');
 
 const app = createApp();
 
@@ -59,6 +60,25 @@ app.listen(PORT, () => {
       psc.refresh().catch((e) => console.error(`[PSC] Daily refresh failed: ${e.message}`));
     }, 24 * 60 * 60 * 1000);
   }
+
+  // Berths: backfill mooring clusters from existing history once at startup
+  // (idempotent — manual edits survive), then recompute periodically as new
+  // arrivals accumulate. Runs detached so it never blocks the listen callback.
+  setTimeout(() => {
+    try {
+      berths.recomputeAll();
+      console.log('[BERTHS] Backfill iniziale completato');
+    } catch (e) {
+      console.error(`[BERTHS] Backfill fallito: ${e.message}`);
+    }
+  }, 0);
+  setInterval(() => {
+    try {
+      berths.recomputeAll();
+    } catch (e) {
+      console.error(`[BERTHS] Ricalcolo periodico fallito: ${e.message}`);
+    }
+  }, BERTH.RECOMPUTE_MIN * 60 * 1000);
 
   stream.startStream(state.preset);
   startAutoBackup();

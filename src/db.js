@@ -112,6 +112,43 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_risk_history_mmsi ON risk_history(mmsi, ts);
 `);
 
+// Moorings — one point per ship visit (centroid of its stationary readings in
+// the area during that stay). Tagged with the ship's broad category so each
+// berth can be characterised by what moors there. Rebuilt by the berths
+// service; `berth_id` is the cluster it was assigned to (null = unassigned).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS moorings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    area TEXT NOT NULL,
+    mmsi INTEGER NOT NULL,
+    ship_type INTEGER,
+    category TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    ts TEXT NOT NULL,
+    berth_id INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_moorings_area ON moorings(area);
+  CREATE INDEX IF NOT EXISTS idx_moorings_berth ON moorings(berth_id);
+
+  CREATE TABLE IF NOT EXISTS berths (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    area TEXT NOT NULL,
+    name TEXT,
+    polygon_json TEXT NOT NULL,
+    centroid_lat REAL NOT NULL,
+    centroid_lon REAL NOT NULL,
+    manual_geom INTEGER NOT NULL DEFAULT 0,
+    char_label TEXT,
+    char_override TEXT,
+    mooring_count INTEGER NOT NULL DEFAULT 0,
+    dist_json TEXT,
+    hazmat_pct REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_berths_area ON berths(area);
+`);
+
 // Migrate existing DB: add new columns if missing
 for (const col of [
   'ship_type INTEGER',
@@ -565,6 +602,147 @@ function getShipEvents(mmsi) {
     .all(mmsi);
 }
 
+// ── Moorings & berths ────────────────────────────────────────────────────────
+
+// Arrivals for an area, ordered by ship then time, so the berths service can
+// pair each arrival with the start of the next visit (the window during which
+// the ship sat in port) and derive a single mooring point per visit.
+function getArrivalsForArea(area) {
+  return db
+    .prepare(
+      `SELECT mmsi, ts, ship_type FROM port_events
+       WHERE event_type = 'arrived' AND area = ?
+       ORDER BY mmsi, ts`
+    )
+    .all(area);
+}
+
+// Centroid of a ship's *stationary* readings inside an area during one visit
+// window [fromTs, toTs). Stationary = SOG below the "ferma" threshold or an
+// explicit moored/anchored nav status (1 = anchored, 5 = moored). Returns
+// { lat, lon, n } with n = how many readings backed the centroid (0 = the ship
+// passed through without ever settling → not a real mooring).
+const stayCentroidStmt = db.prepare(
+  `SELECT AVG(latitude) AS lat, AVG(longitude) AS lon, COUNT(*) AS n
+   FROM readings
+   WHERE mmsi = ? AND area = ?
+     AND received_at >= ? AND received_at < ?
+     AND latitude IS NOT NULL AND longitude IS NOT NULL
+     AND (sog < ${DB_SOG_FERMA} OR navigational_status IN ('1', '5'))`
+);
+function getStayCentroid(mmsi, area, fromTs, toTs) {
+  return stayCentroidStmt.get(mmsi, area, fromTs, toTs);
+}
+
+const insertMooringStmt = db.prepare(
+  'INSERT INTO moorings (area, mmsi, ship_type, category, lat, lon, ts, berth_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)'
+);
+
+// Replace every mooring for an area with a freshly-computed set (single txn).
+function replaceMoorings(area, moorings) {
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM moorings WHERE area = ?').run(area);
+    for (const m of moorings) {
+      insertMooringStmt.run(area, m.mmsi, m.ship_type ?? null, m.category, m.lat, m.lon, m.ts);
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+function getMoorings(area) {
+  return db.prepare('SELECT * FROM moorings WHERE area = ? ORDER BY id').all(area);
+}
+
+function setMooringBerth(ids, berthId) {
+  if (!ids.length) return;
+  const stmt = db.prepare('UPDATE moorings SET berth_id = ? WHERE id = ?');
+  for (const id of ids) stmt.run(berthId, id);
+}
+
+function clearMooringBerths(area) {
+  db.prepare('UPDATE moorings SET berth_id = NULL WHERE area = ?').run(area);
+}
+
+function getBerths(area) {
+  const filter = area ? 'WHERE area = ?' : '';
+  const params = area ? [area] : [];
+  return db.prepare(`SELECT * FROM berths ${filter} ORDER BY id`).all(...params);
+}
+
+function getBerth(id) {
+  return db.prepare('SELECT * FROM berths WHERE id = ?').get(id) || null;
+}
+
+// Auto (non-manual) berths only — captured before a rebuild so new clusters can
+// inherit a renamed/overridden identity by centroid proximity.
+function getAutoBerths(area) {
+  return db.prepare('SELECT * FROM berths WHERE area = ? AND manual_geom = 0').all(area);
+}
+
+function deleteAutoBerths(area) {
+  db.prepare('DELETE FROM berths WHERE area = ? AND manual_geom = 0').run(area);
+}
+
+const insertBerthStmt = db.prepare(
+  `INSERT INTO berths (area, name, polygon_json, centroid_lat, centroid_lon, manual_geom,
+     char_label, char_override, mooring_count, dist_json, hazmat_pct, updated_at)
+   VALUES (@area, @name, @polygon_json, @centroid_lat, @centroid_lon, @manual_geom,
+     @char_label, @char_override, @mooring_count, @dist_json, @hazmat_pct, @updated_at)`
+);
+
+function insertBerth(b) {
+  const row = {
+    area: b.area,
+    name: b.name ?? null,
+    polygon_json: b.polygon_json,
+    centroid_lat: b.centroid_lat,
+    centroid_lon: b.centroid_lon,
+    manual_geom: b.manual_geom ? 1 : 0,
+    char_label: b.char_label ?? null,
+    char_override: b.char_override ?? null,
+    mooring_count: b.mooring_count ?? 0,
+    dist_json: b.dist_json ?? null,
+    hazmat_pct: b.hazmat_pct ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+  return Number(insertBerthStmt.run(row).lastInsertRowid);
+}
+
+// Update the computed characterisation of an existing berth (keeps name,
+// char_override and — for manual berths — geometry untouched).
+function updateBerthChar(id, { char_label, mooring_count, dist_json, hazmat_pct }) {
+  db.prepare(
+    `UPDATE berths SET char_label = ?, mooring_count = ?, dist_json = ?, hazmat_pct = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(char_label ?? null, mooring_count ?? 0, dist_json ?? null, hazmat_pct ?? 0, new Date().toISOString(), id);
+}
+
+// Apply user edits: rename, manual category override, and/or a redrawn polygon
+// (which locks the geometry as manual). Only provided fields are touched.
+function updateBerthManual(id, fields) {
+  const sets = [];
+  const params = [];
+  if ('name' in fields) { sets.push('name = ?'); params.push(fields.name || null); }
+  if ('char_override' in fields) { sets.push('char_override = ?'); params.push(fields.char_override || null); }
+  if ('polygon_json' in fields) {
+    sets.push('polygon_json = ?', 'centroid_lat = ?', 'centroid_lon = ?', 'manual_geom = 1');
+    params.push(fields.polygon_json, fields.centroid_lat, fields.centroid_lon);
+  }
+  if (!sets.length) return;
+  sets.push('updated_at = ?');
+  params.push(new Date().toISOString(), id);
+  db.prepare(`UPDATE berths SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+}
+
+function deleteBerth(id) {
+  db.prepare('UPDATE moorings SET berth_id = NULL WHERE berth_id = ?').run(id);
+  db.prepare('DELETE FROM berths WHERE id = ?').run(id);
+}
+
 // ── Notifications ────────────────────────────────────────────────────────────
 const MAX_NOTIFICATIONS = 100;
 
@@ -877,12 +1055,16 @@ function deleteAll(area) {
     db.prepare('DELETE FROM ships WHERE last_area = ?').run(area);
     db.prepare('DELETE FROM port_events WHERE area = ?').run(area);
     db.prepare('DELETE FROM notifications WHERE area = ?').run(area);
+    db.prepare('DELETE FROM moorings WHERE area = ?').run(area);
+    db.prepare('DELETE FROM berths WHERE area = ?').run(area);
   } else {
     db.exec('DELETE FROM readings');
     db.exec('DELETE FROM ships');
     db.exec('DELETE FROM port_events');
     db.exec('DELETE FROM notifications');
     db.exec('DELETE FROM risk_history');
+    db.exec('DELETE FROM moorings');
+    db.exec('DELETE FROM berths');
   }
   Object.keys(insertCounters).forEach((k) => delete insertCounters[k]);
 }
@@ -923,7 +1105,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history', 'moorings', 'berths'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -1003,6 +1185,20 @@ module.exports = {
   setNotifMuted,
   getPortEvents,
   getShipEvents,
+  getArrivalsForArea,
+  getStayCentroid,
+  replaceMoorings,
+  getMoorings,
+  setMooringBerth,
+  clearMooringBerths,
+  getBerths,
+  getBerth,
+  getAutoBerths,
+  deleteAutoBerths,
+  insertBerth,
+  updateBerthChar,
+  updateBerthManual,
+  deleteBerth,
   addNotification,
   getNotifications,
   getUnreadNotificationCount,

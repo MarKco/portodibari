@@ -13,6 +13,7 @@ router.use(require('./notifications'));
 router.use(require('./logs'));
 router.use(require('./settings'));
 router.use(require('./areas'));
+router.use(require('./berths'));
 router.use(require('./export'));
 
 module.exports = router;

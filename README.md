@@ -173,6 +173,11 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Max punti track mappa           | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` e default `500` | 500 punti      |
 | TTL cache scraping VF/MT        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 ore          |
 | Bounce annullamento eliminazione notifiche | `app.config.properties` | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
+| Raggio clustering banchine      | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
+| Attracchi minimi per banchina   | `app.config.properties`           | `BERTH_MIN_PTS`                       | 3              |
+| Attracchi minimi caratterizzazione | `app.config.properties`        | `BERTH_MIN_MOORINGS`                  | 10             |
+| Soglia % categoria dominante    | `app.config.properties`           | `BERTH_DOMINANT_PCT`                  | 60 %           |
+| Intervallo ricalcolo banchine   | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
 
 ### Applicare le modifiche
 
@@ -358,6 +363,22 @@ Una nave ormeggiata/all'ancora non è perfettamente immobile: oscilla sull'ancor
 L'isteresi evita che lo swing all'ancora faccia "lampeggiare" la nave dentro/fuori dallo stato in-porto. Le navi in porto sono marcate con badge ⚓ (lista, popup mappa, dettaglio) e beneficiano della retention di 24 ore.
 
 **De-noise traccia** (`collapseTrack` in `public/js/maps.js`) — nella mappa del dettaglio, i punti consecutivi fermi (SOG < 0.5) entro `TRACK_MERGE_RADIUS_M` (100 m) sono collassati in un unico nodo **⚓ Sosta** (popup con numero di posizioni e intervallo orario). La polilinea passa per i centroidi → traccia pulita invece di una nuvola di marker attorno alla banchina. Le letture grezze nel DB restano intatte: il merge è solo a livello di visualizzazione.
+
+## ⚓ Banchine (caratterizzazione automatica degli attracchi)
+
+Il sistema deduce automaticamente **dove** le navi attraccano e **di che tipo** sono, evidenziando i moli "caratterizzati" con un overlay colorato sulla mappa delle navi presenti. Tutto è correggibile a mano.
+
+**Pipeline** (`src/services/berths.js`, per area):
+
+1. **`detectMoorings(area)`** — un punto di attracco per visita = centroide delle letture *ferme* della nave (`sog < SOG_FERMA` o stato AIS ormeggiata/ancora `5`/`1`) nella finestra tra un arrivo e l'arrivo successivo della stessa nave (gli arrivi vengono da `port_events`). Le visite di puro transito (nessuna lettura ferma) sono scartate. Ogni punto è etichettato con la **categoria** della nave (`src/services/ship-categories.js`: cargo, tanker, passeggeri, pesca, servizio, militare, diporto, alta velocità, altro).
+2. **Clustering** — DBSCAN con distanza haversine (`BERTH_CLUSTER_EPS_M`, `BERTH_MIN_PTS`). I punti dentro il poligono di una banchina **manuale** vengono assegnati prima ed esclusi dal clustering (la geometria disegnata a mano vince). La geometria di una banchina automatica è l'**inviluppo convesso** (convex hull) dei suoi punti.
+3. **Caratterizzazione** — conteggio categorie per banchina: la dominante (≥ `BERTH_DOMINANT_PCT`, su almeno `BERTH_MIN_MOORINGS` attracchi) dà nome e colore alla banchina, altrimenti è **"mista"**; sotto la soglia minima resta non caratterizzata (tratteggiata). Calcola anche la quota di **merci pericolose** (☢, codici AIS 71–74/81–84).
+
+**Persistenza delle correzioni** — le banchine automatiche vengono ricostruite ad ogni ricalcolo, ma una banchina rinominata/forzata riacquista la sua identità per prossimità del centroide (entro `eps`). Le banchine **manuali** (geometria bloccata da `manual_geom=1`) non vengono mai spostate. La caratterizzazione automatica è sempre ricalcolata, ma l'override manuale (`char_override`) ha la precedenza in lettura.
+
+**Ciclo di calcolo** — *backfill* una tantum all'avvio (`berths.recomputeAll()` in `src/server.js`, idempotente) su tutto lo storico, poi ricalcolo periodico in background ogni `BERTH_RECOMPUTE_MIN` minuti.
+
+**Frontend** (`public/js/berths.js`) — overlay `L.polygon` su un pane dedicato (sotto i marker nave, così non ne ruba i click) più un **marker centroide** a dimensione costante (il poligono ~80 m è invisibile allo zoom dell'intera area), toggle **Banchine** nella barra filtri (stato in `localStorage`), popup con distribuzione percentuale, e pannello di gestione (**⚓ Banchine**): rinomina, forza categoria, unisci, elimina, ricalcola; **clic su una riga** centra la mappa sulla banchina e ne apre il popup.
 
 ## 🔗 Integrazione MarineTraffic / VesselFinder
 
@@ -660,14 +681,16 @@ pm2 save
 | ------------------------------| -------------------------------------------------------------------|
 | `src/server.js` / `src/app.js`| Entry point + factory dell'app Express                            |
 | `src/config.js`               | Config (local.properties/env), preset bbox, costanti, stato runtime; aggiunta/rimozione aree a runtime (`addArea`/`removeArea`, persistite in `bounding-boxes.json`); esporta `areaForPoint(lat, lon)` per risolvere una coordinata al preset più specifico |
-| `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`, insert/upsert, query, predicato attive |
+| `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths`, insert/upsert, query, predicato attive |
 | `src/services/ais-stream.js`  | Client WebSocket AISStream multi-area (`Map<areaKey, state>`) + riconnessione + eventi porto + notifiche di rientro e cambio area |
+| `src/services/berths.js`      | Rilevamento attracchi + clustering DBSCAN + caratterizzazione banchine (convex hull, point-in-polygon, backfill/ricalcolo) |
+| `src/services/ship-categories.js` | Mappa codice tipo nave AIS → categoria larga (cargo/tanker/passeggeri/…) + flag hazmat, usata per caratterizzare le banchine |
 | `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (curl) ed Equasis (curl, login, on-demand) |
 | `src/services/risk-score.js`  | Score di rischio trasporto armi (0–100) da firme comportamentali AIS + dati registro VF/MT in cache |
 | `src/services/enrichment.js`  | Arricchimento proattivo VF/MT (una volta) alla prima rilevazione di una nave |
 | `src/services/sanctions.js`   | Lista sanzioni OFAC SDN: download CSV, indice in memoria, match nave per IMO/nome/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): performance bandiera (JSON bundled) + banned list (CSV OpenSanctions), match per nome bandiera / IMO |
-| `src/routes/`                 | Router Express per dominio (ships, readings, events, notifications, logs, settings, stream, areas, export) |
+| `src/routes/`                 | Router Express per dominio (ships, readings, events, notifications, logs, settings, stream, areas, berths, export) |
 | `public/index.html`           | SPA: sidebar collassabile, tab nav, 4 view + modali (impostazioni/diagnostica/log) |
 | `public/js/`                  | Moduli ES: state machine SPA, polling, mappe Leaflet, de-noise track, grafici, export |
 | `public/css/style.css`        | Design system con token CSS; tema scuro (default) e chiaro (selezionabile) |
@@ -710,6 +733,10 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 **`notifications`** — feed notifiche mostrato in sidebar (max 100, rotazione automatica): `type` (`revisit`, `area_change` o `high_risk`), `mmsi`, `ship_name`, `area` (area di arrivo), `from_area` (area di partenza, solo per `area_change`), `band` (`low`/`med`/`high`) e `score` di rischio calcolati al momento dell'evento, `ts`, `read` (0/1).
 
 **`risk_history`** — snapshot dello score di rischio nel tempo per il grafico di andamento (vedi [Storico dello score](#-storico-dello-score-di-rischio)): `mmsi`, `ts`, `score`, `band`. Campionata sparsa (max 1/ora per nave) e limitata globalmente (rotazione a 20.000 righe).
+
+**`moorings`** — un punto di attracco per visita (vedi [Banchine](#-banchine-caratterizzazione-automatica-degli-attracchi)): `area`, `mmsi`, `ship_type`, `category` (categoria larga), `lat`, `lon`, `ts`, `berth_id` (banchina assegnata, `NULL` se non clusterizzato). Ricostruita dal servizio banchine ad ogni ricalcolo.
+
+**`berths`** — banchine rilevate/disegnate: `area`, `name`, `polygon_json` (`[[lat,lon],…]`), `centroid_lat`/`centroid_lon`, `manual_geom` (1 = geometria bloccata a mano), `char_label` (categoria dominante calcolata o `mixed` o `NULL`), `char_override` (categoria forzata a mano, ha la precedenza), `mooring_count`, `dist_json` (distribuzione `[{category,n,pct}]`), `hazmat_pct`, `updated_at`. Entrambe incluse nei backup (`BACKUP_TABLES`).
 
 ## 🔌 API interne
 
@@ -759,6 +786,12 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Aggiunge un'area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → salva in `bounding-boxes.json` e avvia lo stream (salvo `autostart:false`) |
 | DELETE | `/api/areas/:key` | Elimina un'area e tutto il suo storico (letture/navi/eventi); rifiuta se è l'unica rimasta. Se era l'area attiva, ne seleziona un'altra |
+| GET | `/api/berths` | Banchine dell'area (`?area=`, default: area corrente) con geometria, etichetta effettiva, distribuzione e conteggi; `{berths, minMoorings, dominantPct}` |
+| POST | `/api/berths/recompute` | Ricalcola attracchi e banchine: con `?area=` solo quella, altrimenti tutte le aree |
+| POST | `/api/berths` | Crea una banchina manuale disegnando un poligono `{area, polygon:[[lat,lon],…], name?, override?}` |
+| PATCH | `/api/berths/:id` | Modifica una banchina `{name?, override?, polygon?}` (il poligono blocca la geometria come manuale) |
+| POST | `/api/berths/merge` | Unisce più banchine in una sola manuale `{ids:[…], name?}` |
+| DELETE | `/api/berths/:id` | Elimina una banchina (i suoi attracchi vengono liberati) |
 | GET | `/api/logs` | Log richieste HTTP (`?limit=200&offset=0`) |
 | GET | `/api/logs/stream` | SSE: stream live dei log API |
 | GET | `/api/logs/:id` | Dettaglio singolo log con request/response body |

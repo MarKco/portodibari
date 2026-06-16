@@ -83,6 +83,35 @@ Shows ships detected in the area over the past few hours, with a live map and ta
 
 **Click any row** to open the full vessel detail view.
 
+#### Berths (automatic mooring characterization)
+
+On the active-ships map you can enable a **berths overlay**: the system learns by itself where vessels moor and what kind they are, highlighting "characterized" quays.
+
+**How it works:**
+
+1. **Mooring detection** — each vessel visit (port stay) records **one mooring point**, computed as the centroid of the vessel's positions while it sits still/moored in the area.
+2. **Clustering into berths** — nearby mooring points are grouped automatically into **berths** (clusters). The outline drawn on the map is the convex hull of the cluster's points.
+3. **Characterization** — for each berth the vessel categories are tallied (cargo, tanker, passenger, fishing, service/tug, military, pleasure, high-speed, other). When one category exceeds **60%** of moorings (over at least **10** moorings), the berth is **coloured** with that category; below the threshold it is labelled **"mixed"** (grey). Berths with fewer than 10 moorings stay dashed and uncharacterized.
+
+**Using the overlay:**
+
+- Tick the **Berths** checkbox in the filter bar above the map to show/hide the overlay (the choice is remembered).
+- Each berth has a coloured polygon plus an always-visible **centre dot** (a berth polygon is only a few tens of metres wide and would be tiny at the area-wide zoom level: the dot keeps it findable).
+- **Click a berth** (polygon or dot) to see its name, characterization, mooring count, per-category percentage distribution and any hazmat share (☢).
+
+**Correcting by hand** (the **⚓ Berths** button): opens the management panel, where you can:
+
+- **Rename** a berth (e.g. "San Cataldo Quay").
+- **Force the category** with the dropdown (manual override, takes precedence over the automatic characterization). Set it back to *(automatic)* to return to auto-calculation.
+- **Merge** two or more berths into one (select them with the checkboxes and press *Merge*). The resulting berth has "locked" (hand-drawn) geometry and is no longer moved by recompute.
+- **Delete** a berth: its moorings are freed and may be re-clustered on the next recompute.
+- **Recompute** moorings and berths for the current area immediately (the system also does this periodically on its own).
+- **Click a list row** to centre the map on that berth and open its details (enables the overlay if it was off).
+
+> Hand-edited berths (geometry, name, forced category) survive automatic recomputes: your corrections are never overwritten. Automatic berths are rebuilt on every recompute, but keep the name and forced category you assigned.
+
+> At startup the app runs an initial analysis (*backfill*) over all the history already collected, so berths are visible right away.
+
 ---
 
 ### 2. Navi passate (Past ships)
@@ -278,6 +307,11 @@ Holds the app's thresholds and parameters (time windows, radii, retention, risk-
 | `PORT_WINDOW_HOURS` | Hours an in-port ship stays among "active" ships | `24` |
 | `POLL_INTERVAL_MS` | Interface refresh interval (milliseconds) | `300000` |
 | `MAX_READINGS_PER_TYPE` | Max readings kept per message type | `10000` |
+| `BERTH_CLUSTER_EPS_M` | Mooring → berth clustering radius (metres) | `80` |
+| `BERTH_MIN_PTS` | Minimum nearby moorings to form a berth | `3` |
+| `BERTH_MIN_MOORINGS` | Minimum moorings before a berth is characterized/coloured | `10` |
+| `BERTH_DOMINANT_PCT` | Percentage a category must exceed to name the berth | `60` |
+| `BERTH_RECOMPUTE_MIN` | Minutes between automatic berth recomputes | `30` |
 | `RISK_*` | Risk-score weights and thresholds (see comments in the file) | various |
 
 ### `bounding-boxes.json` — area definitions

@@ -6,6 +6,7 @@ import { showView } from './views.js';
 import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
+import { initBerths, loadBerths } from './berths.js';
 import { initLogPanel } from './logs.js';
 import { initHealthPanel } from './health.js';
 import { initAreas } from './areas.js';
@@ -654,12 +655,17 @@ function initBboxSelect() {
 
       if (S.activeMap) {
         S.activeMarkersLayer.clearLayers();
+        if (S.berthsLayer) S.berthsLayer.clearLayers();
         const [[swLat, swLon], [neLat, neLon]] = result.bbox;
         S.activeMap.fitBounds([[swLat, swLon], [neLat, neLon]], { padding: [40, 40] });
       }
+      S.berthsList = [];
 
       await updateStatus();
-      if (S.view === 'active') loadActive();
+      if (S.view === 'active') {
+        loadActive();
+        if (S.showBerths) loadBerths(S.currentPreset);
+      }
     } catch (e) {
       alert(t('error.changeArea') + e.message);
     }
@@ -670,7 +676,10 @@ function initBboxSelect() {
 function tick() {
   updateStatus();
   loadNotifications();
-  if (S.view === 'active') loadActive();
+  if (S.view === 'active') {
+    loadActive();
+    if (S.showBerths) loadBerths(S.currentPreset);
+  }
   else if (S.view === 'past') loadPast();
   else if (S.view === 'detail') {
     loadDetail();
@@ -906,6 +915,7 @@ initAreas();
 initNotifications();
 initMapResizer();
 initRiskTooltip();
+initBerths();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.

@@ -170,6 +170,11 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Max map track points            | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` and default `500` | 500 points   |
 | VF/MT scraping cache TTL        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 hours        |
 | Notification delete undo bounce | `app.config.properties`           | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
+| Berth clustering radius         | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
+| Minimum moorings per berth      | `app.config.properties`           | `BERTH_MIN_PTS`                       | 3              |
+| Minimum moorings to characterize| `app.config.properties`           | `BERTH_MIN_MOORINGS`                  | 10             |
+| Dominant-category threshold     | `app.config.properties`           | `BERTH_DOMINANT_PCT`                  | 60 %           |
+| Berth recompute interval        | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
 
 ### Applying changes
 
@@ -355,6 +360,22 @@ A moored/anchored ship is not perfectly still: it swings on its anchor, drifts w
 Hysteresis prevents anchor swing from causing the ship to "flicker" in and out of the in-port state. In-port ships are marked with the ⚓ badge (list, map popup, detail) and benefit from 24-hour retention.
 
 **Track de-noising** (`collapseTrack` in `public/js/maps.js`) — in the detail map, consecutive stationary points (SOG < 0.5) within `TRACK_MERGE_RADIUS_M` (100 m) are collapsed into a single **⚓ Stop** node (popup with number of positions and time range). The polyline passes through the centroids → a clean track instead of a cloud of markers around the berth. Raw readings in the DB remain intact: the merge is display-only.
+
+## ⚓ Berths (automatic mooring characterization)
+
+The system infers by itself **where** vessels moor and **what type** they are, highlighting "characterized" quays with a coloured overlay on the active-ships map. Everything is hand-editable.
+
+**Pipeline** (`src/services/berths.js`, per area):
+
+1. **`detectMoorings(area)`** — one mooring point per visit = centroid of the vessel's *stationary* readings (`sog < SOG_FERMA` or AIS moored/anchored status `5`/`1`) in the window between one arrival and the same vessel's next arrival (arrivals come from `port_events`). Pure-transit visits (no stationary reading) are dropped. Each point is tagged with the vessel **category** (`src/services/ship-categories.js`: cargo, tanker, passenger, fishing, service, military, pleasure, high-speed, other).
+2. **Clustering** — DBSCAN with haversine distance (`BERTH_CLUSTER_EPS_M`, `BERTH_MIN_PTS`). Points inside a **manual** berth polygon are assigned first and excluded from clustering (hand-drawn geometry wins). An automatic berth's geometry is the **convex hull** of its points.
+3. **Characterization** — category tally per berth: the dominant one (≥ `BERTH_DOMINANT_PCT`, over at least `BERTH_MIN_MOORINGS` moorings) names and colours the berth, otherwise it is **"mixed"**; below the minimum it stays uncharacterized (dashed). It also computes the **hazmat** share (☢, AIS codes 71–74/81–84).
+
+**Edit persistence** — automatic berths are rebuilt on every recompute, but a renamed/overridden berth regains its identity by centroid proximity (within `eps`). **Manual** berths (geometry locked by `manual_geom=1`) are never moved. The automatic characterization is always recomputed, but the manual override (`char_override`) takes precedence at read time.
+
+**Compute cycle** — one-shot *backfill* at startup (`berths.recomputeAll()` in `src/server.js`, idempotent) over all history, then periodic background recompute every `BERTH_RECOMPUTE_MIN` minutes.
+
+**Frontend** (`public/js/berths.js`) — `L.polygon` overlay on a dedicated pane (below the ship markers, so it never steals their clicks) plus a constant-size **centroid marker** (the ~80 m polygon is invisible at the area-wide zoom level), a **Berths** toggle in the filter bar (state in `localStorage`), a popup with the percentage distribution, and a management panel (**⚓ Berths**): rename, force category, merge, delete, recompute; **clicking a list row** centres the map on the berth and opens its popup.
 
 ## 🔗 MarineTraffic / VesselFinder Integration
 
@@ -636,14 +657,16 @@ pm2 save
 | ------------------------------| -------------------------------------------------------------------|
 | `src/server.js` / `src/app.js`| Entry point + Express app factory                                  |
 | `src/config.js`               | Config (local.properties/env), bbox presets, constants, runtime state; runtime add/remove of areas (`addArea`/`removeArea`, persisted to `bounding-boxes.json`); exports `areaForPoint(lat, lon)` to resolve a coordinate to the most specific containing preset key |
-| `src/db.js`                   | SQLite wrapper: `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications` schema, insert/upsert, queries, active predicate |
+| `src/db.js`                   | SQLite wrapper: `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths` schema, insert/upsert, queries, active predicate |
 | `src/services/ais-stream.js`  | Multi-area AISStream WebSocket client (`Map<areaKey, state>`) + reconnection + port events + revisit and area-change notifications |
+| `src/services/berths.js`      | Mooring detection + DBSCAN clustering + berth characterization (convex hull, point-in-polygon, backfill/recompute) |
+| `src/services/ship-categories.js` | AIS ship-type code → broad category (cargo/tanker/passenger/…) + hazmat flag, used to characterize berths |
 | `src/services/scrapers/`      | VesselFinder (https), MarineTraffic (curl) and Equasis (curl, login, on-demand) scraping |
 | `src/services/risk-score.js`  | Arms transport risk score (0–100) from AIS behavioural signatures + cached VF/MT registry data |
 | `src/services/enrichment.js`  | Proactive VF/MT enrichment (once) on first ship detection         |
 | `src/services/sanctions.js`   | OFAC SDN sanctions list: CSV download, in-memory index, ship match by IMO/name/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): flag performance (bundled JSON) + banned list (OpenSanctions CSV), match by flag name / IMO |
-| `src/routes/`                 | Express routers per domain (ships, readings, events, notifications, logs, settings, stream, areas, export) |
+| `src/routes/`                 | Express routers per domain (ships, readings, events, notifications, logs, settings, stream, areas, berths, export) |
 | `public/index.html`           | SPA: collapsible sidebar, tab nav, 4 views + modals (settings/diagnostics/logs) |
 | `public/js/`                  | ES modules: SPA state machine, polling, Leaflet maps, track de-noising, charts, export |
 | `public/css/style.css`        | Design system with CSS tokens; dark theme (default) and light theme (selectable) |
@@ -686,6 +709,10 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 **`notifications`** — notification feed shown in the sidebar (max 100, automatic rotation): `type` (`revisit`, `area_change` or `high_risk`), `mmsi`, `ship_name`, `area` (destination area), `from_area` (origin area, only for `area_change`), `band` (`low`/`med`/`high`) and risk `score` computed at event time, `ts`, `read` (0/1).
 
 **`risk_history`** — risk-score snapshots over time for the trend chart (see [Risk score history](#-risk-score-history)): `mmsi`, `ts`, `score`, `band`. Sparsely sampled (max 1/hour per ship) and globally capped (rotation at 20,000 rows).
+
+**`moorings`** — one mooring point per visit (see [Berths](#-berths-automatic-mooring-characterization)): `area`, `mmsi`, `ship_type`, `category` (broad category), `lat`, `lon`, `ts`, `berth_id` (assigned berth, `NULL` if unclustered). Rebuilt by the berths service on every recompute.
+
+**`berths`** — detected/drawn berths: `area`, `name`, `polygon_json` (`[[lat,lon],…]`), `centroid_lat`/`centroid_lon`, `manual_geom` (1 = hand-locked geometry), `char_label` (computed dominant category or `mixed` or `NULL`), `char_override` (hand-forced category, takes precedence), `mooring_count`, `dist_json` (distribution `[{category,n,pct}]`), `hazmat_pct`, `updated_at`. Both included in backups (`BACKUP_TABLES`).
 
 ## 🔌 Internal API
 
@@ -731,6 +758,12 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 | GET | `/api/areas` | List of areas with bbox, stream status, `current` flag and data `counts`; `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Add an area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → saves to `bounding-boxes.json` and starts the stream (unless `autostart:false`) |
 | DELETE | `/api/areas/:key` | Delete an area and all its history (readings/ships/events); refuses if it's the only one left. If it was the active area, selects another |
+| GET | `/api/berths` | Berths for the area (`?area=`, default: current area) with geometry, effective label, distribution and counts; `{berths, minMoorings, dominantPct}` |
+| POST | `/api/berths/recompute` | Recompute moorings and berths: with `?area=` just that one, otherwise all areas |
+| POST | `/api/berths` | Create a manual berth by drawing a polygon `{area, polygon:[[lat,lon],…], name?, override?}` |
+| PATCH | `/api/berths/:id` | Edit a berth `{name?, override?, polygon?}` (a polygon locks the geometry as manual) |
+| POST | `/api/berths/merge` | Merge several berths into a single manual one `{ids:[…], name?}` |
+| DELETE | `/api/berths/:id` | Delete a berth (its moorings are freed) |
 | GET | `/api/logs` | HTTP request log (`?limit=200&offset=0`) |
 | GET | `/api/logs/stream` | SSE: live stream of API logs |
 | GET | `/api/logs/:id` | Single log entry detail with request/response body |

@@ -126,6 +126,15 @@ const TRACK_MAX_LIMIT = num('TRACK_MAX_LIMIT', 2000);
 const MAX_BODY = num('MAX_BODY_BYTES', 8192);
 const NOTIF_DELETE_UNDO_SECONDS = num('NOTIF_DELETE_UNDO_SECONDS', 5);
 
+// ── Berth (mooring characterization) parameters ──────────────────────────────
+const BERTH = {
+  CLUSTER_EPS_M: num('BERTH_CLUSTER_EPS_M', 80),
+  MIN_PTS: num('BERTH_MIN_PTS', 3),
+  MIN_MOORINGS: num('BERTH_MIN_MOORINGS', 10),
+  DOMINANT_PCT: num('BERTH_DOMINANT_PCT', 60),
+  RECOMPUTE_MIN: num('BERTH_RECOMPUTE_MIN', 30),
+};
+
 // ── Risk score weights (from app.config.properties) ──────────────────────────
 const RISK = {
   DARK_MAX:          num('RISK_DARK_MAX', 25),
@@ -439,6 +448,7 @@ module.exports = {
   TRACK_MAX_LIMIT,
   MAX_BODY,
   NOTIF_DELETE_UNDO_SECONDS,
+  BERTH,
   RISK,
   BBOX_PRESETS,
   state,

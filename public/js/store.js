@@ -48,6 +48,14 @@ export const S = {
   activeShipsCache: new Map(),
   currentBbox: null, // [[swLat, swLon], [neLat, neLon]]
 
+  // Berths (mooring characterization overlay on the overview map)
+  berthsLayer: null,
+  berthsList: [], // last-fetched berth descriptors for the current area
+  showBerths: false, // overlay toggle (persisted in localStorage)
+  berthsMinMoorings: 10,
+  berthsDominantPct: 60,
+  berthMergeSel: new Set(), // ids checked in the manager for merging
+
   // Areas screen
   areasMap: null,
   areasLayer: null, // existing-area rectangles

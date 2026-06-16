@@ -26,6 +26,10 @@ export const el = {
   activeBody: $('active-body'),
   pastBody: $('past-body'),
 
+  // Berths overlay (overview map)
+  berthsToggle: $('berths-toggle'),
+  btnBerthsManage: $('btn-berths-manage'),
+
   // Ship detail
   detailBody: $('detail-body'),
   btnBack: $('btn-back'),

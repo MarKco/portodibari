@@ -83,6 +83,35 @@ Mostra le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo
 
 **Clicca su una riga** per aprire il dettaglio completo della nave.
 
+#### Banchine (caratterizzazione automatica degli attracchi)
+
+Sulla mappa delle navi presenti puoi attivare un **overlay delle banchine**: il sistema impara da solo dove le navi attraccano e di che tipo sono, evidenziando i moli "caratterizzati".
+
+**Come funziona:**
+
+1. **Rilevamento attracchi** — ad ogni visita di una nave (sosta in porto) il sistema registra **un punto di attracco**, calcolato come centroide delle posizioni della nave mentre è ferma/ormeggiata nell'area.
+2. **Raggruppamento in banchine** — i punti di attracco vicini tra loro vengono raggruppati automaticamente in **banchine** (cluster). Il contorno disegnato sulla mappa è l'inviluppo (convex hull) dei punti del gruppo.
+3. **Caratterizzazione** — per ogni banchina vengono contate le categorie di nave (cargo, cisterna, passeggeri, pesca, servizio/rimorchio, militare, diporto, alta velocità, altro). Quando una categoria supera il **60%** degli attracchi (su almeno **10** attracchi), la banchina viene **colorata** con quella categoria; sotto soglia è etichettata **"mista"** (grigia). Le banchine con meno di 10 attracchi restano tratteggiate e non caratterizzate.
+
+**Usare l'overlay:**
+
+- Spunta la casella **Banchine** nella barra dei filtri sopra la mappa per mostrare/nascondere l'overlay (la scelta viene ricordata).
+- Ogni banchina ha un poligono colorato e un **pallino centrale** sempre visibile (il poligono di una banchina è largo poche decine di metri e a livello di zoom dell'intera area risulterebbe minuscolo: il pallino la rende individuabile).
+- **Clicca su una banchina** (poligono o pallino) per vedere nome, caratterizzazione, numero di attracchi, distribuzione percentuale per categoria ed eventuale quota di merci pericolose (☢).
+
+**Correggere a mano** (pulsante **⚓ Banchine**): apre il pannello di gestione, dove puoi:
+
+- **Rinominare** una banchina (es. "Molo San Cataldo").
+- **Forzare la categoria** con il menu a tendina (override manuale, ha la precedenza sulla caratterizzazione automatica). Riportalo su *(automatica)* per tornare al calcolo automatico.
+- **Unire** due o più banchine in una sola (selezionale con le caselle e premi *Unisci*). La banchina risultante ha geometria "bloccata" (disegnata a mano) e non viene più spostata dal ricalcolo.
+- **Eliminare** una banchina: i suoi attracchi vengono liberati e potranno essere riaggregati al ricalcolo successivo.
+- **Ricalcolare** subito attracchi e banchine dell'area corrente (il sistema lo fa comunque in automatico periodicamente).
+- **Clicca su una riga** della lista per centrare la mappa su quella banchina e aprirne il dettaglio (attiva l'overlay se era spento).
+
+> Le banchine modificate a mano (geometria, nome, categoria forzata) sopravvivono ai ricalcoli automatici: le correzioni non vengono mai sovrascritte. Le banchine automatiche vengono invece ricostruite ad ogni ricalcolo, mantenendo però nome e categoria forzata se le avevi impostate.
+
+> All'avvio l'app esegue un'analisi iniziale (*backfill*) di tutto lo storico già raccolto, così le banchine sono visibili da subito.
+
 ---
 
 ### 2. Navi passate
@@ -278,6 +307,11 @@ Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention,
 | `PORT_WINDOW_HOURS` | Ore di permanenza tra le "presenti" per una nave in porto | `24` |
 | `POLL_INTERVAL_MS` | Intervallo di aggiornamento dell'interfaccia (millisecondi) | `300000` |
 | `MAX_READINGS_PER_TYPE` | Numero massimo di letture conservate per tipo di messaggio | `10000` |
+| `BERTH_CLUSTER_EPS_M` | Raggio di clustering attracchi → banchine (metri) | `80` |
+| `BERTH_MIN_PTS` | Attracchi minimi vicini per formare una banchina | `3` |
+| `BERTH_MIN_MOORINGS` | Attracchi minimi prima di caratterizzare/colorare una banchina | `10` |
+| `BERTH_DOMINANT_PCT` | Percentuale che una categoria deve superare per dare il nome alla banchina | `60` |
+| `BERTH_RECOMPUTE_MIN` | Minuti tra un ricalcolo automatico delle banchine e il successivo | `30` |
 | `RISK_*` | Pesi e soglie del punteggio di rischio (vedi commenti nel file) | vari |
 
 ### `bounding-boxes.json` — definizione delle aree
