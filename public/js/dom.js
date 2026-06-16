@@ -103,6 +103,10 @@ export const el = {
   toggleImportVf: $('toggle-import-vf'),
   toggleImportMt: $('toggle-import-mt'),
   toggleImportSanctions: $('toggle-import-sanctions'),
+  toggleImportSanctionsExtra: $('toggle-import-sanctions-extra'),
+  settingSanctionsExtra: $('toggle-import-sanctions-extra')
+    ? $('toggle-import-sanctions-extra').closest('.setting-row')
+    : null,
   sanctionsStatus: $('sanctions-status'),
   btnSanctionsRefresh: $('btn-sanctions-refresh'),
   toggleImportPsc: $('toggle-import-psc'),

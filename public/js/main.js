@@ -102,9 +102,12 @@ async function loadSettings() {
     S.importVfData = !!s.importVfData;
     S.importMtData = !!s.importMtData;
     S.importSanctions = !!s.importSanctions;
+    S.importSanctionsExtra = s.importSanctionsExtra !== false;
     if (el.toggleImportVf) el.toggleImportVf.checked = S.importVfData;
     if (el.toggleImportMt) el.toggleImportMt.checked = S.importMtData;
     if (el.toggleImportSanctions) el.toggleImportSanctions.checked = S.importSanctions;
+    if (el.toggleImportSanctionsExtra) el.toggleImportSanctionsExtra.checked = S.importSanctionsExtra;
+    applySanctionsSettingsState();
     renderSanctionsStatus(s.sanctions);
     S.importPsc = !!s.importPsc;
     if (el.toggleImportPsc) el.toggleImportPsc.checked = S.importPsc;
@@ -144,7 +147,14 @@ function applyNotifSettingsState() {
   if (el.settingNotifyBerthChar) el.settingNotifyBerthChar.classList.toggle('disabled', !S.notificationsEnabled);
 }
 
-// Show the OFAC sanctions dataset status (loaded vessel count + last refresh).
+// Dim/disable the extra-lists sub-toggle when the master sanctions switch is off.
+function applySanctionsSettingsState() {
+  if (el.toggleImportSanctionsExtra) el.toggleImportSanctionsExtra.disabled = !S.importSanctions;
+  if (el.settingSanctionsExtra) el.settingSanctionsExtra.classList.toggle('disabled', !S.importSanctions);
+}
+
+// Show the sanctions dataset status (loaded vessel count + last refresh). With
+// the extra lists on, lists a per-source breakdown (OFAC / EU / UK / UN).
 function renderSanctionsStatus(st) {
   if (!el.sanctionsStatus) return;
   if (!S.importSanctions) { el.sanctionsStatus.textContent = ''; return; }
@@ -153,9 +163,13 @@ function renderSanctionsStatus(st) {
     return;
   }
   const when = st.lastRefreshed ? new Date(st.lastRefreshed).toLocaleString() : '—';
-  el.sanctionsStatus.textContent = t('settings.sanctions.loaded')
+  let text = t('settings.sanctions.loaded')
     .replace('{n}', st.vesselCount)
     .replace('{date}', when);
+  if (Array.isArray(st.sources) && st.sources.length > 1) {
+    text += ' · ' + st.sources.map((s) => `${s.label}: ${s.vesselCount}`).join(' · ');
+  }
+  el.sanctionsStatus.textContent = text;
 }
 
 // Show the PSC (Paris/Tokyo MoU) dataset status: flag-list counts + banned count.
@@ -326,10 +340,25 @@ function initSettingsModal() {
       try {
         const r = await api('/api/settings', 'POST', { importSanctions: enabled });
         S.importSanctions = enabled;
+        applySanctionsSettingsState();
         renderSanctionsStatus(r && r.sanctions);
         if (enabled) showAlert(t('settings.sanctions.downloading'), '');
       } catch {
         el.toggleImportSanctions.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleImportSanctionsExtra) {
+    el.toggleImportSanctionsExtra.addEventListener('change', async () => {
+      const enabled = el.toggleImportSanctionsExtra.checked;
+      try {
+        const r = await api('/api/settings', 'POST', { importSanctionsExtra: enabled });
+        S.importSanctionsExtra = enabled;
+        renderSanctionsStatus(r && r.sanctions);
+        if (enabled && S.importSanctions) showAlert(t('settings.sanctions.downloading'), '');
+      } catch {
+        el.toggleImportSanctionsExtra.checked = !enabled;
       }
     });
   }
@@ -887,8 +916,8 @@ function initRiskTooltip() {
     let srcHtml;
     if (anyUsed || anyAvail) {
       const parts = [];
-      if (sancUsed) parts.push('<span class="rt-src rt-src-sanction">OFAC SDN ⚠</span>');
-      else if (sancAvail) parts.push('<span class="rt-src rt-src-sanction rt-src-dim" title="Verificato in lista sanzioni, nessun match">OFAC SDN</span>');
+      if (sancUsed) parts.push('<span class="rt-src rt-src-sanction">Sanzioni ⚠</span>');
+      else if (sancAvail) parts.push('<span class="rt-src rt-src-sanction rt-src-dim" title="Verificato in liste sanzioni (OFAC/UE/UK/ONU), nessun match">Sanzioni</span>');
       if (pscUsed) parts.push('<span class="rt-src rt-src-psc">Paris/Tokyo MoU ⚓</span>');
       else if (pscAvail) parts.push('<span class="rt-src rt-src-psc rt-src-dim" title="Verificato liste MoU (bandiera/banned), nessun segnale">Paris/Tokyo MoU</span>');
       if (vfUsed) parts.push('<span class="rt-src rt-src-vf">VesselFinder</span>');

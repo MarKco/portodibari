@@ -2,7 +2,7 @@
 
 const express = require('express');
 const {
-  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
+  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
   setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
@@ -52,6 +52,7 @@ router.get('/settings', (req, res) => {
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
+    importSanctionsExtra: state.importSanctionsExtra,
     sanctions: sanctions.getStatus(),
     importPsc: state.importPsc,
     psc: psc.getStatus(),
@@ -87,6 +88,7 @@ function exportSettings() {
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
+    importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
     importEquasis: state.importEquasis,
     notificationsEnabled: state.notificationsEnabled,
@@ -123,6 +125,9 @@ function applyImportedSettings(s) {
     setImportMt(s.importMtData);
     if (state.importMtData && wasDisabled) enrichAllExisting('mt');
   }
+  // Persist the extra-lists toggle before the master block so its refresh sees
+  // the right active set.
+  if (s.importSanctionsExtra !== undefined) setImportSanctionsExtra(s.importSanctionsExtra);
   if (s.importSanctions !== undefined) {
     const wasDisabled = !state.importSanctions;
     setImportSanctions(s.importSanctions);
@@ -168,7 +173,7 @@ router.post('/settings/import', (req, res) => {
 router.post('/settings', (req, res) => {
   const {
     preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
-    importPsc: newPsc, importEquasis: newEquasis,
+    importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
   } = req.body;
@@ -210,12 +215,28 @@ router.post('/settings', (req, res) => {
     console.log(`[MT] Import MT data: ${state.importMtData}`);
     if (state.importMtData && wasDisabled) enrichAllExisting('mt');
   }
+  // Persist the extra-lists (EU/UK/UN) toggle before the master block so its
+  // refresh below sees the correct active source set.
+  let extraChanged = false;
+  if (newSanctionsExtra !== undefined) {
+    extraChanged = state.importSanctionsExtra !== !!newSanctionsExtra;
+    setImportSanctionsExtra(newSanctionsExtra);
+    console.log(`[SANCTIONS] Extra lists (EU/UK/UN): ${state.importSanctionsExtra}`);
+  }
   if (newSanctions !== undefined) {
     const wasDisabled = !state.importSanctions;
     setImportSanctions(newSanctions);
     console.log(`[SANCTIONS] Import sanctions: ${state.importSanctions}`);
     // First enable (or no data yet) → download the list in the background.
     if (state.importSanctions && (wasDisabled || !sanctions.getStatus().loaded)) {
+      sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
+    }
+  }
+  // Extra lists toggled while screening already on: drop them from the index now
+  // (disable) or download them in the background (enable).
+  if (extraChanged && newSanctions === undefined && state.importSanctions) {
+    sanctions.loadFromDisk();
+    if (state.importSanctionsExtra) {
       sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
     }
   }
@@ -242,6 +263,7 @@ router.post('/settings', (req, res) => {
       importVfData: state.importVfData,
       importMtData: state.importMtData,
       importSanctions: state.importSanctions,
+      importSanctionsExtra: state.importSanctionsExtra,
       sanctions: sanctions.getStatus(),
       importPsc: state.importPsc,
       psc: psc.getStatus(),
@@ -273,6 +295,7 @@ router.post('/settings', (req, res) => {
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
+    importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
     importEquasis: state.importEquasis,
   });

@@ -208,6 +208,9 @@ const state = {
   importVfData: props.IMPORT_VF_DATA === 'true',
   importMtData: props.IMPORT_MT_DATA === 'true',
   importSanctions: props.IMPORT_SANCTIONS === 'true',
+  // Extended sanctions lists (EU / UK OFSI / UN), on top of OFAC SDN. Only
+  // effective while importSanctions is on. Default ON unless explicitly disabled.
+  importSanctionsExtra: props.IMPORT_SANCTIONS_EXTRA !== 'false',
   importPsc: props.IMPORT_PSC === 'true',
   // Equasis ownership lookup. Off by default and never auto-runs — only the
   // detail-view button triggers a fetch. Needs Equasis credentials too.
@@ -254,6 +257,11 @@ function setImportMt(enabled) {
 function setImportSanctions(enabled) {
   state.importSanctions = !!enabled;
   saveProperty('IMPORT_SANCTIONS', state.importSanctions);
+}
+
+function setImportSanctionsExtra(enabled) {
+  state.importSanctionsExtra = !!enabled;
+  saveProperty('IMPORT_SANCTIONS_EXTRA', state.importSanctionsExtra);
 }
 
 function setImportPsc(enabled) {
@@ -499,6 +507,7 @@ module.exports = {
   setImportVf,
   setImportMt,
   setImportSanctions,
+  setImportSanctionsExtra,
   setImportPsc,
   setImportEquasis,
   setNotificationsEnabled,

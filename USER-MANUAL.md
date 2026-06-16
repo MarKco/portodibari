@@ -226,7 +226,8 @@ Open with the **⚙ Settings** button in the sidebar.
 | **Area monitoring** | Panel at the top of the settings: shows all configured areas with a toggle to start or stop the stream for each one. 🟢 = stream active, ⚪ = stream off. Allows monitoring multiple areas simultaneously. |
 | **VesselFinder** (toggle) | Fetch additional data from VesselFinder in the vessel detail view. Data cached for 6 hours. |
 | **MarineTraffic** (toggle) | Fetch additional data from MarineTraffic in the vessel detail view. Data cached for 6 hours. |
-| **OFAC sanctions screening** (toggle) | Matches every ship against the OFAC SDN sanctions list (US Treasury), downloaded locally. Matching is done by IMO number, name or call sign. A match is a very strong risk signal (large score contribution). The list is downloaded on enable and refreshed every 24 hours; the **Refresh list** button forces an immediate download. The number of sanctioned vessels loaded and the last refresh date are shown below the toggle. |
+| **Sanctions screening** (toggle) | Matches every ship against the OFAC SDN sanctions list (US Treasury), downloaded locally. Matching is done by IMO number, name or call sign. A match is a very strong risk signal (large score contribution). The list is downloaded on enable and refreshed every 24 hours; the **Refresh list** button forces an immediate download. The number of sanctioned vessels loaded and the last refresh date are shown below the toggle. |
+| **Additional sanctions lists (EU / UK / UN)** (toggle) | On top of the OFAC list, also matches every ship against the EU consolidated list, the UK OFSI list and the UN designated-vessels list. Indented sub-row under the **Sanctions screening** row, active only while sanctions screening is on. A match on any list contributes to the score like an OFAC match. The lists are downloaded and refreshed every 24 hours (via OpenSanctions). Default on. |
 | **Port State Control screening (Paris/Tokyo MoU)** (toggle) | Matches every ship against two official Memorandum of Understanding lists: (1) the **flag performance** white/grey/black lists of Paris MoU and Tokyo MoU — a black-listed flag is a high-risk registry for detentions/inspections (medium-high score contribution), a white-listed one carries no penalty; (2) the **banned-ships list** of the Paris MoU (refusal of access after repeated detentions) — a strong signal, matched by IMO/name. The flag lists are bundled with the app and must be updated manually ~once a year; the banned-ships list is downloaded on enable and refreshed every 24 hours. The **Refresh lists** button forces a download. Below the toggle the flag counts (black/grey/white) and banned-ship count are shown with the last refresh date. |
 | **Equasis lookup (ownership)** (toggle) | Enables the **Fetch Equasis information** button in the ship detail to retrieve registered owner, ISM manager and operator (by IMO number). **Never automatic**: runs only on request, one ship at a time. Data is stored once (no expiry). Requires Equasis credentials (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); without credentials the button stays unusable. The **View Equasis log** button (below the description) opens the plain-text record of every lookup performed, with date, ship and retrieved data; the same window lets you **Clear the log**. |
 | **Notifications** (toggle) | Master switch: enable or disable all sidebar notifications. When off, the toggles below are disabled. |
@@ -305,6 +306,7 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `IMPORT_VF_DATA` | `true`/`false` — enable VesselFinder data import |
 | `IMPORT_MT_DATA` | `true`/`false` — enable MarineTraffic data import |
 | `IMPORT_SANCTIONS` | `true`/`false` — enable screening against the OFAC SDN sanctions list |
+| `IMPORT_SANCTIONS_EXTRA` | `true`/`false` — enable the additional EU / UK OFSI / UN sanctions lists on top of OFAC (only active with `IMPORT_SANCTIONS`); default `true` |
 | `IMPORT_PSC` | `true`/`false` — enable Port State Control screening (Paris/Tokyo MoU flag performance + Paris MoU banned vessels) |
 | `IMPORT_EQUASIS` | `true`/`false` — enable the on-demand Equasis lookup (ownership/management) in the ship detail |
 | `EQUASIS_USER` | Equasis account email (free registration at https://www.equasis.org/) — required by the Equasis lookup |
@@ -365,7 +367,7 @@ Each vessel receives a score from 0 to 100 calculated automatically based on sev
 **Source indicators on the badge:**
 - Magenta dot: score calculated using VesselFinder data
 - Gold dot: score calculated using MarineTraffic data
-- Red dot (with glow): ship present on the OFAC SDN sanctions list
+- Red dot (with glow): ship present on a sanctions list (OFAC / EU / UK / UN)
 - Orange dot: both sources used
 - Blue label (Paris/Tokyo MoU ⚓): signal from the Port State Control lists (black/grey flag or banned vessel)
 

@@ -226,7 +226,8 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **Monitoraggio aree** | Pannello nella parte superiore delle impostazioni: mostra tutte le aree configurate con un toggle per avviare o fermare lo stream di ciascuna. 🟢 = stream attivo, ⚪ = stream spento. Permette di monitorare più aree contemporaneamente. |
 | **VesselFinder** (toggle) | Recupera dati aggiuntivi da VesselFinder nel dettaglio nave. Dati in cache per 6 ore. |
 | **MarineTraffic** (toggle) | Recupera dati aggiuntivi da MarineTraffic nel dettaglio nave. Dati in cache per 6 ore. |
-| **Screening sanzioni OFAC** (toggle) | Confronta ogni nave con la lista sanzioni OFAC SDN (US Treasury), scaricata localmente. Il match avviene per numero IMO, nome o call sign. Un match è un segnale di rischio molto forte (contributo elevato allo score). La lista viene scaricata all'attivazione e aggiornata ogni 24 ore; il pulsante **Aggiorna lista** forza un download immediato. Sotto al toggle viene mostrato il numero di navi sanzionate in lista e la data dell'ultimo aggiornamento. |
+| **Screening sanzioni** (toggle) | Confronta ogni nave con la lista sanzioni OFAC SDN (US Treasury), scaricata localmente. Il match avviene per numero IMO, nome o call sign. Un match è un segnale di rischio molto forte (contributo elevato allo score). La lista viene scaricata all'attivazione e aggiornata ogni 24 ore; il pulsante **Aggiorna lista** forza un download immediato. Sotto al toggle viene mostrato il numero di navi sanzionate in lista e la data dell'ultimo aggiornamento. |
+| **Liste sanzioni aggiuntive (UE / UK / ONU)** (toggle) | Oltre alla lista OFAC, confronta ogni nave anche con la lista consolidata UE, la lista UK OFSI e la lista ONU delle navi designate. Sottovoce indentata sotto la riga **Screening sanzioni**, attiva solo quando lo screening sanzioni è acceso. Un match in una qualsiasi lista contribuisce allo score come un match OFAC. Le liste vengono scaricate e aggiornate ogni 24 ore (via OpenSanctions). Default attivo. |
 | **Screening Port State Control (Paris/Tokyo MoU)** (toggle) | Confronta ogni nave con due liste ufficiali dei Memorandum d'Intesa: (1) la **performance bandiera** white/grey/black di Paris MoU e Tokyo MoU — una bandiera in black list è un registro ad alto rischio per fermi/ispezioni (contributo medio-alto allo score), una in white list non penalizza; (2) la **lista delle navi bandite** dal Paris MoU (refusal of access dopo fermi multipli) — segnale forte, match per IMO/nome. Le liste bandiera sono incluse nell'applicazione e vanno aggiornate manualmente ~1 volta l'anno; la lista navi bandite è scaricata all'attivazione e aggiornata ogni 24 ore. Il pulsante **Aggiorna liste** forza il download. Sotto al toggle sono mostrati i conteggi bandiere (black/grey/white) e navi bandite con la data dell'ultimo aggiornamento. |
 | **Lookup Equasis (proprietà)** (toggle) | Abilita il pulsante **Recupera informazioni Equasis** nel dettaglio nave per recuperare proprietario registrato, gestore ISM e operatore (per numero IMO). **Mai automatico**: parte solo su richiesta, una nave alla volta. I dati vengono memorizzati una sola volta (nessuna scadenza). Richiede credenziali Equasis (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); senza credenziali il pulsante resta inutilizzabile. Il pulsante **Visualizza log Equasis** (sotto la descrizione) apre il registro testuale di tutti i lookup effettuati, con data, nave e dati recuperati; dalla stessa finestra è possibile **Cancellare il log**. |
 | **Notifiche** (toggle) | Interruttore generale: abilita o disabilita tutte le notifiche nella barra laterale. Se spento, i toggle sottostanti sono disattivati. |
@@ -305,6 +306,7 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | `IMPORT_VF_DATA` | `true`/`false` — abilita l'import dati VesselFinder |
 | `IMPORT_MT_DATA` | `true`/`false` — abilita l'import dati MarineTraffic |
 | `IMPORT_SANCTIONS` | `true`/`false` — abilita lo screening contro la lista sanzioni OFAC SDN |
+| `IMPORT_SANCTIONS_EXTRA` | `true`/`false` — abilita le liste sanzioni aggiuntive UE / UK OFSI / ONU oltre a OFAC (attivo solo con `IMPORT_SANCTIONS`); default `true` |
 | `IMPORT_PSC` | `true`/`false` — abilita lo screening Port State Control (performance bandiera Paris/Tokyo MoU + navi bandite Paris MoU) |
 | `IMPORT_EQUASIS` | `true`/`false` — abilita il lookup Equasis on-demand (proprietà/gestione) nel dettaglio nave |
 | `EQUASIS_USER` | Email dell'account Equasis (registrazione gratuita su https://www.equasis.org/) — richiesta dal lookup Equasis |
@@ -366,7 +368,7 @@ Ogni nave riceve un punteggio da 0 a 100 calcolato automaticamente in base a div
 - Punto magenta: punteggio calcolato con dati VesselFinder
 - Punto oro: punteggio calcolato con dati MarineTraffic
 - Punto arancione: entrambe le fonti usate
-- Punto rosso (con alone): nave presente nella lista sanzioni OFAC SDN
+- Punto rosso (con alone): nave presente in una lista sanzioni (OFAC / UE / UK / ONU)
 - Etichetta blu (Paris/Tokyo MoU ⚓): segnale dalle liste Port State Control (bandiera black/grey o nave bandita)
 
 Passa il cursore sul badge per vedere i dettagli dei fattori e le fonti.

@@ -53,7 +53,7 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │   │   ├── ship-analysis.js   # haversine, isInPort, computeDirection
 │   │   ├── risk-score.js      # Arms transport risk score (0–100) from AIS signatures + VF/MT data + sanctions + PSC
 │   │   ├── enrichment.js      # Proactive VF/MT enrichment on first ship detection
-│   │   ├── sanctions.js       # OFAC SDN sanctions list: download, index, match by IMO/name/call sign
+│   │   ├── sanctions.js       # OFAC SDN + EU/UK/UN sanctions lists (OpenSanctions): download, index, match by IMO/name/call sign
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): flag performance + banned vessels
 │   │   ├── equasis-log.js     # Append-only audit log of Equasis lookups (equasis.log)
 │   │   └── scrapers/
@@ -91,6 +91,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `IMPORT_VF_DATA` | Enable VesselFinder scraping (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Enable MarineTraffic scraping (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS` | Enable OFAC SDN sanctions list screening (`true`/`false`) | `false` |
+| `IMPORT_SANCTIONS_EXTRA` | Enable additional EU/UK OFSI/UN sanctions lists on top of OFAC (`true`/`false`) | `true` |
 | `IMPORT_PSC` | Enable Paris/Tokyo MoU Port State Control screening: flag performance + banned vessels (`true`/`false`) | `false` |
 | `IMPORT_EQUASIS` | Enable the on-demand Equasis lookup (ownership/management) in the ship detail (`true`/`false`) | `false` |
 | `EQUASIS_USER` | Equasis account email (free registration at [equasis.org](https://www.equasis.org/)) — required by the Equasis lookup | *(empty)* |
@@ -247,7 +248,7 @@ Each detected signature adds weighted points to an **anomaly subtotal**:
 | **Military detection** | `isMilitary(ship)` in `risk-score.js`: **DB flag** `is_military = 1` **or** `ship_type === 35` **or** ship name contains military tokens (prefixes: `HMS`, `USS`, `FS`, `FGS`, `HNLMS`, `HMAS`, `HMCS`, `INS`, `BNS`, `HDMS`, `HTMS`, `TCG`, `ORP`, `ITS`, `ROKS`, `NRP`, `RFS`, `ESPS`, `SPS`; keywords: `WARSHIP`, `NATO`). Detected ships: receive `is_military: true` and `flagged: true` forced in the API response, row highlighted red with `.military-row` class (takes priority over `.flagged-row`). The manual flag (`is_military` in DB) allows marking military vessels that have neither `ship_type 35` nor a recognised prefix/keyword (e.g. Italian Navy ships transmitted without the "ITS" prefix). Set from the detail panel using the `🪖 Mark as military vessel` button. | — |
 | **Hull name change** | Same MMSI transmitting multiple distinct names (flag/name hopping) | 8 |
 | **External enrichment (VF/MT)** | Registry data from VesselFinder/MarineTraffic, **only if import is enabled and already cached** (see below): flag registered under embargo → 12, flag of convenience → 5, aged hull (≥ 35 years) → 6, home port in high-risk zone → 8 | 12 |
-| **Sanctions (OFAC SDN)** | Match against the OFAC SDN sanctions list by IMO/name/call sign, only if `IMPORT_SANCTIONS` (see `sanctions.js`). Very strong direct signal | 60 |
+| **Sanctions (OFAC SDN + EU/UK/UN)** | Match against the sanctions lists by IMO/name/call sign, only if `IMPORT_SANCTIONS` (see `sanctions.js`): on top of OFAC SDN, also matches the EU consolidated list, the UK OFSI list and the UN designated-vessels list (via OpenSanctions), extra lists gated by `IMPORT_SANCTIONS_EXTRA`. Very strong direct signal | 60 |
 | **Port State Control (Paris/Tokyo MoU)** | Only if `IMPORT_PSC` (see below): flag on MoU black list → 12, on grey list → 5; vessel on the Paris MoU banned list (refusal of access after repeated detentions) → 40 | 40 |
 
 **Geopolitical context multiplier** applied to the anomaly subtotal:
@@ -314,7 +315,7 @@ Helpers in `public/js/helpers.js`: `riskClass(score)` (maps band → CSS class) 
 | Magenta | Score includes VesselFinder data |
 | Yellow | Score includes MarineTraffic data |
 | Orange | Score includes VesselFinder **+** MarineTraffic data |
-| Red (OFAC SDN ⚠) | Vessel present on the OFAC SDN sanctions list |
+| Red (Sanctions ⚠) | Vessel present on a sanctions list (OFAC / EU / UK / UN) |
 | Blue (Paris/Tokyo MoU ⚓) | Signal from the Port State Control lists (black/grey flag or banned vessel) |
 | *(absent)* | AIS-only data |
 
@@ -683,7 +684,7 @@ pm2 save
 | `src/services/scrapers/`      | VesselFinder (https), MarineTraffic (curl) and Equasis (curl, login, on-demand) scraping |
 | `src/services/risk-score.js`  | Arms transport risk score (0–100) from AIS behavioural signatures + cached VF/MT registry data |
 | `src/services/enrichment.js`  | Proactive VF/MT enrichment (once) on first ship detection         |
-| `src/services/sanctions.js`   | OFAC SDN sanctions list: CSV download, in-memory index, ship match by IMO/name/call sign |
+| `src/services/sanctions.js`   | OFAC SDN + EU/UK/UN sanctions lists (OpenSanctions): CSV download, in-memory index, ship match by IMO/name/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): flag performance (bundled JSON) + banned list (OpenSanctions CSV), match by flag name / IMO |
 | `src/routes/`                 | Express routers per domain (ships, readings, events, notifications, logs, settings, app-config, stream, areas, berths, export) |
 | `public/index.html`           | SPA: collapsible sidebar, tab nav, 4 views + modals (settings/diagnostics/logs) |

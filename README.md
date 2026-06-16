@@ -51,7 +51,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── ship-analysis.js   # haversine, isInPort, computeDirection
 │   │   ├── risk-score.js      # Score rischio trasporto armi (0–100) da firme AIS + dati VF/MT + sanzioni + PSC
 │   │   ├── enrichment.js      # Arricchimento proattivo VF/MT alla prima rilevazione nave
-│   │   ├── sanctions.js       # Lista sanzioni OFAC SDN: download, indice, match per IMO/nome/call sign
+│   │   ├── sanctions.js       # Liste sanzioni OFAC SDN + UE/UK/ONU (OpenSanctions): download, indice, match per IMO/nome/call sign
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): performance bandiera + navi bandite
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
@@ -76,6 +76,9 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 ├── data/                     # Dataset statici e backup locali
 │   ├── backups/              # Auto-backup locali (creati a runtime, gitignored)
 │   ├── ofac-sdn.csv          # Lista sanzioni OFAC SDN (cache su disco)
+│   ├── eu-sanctions.csv      # Lista sanzioni UE consolidata (cache su disco)
+│   ├── uk-sanctions.csv      # Lista sanzioni UK OFSI (cache su disco)
+│   ├── un-sanctions.csv      # Lista sanzioni ONU navi designate (cache su disco)
 │   ├── paris-mou-*.json/csv  # Liste Paris MoU (flag + banned)
 │   └── tokyo-mou-flags.json  # Liste Tokyo MoU
 ├── local.properties          # Config + API key (gitignored)
@@ -94,6 +97,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `IMPORT_VF_DATA` | Abilita scraping VesselFinder (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Abilita scraping MarineTraffic (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS` | Abilita screening lista sanzioni OFAC SDN (`true`/`false`) | `false` |
+| `IMPORT_SANCTIONS_EXTRA` | Abilita liste sanzioni aggiuntive UE/UK OFSI/ONU oltre a OFAC (`true`/`false`) | `true` |
 | `IMPORT_PSC` | Abilita screening Port State Control Paris/Tokyo MoU: performance bandiera + navi bandite (`true`/`false`) | `false` |
 | `IMPORT_EQUASIS` | Abilita il lookup Equasis on-demand (proprietà/gestione) nel dettaglio nave (`true`/`false`) | `false` |
 | `EQUASIS_USER` | Email account Equasis (registrazione gratuita su [equasis.org](https://www.equasis.org/)) — richiesta dal lookup Equasis | *(vuota)* |
@@ -250,7 +254,7 @@ Ogni firma rilevata aggiunge punti pesati a un **subtotale anomalie**:
 | **Rilevamento militare** | `isMilitary(ship)` in `risk-score.js`: **flag DB** `is_military = 1` **oppure** `ship_type === 35` **oppure** il nome nave contiene token militari (prefissi: `HMS`, `USS`, `FS`, `FGS`, `HNLMS`, `HMAS`, `HMCS`, `INS`, `BNS`, `HDMS`, `HTMS`, `TCG`, `ORP`, `ITS`, `ROKS`, `NRP`, `RFS`, `ESPS`, `SPS`; keyword: `WARSHIP`, `NATO`). Le navi identificate: ricevono `is_military: true` e `flagged: true` forzato nella risposta API, riga evidenziata in rosso con classe `.military-row` (ha priorità su `.flagged-row`). Il flag manuale (`is_military` in DB) permette di marcare navi militari che non hanno `ship_type 35` né prefisso/keyword riconoscibile (es. navi Marina Militare italiana trasmesse senza prefisso "ITS"). Si imposta dal pannello detail con il bottone `🪖 Segna come nave militare`. | — |
 | **Cambio nome scafo** | Stesso MMSI che trasmette più nomi distinti (flag/name hopping) | 8 |
 | **Arricchimento esterno (VF/MT)** | Dati registro da VesselFinder/MarineTraffic, **solo se l'import è abilitato e già in cache** (vedi sotto): bandiera registrata sotto embargo → 12, bandiera di comodo → 5, scafo datato (≥ 35 anni) → 6, porto di armamento in zona ad alto rischio → 8 | 12 |
-| **Sanzioni (OFAC SDN)** | Match con la lista sanzioni OFAC SDN per IMO/nome/call sign, solo se `IMPORT_SANCTIONS` (vedi `sanctions.js`). Segnale diretto fortissimo | 60 |
+| **Sanzioni (OFAC SDN + UE/UK/ONU)** | Match con le liste sanzioni per IMO/nome/call sign, solo se `IMPORT_SANCTIONS` (vedi `sanctions.js`): oltre a OFAC SDN, confronta anche con la lista consolidata UE, la lista UK OFSI e la lista ONU navi designate (via OpenSanctions), liste aggiuntive gestite da `IMPORT_SANCTIONS_EXTRA`. Segnale diretto fortissimo | 60 |
 | **Port State Control (Paris/Tokyo MoU)** | Solo se `IMPORT_PSC` (vedi sotto): bandiera in black list MoU → 12, in grey list → 5; nave nella banned list Paris MoU (refusal of access dopo fermi multipli) → 40 | 40 |
 
 **Moltiplicatore di contesto geopolitico** applicato al subtotale anomalie:
@@ -317,7 +321,7 @@ Helper in `public/js/helpers.js`: `riskClass(score)` (mappa fascia → classe CS
 | Magenta | Score include dati VesselFinder |
 | Giallo | Score include dati MarineTraffic |
 | Arancione | Score include dati VesselFinder **+** MarineTraffic |
-| Rosso (OFAC SDN ⚠) | Nave presente nella lista sanzioni OFAC SDN |
+| Rosso (Sanzioni ⚠) | Nave presente in una lista sanzioni (OFAC / UE / UK / ONU) |
 | Blu (Paris/Tokyo MoU ⚓) | Segnale dalle liste Port State Control (bandiera black/grey o nave bandita) |
 | *(assente)* | Solo dati AIS free |
 
@@ -495,7 +499,7 @@ npm run format   # Prettier
 9. Tab **Navi passate**: navi non più nel criterio "presenti"; cliccare ★ per segnalarle / ✓ per marcarle viste
 10. Tab **Traffico**: statistiche, grafici arrivi per ora/tipo; distribuzione score rischio (verde/giallo/rosso), fattori più frequenti, arrivi per giorno (30gg), top 8 navi per score (cliccabili); navi attese, ultimi eventi porto
 11. **⚙ Impostazioni** — 4 tab:
-    - **Generali**: abilita/disabilita import VesselFinder, MarineTraffic, Equasis, screening sanzioni OFAC, Port State Control, notifiche
+    - **Generali**: abilita/disabilita import VesselFinder, MarineTraffic, Equasis, screening sanzioni (OFAC + UE/UK/ONU), Port State Control, notifiche
     - **Aree**: toggle start/stop stream per ogni area (stato 🟢/⚪)
     - **Developer options**: notifica di test
     - **Backup/Ripristino**: auto-backup locale + esportazione manuale + ripristino selettivo (vedi [Backup e ripristino](#backup-e-ripristino-del-database))
@@ -705,7 +709,7 @@ pm2 save
 | `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (curl) ed Equasis (curl, login, on-demand) |
 | `src/services/risk-score.js`  | Score di rischio trasporto armi (0–100) da firme comportamentali AIS + dati registro VF/MT in cache |
 | `src/services/enrichment.js`  | Arricchimento proattivo VF/MT (una volta) alla prima rilevazione di una nave |
-| `src/services/sanctions.js`   | Lista sanzioni OFAC SDN: download CSV, indice in memoria, match nave per IMO/nome/call sign |
+| `src/services/sanctions.js`   | Liste sanzioni OFAC SDN + UE/UK/ONU (OpenSanctions): download CSV, indice in memoria, match nave per IMO/nome/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): performance bandiera (JSON bundled) + banned list (CSV OpenSanctions), match per nome bandiera / IMO |
 | `src/routes/`                 | Router Express per dominio (ships, readings, events, notifications, logs, settings, app-config, stream, areas, berths, export) |
 | `public/index.html`           | SPA: sidebar collassabile, tab nav, 4 view + modali (impostazioni/diagnostica/log) |

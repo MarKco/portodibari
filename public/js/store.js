@@ -25,6 +25,7 @@ export const S = {
   importVfData: false,
   importMtData: false,
   importSanctions: false,
+  importSanctionsExtra: true,
   importPsc: false,
   importEquasis: false,
   equasisConfigured: false,
