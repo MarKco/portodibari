@@ -17,6 +17,11 @@ IMPORT_MT_DATA=false
 # IMO/name/call sign). A match is a very strong risk signal (true | false).
 IMPORT_SANCTIONS=false
 
+# Additional sanctions lists on top of OFAC: EU consolidated, UK OFSI and UN
+# designated vessels (via OpenSanctions, downloaded daily). Only effective while
+# IMPORT_SANCTIONS is on. Default on — set to false to screen against OFAC only.
+IMPORT_SANCTIONS_EXTRA=true
+
 # Equasis ownership lookup (true | false). On-demand only: enables the "Recupera
 # informazioni Equasis" button in the ship detail to fetch registered owner / ISM
 # manager / operator by IMO. Never runs automatically. Needs a free Equasis
