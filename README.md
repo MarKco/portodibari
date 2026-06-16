@@ -16,7 +16,7 @@ App per tracciare navi via [AISStream.io](https://aisstream.io). L'area di monit
 
 ```
 Browser ←──polling 5min──→ Express (Node.js) ←──WebSocket──→ AISStream.io
-                                 │         └──curl subprocess──→ MarineTraffic (Cloudflare)
+                                 │         └──node-libcurl──→ MarineTraffic (Cloudflare)
                                  │         └──https───────────→ VesselFinder
                              SQLite (ais_data.db)
 ```
@@ -55,7 +55,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): performance bandiera + navi bandite
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
-│   │       ├── http.js        # Helper HTTP/curl + parsing HTML
+│   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
 │   │       ├── vesselfinder.js
 │   │       ├── marinetraffic.js
 │   │       └── equasis.js     # Lookup proprietà/gestione per IMO (on-demand, login richiesto)
@@ -398,9 +398,9 @@ Nel dettaglio nave, due pannelli arricchiscono i dati AIS con dati scaricati (sc
 **MarineTraffic** — più complesso, due ostacoli:
 
 1. **ID interno**: le pagine MT sono una SPA React indicizzata per `shipid` proprietario, non per MMSI/IMO/callsign. Lo `shipid` si risolve via l'endpoint `GET /{lang}/global_search/search?term=<MMSI|IMO|callsign>&types=1,3,7,9` → `results[0].id`. Lo `shipid` risolto è salvato in `ships.mt_ship_id` e usato per il link diretto. I dati nave si leggono poi da `GET /{lang}/vesselDetails/vesselInfo/shipid:<id>` (JSON pulito, include `typeSpecific` = sottotipo nave).
-2. **Cloudflare**: MT blocca i client TLS di Node (`https`/`http2`) con HTTP 403 via fingerprint JA3/JA4, a prescindere dagli header. **`curl` passa** (stack TLS diverso), quindi le richieste MT sono fatte tramite subprocess `curl` (`fetchViaCurl` in `src/services/scrapers/http.js`).
+2. **Cloudflare**: MT blocca i client TLS di Node (`https`/`http2`) con HTTP 403 via fingerprint JA3/JA4, a prescindere dagli header. Lo **stack TLS di libcurl passa**, quindi le richieste MT sono fatte tramite **`node-libcurl`** (`fetchViaCurl` in `src/services/scrapers/http.js`).
 
-> ⚠️ **Dipendenza di deploy**: il crawler MarineTraffic richiede che **`curl` sia installato** sull'host. Su Linux/macOS è quasi sempre presente. Nota: il fingerprint TLS di `curl` può variare tra build (es. curl-OpenSSL su Linux vs curl-SecureTransport su macOS) e Cloudflare potrebbe trattarli diversamente — da verificare in produzione.
+> ℹ️ **Deploy**: non serve `curl` installato sull'host. `node-libcurl` include la propria libcurl (binari precompilati scaricati da `npm install`; build da sorgente come fallback). Nota: il fingerprint TLS può variare tra build di libcurl e Cloudflare potrebbe trattarle diversamente — da verificare in produzione.
 
 L'integrazione MT/VF è attivabile/disattivabile via le proprietà `IMPORT_MT_DATA` / `IMPORT_VF_DATA` in `local.properties` (o dai toggle nelle impostazioni UI, che le persistono).
 
@@ -431,7 +431,7 @@ Differenze rispetto a VF/MT:
 - **Interroga per IMO**: Equasis è indicizzato solo per numero IMO; senza IMO il lookup fallisce con errore.
 - **Login richiesto**: ogni query richiede una sessione autenticata, quindi servono `EQUASIS_USER` / `EQUASIS_PASSWORD`. Senza credenziali la feature resta nascosta/inutilizzabile (`equasisConfigured`).
 
-Flusso (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`j_email`+`j_password`) → cookie di sessione → `POST /EquasisWeb/restricted/ShipInfo` (`P_IMO`) → HTML dettaglio. I cookie stanno in un jar temporaneo per la durata delle due chiamate. Come MarineTraffic, **usa `curl`** in subprocess (stessa dipendenza di deploy). La pagina di dettaglio è divisa in sezioni commentate (`<!-- Overview -->`, `<!-- MGT DET -->`, `<!-- Classification -->`, `<!-- PI -->`, `<!-- Geo -->`, …), ognuna duplicata in markup desktop (`<table>`) e mobile (`hidden-md hidden-lg`): il parser usa sempre il desktop e ignora il duplicato. Estrae sei blocchi: `particulars` (nome/IMO dall'`<h4>` + bandiera, call sign, MMSI, tonnellaggi, tipo, anno, stato dai blocchi `<b>label</b>`), `management` (`parseManagement`, tabella *Management detail(s)* mappata per intestazione di colonna così da reggere i riordini di Equasis), `classification` (società, stato, data), `pi` (club P&I + inception), `risk` (tasso detenzioni 36 mesi, classe IACS, performance Paris/Tokyo MOU, targeting USCG dalla sezione *Overview*) e `positions` (ultime aree in cui la nave è stata vista).
+Flusso (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`j_email`+`j_password`) → cookie di sessione → `POST /EquasisWeb/restricted/ShipInfo` (`P_IMO`) → HTML dettaglio. I cookie stanno in un jar temporaneo per la durata delle due chiamate. Come MarineTraffic, **usa `node-libcurl`** (nessuna dipendenza da `curl` di sistema). La pagina di dettaglio è divisa in sezioni commentate (`<!-- Overview -->`, `<!-- MGT DET -->`, `<!-- Classification -->`, `<!-- PI -->`, `<!-- Geo -->`, …), ognuna duplicata in markup desktop (`<table>`) e mobile (`hidden-md hidden-lg`): il parser usa sempre il desktop e ignora il duplicato. Estrae sei blocchi: `particulars` (nome/IMO dall'`<h4>` + bandiera, call sign, MMSI, tonnellaggi, tipo, anno, stato dai blocchi `<b>label</b>`), `management` (`parseManagement`, tabella *Management detail(s)* mappata per intestazione di colonna così da reggere i riordini di Equasis), `classification` (società, stato, data), `pi` (club P&I + inception), `risk` (tasso detenzioni 36 mesi, classe IACS, performance Paris/Tokyo MOU, targeting USCG dalla sezione *Overview*) e `positions` (ultime aree in cui la nave è stata vista).
 
 **Log di audit**: ogni lookup (successo o errore) viene aggiunto in append a un file di testo `equasis.log` (root di progetto, gitignored) da [`src/services/equasis-log.js`](src/services/equasis-log.js): timestamp, MMSI, IMO, nome nave e i dati recuperati (o il messaggio d'errore). Il log è consultabile dalla UI col pulsante **Visualizza log Equasis** nelle impostazioni (endpoint `GET /api/equasis-log`, lettura tail-troncata a 256 KB; `DELETE /api/equasis-log` lo svuota).
 
@@ -577,8 +577,9 @@ sudo apt-get install -y nodejs
 node --version   # v22+
 npm --version
 
-# curl è richiesto dal crawler MarineTraffic (vedi sezione integrazione MT/VF)
-curl --version   # se assente: sudo apt-get install -y curl
+# I crawler MarineTraffic/Equasis usano node-libcurl (libcurl integrata via npm).
+# Nessun `curl` di sistema richiesto. Su distro minimali per la build da sorgente
+# di fallback servono build-essential: sudo apt-get install -y build-essential
 ```
 
 ### Deploy manuale
@@ -706,7 +707,7 @@ pm2 save
 | `src/services/ais-stream.js`  | Client WebSocket AISStream multi-area (`Map<areaKey, state>`) + riconnessione + eventi porto + notifiche di rientro e cambio area |
 | `src/services/berths.js`      | Rilevamento attracchi + clustering DBSCAN + caratterizzazione banchine (convex hull, point-in-polygon, backfill/ricalcolo) + notifiche di nuova banchina e caratterizzazione |
 | `src/services/ship-categories.js` | Mappa codice tipo nave AIS → categoria larga (cargo/tanker/passeggeri/…) + flag hazmat, usata per caratterizzare le banchine |
-| `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (curl) ed Equasis (curl, login, on-demand) |
+| `src/services/scrapers/`      | Scraping VesselFinder (https), MarineTraffic (node-libcurl) ed Equasis (node-libcurl, login, on-demand) |
 | `src/services/risk-score.js`  | Score di rischio trasporto armi (0–100) da firme comportamentali AIS + dati registro VF/MT in cache |
 | `src/services/enrichment.js`  | Arricchimento proattivo VF/MT (una volta) alla prima rilevazione di una nave |
 | `src/services/sanctions.js`   | Liste sanzioni OFAC SDN + UE/UK/ONU (OpenSanctions): download CSV, indice in memoria, match nave per IMO/nome/call sign |
@@ -825,5 +826,5 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 - **Area vuota**: un porto può non avere navi AIS nelle ore notturne o nei periodi di bassa attività. L'app funziona correttamente — la lista "presenti" è semplicemente vuota. I dati restano nella tab "passate" e nel DB.
 - **Riconnessione automatica**: se il WebSocket di un'area si chiude inaspettatamente mentre il suo stream è attivo, il backend tenta la riconnessione dopo 5 secondi (per area indipendentemente).
 - **Riavvio e dati**: il DB (`ais_data.db`, WAL) persiste tra i riavvii. Dopo un riavvio le navi che trasmettono di rado (ormeggiate) possono non comparire subito in "presenti" finché non ritrasmettono — vedi finestre 6h/24h.
-- **`curl` richiesto**: lo scraping MarineTraffic usa un subprocess `curl` (bypass Cloudflare). Assente `curl`, l'import MT fallisce ma il resto dell'app funziona.
+- **`node-libcurl`**: lo scraping MarineTraffic/Equasis usa `node-libcurl` per il bypass Cloudflare (libcurl integrata, nessun `curl` di sistema). Se il binario nativo non si installa, l'import MT/Equasis fallisce ma il resto dell'app funziona.
 - **Node.js versione**: il modulo `node:sqlite` è built-in da Node 22.5+. Non funziona su versioni precedenti.

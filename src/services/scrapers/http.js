@@ -1,7 +1,7 @@
 'use strict';
 
 const https = require('https');
-const { execFile } = require('child_process');
+const { curly } = require('node-libcurl');
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -53,21 +53,24 @@ function fetchHttp(url, depth = 0) {
 
 // MarineTraffic sits behind Cloudflare, which fingerprints the TLS ClientHello
 // (JA3/JA4) and blocks Node's https/http2 clients with 403 regardless of headers.
-// curl's TLS stack passes, so MT requests are made through a curl subprocess.
+// libcurl's TLS stack passes, so MT requests go through node-libcurl (which
+// bundles its own libcurl — no system `curl` binary needed on the deploy host).
 function fetchViaCurl(url, extraHeaders = {}) {
-  return new Promise((resolve, reject) => {
-    const args = ['-s', '-S', '-L', '--compressed', '-m', '12', '-A', BROWSER_UA];
-    for (const [k, v] of Object.entries(extraHeaders)) args.push('-H', `${k}: ${v}`);
-    args.push('-w', '\n%{http_code}', url);
-    execFile('curl', args, { maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return reject(new Error(`curl: ${err.message}`));
-      const nl = stdout.lastIndexOf('\n');
-      const code = Number(stdout.slice(nl + 1).trim());
-      const body = stdout.slice(0, nl);
-      if (code !== 200) return reject(new Error(`HTTP ${code}`));
-      resolve(body);
+  const httpHeader = Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`);
+  return curly
+    .get(url, {
+      followLocation: true,
+      maxRedirs: 3,
+      acceptEncoding: '', // --compressed: accept any encoding libcurl can decode
+      timeout: 12,
+      userAgent: BROWSER_UA,
+      httpHeader,
+      curlyResponseBodyParser: false, // keep the body a raw Buffer; callers parse it
+    })
+    .then(({ statusCode, data }) => {
+      if (statusCode !== 200) throw new Error(`HTTP ${statusCode}`);
+      return data.toString('utf8');
     });
-  });
 }
 
 /** Strip HTML tags and decode the most common entities to plain text. */

@@ -22,7 +22,7 @@
 // This is intentionally NOT wired into the proactive enrichment path: it only
 // runs when the user presses "Recupera informazioni Equasis" in the ship detail.
 
-const { execFile } = require('child_process');
+const { curly } = require('node-libcurl');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -33,27 +33,32 @@ const BASE = 'https://www.equasis.org/EquasisWeb';
 const LOGIN_URL = `${BASE}/authen/HomePage`;
 const SHIPINFO_URL = `${BASE}/restricted/ShipInfo`;
 
-// Run curl with a shared cookie jar. `fields` (when given) are sent as a POST
-// body via --data-urlencode. Resolves with the response body; rejects on a
-// non-2xx/3xx status or a curl transport error.
+// Run a request through libcurl (node-libcurl) with a shared cookie jar.
+// `fields` (when given) are sent as a urlencoded POST body. Resolves with the
+// response body; rejects on a 4xx/5xx status or a transport error. Uses
+// node-libcurl so no system `curl` binary is required on the deploy host.
 function curl(url, jar, fields) {
-  return new Promise((resolve, reject) => {
-    const args = ['-s', '-S', '-L', '--compressed', '-m', '25', '-A', BROWSER_UA,
-      '-c', jar, '-b', jar];
-    if (fields) {
-      for (const [k, v] of Object.entries(fields)) {
-        args.push('--data-urlencode', `${k}=${v}`);
-      }
-    }
-    args.push('-w', '\n%{http_code}', url);
-    execFile('curl', args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return reject(new Error(`curl: ${err.message}`));
-      const nl = stdout.lastIndexOf('\n');
-      const code = Number(stdout.slice(nl + 1).trim());
-      const body = stdout.slice(0, nl);
-      if (code >= 400) return reject(new Error(`HTTP ${code}`));
-      resolve(body);
-    });
+  const options = {
+    followLocation: true,
+    acceptEncoding: '', // --compressed
+    timeout: 25,
+    userAgent: BROWSER_UA,
+    cookieJar: jar, // write Set-Cookie here (-c)
+    cookieFile: jar, // send cookies from here (-b)
+    curlyResponseBodyParser: false, // raw Buffer; the HTML parsers want a string
+  };
+  let run;
+  if (fields) {
+    options.postFields = Object.entries(fields)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    run = curly.post(url, options);
+  } else {
+    run = curly.get(url, options);
+  }
+  return run.then(({ statusCode, data }) => {
+    if (statusCode >= 400) throw new Error(`HTTP ${statusCode}`);
+    return data.toString('utf8');
   });
 }
 
