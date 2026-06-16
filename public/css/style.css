@@ -2106,7 +2106,8 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .params-dirty { color: var(--accent-text); font-size: 0.82rem; }
 .param-loading { color: var(--text-muted); padding: 1rem 0; }
 .param-row { align-items: center; }
-.param-control { flex-shrink: 0; margin-left: 1rem; }
+.param-control { flex-shrink: 0; margin-left: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+.param-unit { color: var(--text-muted); font-size: 0.82rem; min-width: 2.5rem; }
 .param-input[type="number"] {
   width: 120px; background: var(--bg); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 0.9rem;

@@ -17,7 +17,8 @@ function fieldRow(f) {
     const checked = f.value === 'true' ? ' checked' : '';
     control = `<label class="toggle"><input type="checkbox" class="param-input" data-type="bool" data-key="${escHtml(f.key)}" data-orig="${f.value}"${checked}><span class="toggle-slider"></span></label>`;
   } else {
-    control = `<input type="number" step="any" class="param-input" data-type="number" data-key="${escHtml(f.key)}" data-orig="${escHtml(f.value)}" value="${escHtml(f.value)}">`;
+    const unit = f.unit ? `<span class="param-unit">${escHtml(f.unit)}</span>` : '';
+    control = `<input type="number" step="any" class="param-input" data-type="number" data-key="${escHtml(f.key)}" data-orig="${escHtml(f.value)}" value="${escHtml(f.value)}">${unit}`;
   }
   return `<div class="setting-row param-row">
     <div class="setting-info">

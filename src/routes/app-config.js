@@ -17,6 +17,78 @@ const router = express.Router();
 
 const KEY_RE = /^[A-Z0-9_]+$/;
 
+// Unit of measure shown next to each value (outside the input box). Exact-key
+// map first, then a suffix-based fallback so future keys get a sensible unit.
+const UNITS = {
+  SOG_FERMA_KN: 'kn',
+  STILL_RADIUS_M: 'm',
+  ACTIVE_WINDOW_HOURS: 'ore',
+  PORT_WINDOW_HOURS: 'ore',
+  RECONNECT_DELAY_MS: 'ms',
+  POLL_INTERVAL_MS: 'ms',
+  TRACK_MERGE_RADIUS_M: 'm',
+  TRACK_DEFAULT_LIMIT: 'punti',
+  TRACK_MAX_LIMIT: 'punti',
+  MAX_READINGS_PER_TYPE: 'record',
+  MAX_API_LOG_RECORDS: 'record',
+  SCRAPE_CACHE_TTL_HOURS: 'ore',
+  MAX_BODY_BYTES: 'byte',
+  NOTIF_DELETE_UNDO_SECONDS: 's',
+  BACKUP_INTERVAL_MIN: 'min',
+  BERTH_CLUSTER_EPS_M: 'm',
+  BERTH_MIN_PTS: 'attracchi',
+  BERTH_MIN_MOORINGS: 'attracchi',
+  BERTH_DOMINANT_PCT: '%',
+  BERTH_RECOMPUTE_MIN: 'min',
+  RISK_DARK_MAX: 'punti',
+  RISK_DARK_MIN_H: 'ore',
+  RISK_DARK_MAX_H: 'ore',
+  RISK_DARK_PARTIAL_MIN: 'punti',
+  RISK_SPOOFING_MAX: 'punti',
+  RISK_SPOOF_ANOMALOUS_POINTS: 'punti',
+  RISK_SPOOF_IMPOSSIBLE_KN: 'kn',
+  RISK_SPOOF_ANOMALOUS_KN: 'kn',
+  RISK_LOITERING_MAX: 'punti',
+  RISK_LOITERING_PARTIAL: 'punti',
+  RISK_LOITERING_MIN_POSITIONS: 'posizioni',
+  RISK_LOITERING_FAR_KM: 'km',
+  RISK_DRAUGHT_MAX: 'punti',
+  RISK_DRAUGHT_FACTOR: 'punti/m',
+  RISK_DRAUGHT_MIN_DELTA_M: 'm',
+  RISK_DEST_MAX: 'punti',
+  RISK_DEST_PER_CHANGE: 'punti',
+  RISK_HAZMAT_POINTS: 'punti',
+  RISK_CARGO_POINTS: 'punti',
+  RISK_NAME_HOPPING_POINTS: 'punti',
+  RISK_EMBARGO_FLAG_POINTS: 'punti',
+  RISK_FOC_FLAG_POINTS: 'punti',
+  RISK_OLD_VESSEL_POINTS: 'punti',
+  RISK_HIGH_RISK_HOMEPORT_POINTS: 'punti',
+  RISK_SANCTION_MATCH_POINTS: 'punti',
+  RISK_OLD_VESSEL_MIN_AGE: 'anni',
+  RISK_PSC_BLACK_FLAG_POINTS: 'punti',
+  RISK_PSC_GREY_FLAG_POINTS: 'punti',
+  RISK_PSC_BANNED_POINTS: 'punti',
+  RISK_MULT_HIGH_RISK: '× (moltipl.)',
+  RISK_MULT_FOC: '× (moltipl.)',
+};
+
+function unitFor(key) {
+  if (UNITS[key]) return UNITS[key];
+  if (/_KN$/.test(key)) return 'kn';
+  if (/_KM$/.test(key)) return 'km';
+  if (/_(M|RADIUS_M|DELTA_M)$/.test(key)) return 'm';
+  if (/_MS$/.test(key)) return 'ms';
+  if (/_(HOURS|_H)$/.test(key)) return 'ore';
+  if (/_MIN$/.test(key)) return 'min';
+  if (/_SECONDS$/.test(key)) return 's';
+  if (/_PCT$/.test(key)) return '%';
+  if (/_BYTES$/.test(key)) return 'byte';
+  if (/_POINTS$/.test(key)) return 'punti';
+  if (/_AGE$/.test(key)) return 'anni';
+  return '';
+}
+
 function readFileText() {
   return fs.existsSync(APP_CONFIG_FILE) ? fs.readFileSync(APP_CONFIG_FILE, 'utf8') : '';
 }
@@ -59,7 +131,13 @@ function parseGroups(text) {
       if (KEY_RE.test(key)) {
         const value = line.slice(eq + 1).trim();
         const type = value === 'true' || value === 'false' ? 'bool' : 'number';
-        cur.fields.push({ key, value, type, description: pending.join(' ') });
+        cur.fields.push({
+          key,
+          value,
+          type,
+          description: pending.join(' '),
+          unit: type === 'bool' ? '' : unitFor(key),
+        });
       }
     }
     pending = [];
