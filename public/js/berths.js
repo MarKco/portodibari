@@ -111,7 +111,7 @@ export function focusBerth(id) {
   }
   if (!S.activeMap) return;
   S.activeMap.invalidateSize();
-  S.activeMap.fitBounds(L.latLngBounds(b.polygon).pad(2), { maxZoom: 17 });
+  S.activeMap.fitBounds(L.latLngBounds(b.polygon).pad(0.5), { maxZoom: 18 });
   const marker = berthLayers.get(id);
   if (marker) setTimeout(() => marker.openPopup(), 250);
 }
