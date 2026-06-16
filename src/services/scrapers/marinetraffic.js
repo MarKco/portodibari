@@ -46,8 +46,11 @@ async function resolveMtShipId(ship) {
 async function crawlMarineTraffic(ship) {
   const shipId = await resolveMtShipId(ship);
   if (!shipId) throw new Error('Nave non trovata su MarineTraffic');
+  // The vesselInfo endpoint is an XHR API: without the XMLHttpRequest/JSON
+  // headers Cloudflare serves a 403 challenge page instead of the JSON.
   const body = await fetchViaCurl(
-    `https://www.marinetraffic.com/en/vesselDetails/vesselInfo/shipid:${encodeURIComponent(shipId)}`
+    `https://www.marinetraffic.com/en/vesselDetails/vesselInfo/shipid:${encodeURIComponent(shipId)}`,
+    { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
   );
   let info;
   try {
