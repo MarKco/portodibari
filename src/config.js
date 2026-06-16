@@ -217,6 +217,9 @@ const state = {
   notifyRevisit: props.NOTIFY_REVISIT !== 'false',
   notifyAreaChange: props.NOTIFY_AREA_CHANGE !== 'false',
   notifyHighRisk: props.NOTIFY_HIGH_RISK !== 'false',
+  // Berth lifecycle alerts: a new berth is detected, or one gets characterised.
+  notifyBerthNew: props.NOTIFY_BERTH_NEW !== 'false',
+  notifyBerthChar: props.NOTIFY_BERTH_CHAR !== 'false',
 };
 
 function applyPreset(preset) {
@@ -281,6 +284,16 @@ function setNotifyAreaChange(enabled) {
 function setNotifyHighRisk(enabled) {
   state.notifyHighRisk = !!enabled;
   saveProperty('NOTIFY_HIGH_RISK', state.notifyHighRisk);
+}
+
+function setNotifyBerthNew(enabled) {
+  state.notifyBerthNew = !!enabled;
+  saveProperty('NOTIFY_BERTH_NEW', state.notifyBerthNew);
+}
+
+function setNotifyBerthChar(enabled) {
+  state.notifyBerthChar = !!enabled;
+  saveProperty('NOTIFY_BERTH_CHAR', state.notifyBerthChar);
 }
 
 /** Keyword for a preset (used to flag "expected" ships by destination). */
@@ -492,6 +505,8 @@ module.exports = {
   setNotifyRevisit,
   setNotifyAreaChange,
   setNotifyHighRisk,
+  setNotifyBerthNew,
+  setNotifyBerthChar,
   currentKeyword,
   areaForPoint,
   addArea,

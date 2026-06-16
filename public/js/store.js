@@ -32,6 +32,8 @@ export const S = {
   notifyRevisit: true,
   notifyAreaChange: true,
   notifyHighRisk: true,
+  notifyBerthNew: true,
+  notifyBerthChar: true,
   currentPreset: '',
 
   // List filters (client-side, applied before sort/render)

@@ -3,7 +3,7 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD,
@@ -61,6 +61,8 @@ router.get('/settings', (req, res) => {
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
     notifyHighRisk: state.notifyHighRisk,
+    notifyBerthNew: state.notifyBerthNew,
+    notifyBerthChar: state.notifyBerthChar,
   });
 });
 
@@ -91,6 +93,8 @@ function exportSettings() {
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
     notifyHighRisk: state.notifyHighRisk,
+    notifyBerthNew: state.notifyBerthNew,
+    notifyBerthChar: state.notifyBerthChar,
   };
 }
 
@@ -106,6 +110,8 @@ function applyImportedSettings(s) {
   if (s.notifyRevisit !== undefined) setNotifyRevisit(s.notifyRevisit);
   if (s.notifyAreaChange !== undefined) setNotifyAreaChange(s.notifyAreaChange);
   if (s.notifyHighRisk !== undefined) setNotifyHighRisk(s.notifyHighRisk);
+  if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
+  if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
 
   if (s.importVfData !== undefined) {
     const wasDisabled = !state.importVfData;
@@ -164,7 +170,7 @@ router.post('/settings', (req, res) => {
     preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
     importPsc: newPsc, importEquasis: newEquasis,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
-    notifyHighRisk: newHighRisk,
+    notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
   } = req.body;
 
   if (newNotif !== undefined) {
@@ -182,6 +188,14 @@ router.post('/settings', (req, res) => {
   if (newHighRisk !== undefined) {
     setNotifyHighRisk(newHighRisk);
     console.log(`[NOTIF] High-risk notifications: ${state.notifyHighRisk}`);
+  }
+  if (newBerthNew !== undefined) {
+    setNotifyBerthNew(newBerthNew);
+    console.log(`[NOTIF] New-berth notifications: ${state.notifyBerthNew}`);
+  }
+  if (newBerthChar !== undefined) {
+    setNotifyBerthChar(newBerthChar);
+    console.log(`[NOTIF] Berth-characterised notifications: ${state.notifyBerthChar}`);
   }
 
   if (newImportVf !== undefined) {
@@ -237,6 +251,8 @@ router.post('/settings', (req, res) => {
       notifyRevisit: state.notifyRevisit,
       notifyAreaChange: state.notifyAreaChange,
       notifyHighRisk: state.notifyHighRisk,
+      notifyBerthNew: state.notifyBerthNew,
+      notifyBerthChar: state.notifyBerthChar,
     });
   }
 

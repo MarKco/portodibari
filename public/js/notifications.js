@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { escHtml, formatTime } from './helpers.js';
 import { showView } from './views.js';
+import { goToBerth } from './berths.js';
 import { showUndoToast } from './toast.js';
 
 // Sidebar notifications feed. The list is shown by default; the bell button
@@ -47,6 +48,18 @@ function notifMessage(n) {
       score: n.score != null ? n.score : '?',
     });
   }
+  if (n.type === 'berth_new') {
+    return t('notif.berthNew', { area: escHtml(areaName(n.area)) });
+  }
+  if (n.type === 'berth_characterized') {
+    const name = n.ship_name || t('berth.unnamed');
+    const cat = n.band ? t(`berthcat.${n.band}`) : '';
+    return t('notif.berthChar', {
+      berth: escHtml(name),
+      cat: escHtml(cat),
+      area: escHtml(areaName(n.area)),
+    });
+  }
   return escHtml(n.ship_name || '');
 }
 
@@ -58,10 +71,12 @@ function renderNotifications(notifications) {
   }
   el.notifList.innerHTML = notifications
     .map((n) => {
-      const band = n.band || 'low';
+      const isBerth = n.type === 'berth_new' || n.type === 'berth_characterized';
+      const dotClass = isBerth ? 'notif-dot-berth' : `risk-${n.band || 'low'}`;
+      const clickable = n.mmsi || n.berth_id;
       return `
-      <div class="notif-item ${n.read ? '' : 'unread'} ${n.mmsi ? 'notif-item-clickable' : ''}" data-id="${n.id}" data-mmsi="${n.mmsi || ''}">
-        <span class="notif-dot risk-${band}" title="${n.score != null ? `${n.score}/100` : ''}"></span>
+      <div class="notif-item ${n.read ? '' : 'unread'} ${clickable ? 'notif-item-clickable' : ''}" data-id="${n.id}" data-mmsi="${n.mmsi || ''}" data-berth="${n.berth_id || ''}" data-area="${escHtml(n.area || '')}">
+        <span class="notif-dot ${dotClass}" title="${!isBerth && n.score != null ? `${n.score}/100` : ''}"></span>
         <div class="notif-text">
           <div class="notif-msg">${notifMessage(n)}</div>
           <div class="notif-meta">${formatTime(n.ts)}</div>
@@ -184,9 +199,16 @@ export function initNotifications() {
       return;
     }
 
-    // Navigate to ship detail: clicking anywhere else on the row.
+    // Navigate: clicking anywhere else on the row.
     const item = e.target.closest('.notif-item');
     if (!item) return;
+    // Berth events → locate the berth on its area's map.
+    const berthId = Number(item.dataset.berth);
+    if (berthId) {
+      goToBerth(item.dataset.area, berthId);
+      return;
+    }
+    // Ship events → open the ship detail view.
     const mmsi = Number(item.dataset.mmsi);
     if (!mmsi) return;
     showView('detail', mmsi, null);

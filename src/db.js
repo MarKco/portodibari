@@ -200,6 +200,12 @@ for (const col of ['from_area TEXT']) {
   try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
+// Berth reference for 'berth_new' / 'berth_characterized' notifications, so a
+// tap on the row can locate that berth on the map.
+for (const col of ['berth_id INTEGER']) {
+  try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS ship_scrape_cache (
     mmsi    INTEGER NOT NULL,
@@ -747,8 +753,8 @@ function deleteBerth(id) {
 const MAX_NOTIFICATIONS = 100;
 
 const insertNotificationStmt = db.prepare(
-  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, ts, read)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, berth_id, ts, read)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 );
 const pruneNotificationsStmt = db.prepare(
   `DELETE FROM notifications WHERE id NOT IN (
@@ -756,11 +762,11 @@ const pruneNotificationsStmt = db.prepare(
    )`
 );
 
-function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null }) {
+function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null }) {
   const ts = new Date().toISOString();
-  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, ts);
+  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, berth_id, ts);
   pruneNotificationsStmt.run();
-  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, ts, read: 0 };
+  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, berth_id, ts, read: 0 };
 }
 
 function getNotifications(limit = MAX_NOTIFICATIONS) {

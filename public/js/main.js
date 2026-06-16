@@ -116,10 +116,14 @@ async function loadSettings() {
     S.notifyRevisit = s.notifyRevisit !== false;
     S.notifyAreaChange = s.notifyAreaChange !== false;
     S.notifyHighRisk = s.notifyHighRisk !== false;
+    S.notifyBerthNew = s.notifyBerthNew !== false;
+    S.notifyBerthChar = s.notifyBerthChar !== false;
     if (el.toggleNotifications) el.toggleNotifications.checked = S.notificationsEnabled;
     if (el.toggleNotifyRevisit) el.toggleNotifyRevisit.checked = S.notifyRevisit;
     if (el.toggleNotifyAreaChange) el.toggleNotifyAreaChange.checked = S.notifyAreaChange;
     if (el.toggleNotifyHighRisk) el.toggleNotifyHighRisk.checked = S.notifyHighRisk;
+    if (el.toggleNotifyBerthNew) el.toggleNotifyBerthNew.checked = S.notifyBerthNew;
+    if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
     applyNotifSettingsState();
   } catch {
     /* ignore */
@@ -134,6 +138,10 @@ function applyNotifSettingsState() {
   if (el.settingNotifyAreaChange) el.settingNotifyAreaChange.classList.toggle('disabled', !S.notificationsEnabled);
   if (el.toggleNotifyHighRisk) el.toggleNotifyHighRisk.disabled = !S.notificationsEnabled;
   if (el.settingNotifyHighRisk) el.settingNotifyHighRisk.classList.toggle('disabled', !S.notificationsEnabled);
+  if (el.toggleNotifyBerthNew) el.toggleNotifyBerthNew.disabled = !S.notificationsEnabled;
+  if (el.settingNotifyBerthNew) el.settingNotifyBerthNew.classList.toggle('disabled', !S.notificationsEnabled);
+  if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.disabled = !S.notificationsEnabled;
+  if (el.settingNotifyBerthChar) el.settingNotifyBerthChar.classList.toggle('disabled', !S.notificationsEnabled);
 }
 
 // Show the OFAC sanctions dataset status (loaded vessel count + last refresh).
@@ -408,6 +416,26 @@ function initSettingsModal() {
       S.notifyHighRisk = enabled;
     } catch {
       el.toggleNotifyHighRisk.checked = !enabled;
+    }
+  });
+
+  el.toggleNotifyBerthNew.addEventListener('change', async () => {
+    const enabled = el.toggleNotifyBerthNew.checked;
+    try {
+      await api('/api/settings', 'POST', { notifyBerthNew: enabled });
+      S.notifyBerthNew = enabled;
+    } catch {
+      el.toggleNotifyBerthNew.checked = !enabled;
+    }
+  });
+
+  el.toggleNotifyBerthChar.addEventListener('change', async () => {
+    const enabled = el.toggleNotifyBerthChar.checked;
+    try {
+      await api('/api/settings', 'POST', { notifyBerthChar: enabled });
+      S.notifyBerthChar = enabled;
+    } catch {
+      el.toggleNotifyBerthChar.checked = !enabled;
     }
   });
 

@@ -27,6 +27,8 @@ export default {
   'notif.revisit':  '<strong>{ship}</strong> back in {area}',
   'notif.areaChange': '<strong>{ship}</strong> moved from {from} to {to}',
   'notif.highRisk': '<strong>{ship}</strong> arrived in {area} — risk score {score}/100',
+  'notif.berthNew': 'New berth detected in {area}',
+  'notif.berthChar': 'Berth <strong>{berth}</strong> characterised as {cat} in {area}',
 
   // ── Status badge ───────────────────────────────────────────────────────────
   'status.active':   'ACTIVE',
@@ -305,6 +307,10 @@ export default {
   'settings.notifAreaChange.desc':  'Alert when a ship seen in one area is later seen in a different area.',
   'settings.notifHighRisk.name':    'High-risk score alert',
   'settings.notifHighRisk.desc':    'Alert when a ship arrives with a risk score in the red band (71–100).',
+  'settings.notifBerthNew.name':    'New berth alert',
+  'settings.notifBerthNew.desc':    'Alert when a new berth is detected in an area.',
+  'settings.notifBerthChar.name':   'Berth characterisation alert',
+  'settings.notifBerthChar.desc':   'Alert when a berth is characterised for the first time (dominant ship category).',
   'settings.export.name':    'Export CSV',
   'settings.export.desc':    'Download all AIS readings as a CSV archive.',
   'settings.export.btn':     '⬇ Export',

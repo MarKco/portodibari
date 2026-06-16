@@ -313,6 +313,7 @@ body {
 .notif-dot.risk-low  { background: var(--green); }
 .notif-dot.risk-med  { background: var(--amber); }
 .notif-dot.risk-high { background: var(--red); }
+.notif-dot.notif-dot-berth { background: var(--accent); }
 
 .notif-text { flex: 1; min-width: 0; }
 .notif-msg { color: var(--text); line-height: 1.3; word-break: break-word; }

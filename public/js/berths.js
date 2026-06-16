@@ -6,6 +6,7 @@ import { el } from './dom.js';
 import { escHtml } from './helpers.js';
 import { showAlert } from './toast.js';
 import { t } from './i18n.js';
+import { showView } from './views.js';
 
 // Leaflet layer (centroid marker) per berth id, so the manager list can focus
 // a berth on the map and open its popup. Rebuilt on every overlay render.
@@ -98,7 +99,7 @@ export function renderBerthsOverlay() {
 
 // Pan/zoom the overview map to a berth and open its popup. Turns the overlay on
 // if it was hidden so the berth is actually visible.
-function focusBerth(id) {
+export function focusBerth(id) {
   const b = S.berthsList.find((x) => x.id === id);
   if (!b || !b.polygon || !b.polygon.length) return;
   el.modalOverlay.classList.add('hidden');
@@ -113,6 +114,33 @@ function focusBerth(id) {
   S.activeMap.fitBounds(L.latLngBounds(b.polygon).pad(2), { maxZoom: 17 });
   const marker = berthLayers.get(id);
   if (marker) setTimeout(() => marker.openPopup(), 250);
+}
+
+// Navigate from a notification (any area) to a specific berth: switch the view
+// to the berth's area if needed, open the active view, load that area's berths
+// and focus the one tapped. Used by the notifications feed.
+export async function goToBerth(area, id) {
+  if (el.modalOverlay) el.modalOverlay.classList.add('hidden');
+  if (area && area !== S.currentPreset) {
+    try {
+      const result = await api('/api/settings', 'POST', { preset: area });
+      S.currentPreset = area;
+      S.currentBbox = result.bbox;
+      S.berthsList = [];
+      if (el.bboxSelect) el.bboxSelect.value = area;
+      const name = result.name || S.presets[area]?.name;
+      if (name && el.appTitle) {
+        el.appTitle.textContent = `${t('app.title')} - ${name}`;
+        document.title = el.appTitle.textContent;
+      }
+    } catch {
+      /* stay where we are; still try to focus below */
+    }
+  }
+  showView('active');
+  await loadBerths(S.currentPreset);
+  // Defer focus so the active map has mounted/resized before we fit bounds.
+  setTimeout(() => focusBerth(id), 300);
 }
 
 function distBars(b) {

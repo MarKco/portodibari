@@ -16,7 +16,7 @@
 // one within eps. Manual berths (geometry locked by the user) are never moved.
 
 const db = require('../db');
-const { BERTH } = require('../config');
+const { BERTH, state } = require('../config');
 const { categoryOf, isHazmat } = require('./ship-categories');
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
@@ -212,6 +212,13 @@ function recomputeArea(area) {
   const oldAuto = db.getAutoBerths(area); // capture renamed/overridden identity
   const manualBerths = db.getBerths(area).filter((b) => b.manual_geom);
 
+  // Berth lifecycle notifications. The very first recompute on an empty area
+  // would otherwise flag every freshly seeded berth as "new"/"characterised";
+  // suppress that initial burst (no prior berths of any kind = seeding).
+  const initialSeed = oldAuto.length === 0 && manualBerths.length === 0;
+  const emitNew = state.notificationsEnabled && state.notifyBerthNew && !initialSeed;
+  const emitChar = state.notificationsEnabled && state.notifyBerthChar && !initialSeed;
+
   // 1) Assign points inside a manual polygon to that berth (hand-drawn wins).
   const claimed = new Set();
   for (const b of manualBerths) {
@@ -228,6 +235,7 @@ function recomputeArea(area) {
       members.map((m) => m.id),
       b.id
     );
+    const wasUnchar = !b.char_label;
     const ch = characterize(members);
     db.updateBerthChar(b.id, {
       char_label: ch.label,
@@ -235,6 +243,9 @@ function recomputeArea(area) {
       dist_json: JSON.stringify(ch.dist),
       hazmat_pct: ch.hazmatPct,
     });
+    if (emitChar && wasUnchar && ch.label) {
+      db.addNotification({ type: 'berth_characterized', area, berth_id: b.id, ship_name: b.name, band: ch.label });
+    }
   }
 
   // 2) Cluster the rest into auto berths.
@@ -277,6 +288,16 @@ function recomputeArea(area) {
       members.map((m) => m.id),
       id
     );
+
+    // Notify: a brand-new berth (no inherited identity) → "new"; an existing
+    // berth that just crossed the characterisation threshold → "characterised".
+    if (!inherit) {
+      if (emitNew) {
+        db.addNotification({ type: 'berth_new', area, berth_id: id, ship_name: null, band: ch.label || null });
+      }
+    } else if (emitChar && !inherit.char_label && ch.label) {
+      db.addNotification({ type: 'berth_characterized', area, berth_id: id, ship_name: inherit.name, band: ch.label });
+    }
   }
 
   return { moorings: stored.length, berths: db.getBerths(area).length };

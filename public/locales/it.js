@@ -27,6 +27,8 @@ export default {
   'notif.revisit':  '<strong>{ship}</strong> rientrata in {area}',
   'notif.areaChange': '<strong>{ship}</strong> spostata da {from} a {to}',
   'notif.highRisk': '<strong>{ship}</strong> arrivata in {area} — score rischio {score}/100',
+  'notif.berthNew': 'Nuova banchina rilevata in {area}',
+  'notif.berthChar': 'Banchina <strong>{berth}</strong> caratterizzata come {cat} in {area}',
 
   // ── Status badge ───────────────────────────────────────────────────────────
   'status.active':   'ATTIVO',
@@ -305,6 +307,10 @@ export default {
   'settings.notifAreaChange.desc':  'Avvisa quando una nave vista in un\'area viene poi vista in un\'altra area.',
   'settings.notifHighRisk.name':    'Notifica score alto',
   'settings.notifHighRisk.desc':    'Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100).',
+  'settings.notifBerthNew.name':    'Notifica nuova banchina',
+  'settings.notifBerthNew.desc':    'Avvisa quando viene rilevata una nuova banchina in un\'area.',
+  'settings.notifBerthChar.name':   'Notifica caratterizzazione banchina',
+  'settings.notifBerthChar.desc':   'Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente).',
   'settings.export.name':    'Esporta CSV',
   'settings.export.desc':    'Scarica tutte le letture AIS in formato CSV.',
   'settings.export.btn':     '⬇ Esporta',
