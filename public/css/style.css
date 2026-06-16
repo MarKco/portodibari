@@ -1768,6 +1768,41 @@ pre {
 .eq-addr  { color: var(--text-dim); font-weight: 400; font-size: 0.76rem; }
 .eq-date  { color: var(--text-faint); font-weight: 400; font-size: 0.74rem; }
 
+/* "ⓘ" glossary icon next to Equasis labels/values (see initGlossaryTooltip) */
+.eq-info {
+  display: inline-block;
+  font-size: 0.72rem;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: help;
+  vertical-align: baseline;
+  transition: color 0.12s ease;
+}
+.eq-info:hover { color: var(--accent, var(--text)); }
+
+.gloss-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  padding: 9px 12px;
+  min-width: 200px;
+  max-width: 320px;
+  pointer-events: none;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.gloss-tooltip.hidden { display: none; }
+.gt-term {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
 .vf-photo {
   max-height: 180px;
   max-width: 100%;

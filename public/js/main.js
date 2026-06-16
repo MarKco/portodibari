@@ -959,6 +959,45 @@ function initRiskTooltip() {
   });
 }
 
+// ── Glossary tooltip ─────────────────────────────────────────────────────────
+// Generic hover explainer for the "ⓘ" icons in the Equasis tables. Each icon
+// carries its term/definition inline via data-term / data-tip (built in
+// ships.js: eqInfoIcon), so this handler stays content-agnostic.
+function initGlossaryTooltip() {
+  const tip = document.createElement('div');
+  tip.id = 'gloss-tooltip';
+  tip.className = 'gloss-tooltip hidden';
+  document.body.appendChild(tip);
+
+  function show(icon) {
+    const term = icon.dataset.term || '';
+    const def = icon.dataset.tip || '';
+    if (!def) return;
+    tip.innerHTML = `${term ? `<div class="gt-term">${escHtml(term)}</div>` : ''}<div class="gt-def">${escHtml(def)}</div>`;
+    tip.classList.remove('hidden');
+
+    const rect = icon.getBoundingClientRect();
+    const tipW = tip.offsetWidth;
+    const tipH = tip.offsetHeight;
+    let top = rect.bottom + 6;
+    let left = rect.left + rect.width / 2 - tipW / 2;
+    if (top + tipH > window.innerHeight - 8) top = rect.top - tipH - 6;
+    if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+    if (left < 8) left = 8;
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const icon = e.target.closest('.eq-info[data-tip]');
+    if (icon) show(icon);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const icon = e.target.closest('.eq-info[data-tip]');
+    if (icon && !icon.contains(e.relatedTarget)) tip.classList.add('hidden');
+  });
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 // Apply translations to static HTML before anything renders.
 applyToDOM();
@@ -974,6 +1013,7 @@ initAreas();
 initNotifications();
 initMapResizer();
 initRiskTooltip();
+initGlossaryTooltip();
 initBerths();
 initAppConfig();
 

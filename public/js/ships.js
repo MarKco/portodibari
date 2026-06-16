@@ -760,6 +760,56 @@ export async function loadEquasisData(mmsi, doFetch = false) {
 }
 
 // One label/value <table> from a {label: value} map (used for particulars + risk).
+// Glossary for the Equasis "Dati nave" (particulars) and "Performance / rischio"
+// tables. Keys are the exact labels emitted by the scraper (see
+// src/services/scrapers/equasis.js: PARTICULAR_LABELS, parseHeader, parseRisk).
+// Each entry becomes a hover "ⓘ" next to the label explaining the abbreviation.
+const EQ_LABEL_GLOSSARY = {
+  Name: 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO che resta invariato.',
+  'IMO number': 'Numero IMO: identificativo univoco a 7 cifre assegnato dall’Organizzazione Marittima Internazionale. Non cambia mai per tutta la vita della nave, anche se cambiano nome o bandiera.',
+  Flag: 'Stato di bandiera: il Paese in cui la nave è registrata e di cui batte bandiera. Ne determina giurisdizione, regole applicabili e regime di ispezione.',
+  'Call Sign': 'Nominativo internazionale (call sign): codice radio univoco assegnato alla nave per le comunicazioni.',
+  MMSI: 'Maritime Mobile Service Identity: identificativo numerico a 9 cifre usato da AIS e dagli apparati radio VHF/DSC. Può cambiare se cambia la bandiera.',
+  'Gross tonnage': 'Stazza lorda (GT): misura adimensionale del volume interno totale della nave. Usata per tasse, normative e dimensionamento dell’equipaggio. Non è un peso.',
+  DWT: 'Deadweight tonnage: portata lorda in tonnellate, ovvero il peso massimo trasportabile (carico + combustibile + provviste + equipaggio).',
+  'Type of ship': 'Tipo di nave secondo la classificazione Equasis (es. petroliera, portarinfuse, portacontainer, bettolina di bunkeraggio).',
+  'Year of build': 'Anno di costruzione (consegna) della nave. L’età incide su livello di rischio e frequenza delle ispezioni.',
+  Status: 'Stato operativo della nave secondo Equasis (es. In service/commission = in servizio, Laid up = in disarmo, Broken up = demolita).',
+  'Port of registry': 'Porto di immatricolazione: porto presso cui la nave è registrata, riportato sullo scafo.',
+  'Detenzioni (36 mesi)': 'Percentuale di ispezioni Port State Control che negli ultimi 36 mesi si sono concluse con un fermo (detention) della nave. Più è alta, peggiore è lo storico.',
+  'Società di classe IACS': 'Indica se la nave è classificata da almeno una società membro IACS (International Association of Classification Societies), le principali società di classifica riconosciute a livello mondiale.',
+  'Performance Paris MOU': 'Posizione della bandiera nella White/Grey/Black List del Paris MoU, il regime di Port State Control di Europa e Nord Atlantico.',
+  'Performance Tokyo MOU': 'Posizione della bandiera nella White/Grey/Black List del Tokyo MoU, il regime di Port State Control dell’area Asia-Pacifico.',
+  'Targeting USCG': 'Stato di targeting della US Coast Guard: indica se bandiera o nave rientrano tra i bersagli prioritari per le ispezioni nei porti USA, secondo la matrice di rischio USCG.',
+};
+
+// Glossary for cell *values* (open-set strings coming straight from Equasis).
+// Scanned in order; the first matching regex wins, so more specific patterns
+// (e.g. "non targeted", "Priority II") must precede the looser ones.
+const EQ_VALUE_GLOSSARY = [
+  { re: /(not|non)[-\s]?targeted/i, term: 'Non targeted', def: 'La bandiera non figura nelle liste di targeting USCG: nessun fattore di rischio aggiuntivo derivante dallo Stato di bandiera.' },
+  { re: /priority\s*(ii|2)\b/i, term: 'Priority II (USCG)', def: 'Rischio medio: 7–16 punti nella matrice USCG. Le operazioni di carico o l’attività passeggeri possono essere limitate finché la Guardia Costiera non ispeziona la nave.' },
+  { re: /priority\s*(i|1)\b/i, term: 'Priority I (USCG)', def: 'Rischio alto: ≥17 punti nella matrice USCG. L’ingresso in porto può essere vietato finché la Guardia Costiera non ispeziona la nave.' },
+  { re: /targeted/i, term: 'Targeted flag', def: 'La bandiera figura in una lista di targeting USCG per scarse prestazioni (alto tasso di fermi): aumenta la priorità di ispezione della nave nei porti USA.' },
+  { re: /bunkering/i, term: 'Bunkering Tanker', def: 'Bettolina di bunkeraggio: nave cisterna che rifornisce di combustibile (bunker) altre navi. Tipo soggetto a maggiore attenzione ispettiva.' },
+  { re: /\bwhite\b/i, term: 'White List', def: 'White List: bandiera con buone prestazioni e basso tasso di fermi. Rischio basso, ispezioni meno frequenti.' },
+  { re: /\bgr[ae]y\b/i, term: 'Grey List', def: 'Grey List: bandiera con prestazioni intermedie, tra White List e Black List.' },
+  { re: /\bblack\b/i, term: 'Black List', def: 'Black List: bandiera con alto tasso di fermi e prestazioni scarse. Rischio alto, ispezioni più frequenti.' },
+];
+
+function eqInfoIcon(term, def) {
+  if (!def) return '';
+  return ` <span class="eq-info" data-term="${escHtml(term)}" data-tip="${escHtml(def)}" aria-label="${escHtml(term)}: ${escHtml(def)}" role="img">ⓘ</span>`;
+}
+function eqLabelInfo(label) {
+  return eqInfoIcon(label, EQ_LABEL_GLOSSARY[label]);
+}
+function eqValueInfo(value) {
+  if (!value) return '';
+  const hit = EQ_VALUE_GLOSSARY.find((g) => g.re.test(value));
+  return hit ? eqInfoIcon(hit.term, hit.def) : '';
+}
+
 function eqKvTable(titleKey, map) {
   const entries = Object.entries(map || {});
   if (!entries.length) return '';
@@ -767,8 +817,8 @@ function eqKvTable(titleKey, map) {
     .map(
       ([label, value]) => `
       <tr>
-        <td class="vf-td-label">${escHtml(label)}</td>
-        <td class="vf-td-val">${escHtml(value)}</td>
+        <td class="vf-td-label">${escHtml(label)}${eqLabelInfo(label)}</td>
+        <td class="vf-td-val">${escHtml(value)}${eqValueInfo(value)}</td>
       </tr>`
     )
     .join('');
