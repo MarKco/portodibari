@@ -2091,3 +2091,31 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .berth-merge-check { width: 15px; height: 15px; accent-color: var(--accent); }
 .berth-manager-table tbody tr[data-id] { cursor: pointer; }
 .berth-manager-table tbody tr[data-id]:hover td { background: var(--accent-soft); }
+
+/* ── Parameters tab (app.config.properties editor) ──────────────────────────── */
+.params-banner {
+  background: rgba(251, 191, 36, 0.10); border: 1px solid rgba(251, 191, 36, 0.4);
+  color: var(--text); border-radius: 8px; padding: 0.7rem 0.9rem;
+  font-size: 0.85rem; line-height: 1.45; margin-bottom: 0.9rem;
+}
+.params-banner code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 0.82em; }
+.params-toolbar {
+  display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.6rem;
+  position: sticky; top: 0; background: var(--panel, var(--bg)); padding: 0.3rem 0; z-index: 2;
+}
+.params-dirty { color: var(--accent-text); font-size: 0.82rem; }
+.param-loading { color: var(--text-muted); padding: 1rem 0; }
+.param-row { align-items: center; }
+.param-control { flex-shrink: 0; margin-left: 1rem; }
+.param-input[type="number"] {
+  width: 120px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 0.9rem;
+  text-align: right;
+}
+.param-input[type="number"]:focus { border-color: var(--border-focus); outline: none; }
+.param-key {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 6px; font-size: 0.78rem; color: var(--text-muted);
+}
+.param-row.param-dirty { background: var(--accent-soft); border-radius: 6px; }
+.param-row.param-dirty .param-input[type="number"] { border-color: var(--accent); }

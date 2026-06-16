@@ -241,6 +241,17 @@ Open with the **⚙ Settings** button in the sidebar.
 
 > **Auto-restore after a deploy:** the database is wiped when you update the application (deploy). If at startup the database **does not exist** and saved **auto-backups** are present (folder `data/backups/`), the app automatically restores the most recent backup (database only). This requires the backups folder to survive the deploy. It does not trigger if the database exists but was merely emptied via "Clear data". Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
+Settings are organized into **tabs**: **General** (the table above), **Areas**, **Developer options**, **Parameters** and **Backup / Restore**.
+
+### Parameters tab
+
+Lets you edit **all the app's operating parameters** (those in `app.config.properties`) from the UI: ship-state thresholds, time windows, database retention, backup interval, auto-restore, berth parameters and the **risk-score** weights.
+
+- Parameters are grouped by category; **every field has a description** explaining what it configures (taken straight from the file's comments).
+- Edit the values and press **💾 Save parameters**. Changed-but-unsaved fields are highlighted, with a count next to the button.
+- **⚠️ Important:** these parameters are read by the server **only once at startup**. After saving you must therefore **restart the server** for changes to take effect — **reloading the browser is not enough**. The UI reminds you with a banner and after each save. To restart: stop and start with `npm start`, or `pm2 restart` if you use PM2.
+- **Secrets** (API key, passwords) are **not** editable here for security: they stay in `local.properties`. Import and notification toggles are in the **General** tab.
+
 ---
 
 ## Area management
@@ -300,7 +311,7 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 
 ### `app.config.properties` — operating parameters
 
-Holds the app's thresholds and parameters (time windows, radii, retention, risk-score weights). Format `KEY=value`. Each parameter is documented by a comment in the file itself. Examples:
+Holds the app's thresholds and parameters (time windows, radii, retention, risk-score weights). Format `KEY=value`. Each parameter is documented by a comment in the file itself. **You can also edit these values from the UI** in **⚙ Settings → [Parameters](#parameters-tab)** (more convenient); either way a **server restart** is required to apply them. Examples:
 
 | Key | Meaning | Default |
 |---|---|---|

@@ -7,6 +7,7 @@ import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisDa
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
+import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel } from './logs.js';
 import { initHealthPanel } from './health.js';
 import { initAreas } from './areas.js';
@@ -229,6 +230,7 @@ function initSettingsModal() {
     const target = `settings-panel-${tab.dataset.panel}`;
     el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
     if (tab.dataset.panel === 'backup') loadAutoBackups();
+    if (tab.dataset.panel === 'params') loadAppConfig();
   });
 
   // Developer option — inject a test notification and refresh the feed.
@@ -916,6 +918,7 @@ initNotifications();
 initMapResizer();
 initRiskTooltip();
 initBerths();
+initAppConfig();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.
@@ -935,11 +938,23 @@ if (langSelect) {
 
 // Fetch runtime config from server (reads app.config.properties), then start.
 // On failure, S defaults (matching file defaults) are used.
+// Human-friendly "every N hours/minutes" label for a minutes value.
+function intervalLabel(min) {
+  if (min % 60 === 0) {
+    const h = min / 60;
+    return h === 1 ? t('time.everyHour') : t('time.everyHours', { n: h });
+  }
+  return t('time.everyMinutes', { n: min });
+}
+
 api('/api/config').then((cfg) => {
   if (cfg.pollIntervalMs != null) S.pollIntervalMs = cfg.pollIntervalMs;
   if (cfg.trackMergeRadiusM != null) S.trackMergeRadiusM = cfg.trackMergeRadiusM;
   if (cfg.trackSogStop != null) S.trackSogStop = cfg.trackSogStop;
   if (cfg.notifDeleteUndoSeconds != null) S.notifDeleteUndoSeconds = cfg.notifDeleteUndoSeconds;
+  if (cfg.backupIntervalMin != null && el.autobackupDesc) {
+    el.autobackupDesc.textContent = t('settings.autobackup.desc', { interval: intervalLabel(cfg.backupIntervalMin) });
+  }
 }).catch(() => {}).finally(async () => {
   await loadSettings();
   updateStatus();

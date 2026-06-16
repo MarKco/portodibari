@@ -465,6 +465,8 @@
                   data-i18n="settings.tab.areas">Aree</button>
           <button id="settings-tab-dev" class="tab" data-panel="dev"
                   data-i18n="settings.tab.dev">Developer options</button>
+          <button id="settings-tab-params" class="tab" data-panel="params"
+                  data-i18n="settings.tab.params">Parametri</button>
           <button id="settings-tab-backup" class="tab" data-panel="backup"
                   data-i18n="settings.tab.backup">Backup / Ripristino</button>
         </div>
@@ -593,12 +595,22 @@
             <button id="btn-test-notification" class="btn btn-secondary" data-i18n="settings.devNotifTest.btn">🔔 Scatena</button>
           </div>
         </div>
+        <div id="settings-panel-params" class="settings-panel hidden">
+          <div class="params-banner" data-i18n-html="params.restartBanner">
+            ⚠️ Le modifiche a questi parametri vengono scritte in <code>app.config.properties</code> e richiedono il <strong>riavvio del server</strong> per avere effetto (non basta ricaricare il browser).
+          </div>
+          <div class="params-toolbar">
+            <button id="btn-params-save" class="btn btn-clear" data-i18n="params.save">💾 Salva parametri</button>
+            <span id="params-dirty" class="params-dirty"></span>
+          </div>
+          <div id="params-body"></div>
+        </div>
         <div id="settings-panel-backup" class="settings-panel hidden">
           <h3 class="settings-group-title" data-i18n="settings.group.autobackup">Auto-backup locale</h3>
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-name" data-i18n="settings.autobackup.name">Backup automatico</div>
-              <div class="setting-desc" data-i18n="settings.autobackup.desc">Backup automatico ogni 30 minuti, salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.</div>
+              <div class="setting-desc" id="autobackup-desc">Backup automatico salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.</div>
             </div>
             <button id="btn-manual-backup" class="btn btn-secondary" data-i18n="settings.autobackup.btn">💾 Salva ora</button>
           </div>

@@ -241,6 +241,17 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 
 > **Auto-ripristino dopo un deploy:** il database viene cancellato quando si aggiorna l'applicazione (deploy). Se all'avvio il database **non esiste** e sono presenti degli **auto-backup** salvati (cartella `data/backups/`), l'app ripristina automaticamente l'ultimo backup (solo il database). Questo richiede che la cartella dei backup sopravviva al deploy. Non scatta se il database esiste ma è stato semplicemente svuotato con "Cancella dati". Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
+Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Developer options**, **Parametri** e **Backup / Ripristino**.
+
+### Tab Parametri
+
+Permette di modificare dall'interfaccia **tutti i parametri di funzionamento** dell'app (quelli del file `app.config.properties`): soglie di stato nave, finestre temporali, retention del database, intervallo di backup, auto-ripristino, parametri delle banchine e pesi dello **score di rischio**.
+
+- I parametri sono raggruppati per categoria; **ogni campo ha una descrizione** che spiega cosa configura (presa direttamente dai commenti del file).
+- Modifica i valori e premi **💾 Salva parametri**. I campi modificati e non ancora salvati sono evidenziati, con il conteggio accanto al pulsante.
+- **⚠️ Importante:** questi parametri vengono letti dal server **una sola volta all'avvio**. Dopo il salvataggio è quindi **necessario riavviare il server** perché le modifiche abbiano effetto — **ricaricare il browser non basta**. L'interfaccia lo ricorda con un avviso e dopo ogni salvataggio. Per riavviare: ferma e riavvia con `npm start`, oppure `pm2 restart` se usi PM2.
+- I **segreti** (chiave API, password) **non** sono modificabili da qui per sicurezza: restano nel file `local.properties`. I toggle di import e notifiche sono nel tab **Generali**.
+
 ---
 
 ## Gestione aree
@@ -300,7 +311,7 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 
 ### `app.config.properties` — parametri di funzionamento
 
-Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention, pesi dello score di rischio). Formato `CHIAVE=valore`. Ogni parametro è documentato da un commento nel file stesso. Esempi:
+Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention, pesi dello score di rischio). Formato `CHIAVE=valore`. Ogni parametro è documentato da un commento nel file stesso. **Puoi modificare questi valori anche dall'interfaccia** in **⚙ Impostazioni → [Parametri](#tab-parametri)** (più comodo); in entrambi i casi serve **riavviare il server** per applicarli. Esempi:
 
 | Chiave | Significato | Default |
 |---|---|---|

@@ -5,6 +5,7 @@ const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
   setNotifyAreaChange, setNotifyHighRisk, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
+  BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD,
 } = require('../config');
 
@@ -34,6 +35,7 @@ router.get('/config', (req, res) => {
     trackMergeRadiusM: TRACK_MERGE_RADIUS_M,
     trackSogStop: SOG_FERMA,
     notifDeleteUndoSeconds: NOTIF_DELETE_UNDO_SECONDS,
+    backupIntervalMin: BACKUP_INTERVAL_MIN,
   });
 });
 

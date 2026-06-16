@@ -12,6 +12,7 @@ router.use(require('./events'));
 router.use(require('./notifications'));
 router.use(require('./logs'));
 router.use(require('./settings'));
+router.use(require('./app-config'));
 router.use(require('./areas'));
 router.use(require('./berths'));
 router.use(require('./export'));

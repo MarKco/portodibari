@@ -189,6 +189,9 @@ Nessuna build necessaria. Node.js interpreta i file direttamente.
 |---|---|
 | Qualsiasi file in `src/` | Riavvio server: `npm start` (o `npm run dev` per il watch) |
 | `public/**` (HTML, CSS, moduli JS) | Reload browser (`Cmd+R`) — nessun riavvio |
+| `app.config.properties` | Riavvio server (i valori sono letti una sola volta all'avvio) |
+
+> I parametri di `app.config.properties` sono modificabili anche dall'interfaccia: **⚙ Impostazioni → Parametri**. Il form è costruito dal file stesso (le sezioni diventano gruppi, i commenti diventano descrizioni); il salvataggio riscrive il file preservando i commenti. **Richiede comunque il riavvio del server** per avere effetto — l'interfaccia lo segnala. I segreti (`local.properties`) non sono esposti nel form.
 
 ## 🖥️ Modello concettuale UI
 
@@ -702,7 +705,7 @@ pm2 save
 | `src/services/enrichment.js`  | Arricchimento proattivo VF/MT (una volta) alla prima rilevazione di una nave |
 | `src/services/sanctions.js`   | Lista sanzioni OFAC SDN: download CSV, indice in memoria, match nave per IMO/nome/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): performance bandiera (JSON bundled) + banned list (CSV OpenSanctions), match per nome bandiera / IMO |
-| `src/routes/`                 | Router Express per dominio (ships, readings, events, notifications, logs, settings, stream, areas, berths, export) |
+| `src/routes/`                 | Router Express per dominio (ships, readings, events, notifications, logs, settings, app-config, stream, areas, berths, export) |
 | `public/index.html`           | SPA: sidebar collassabile, tab nav, 4 view + modali (impostazioni/diagnostica/log) |
 | `public/js/`                  | Moduli ES: state machine SPA, polling, mappe Leaflet, de-noise track, grafici, export |
 | `public/css/style.css`        | Design system con token CSS; tema scuro (default) e chiaro (selezionabile) |
@@ -793,6 +796,8 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 | POST | `/api/backups/save` | Crea e salva un bundle manuale in `data/backups/` — `{ok, filename, mtime, size}` |
 | GET | `/api/backups/:filename/download` | Download di un backup locale specifico |
 | POST | `/api/backups/:filename/restore` | Ripristino selettivo da backup locale — body `{parts:['db','areas','settings']}` |
+| GET | `/api/app-config` | Parametri di `app.config.properties` raggruppati, con descrizioni estratte dai commenti del file; `{groups, applies:'restart'}` |
+| POST | `/api/app-config` | Scrive i parametri modificati `{values:{CHIAVE:valore}}` (solo chiavi già presenti nel file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
 | POST | `/api/settings` | Cambia preset, toggle import e toggle notifiche `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |

@@ -325,7 +325,10 @@ export default {
   'settings.tab.backup':     'Backup / Restore',
   'settings.group.autobackup':      'Local auto-backup',
   'settings.autobackup.name':       'Automatic backup',
-  'settings.autobackup.desc':       'Automatic backup every 30 minutes, saved on the server. The last 5 are kept. You can also save a manual backup now.',
+  'settings.autobackup.desc':       'Automatic backup {interval}, saved on the server. The last 5 are kept. You can also save a manual backup now.',
+  'time.everyHour':                 'every hour',
+  'time.everyHours':                'every {n} hours',
+  'time.everyMinutes':              'every {n} minutes',
   'settings.autobackup.btn':        '💾 Save now',
   'settings.group.full':     'Full backup',
   'settings.group.data':     'Data',
@@ -536,4 +539,16 @@ export default {
   'berthcat.other':     'Other',
   'berthcat.unknown':   'Unknown',
   'berthcat.mixed':     'Mixed',
+
+  // ── Parameters (app.config.properties editor) ──────────────────────────────
+  'settings.tab.params':  'Parameters',
+  'params.restartBanner': '⚠️ Changes to these parameters are written to <code>app.config.properties</code> and require a <strong>server restart</strong> to take effect (reloading the browser is not enough). Secrets and credentials stay in <code>local.properties</code>; import and notification toggles are in the <strong>General</strong> tab.',
+  'params.save':          '💾 Save parameters',
+  'params.saved':         'Parameters saved ({n})',
+  'params.savedBody':     'Restart the server (e.g. stop and start with “npm start”, or “pm2 restart”) to apply the changes. Reloading the browser alone is not enough.',
+  'params.saveFail':      'Failed to save parameters: ',
+  'params.dirtyCount':    '{n} unsaved changes',
+  'params.loading':       'Loading parameters…',
+  'params.loadFail':      'Failed to load parameters: ',
+  'params.emptyField':    'Field {key} cannot be empty.',
 };

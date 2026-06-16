@@ -30,6 +30,14 @@ export const el = {
   berthsToggle: $('berths-toggle'),
   btnBerthsManage: $('btn-berths-manage'),
 
+  // Auto-backup interval description (rendered dynamically from /api/config)
+  autobackupDesc: $('autobackup-desc'),
+
+  // Parameters tab (app.config.properties editor)
+  paramsBody: $('params-body'),
+  btnParamsSave: $('btn-params-save'),
+  paramsDirty: $('params-dirty'),
+
   // Ship detail
   detailBody: $('detail-body'),
   btnBack: $('btn-back'),

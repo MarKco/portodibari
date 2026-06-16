@@ -36,6 +36,22 @@ function saveProperty(key, value) {
   fs.writeFileSync(PROPERTIES_FILE, content, 'utf8');
 }
 
+/**
+ * Upsert a `key=value` line in app.config.properties, preserving comments and
+ * layout. These values are read once at startup, so a write only takes effect
+ * after a server restart (the Settings UI tells the user so).
+ */
+function saveAppProperty(key, value) {
+  let content = fs.existsSync(APP_CONFIG_FILE) ? fs.readFileSync(APP_CONFIG_FILE, 'utf8') : '';
+  const re = new RegExp(`^${key}=.*`, 'm');
+  if (re.test(content)) {
+    content = content.replace(re, `${key}=${value}`);
+  } else {
+    content += `${content.endsWith('\n') || content === '' ? '' : '\n'}${key}=${value}\n`;
+  }
+  fs.writeFileSync(APP_CONFIG_FILE, content, 'utf8');
+}
+
 const props = loadProperties(PROPERTIES_FILE);
 const appCfg = loadProperties(APP_CONFIG_FILE);
 
@@ -460,6 +476,8 @@ module.exports = {
   NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   AUTO_RESTORE_ON_DEPLOY,
+  APP_CONFIG_FILE,
+  saveAppProperty,
   BERTH,
   RISK,
   BBOX_PRESETS,

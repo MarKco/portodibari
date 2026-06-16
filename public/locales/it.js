@@ -325,7 +325,10 @@ export default {
   'settings.tab.backup':     'Backup / Ripristino',
   'settings.group.autobackup':      'Auto-backup locale',
   'settings.autobackup.name':       'Backup automatico',
-  'settings.autobackup.desc':       'Backup automatico ogni 30 minuti, salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.',
+  'settings.autobackup.desc':       'Backup automatico {interval}, salvato sul server. Vengono conservati gli ultimi 5. Puoi anche salvare un backup manuale ora.',
+  'time.everyHour':                 'ogni ora',
+  'time.everyHours':                'ogni {n} ore',
+  'time.everyMinutes':              'ogni {n} minuti',
   'settings.autobackup.btn':        '💾 Salva ora',
   'settings.group.full':     'Backup completo',
   'settings.group.data':     'Dati',
@@ -536,4 +539,16 @@ export default {
   'berthcat.other':     'Altro',
   'berthcat.unknown':   'Sconosciuto',
   'berthcat.mixed':     'Mista',
+
+  // ── Parametri (editor app.config.properties) ───────────────────────────────
+  'settings.tab.params':  'Parametri',
+  'params.restartBanner': '⚠️ Le modifiche a questi parametri vengono scritte in <code>app.config.properties</code> e richiedono il <strong>riavvio del server</strong> per avere effetto (non basta ricaricare il browser). I segreti e le credenziali restano nel file <code>local.properties</code>; i toggle di import e notifiche sono nel tab <strong>Generali</strong>.',
+  'params.save':          '💾 Salva parametri',
+  'params.saved':         'Parametri salvati ({n})',
+  'params.savedBody':     'Riavvia il server (es. ferma e riavvia con «npm start», oppure «pm2 restart») per applicare le modifiche. Ricaricare solo il browser non basta.',
+  'params.saveFail':      'Errore salvataggio parametri: ',
+  'params.dirtyCount':    '{n} modifiche non salvate',
+  'params.loading':       'Caricamento parametri…',
+  'params.loadFail':      'Errore caricamento parametri: ',
+  'params.emptyField':    'Il campo {key} non può essere vuoto.',
 };

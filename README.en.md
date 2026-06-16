@@ -186,6 +186,9 @@ No build required. Node.js interprets files directly.
 |---|---|
 | Any file in `src/` | Server restart: `npm start` (or `npm run dev` for watch mode) |
 | `public/**` (HTML, CSS, JS modules) | Browser reload (`Cmd+R`) — no restart needed |
+| `app.config.properties` | Server restart (values are read once at startup) |
+
+> The `app.config.properties` parameters are also editable from the UI: **⚙ Settings → Parameters**. The form is built from the file itself (sections become groups, comments become descriptions); saving rewrites the file preserving the comments. It **still requires a server restart** to take effect — the UI says so. Secrets (`local.properties`) are not exposed in the form.
 
 ## 🖥️ UI conceptual model
 
@@ -680,7 +683,7 @@ pm2 save
 | `src/services/enrichment.js`  | Proactive VF/MT enrichment (once) on first ship detection         |
 | `src/services/sanctions.js`   | OFAC SDN sanctions list: CSV download, in-memory index, ship match by IMO/name/call sign |
 | `src/services/psc.js`         | Port State Control (Paris/Tokyo MoU): flag performance (bundled JSON) + banned list (OpenSanctions CSV), match by flag name / IMO |
-| `src/routes/`                 | Express routers per domain (ships, readings, events, notifications, logs, settings, stream, areas, berths, export) |
+| `src/routes/`                 | Express routers per domain (ships, readings, events, notifications, logs, settings, app-config, stream, areas, berths, export) |
 | `public/index.html`           | SPA: collapsible sidebar, tab nav, 4 views + modals (settings/diagnostics/logs) |
 | `public/js/`                  | ES modules: SPA state machine, polling, Leaflet maps, track de-noising, charts, export |
 | `public/css/style.css`        | Design system with CSS tokens; dark theme (default) and light theme (selectable) |
@@ -767,6 +770,8 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 | GET | `/api/export` | Download ZIP with CSV per message type |
 | GET | `/api/backup` | Download entire database as a `.db` file (`VACUUM INTO` snapshot) |
 | POST | `/api/restore` | Restore the entire DB from an uploaded `.db` file (body `application/octet-stream`) |
+| GET | `/api/app-config` | `app.config.properties` parameters grouped, with descriptions extracted from the file comments; `{groups, applies:'restart'}` |
+| POST | `/api/app-config` | Write edited parameters `{values:{KEY:value}}` (only keys already present in the file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Current bbox preset, preset list, VF/MT import status |
 | POST | `/api/settings` | Change preset, import toggles and notification toggles `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?}` |
 | GET | `/api/areas` | List of areas with bbox, stream status, `current` flag and data `counts`; `{areas, preset, minAreas}` |
