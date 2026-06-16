@@ -892,6 +892,71 @@ function renderEquasisData(container, data) {
   container.innerHTML = html;
 }
 
+// Glossary for the VesselFinder / MarineTraffic scraped tables. Labels are
+// open-set (parseShipHtml in src/services/scrapers/http.js grabs every
+// <tr><td>label</td><td>value</td></tr> on the page), so we match on a
+// normalised key: lowercased, unit suffixes like "(m)" / "(t)" stripped,
+// whitespace collapsed. See scrapeNormLabel.
+const SCRAPE_LABEL_GLOSSARY = {
+  'imo number': 'Numero IMO: identificativo univoco a 7 cifre dell’Organizzazione Marittima Internazionale. Non cambia mai, anche se cambiano nome o bandiera.',
+  'imo / mmsi': 'Due identificativi: il numero IMO (7 cifre, permanente) e l’MMSI (9 cifre, usato da AIS/radio, può cambiare con la bandiera).',
+  mmsi: 'Maritime Mobile Service Identity: identificativo numerico a 9 cifre usato da AIS e radio VHF/DSC. Le prime 3 cifre (MID) indicano il Paese.',
+  'vessel name': 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO.',
+  'ship type': 'Tipo di nave secondo il database VesselFinder (es. portarinfuse, petroliera, portacontainer).',
+  'ais type': 'Tipo di nave come trasmesso nel messaggio AIS (codice impostato a bordo). Può differire dal tipo reale del database.',
+  flag: 'Stato di bandiera: il Paese in cui la nave è registrata. Determina giurisdizione e regole applicabili.',
+  'ais flag': 'Bandiera dedotta dal codice MID (prime 3 cifre dell’MMSI) trasmesso via AIS.',
+  'year of build': 'Anno di costruzione (consegna) della nave. L’età incide su rischio e frequenza delle ispezioni.',
+  'length overall': 'LOA (Length Overall): lunghezza massima della nave da prua a poppa, in metri.',
+  'length bp': 'LBP (Length Between Perpendiculars): lunghezza tra le perpendicolari (ruota di prua e asse del timone). Sempre minore della LOA.',
+  beam: 'Baglio: larghezza massima dello scafo, in metri.',
+  draught: 'Pescaggio di progetto: profondità a cui lo scafo si immerge in condizioni di pieno carico, in metri.',
+  'current draught': 'Pescaggio attuale dichiarato dall’equipaggio via AIS, in metri. Indica quanto è carica la nave in questo momento.',
+  depth: 'Altezza di costruzione (moulded depth): distanza verticale dalla chiglia al ponte principale, in metri.',
+  'gross tonnage': 'Stazza lorda (GT): misura adimensionale del volume interno totale. Usata per tasse e normative. Non è un peso.',
+  'net tonnage': 'Stazza netta (NT): volume degli spazi destinati al carico/passeggeri. Sempre minore della stazza lorda.',
+  deadweight: 'Deadweight (DWT): portata lorda in tonnellate, ovvero il peso massimo trasportabile (carico + combustibile + provviste + equipaggio).',
+  teu: 'TEU (Twenty-foot Equivalent Unit): capacità in container standard da 20 piedi. Tipico delle portacontainer.',
+  'crude oil': 'Capacità di trasporto petrolio greggio, in barili (bbl).',
+  gas: 'Capacità di trasporto gas, in metri cubi.',
+  grain: 'Capacità delle stive misurata a grano (grain), in metri cubi: volume con il carico che riempie anche gli interstizi.',
+  bale: 'Capacità delle stive misurata a balla (bale), in metri cubi: volume utile con carico in colli, esclusi gli interstizi tra le strutture.',
+  'ballast water': 'Capacità di acqua di zavorra, in metri cubi.',
+  'fresh water': 'Capacità di acqua dolce, in metri cubi.',
+  builder: 'Cantiere navale che ha costruito la nave.',
+  'place of build': 'Località di costruzione della nave.',
+  hull: 'Numero di scafo (hull number) assegnato dal cantiere.',
+  material: 'Materiale dello scafo (es. acciaio).',
+  'engine builder': 'Costruttore del motore principale.',
+  'engine type': 'Modello/tipo del motore principale.',
+  'engine power': 'Potenza del motore principale, in kW.',
+  'fuel type': 'Tipo di combustibile utilizzato dalla nave.',
+  'service speed': 'Velocità di servizio: andatura di crociera economica di progetto, in nodi (kn).',
+  propeller: 'Numero/tipo di eliche.',
+  callsign: 'Nominativo internazionale (call sign): codice radio univoco per le comunicazioni.',
+  'navigation status': 'Stato di navigazione trasmesso via AIS (es. Under way using engine = in navigazione a motore, At anchor = alla fonda, Moored = ormeggiata).',
+  destination: 'Porto di destinazione dichiarato dall’equipaggio via AIS. Inserito manualmente, può essere impreciso o obsoleto.',
+  eta: 'ETA (Estimated Time of Arrival): orario di arrivo stimato dichiarato dall’equipaggio via AIS.',
+  'predicted eta': 'Stima dell’orario di arrivo calcolata da VesselFinder in base a rotta e velocità, indipendente dal dato AIS dell’equipaggio.',
+  'distance / time': 'Distanza residua e tempo stimato fino alla destinazione.',
+  'distance / time to go': 'Distanza residua e tempo stimato fino alla destinazione.',
+  'course / speed': 'COG (Course Over Ground = rotta rispetto al fondo) e SOG (Speed Over Ground = velocità rispetto al fondo), da AIS.',
+  'position received': 'Data e ora dell’ultima posizione AIS ricevuta. Indica quanto è recente il dato.',
+  'last port': 'Ultimo porto in cui la nave ha fatto scalo.',
+  atd: 'ATD (Actual Time of Departure): orario effettivo di partenza dall’ultimo porto.',
+};
+
+function scrapeNormLabel(label) {
+  return String(label || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '') // drop unit suffixes like "(m)", "(t)", "(kn)"
+    .replace(/[:\s]+/g, ' ')
+    .trim();
+}
+function scrapeLabelInfo(label) {
+  return eqInfoIcon(label, SCRAPE_LABEL_GLOSSARY[scrapeNormLabel(label)]);
+}
+
 function renderScrapedData(container, data) {
   if (!data || !Object.keys(data).length) {
     container.innerHTML = `<p class="vf-empty">${t('scrape.noData')}</p>`;
@@ -906,8 +971,8 @@ function renderScrapedData(container, data) {
     .map(
       ([label, value]) => `
     <tr>
-      <td class="vf-td-label">${escHtml(label)}</td>
-      <td class="vf-td-val">${escHtml(value)}</td>
+      <td class="vf-td-label">${escHtml(label)}${scrapeLabelInfo(label)}</td>
+      <td class="vf-td-val">${escHtml(value)}${eqValueInfo(value)}</td>
     </tr>`
     )
     .join('');
