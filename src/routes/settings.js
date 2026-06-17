@@ -122,16 +122,13 @@ function applyImportedSettings(s) {
   if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
   if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
 
-  if (s.importVfData !== undefined) {
-    const wasDisabled = !state.importVfData;
-    setImportVf(s.importVfData);
-    if (state.importVfData && wasDisabled) enrichAllExisting('vf');
-  }
-  if (s.importMtData !== undefined) {
-    const wasDisabled = !state.importMtData;
-    setImportMt(s.importMtData);
-    if (state.importMtData && wasDisabled) enrichAllExisting('mt');
-  }
+  // VF/MT toggles: persist only — do NOT backfill. The scraped data lives in
+  // ship_scrape_cache, which is part of the DB backup and is restored alongside
+  // the ships. Re-scraping every loaded vessel on restore would hammer
+  // VesselFinder/MarineTraffic for no gain (the data is already in the DB).
+  // The interactive POST /settings handler still backfills on a live toggle.
+  if (s.importVfData !== undefined) setImportVf(s.importVfData);
+  if (s.importMtData !== undefined) setImportMt(s.importMtData);
   // Persist the extra-lists toggle before the master block so its refresh sees
   // the right active set.
   if (s.importSanctionsExtra !== undefined) setImportSanctionsExtra(s.importSanctionsExtra);
@@ -243,10 +240,10 @@ router.post('/settings', (req, res) => {
   // Extra lists toggled while screening already on: drop them from the index now
   // (disable) or download them in the background (enable).
   if (extraChanged && newSanctions === undefined && state.importSanctions) {
-    sanctions.loadFromDisk();
-    if (state.importSanctionsExtra) {
-      sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
-    }
+    // Enable → download in the background (refresh rebuilds the index itself).
+    // Disable → just reload from disk so the now-inactive lists drop out.
+    const reindex = state.importSanctionsExtra ? sanctions.refresh() : sanctions.loadFromDisk();
+    Promise.resolve(reindex).catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
   }
   if (newPsc !== undefined) {
     const wasDisabled = !state.importPsc;
