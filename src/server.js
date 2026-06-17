@@ -76,9 +76,12 @@ app.listen(PORT, () => {
   // Sanctions screening: load any cached OFAC list from disk (offline-safe). If
   // enabled but no cache yet, download once in the background, then refresh daily.
   if (state.importSanctions) {
-    if (!sanctions.loadFromDisk()) {
-      sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Startup refresh failed: ${e.message}`));
-    }
+    sanctions
+      .loadFromDisk()
+      .then((n) => {
+        if (!n) return sanctions.refresh();
+      })
+      .catch((e) => console.error(`[SANCTIONS] Startup refresh failed: ${e.message}`));
     setInterval(() => {
       sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Daily refresh failed: ${e.message}`));
     }, 24 * 60 * 60 * 1000);

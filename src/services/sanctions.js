@@ -44,21 +44,21 @@ const SOURCES = {
     extra: true,
     url: `${OS}/eu_sanctions/targets.simple.csv`,
     file: path.join(DATA_DIR, 'eu-sanctions.csv'),
-    parse: (t) => parseOpenSanctions(t, 'EU Consolidated'),
+    parse: (f) => parseOpenSanctions(f, 'EU Consolidated'),
   },
   uk: {
     label: 'UK OFSI',
     extra: true,
     url: `${OS}/gb_fcdo_sanctions/targets.simple.csv`,
     file: path.join(DATA_DIR, 'uk-sanctions.csv'),
-    parse: (t) => parseOpenSanctions(t, 'UK OFSI'),
+    parse: (f) => parseOpenSanctions(f, 'UK OFSI'),
   },
   un: {
     label: 'UN Security Council',
     extra: true,
     url: `${OS}/un_1718_vessels/targets.simple.csv`,
     file: path.join(DATA_DIR, 'un-sanctions.csv'),
-    parse: (t) => parseOpenSanctions(t, 'UN Security Council'),
+    parse: (f) => parseOpenSanctions(f, 'UN Security Council'),
   },
 };
 
@@ -79,8 +79,11 @@ const meta = {}; // source key -> { vesselCount, lastRefreshed }
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-/** Download a URL over HTTPS following redirects, resolving to the body text. */
-function download(url, depth = 0) {
+/** Download a URL over HTTPS following redirects, streaming the body straight to
+ *  `dest` on disk. Never buffers the whole response in memory — the EU/UK lists
+ *  are several MB each and the host can run on a small (~256 MB) heap, so a
+ *  string-buffered download (plus parse) was OOM-ing. Resolves when fully written. */
+function downloadToFile(url, dest, depth = 0) {
   if (depth > 4) return Promise.reject(new Error('Too many redirects'));
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -95,7 +98,7 @@ function download(url, depth = 0) {
       (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
-          download(new URL(res.headers.location, url).href, depth + 1).then(resolve).catch(reject);
+          downloadToFile(new URL(res.headers.location, url).href, dest, depth + 1).then(resolve).catch(reject);
           return;
         }
         if (res.statusCode !== 200) {
@@ -103,10 +106,11 @@ function download(url, depth = 0) {
           reject(new Error(`HTTP ${res.statusCode}`));
           return;
         }
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (c) => (body += c));
-        res.on('end', () => resolve(body));
+        const out = fs.createWriteStream(dest);
+        out.on('error', reject);
+        out.on('finish', () => out.close(() => resolve()));
+        res.on('error', reject);
+        res.pipe(out);
       }
     );
     req.on('error', reject);
@@ -118,30 +122,61 @@ function download(url, depth = 0) {
   });
 }
 
-/** Parse CSV text into rows of string fields, honouring "" escaping and quoted
- *  commas/newlines. OFAC marks empty fields with the literal `-0-`. */
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') inQuotes = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); field = '';
-      if (row.length > 1 || row[0] !== '') rows.push(row);
+/** Stream-parse a CSV file, invoking `onRow(cols)` for each row as it completes.
+ *  Quote-aware (honours "" escaping and quoted commas/newlines) and safe across
+ *  read-chunk boundaries, so the whole file is never held in memory at once —
+ *  only the current row. OFAC marks empty fields with the literal `-0-`.
+ *  Callers keep just the rows they care about (vessels), so a multi-MB list with
+ *  100k+ non-vessel entities costs near-constant memory. */
+function parseCsvFile(filePath, onRow) {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 1 << 16 });
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    let maybeEscape = false; // saw a '"' while inside quotes — escape or close?
+    let lastWasCR = false;
+
+    const endField = () => { row.push(field); field = ''; };
+    const endRow = () => {
+      endField();
+      if (row.length > 1 || row[0] !== '') onRow(row);
       row = [];
-    } else field += c;
-  }
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
-  return rows;
+    };
+
+    function consume(c) {
+      const wasCR = lastWasCR;
+      lastWasCR = false;
+      if (maybeEscape) {
+        maybeEscape = false;
+        if (c === '"') { field += '"'; return; } // doubled "" inside quotes
+        inQuotes = false; // the quote closed the field — fall through to handle c
+      }
+      if (inQuotes) {
+        if (c === '"') maybeEscape = true;
+        else field += c;
+        return;
+      }
+      if (c === '"') { inQuotes = true; return; }
+      if (c === ',') { endField(); return; }
+      if (c === '\n') { if (!wasCR) endRow(); return; } // \r\n already ended on the \r
+      if (c === '\r') { endRow(); lastWasCR = true; return; }
+      field += c;
+    }
+
+    stream.on('data', (chunk) => {
+      for (const c of chunk) consume(c);
+    });
+    stream.on('error', reject);
+    stream.on('end', () => {
+      if (maybeEscape) inQuotes = false;
+      if (field !== '' || row.length) {
+        row.push(field);
+        if (row.length > 1 || row[0] !== '') onRow(row);
+      }
+      resolve();
+    });
+  });
 }
 
 const clean = (v) => {
@@ -161,11 +196,11 @@ function normalize(s) {
 // OFAC SDN columns (no header):
 // 0 ent_num | 1 name | 2 type | 3 program | 4 title | 5 call_sign |
 // 6 vessel_type | 7 tonnage | 8 grt | 9 flag | 10 owner | 11 remarks
-function parseOfacSdn(text) {
+async function parseOfacSdn(filePath) {
   const entries = [];
-  for (const cols of parseCsv(text)) {
-    if (cols.length < 4) continue;
-    if ((cols[2] || '').trim().toLowerCase() !== 'vessel') continue;
+  await parseCsvFile(filePath, (cols) => {
+    if (cols.length < 4) return;
+    if ((cols[2] || '').trim().toLowerCase() !== 'vessel') return;
     const remarks = clean(cols[11]) || '';
     const imo = remarks.match(/IMO\s+(\d{7})/i)?.[1] || null;
     // Aliases declared inside remarks as a.k.a. / f.k.a. 'NAME'
@@ -183,7 +218,7 @@ function parseOfacSdn(text) {
       aliases,
       source: 'OFAC SDN',
     });
-  }
+  });
   return entries;
 }
 
@@ -193,35 +228,34 @@ function parseOfacSdn(text) {
 // `sanctions` column as a fallback. `countries` are ISO-2 flag codes.
 //   id,schema,name,aliases,birth_date,countries,addresses,identifiers,
 //   sanctions,phones,emails,program_ids,dataset,first_seen,last_seen,last_change
-function parseOpenSanctions(text, label) {
-  const rows = parseCsv(text);
-  if (!rows.length) return [];
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const col = (name) => header.indexOf(name);
-  const iSchema = col('schema');
-  const iName = col('name');
-  const iAliases = col('aliases');
-  const iCountries = col('countries');
-  const iIdent = col('identifiers');
-  const iProgram = col('program_ids');
-  const iSanctions = col('sanctions');
+async function parseOpenSanctions(filePath, label) {
   const entries = [];
-  for (let r = 1; r < rows.length; r++) {
-    const cols = rows[r];
-    if ((cols[iSchema] || '').trim().toLowerCase() !== 'vessel') continue;
-    const imo = (cols[iIdent] || '').match(/IMO\s*0*(\d{6,7})/i)?.[1] || null;
-    const aliases = (cols[iAliases] || '').split(/[;|]/).map((s) => s.trim()).filter(Boolean);
+  let col = null; // resolved from the header row (first row seen)
+  await parseCsvFile(filePath, (cols) => {
+    if (!col) {
+      const header = cols.map((h) => h.trim().toLowerCase());
+      const at = (name) => header.indexOf(name);
+      col = {
+        schema: at('schema'), name: at('name'), aliases: at('aliases'),
+        countries: at('countries'), ident: at('identifiers'),
+        program: at('program_ids'), sanctions: at('sanctions'),
+      };
+      return;
+    }
+    if ((cols[col.schema] || '').trim().toLowerCase() !== 'vessel') return;
+    const imo = (cols[col.ident] || '').match(/IMO\s*0*(\d{6,7})/i)?.[1] || null;
+    const aliases = (cols[col.aliases] || '').split(/[;|]/).map((s) => s.trim()).filter(Boolean);
     entries.push({
-      name: (cols[iName] || '').trim() || null,
-      program: (cols[iProgram] || '').trim() || (cols[iSanctions] || '').trim() || null,
+      name: (cols[col.name] || '').trim() || null,
+      program: (cols[col.program] || '').trim() || (cols[col.sanctions] || '').trim() || null,
       callSign: null,
-      flag: (cols[iCountries] || '').trim() || null,
+      flag: (cols[col.countries] || '').trim() || null,
       owner: null,
       imo,
       aliases,
       source: label,
     });
-  }
+  });
   return entries;
 }
 
@@ -238,30 +272,26 @@ function indexEntry(e) {
   }
 }
 
-function rebuildIndex(allEntries) {
+/** Load every source's cached file from disk and (re)build the index. Safe to
+ *  call at startup with no network — sources with no cached file are skipped. */
+async function loadFromDisk() {
+  for (const key of Object.keys(meta)) delete meta[key]; // drop stale (e.g. disabled) sources
+  // Index incrementally and discard each source's entries afterwards, so only
+  // the (small) vessel index is retained — never every list's rows at once.
   index.byImo.clear();
   index.byCallSign.clear();
   index.byName.clear();
-  for (const e of allEntries) indexEntry(e);
-}
-
-/** Load every source's cached file from disk and (re)build the index. Safe to
- *  call at startup with no network — sources with no cached file are skipped. */
-function loadFromDisk() {
-  for (const key of Object.keys(meta)) delete meta[key]; // drop stale (e.g. disabled) sources
-  const all = [];
   for (const key of activeKeys()) {
     const src = SOURCES[key];
     if (!fs.existsSync(src.file)) continue;
     try {
-      const entries = src.parse(fs.readFileSync(src.file, 'utf8'));
-      all.push(...entries);
+      const entries = await src.parse(src.file);
+      for (const e of entries) indexEntry(e);
       meta[key] = { vesselCount: entries.length, lastRefreshed: fs.statSync(src.file).mtime.toISOString() };
     } catch (e) {
       console.error(`[SANCTIONS:${key}] parse cached file failed: ${e.message}`);
     }
   }
-  rebuildIndex(all);
   const total = index.byImo.size;
   if (total) console.log(`[SANCTIONS] Loaded ${total} listed vessels (by IMO) from cache`);
   return total;
@@ -275,15 +305,17 @@ async function refresh(only) {
   for (const key of keys) {
     const src = SOURCES[key];
     if (!src) continue;
+    const tmp = `${src.file}.download`;
     try {
       console.log(`[SANCTIONS:${key}] Refreshing from ${src.url}`);
-      const body = await download(src.url);
-      // Sanity check before overwriting the cache with garbage.
-      const entries = src.parse(body);
+      await downloadToFile(src.url, tmp);
+      // Sanity check before replacing the cache with garbage.
+      const entries = await src.parse(tmp);
       if (!entries.length) throw new Error('no vessel rows parsed');
-      fs.writeFileSync(src.file, body, 'utf8');
+      fs.renameSync(tmp, src.file);
       console.log(`[SANCTIONS:${key}] Saved ${entries.length} listed vessels`);
     } catch (e) {
+      try { fs.unlinkSync(tmp); } catch { /* nothing to clean up */ }
       console.error(`[SANCTIONS:${key}] Refresh failed: ${e.message}`);
     }
   }
