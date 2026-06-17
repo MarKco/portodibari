@@ -142,7 +142,10 @@ const POLL_INTERVAL_MS = num('POLL_INTERVAL_MS', 300000);
 const TRACK_MERGE_RADIUS_M = num('TRACK_MERGE_RADIUS_M', 100);
 const TRACK_DEFAULT_LIMIT = num('TRACK_DEFAULT_LIMIT', 500);
 const TRACK_MAX_LIMIT = num('TRACK_MAX_LIMIT', 2000);
-const MAX_BODY = num('MAX_BODY_BYTES', 8192);
+// Per-body cap for the api_log audit trail. Average logged body is ~600B, so
+// 2KB keeps virtually every real payload intact while capping the rare large
+// response that would otherwise bloat the log table.
+const MAX_BODY = num('MAX_BODY_BYTES', 2048);
 const NOTIF_DELETE_UNDO_SECONDS = num('NOTIF_DELETE_UNDO_SECONDS', 5);
 
 // Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer

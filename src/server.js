@@ -78,6 +78,27 @@ app.listen(PORT, () => {
   db.checkAndLogDepartures();
   setInterval(db.checkAndLogDepartures, 60 * 1000);
 
+  // DB compaction: fold the WAL back into the main file (the passive
+  // autocheckpoint can't, while the stream/SSE readers hold a read lock) and
+  // return pruned pages to the OS. The first run also converts the file to
+  // incremental auto_vacuum via a one-time VACUUM, so it's deferred (and
+  // detached) to keep startup snappy, then repeats every 5 minutes.
+  setTimeout(() => {
+    try {
+      db.runMaintenance();
+      appLog.info('DB', 'Compattazione iniziale del database completata');
+    } catch (e) {
+      appLog.error('DB', `Compattazione iniziale fallita: ${e.message}`);
+    }
+  }, 10 * 1000);
+  setInterval(() => {
+    try {
+      db.runMaintenance();
+    } catch (e) {
+      console.error(`[DB] Compattazione periodica fallita: ${e.message}`);
+    }
+  }, 5 * 60 * 1000);
+
   // Sanctions screening: load any cached OFAC list from disk (offline-safe). If
   // enabled but no cache yet, download once in the background, then refresh daily.
   if (state.importSanctions) {

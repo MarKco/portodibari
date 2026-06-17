@@ -205,7 +205,7 @@ Map showing the vessel's last known position.
 
 ### AIS readings
 
-Paginated table of all positions received in chronological order. Click any row to see the full raw data in JSON format.
+Paginated table of all positions received in chronological order. Click any row to see the reading detail. The full **raw data** in JSON format is shown only for the vessel's static messages (name, dimensions, destination…); for plain position messages every useful field is already in the detail grid and the JSON section appears empty (`{}`), to avoid bloating the database.
 
 **Page navigation:** use the ← Prev and Next → buttons below the table.
 

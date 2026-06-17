@@ -162,6 +162,8 @@ Il cambio di area nel menu a tendina in fondo alla sidebar è un **cambio di vis
 
 Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più vecchi) ogni 500 inserimenti per tipo. Le notifiche (tabella `notifications`) conservano gli ultimi 100 record, con rotazione automatica a ogni inserimento.
 
+**Compattezza su disco.** Il payload AIS grezzo (`raw_json`) viene conservato **solo** per i tipi che hanno campi extra non mappati su colonne (`ShipStaticData`, `ExtendedClassBPositionReport`); per i position report — la maggior parte delle righe — è vuoto, perché non aggiunge nulla alle colonne già estratte. Lo usa solo l'export CSV (e il modal "dati grezzi" di una lettura, che per i position report mostra `{}`). Il database è in modalità WAL con `auto_vacuum = INCREMENTAL`: una manutenzione periodica (`runMaintenance` in `src/db.js`, ogni 5 minuti) esegue `wal_checkpoint(TRUNCATE)` — necessario perché i lettori a lunga durata (stream AIS / SSE) impediscono al checkpoint passivo di troncare il WAL — e `incremental_vacuum` per restituire al sistema operativo le pagine liberate dalle rotazioni. Al primo avvio dopo l'aggiornamento gira una `VACUUM` una-tantum che converte il file ad `auto_vacuum` incrementale e azzera i `raw_json` dei position report già presenti.
+
 ## 🎛️ Parametri configurabili
 
 | Parametro                       | File                              | Dove                                  | Default        |
@@ -185,6 +187,9 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Intervallo ricalcolo banchine   | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
 | Auto-ripristino DB dopo deploy  | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
+| Max byte body request/response nel log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
+| Max record log API              | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 20.000         |
+| Intervallo compattazione DB (WAL + vacuum) | `src/server.js`        | `setInterval(db.runMaintenance, …)`   | 5 min          |
 
 ### Applicare le modifiche
 

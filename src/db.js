@@ -21,6 +21,15 @@ const db = new DatabaseSync(DB_PATH);
 
 db.exec(`PRAGMA journal_mode = WAL`);
 db.exec(`PRAGMA synchronous = NORMAL`);
+// Return freed pages to the OS incrementally so deletes/prunes actually shrink
+// the file. On an existing DB created with auto_vacuum=NONE this pragma only
+// takes effect after a one-time VACUUM (run by runMaintenance() at startup).
+db.exec(`PRAGMA auto_vacuum = INCREMENTAL`);
+// Cap how large the WAL can grow before a passive checkpoint folds it back into
+// the main file. The long-lived AIS-stream/SSE readers can hold a passive
+// checkpoint open indefinitely, so runMaintenance() also forces a TRUNCATE
+// checkpoint on a timer — this just bounds growth between those.
+db.exec(`PRAGMA wal_autocheckpoint = 400`);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS readings (
@@ -412,7 +421,16 @@ function insert(parsed, areaKey = '') {
     sog: msgData.Sog ?? null,
     cog: msgData.Cog ?? null,
     true_heading: msgData.TrueHeading ?? null,
-    raw_json: JSON.stringify(parsed),
+    // raw_json is only consumed by the CSV export, to recover the extra fields
+    // that have no dedicated column. Position reports carry nothing beyond the
+    // columns above, so storing their full payload (~600B/row, the bulk of this
+    // table) is pure waste — keep it only for the static-data message types that
+    // actually have extra fields. Empty string (not NULL: column is NOT NULL);
+    // export.js JSON.parse('') throws and falls back to the base columns.
+    raw_json:
+      MessageType === 'ShipStaticData' || MessageType === 'ExtendedClassBPositionReport'
+        ? JSON.stringify(parsed)
+        : '',
     // Static data fields — only present in ShipStaticData / ExtendedClassB
     ship_type: msgData.Type ?? null,
     destination: msgData.Destination?.trim() || null,
@@ -1206,6 +1224,36 @@ function backupTo(dest) {
 }
 
 /**
+ * Periodic compaction. Folds the WAL back into the main file and truncates it
+ * (the passive autocheckpoint can't, while the stream/SSE readers hold a read
+ * lock), then returns pages freed by prunes/deletes to the OS.
+ *
+ * The first call also performs the one-time VACUUM that converts a legacy
+ * auto_vacuum=NONE database to INCREMENTAL (no-op once already converted). The
+ * VACUUM rewrites the whole file, so it runs only when actually needed.
+ */
+function runMaintenance() {
+  // One-time conversion to incremental auto_vacuum on legacy databases. The
+  // open-time `PRAGMA auto_vacuum = INCREMENTAL` only sets the *intended* mode;
+  // the file is actually converted by the first VACUUM. A meta flag guards it so
+  // the (expensive, whole-file) VACUUM runs exactly once, not every startup —
+  // reading `PRAGMA auto_vacuum` can't tell converted from merely-requested.
+  if (getMeta('auto_vacuum_converted') !== '1') {
+    // Back-fill: drop the now-unused full payload from existing position-report
+    // rows (kept only for static-data types going forward), so the VACUUM below
+    // reclaims that space immediately instead of waiting for the natural prune.
+    db.exec(
+      "UPDATE readings SET raw_json = '' " +
+        "WHERE raw_json <> '' AND message_type NOT IN ('ShipStaticData', 'ExtendedClassBPositionReport')"
+    );
+    db.exec('VACUUM');
+    setMeta('auto_vacuum_converted', '1');
+  }
+  db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  db.exec('PRAGMA incremental_vacuum');
+}
+
+/**
  * Replace ALL current data with the contents of the SQLite file at `src`.
  * Copies column-by-column over the intersection of source/target columns, so a
  * backup taken from an older schema (fewer columns) still restores cleanly.
@@ -1326,5 +1374,6 @@ module.exports = {
   clearLogs,
   backupTo,
   restoreFrom,
+  runMaintenance,
   DB_PATH,
 };

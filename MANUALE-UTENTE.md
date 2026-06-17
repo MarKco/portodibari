@@ -205,7 +205,7 @@ Mappa con la traccia dell'ultima posizione nota della nave.
 
 ### Letture AIS
 
-Tabella paginata con tutte le posizioni ricevute in ordine cronologico. Clicca su una riga per vedere i dati grezzi completi in formato JSON.
+Tabella paginata con tutte le posizioni ricevute in ordine cronologico. Clicca su una riga per vedere il dettaglio della lettura. I **dati grezzi** completi in formato JSON sono mostrati solo per i messaggi statici della nave (nome, dimensioni, destinazione…); per i semplici messaggi di posizione i campi utili sono già tutti nella griglia di dettaglio e la sezione JSON appare vuota (`{}`), per non gonfiare il database.
 
 **Navigazione pagine:** usa i pulsanti ← Prec e Succ → sotto la tabella.
 
