@@ -7,6 +7,7 @@ import { escHtml } from './helpers.js';
 import { showAlert } from './toast.js';
 import { t } from './i18n.js';
 import { showView } from './views.js';
+import { loadActive } from './ships.js';
 
 // Leaflet layer (centroid marker) per berth id, so the manager list can focus
 // a berth on the map and open its popup. Rebuilt on every overlay render.
@@ -138,9 +139,12 @@ export async function goToBerth(area, id) {
     }
   }
   showView('active');
-  await loadBerths(S.currentPreset);
-  // Defer focus so the active map has mounted/resized before we fit bounds.
-  setTimeout(() => focusBerth(id), 300);
+  // Await both in parallel: loadActive must complete so renderActiveMap runs
+  // and sets activeFitKey BEFORE focusBerth, otherwise renderActiveMap's
+  // fitBounds to the area bbox would override the berth zoom.
+  await Promise.all([loadActive(), loadBerths(S.currentPreset)]);
+  // Brief delay so the map has processed the layout after renderActiveMap.
+  setTimeout(() => focusBerth(id), 100);
 }
 
 function distBars(b) {
