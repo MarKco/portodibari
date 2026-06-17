@@ -211,15 +211,20 @@ router.get('/ships/:mmsi/equasis', async (req, res) => {
     });
   }
 
+  // No IMO → Equasis can't be queried. Signalled upfront (even without ?fetch=1)
+  // so the client can hide the button and show an explanatory hint instead of
+  // letting the user click into a dead-end error. Common for small craft (tugs,
+  // pilots, fishing) that never broadcast AIS static data.
+  if (!ship.imo_number) {
+    return res.json({ enabled: true, data: null, noImo: true });
+  }
+
   // No cache. Only scrape on explicit request from the button.
   if (req.query.fetch !== '1') {
     return res.json({ enabled: true, data: null, needsFetch: true });
   }
   if (!EQUASIS_USER || !EQUASIS_PASSWORD) {
     return res.json({ enabled: true, error: 'Credenziali Equasis mancanti: imposta EQUASIS_USER e EQUASIS_PASSWORD in local.properties' });
-  }
-  if (!ship.imo_number) {
-    return res.json({ enabled: true, error: 'IMO mancante: Equasis interroga solo per numero IMO' });
   }
   try {
     const data = await crawlEquasis(ship.imo_number);

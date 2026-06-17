@@ -733,6 +733,13 @@ export async function loadEquasisData(mmsi, doFetch = false) {
       el.equasisDataSection.classList.add('hidden');
       return;
     }
+    if (result.noImo) {
+      // Ship never broadcast an IMO via AIS — Equasis can only query by IMO.
+      // Hide the button: clicking it would only dead-end on the same error.
+      el.equasisDataBody.innerHTML = `<p class="vf-empty">${t('scrape.equasisNoImo')}</p>`;
+      el.btnEquasisFetch.classList.add('hidden');
+      return;
+    }
     if (result.error) {
       el.equasisDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
       el.btnEquasisFetch.classList.remove('hidden');

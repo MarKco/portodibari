@@ -176,6 +176,7 @@ export default {
   'scrape.loadingEquasis':    'Recupero dati da Equasis…',
   'scrape.stored':            'memorizzato',
   'scrape.equasisHint':       'Premi "Recupera informazioni Equasis" per cercare proprietario e gestori (per numero IMO).',
+  'scrape.equasisNoImo':      'Nave senza numero IMO (non ha trasmesso i dati statici AIS): Equasis interroga solo per IMO e non è disponibile per questa nave.',
   'scrape.equasisMgmt':       'Proprietà e gestione',
   'scrape.equasisParticulars': 'Dati nave',
   'scrape.equasisClass':       'Classificazione',
