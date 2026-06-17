@@ -200,7 +200,11 @@ async function runImport({ file, url, contentType, btn, busyLabel, onDone }) {
   btn.disabled = true;
   btn.textContent = busyLabel;
   try {
-    const body = await file.text();
+    // Send raw bytes, never file.text(): decoding the bundle as UTF-8 corrupts
+    // the binary v2 container (raw SQLite bytes >127 become U+FFFD), so the
+    // restored DB is unreadable. arrayBuffer() preserves bytes for both the
+    // binary bundle and the JSON area/settings imports.
+    const body = await file.arrayBuffer();
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': contentType }, body });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
