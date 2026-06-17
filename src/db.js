@@ -729,6 +729,19 @@ function replaceMoorings(area, moorings) {
   }
 }
 
+function addMooring(area, mmsi, ship_type, category, lat, lon, ts) {
+  insertMooringStmt.run(area, mmsi, ship_type ?? null, category, lat, lon, ts);
+  return db.prepare('SELECT last_insert_rowid() AS id').get().id;
+}
+
+function updateMooringPosition(id, lat, lon) {
+  db.prepare('UPDATE moorings SET lat = ?, lon = ? WHERE id = ?').run(lat, lon, id);
+}
+
+function deleteMooring(id) {
+  db.prepare('DELETE FROM moorings WHERE id = ?').run(id);
+}
+
 function getMoorings(area) {
   return db.prepare('SELECT * FROM moorings WHERE area = ? ORDER BY id').all(area);
 }
@@ -1264,6 +1277,9 @@ module.exports = {
   getArrivalsForArea,
   getStayCentroid,
   replaceMoorings,
+  addMooring,
+  updateMooringPosition,
+  deleteMooring,
   getMoorings,
   setMooringBerth,
   clearMooringBerths,

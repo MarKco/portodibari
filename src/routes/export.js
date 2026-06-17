@@ -215,9 +215,15 @@ function restoreDbFromLatestBackup() {
 // (pre-berths schema) has no such tables, so restoreFrom leaves the current ones
 // untouched — pointing at data that no longer exists. Rebuild them so the
 // overlay matches the restored database immediately (manual berths are kept).
-function rebuildBerthsAfterRestore() {
+//
+// counts: the per-table row counts returned by restoreFrom. If the backup had a
+// moorings table (counts.moorings is defined), the restored moorings are already
+// correct — skip re-deriving from readings (which may be pruned) and only
+// re-cluster. For old backups without a moorings table, do a full re-derive.
+function rebuildBerthsAfterRestore(counts = {}) {
+  const skipSync = counts.moorings !== undefined;
   try {
-    berths.recomputeAll();
+    berths.recomputeAll({ skipSync });
   } catch (e) {
     console.error(`[BERTHS] Ricalcolo post-restore fallito: ${e.message}`);
   }
@@ -341,7 +347,7 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
     db.tagLegacyArea(state.preset, areaForPoint);
     db.reconcileAreasByCoords(areaForPoint);
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
-    rebuildBerthsAfterRestore();
+    rebuildBerthsAfterRestore(counts);
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('RESTORE', 'Database ripristinato da file caricato', { righe: total });
     res.json({ ok: true, counts });
@@ -427,7 +433,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
       }
     }
 
-    rebuildBerthsAfterRestore();
+    rebuildBerthsAfterRestore(counts);
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('BUNDLE', 'Backup completo importato (DB + aree + impostazioni)', { righe: total });
     res.json({ ok: true, counts, areas, settings });
@@ -514,7 +520,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       db.reconcileAreasByCoords(areaForPoint);
       db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     }
-    if (parts.includes('db')) rebuildBerthsAfterRestore();
+    if (parts.includes('db')) rebuildBerthsAfterRestore(counts);
 
     if (parts.includes('settings') && payload.settings) {
       try { settings = applyImportedSettings(payload.settings); } catch (e) {

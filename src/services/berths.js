@@ -213,6 +213,42 @@ function detectMoorings(area) {
   return moorings;
 }
 
+// Merge-based mooring sync: moorings for departed ships are kept permanently
+// (even after their readings are pruned), only ships still in port get their
+// centroid refreshed, and new arrivals are added. Orphaned moorings (whose
+// arrival was deleted from port_events) are removed.
+function syncMoorings(area) {
+  const arrivals = db.getArrivalsForArea(area); // ordered by mmsi, ts
+  const arrivalKeys = new Set(arrivals.map((a) => `${a.mmsi}:${a.ts}`));
+  const existing = new Map(db.getMoorings(area).map((m) => [`${m.mmsi}:${m.ts}`, m]));
+
+  // Remove moorings whose arrival was deleted from port_events.
+  for (const [key, m] of existing) {
+    if (!arrivalKeys.has(key)) db.deleteMooring(m.id);
+  }
+
+  for (let i = 0; i < arrivals.length; i++) {
+    const a = arrivals[i];
+    const key = `${a.mmsi}:${a.ts}`;
+    const next = arrivals[i + 1];
+    const endTs = next && next.mmsi === a.mmsi ? next.ts : FAR_FUTURE;
+    const cur = existing.get(key);
+
+    // Departed ship with existing mooring: centroid is final, don't re-read.
+    if (cur && endTs !== FAR_FUTURE) continue;
+
+    // Ship still in port or new arrival: compute centroid while readings are fresh.
+    const c = db.getStayCentroid(a.mmsi, area, a.ts, endTs);
+    if (!c || !c.n || c.lat == null || c.lon == null) continue;
+
+    if (cur) {
+      db.updateMooringPosition(cur.id, c.lat, c.lon);
+    } else {
+      db.addMooring(area, a.mmsi, a.ship_type ?? null, categoryOf(a.ship_type), c.lat, c.lon, a.ts);
+    }
+  }
+}
+
 // ── Characterisation ─────────────────────────────────────────────────────────
 function characterize(members) {
   const count = members.length;
@@ -237,9 +273,15 @@ function characterize(members) {
 }
 
 // ── Recompute ──────────────────────────────────────────────────────────────
-function recomputeArea(area) {
-  const moorings = detectMoorings(area);
-  db.replaceMoorings(area, moorings); // berth_id reset to NULL
+// skipSync: true → skip mooring sync (use the moorings table as-is).
+// Used post-restore when moorings were already restored from a backup.
+function recomputeArea(area, { skipSync = false } = {}) {
+  if (skipSync) {
+    db.clearMooringBerths(area); // berth_id reset to NULL so re-clustering starts clean
+  } else {
+    syncMoorings(area);          // merge-based update; also resets berth_id via replace paths
+    db.clearMooringBerths(area);
+  }
   const stored = db.getMoorings(area); // now with ids
 
   const oldAuto = db.getAutoBerths(area); // capture renamed/overridden identity
@@ -339,12 +381,12 @@ function recomputeArea(area) {
   return { moorings: stored.length, berths: db.getBerths(area).length };
 }
 
-function recomputeAll() {
+function recomputeAll({ skipSync = false } = {}) {
   const { BBOX_PRESETS } = require('../config');
   const out = {};
   for (const area of Object.keys(BBOX_PRESETS)) {
     try {
-      out[area] = recomputeArea(area);
+      out[area] = recomputeArea(area, { skipSync });
     } catch (e) {
       console.error(`[BERTHS] Recompute fallito per ${area}: ${e.message}`);
     }
@@ -385,6 +427,7 @@ function startDirtyFlush() {
 
 module.exports = {
   detectMoorings,
+  syncMoorings,
   characterize,
   recomputeArea,
   recomputeAll,
