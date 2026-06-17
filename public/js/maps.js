@@ -18,6 +18,14 @@ const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStree
 // changes — not on every poll, which would fight the user's pan/zoom.
 let activeFitKey = null;
 
+// Mark the current area bbox as already framed, so the next renderActiveMap
+// skips its fitBounds. Used when navigating to a berth: otherwise the area
+// fitBounds animation fights focusBerth's, and Leaflet drops the later one
+// mid-animation — leaving the map on the area box instead of the berth.
+export function primeActiveFit() {
+  if (S.currentBbox) activeFitKey = JSON.stringify(S.currentBbox);
+}
+
 // ── Detail map (single ship track) ───────────────────────────────────────────
 function initMap() {
   if (S.aisMap) return;

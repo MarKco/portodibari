@@ -320,7 +320,7 @@ function recomputeArea(area, { skipSync = false } = {}) {
       hazmat_pct: ch.hazmatPct,
     });
     if (emitChar && wasUnchar && ch.label) {
-      db.addNotification({ type: 'berth_characterized', area, berth_id: b.id, ship_name: b.name, band: ch.label });
+      db.addNotification({ type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label });
     }
   }
 
@@ -372,10 +372,10 @@ function recomputeArea(area, { skipSync = false } = {}) {
     // berth that just crossed the characterisation threshold → "characterised".
     if (!inherit) {
       if (emitNew) {
-        db.addNotification({ type: 'berth_new', area, berth_id: id, ship_name: null, band: ch.label || null });
+        db.addNotification({ type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null });
       }
     } else if (emitChar && !inherit.char_label && ch.label) {
-      db.addNotification({ type: 'berth_characterized', area, berth_id: id, ship_name: inherit.name, band: ch.label });
+      db.addNotification({ type: 'berth_characterized', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: inherit.name, band: ch.label });
     }
   }
 

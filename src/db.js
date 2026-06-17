@@ -227,8 +227,11 @@ for (const col of ['from_area TEXT']) {
 }
 
 // Berth reference for 'berth_new' / 'berth_characterized' notifications, so a
-// tap on the row can locate that berth on the map.
-for (const col of ['berth_id INTEGER']) {
+// tap on the row can locate that berth on the map. berth_lat/berth_lon hold the
+// berth centroid captured at notification time: berth ids are reassigned on
+// every cluster recompute (delete+insert), so the id alone goes stale almost
+// immediately — the coordinates let a tap still locate the berth on the map.
+for (const col of ['berth_id INTEGER', 'berth_lat REAL', 'berth_lon REAL']) {
   try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
@@ -860,8 +863,8 @@ function deleteBerth(id) {
 const MAX_NOTIFICATIONS = 100;
 
 const insertNotificationStmt = db.prepare(
-  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, berth_id, ts, read)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 );
 const pruneNotificationsStmt = db.prepare(
   `DELETE FROM notifications WHERE id NOT IN (
@@ -869,11 +872,11 @@ const pruneNotificationsStmt = db.prepare(
    )`
 );
 
-function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null }) {
+function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null, berth_lat = null, berth_lon = null }) {
   const ts = new Date().toISOString();
-  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, berth_id, ts);
+  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts);
   pruneNotificationsStmt.run();
-  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, berth_id, ts, read: 0 };
+  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read: 0 };
 }
 
 function getNotifications(limit = MAX_NOTIFICATIONS) {

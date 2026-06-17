@@ -75,7 +75,7 @@ function renderNotifications(notifications) {
       const dotClass = isBerth ? 'notif-dot-berth' : `risk-${n.band || 'low'}`;
       const clickable = n.mmsi || n.berth_id;
       return `
-      <div class="notif-item ${n.read ? '' : 'unread'} ${clickable ? 'notif-item-clickable' : ''}" data-id="${n.id}" data-mmsi="${n.mmsi || ''}" data-berth="${n.berth_id || ''}" data-area="${escHtml(n.area || '')}">
+      <div class="notif-item ${n.read ? '' : 'unread'} ${clickable ? 'notif-item-clickable' : ''}" data-id="${n.id}" data-mmsi="${n.mmsi || ''}" data-berth="${n.berth_id || ''}" data-lat="${n.berth_lat ?? ''}" data-lon="${n.berth_lon ?? ''}" data-area="${escHtml(n.area || '')}">
         <span class="notif-dot ${dotClass}" title="${!isBerth && n.score != null ? `${n.score}/100` : ''}"></span>
         <div class="notif-text">
           <div class="notif-msg">${notifMessage(n)}</div>
@@ -202,10 +202,14 @@ export function initNotifications() {
     // Navigate: clicking anywhere else on the row.
     const item = e.target.closest('.notif-item');
     if (!item) return;
-    // Berth events → locate the berth on its area's map.
+    // Berth events → locate the berth on its area's map. The id may be stale
+    // (berths are renumbered on every recompute), so pass the captured centroid
+    // too — goToBerth falls back to it when the id no longer resolves.
     const berthId = Number(item.dataset.berth);
-    if (berthId) {
-      goToBerth(item.dataset.area, berthId);
+    const lat = parseFloat(item.dataset.lat);
+    const lon = parseFloat(item.dataset.lon);
+    if (berthId || Number.isFinite(lat)) {
+      goToBerth(item.dataset.area, berthId || null, Number.isFinite(lat) ? lat : null, Number.isFinite(lon) ? lon : null);
       return;
     }
     // Ship events → open the ship detail view.

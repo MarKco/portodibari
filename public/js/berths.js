@@ -3,11 +3,12 @@
 import { S } from './store.js';
 import { api } from './api.js';
 import { el } from './dom.js';
-import { escHtml } from './helpers.js';
+import { escHtml, haversineM } from './helpers.js';
 import { showAlert } from './toast.js';
 import { t } from './i18n.js';
 import { showView } from './views.js';
 import { loadActive } from './ships.js';
+import { primeActiveFit } from './maps.js';
 
 // Leaflet layer (centroid marker) per berth id, so the manager list can focus
 // a berth on the map and open its popup. Rebuilt on every overlay render.
@@ -100,9 +101,30 @@ export function renderBerthsOverlay() {
 
 // Pan/zoom the overview map to a berth and open its popup. Turns the overlay on
 // if it was hidden so the berth is actually visible.
-export function focusBerth(id) {
-  const b = S.berthsList.find((x) => x.id === id);
-  if (!b || !b.polygon || !b.polygon.length) return;
+// Resolve which berth a notification points at. The stored id is reassigned on
+// every cluster recompute, so it usually no longer matches; fall back to the
+// nearest current berth to the captured centroid (within ~100 m).
+function resolveBerth(id, lat, lon) {
+  const b = id != null ? S.berthsList.find((x) => x.id === id) : null;
+  if (b) return b;
+  if (lat == null || lon == null) return null;
+  let best = null;
+  let bestD = Infinity;
+  for (const x of S.berthsList) {
+    if (!x.centroid || x.centroid[0] == null) continue;
+    const d = haversineM(lat, lon, x.centroid[0], x.centroid[1]);
+    if (d < bestD) {
+      bestD = d;
+      best = x;
+    }
+  }
+  return bestD <= 100 ? best : null;
+}
+
+// Pan/zoom the overview map to a berth and open its popup. `lat`/`lon` are the
+// centroid captured when the notification fired — used to locate the berth when
+// its id has since been renumbered, or to pan there if no berth resolves.
+export function focusBerth(id, lat = null, lon = null) {
   el.modalOverlay.classList.add('hidden');
   if (!S.showBerths) {
     S.showBerths = true;
@@ -112,15 +134,32 @@ export function focusBerth(id) {
   }
   if (!S.activeMap) return;
   S.activeMap.invalidateSize();
-  S.activeMap.fitBounds(L.latLngBounds(b.polygon).pad(0.5), { maxZoom: 18 });
-  const marker = berthLayers.get(id);
+  const b = resolveBerth(id, lat, lon);
+  if (b && b.polygon && b.polygon.length >= 2) {
+    S.activeMap.fitBounds(L.latLngBounds(b.polygon).pad(0.5), { maxZoom: 18 });
+  } else if (b && b.centroid && b.centroid[0] != null) {
+    S.activeMap.setView(b.centroid, 17);
+  } else if (lat != null && lon != null) {
+    // No live berth matched (e.g. an old notification, or the cluster vanished)
+    // — at least pan to where it was so the tap does something.
+    S.activeMap.setView([lat, lon], 17);
+    return;
+  } else if (S.currentBbox) {
+    // Legacy notification with neither a live id nor coordinates: fall back to
+    // framing the area so the tap still navigates somewhere sensible.
+    S.activeMap.fitBounds(S.currentBbox, { padding: [40, 40] });
+    return;
+  } else {
+    return;
+  }
+  const marker = berthLayers.get(b.id);
   if (marker) setTimeout(() => marker.openPopup(), 250);
 }
 
 // Navigate from a notification (any area) to a specific berth: switch the view
 // to the berth's area if needed, open the active view, load that area's berths
 // and focus the one tapped. Used by the notifications feed.
-export async function goToBerth(area, id) {
+export async function goToBerth(area, id, lat = null, lon = null) {
   if (el.modalOverlay) el.modalOverlay.classList.add('hidden');
   if (area && area !== S.currentPreset) {
     try {
@@ -139,12 +178,25 @@ export async function goToBerth(area, id) {
     }
   }
   showView('active');
-  // Await both in parallel: loadActive must complete so renderActiveMap runs
-  // and sets activeFitKey BEFORE focusBerth, otherwise renderActiveMap's
-  // fitBounds to the area bbox would override the berth zoom.
+  // Suppress the area-bbox fit: renderActiveMap (run by loadActive) would
+  // otherwise fitBounds to the area box, and that animation fights focusBerth's
+  // — Leaflet drops the later setView mid-animation, so the berth zoom is lost.
+  // Priming activeFitKey to the current bbox makes renderActiveMap skip its fit,
+  // leaving focusBerth the sole controller of the view.
+  primeActiveFit();
   await Promise.all([loadActive(), loadBerths(S.currentPreset)]);
-  // Brief delay so the map has processed the layout after renderActiveMap.
-  setTimeout(() => focusBerth(id), 100);
+  // Focus once the map is mounted and laid out. whenReady fires immediately if
+  // it's already ready; the rAF gives the container its final size first.
+  const focus = () => {
+    if (S.activeMap) {
+      S.activeMap.invalidateSize();
+      window.requestAnimationFrame(() => focusBerth(id, lat, lon));
+    } else {
+      setTimeout(() => focusBerth(id, lat, lon), 150);
+    }
+  };
+  if (S.activeMap) S.activeMap.whenReady(focus);
+  else setTimeout(focus, 150);
 }
 
 function distBars(b) {
