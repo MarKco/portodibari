@@ -33,6 +33,7 @@ const BOUNDS = {
   MAX_READINGS_PER_TYPE: [100, 100000000],
   MAX_API_LOG_RECORDS: [100, 100000000],
   SCRAPE_CACHE_TTL_HOURS: [1, 8760],
+  SCRAPE_NEG_CACHE_DAYS: [0, 365],
   MAX_BODY_BYTES: [256, 16777216],
   MAX_UPLOAD_MB: [1, 8192],
   NOTIF_DELETE_UNDO_SECONDS: [0, 600],
@@ -82,6 +83,7 @@ const UNITS = {
   MAX_READINGS_PER_TYPE: 'record',
   MAX_API_LOG_RECORDS: 'record',
   SCRAPE_CACHE_TTL_HOURS: 'ore',
+  SCRAPE_NEG_CACHE_DAYS: 'giorni',
   MAX_BODY_BYTES: 'byte',
   NOTIF_DELETE_UNDO_SECONDS: 's',
   BACKUP_INTERVAL_MIN: 'min',
@@ -131,6 +133,7 @@ function unitFor(key) {
   if (/_MS$/.test(key)) return 'ms';
   if (/_(HOURS|_H)$/.test(key)) return 'ore';
   if (/_MIN$/.test(key)) return 'min';
+  if (/_DAYS$/.test(key)) return 'giorni';
   if (/_SECONDS$/.test(key)) return 's';
   if (/_PCT$/.test(key)) return '%';
   if (/_BYTES$/.test(key)) return 'byte';

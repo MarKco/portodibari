@@ -170,6 +170,7 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Max records per message type    | `src/db.js`                       | `pruneStmt.run(..., 10000)`           | 10,000         |
 | Max map track points            | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` and default `500` | 500 points   |
 | VF/MT scraping cache TTL        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 hours        |
+| VF/MT scraping negative cache   | `app.config.properties`           | `SCRAPE_NEG_CACHE_DAYS`               | 3 days         |
 | Notification delete undo bounce | `app.config.properties`           | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
 | Berth clustering radius         | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
 | Minimum moorings per berth      | `app.config.properties`           | `BERTH_MIN_PTS`                       | 3              |
@@ -413,6 +414,13 @@ Guarantees:
 - **Once only**: skips if cache already exists for that source, with an `inFlight` guard against duplicate concurrent fetches. Does not restart for already known ships (not even after a restart).
 - **Non-blocking**: fire-and-forget, no `await` in the AIS ingest loop. Errors are logged (`[ENRICH:vf|mt]`), never propagated.
 - If the MMSI appears before static data (IMO/callsign absent), VF/MT still resolve via MMSI.
+
+#### Backfill on enable, restore and negative cache
+
+- **Backfill on toggle**: enabling VesselFinder or MarineTraffic from settings (`POST /api/settings`) runs `enrichAllExisting(source)`, which enriches in the background every ship seen in the **last 7 days** still missing cache for that source (one at a time, 2 s apart). The two sources are independent (cache keyed by `mmsi`+`source`).
+- **Restore never re-scrapes**: applying settings from a backup/bundle (`applyImportedSettings`) does **not** run the backfill. VF/MT data lives in `ship_scrape_cache`, which is part of the DB backup and is restored with it — re-scraping every loaded ship would be pointless and hammer the sources. Backfill stays only on the interactive toggle.
+- **Negative cache** (`SCRAPE_NEG_CACHE_DAYS`, default 3 days): a failed lookup (the source doesn't know the ship — typical for ships without IMO, looked up by MMSI → 404/redirect) writes nothing to `ship_scrape_cache`, so the ship would stay "uncached" and be re-contacted on **every** re-enable. The failure is therefore recorded in `ship_scrape_failures` (also part of the backup); the backfill skips a ship whose last failure is newer than `SCRAPE_NEG_CACHE_DAYS`, then retries it. `0` = disabled (always retry). A successful fetch clears the marker.
+- VesselFinder redirects to **relative** paths (e.g. `/vessels` for unknown ships) are resolved against the current URL in `fetchHttp`, avoiding the `Invalid URL` error.
 
 ### Equasis lookup (ownership/management, on-demand)
 
@@ -678,7 +686,7 @@ pm2 save
 | ------------------------------| -------------------------------------------------------------------|
 | `src/server.js` / `src/app.js`| Entry point + Express app factory                                  |
 | `src/config.js`               | Config (local.properties/env), bbox presets, constants, runtime state; runtime add/remove of areas (`addArea`/`removeArea`, persisted to `bounding-boxes.json`); exports `areaForPoint(lat, lon)` to resolve a coordinate to the most specific containing preset key |
-| `src/db.js`                   | SQLite wrapper: `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths` schema, insert/upsert, queries, active predicate |
+| `src/db.js`                   | SQLite wrapper: `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`ship_scrape_failures`/`notifications`/`risk_history`/`moorings`/`berths` schema, insert/upsert, queries, active predicate |
 | `src/services/ais-stream.js`  | Multi-area AISStream WebSocket client (`Map<areaKey, state>`) + reconnection + port events + revisit and area-change notifications |
 | `src/services/berths.js`      | Mooring detection + DBSCAN clustering + berth characterization (convex hull, point-in-polygon, backfill/recompute) + new-berth and characterization notifications |
 | `src/services/ship-categories.js` | AIS ship-type code → broad category (cargo/tanker/passenger/…) + hazmat flag, used to characterize berths |
@@ -722,6 +730,8 @@ pm2 save
 | `last_area` | TEXT NOT NULL DEFAULT '' | Key of the last area in which the ship was detected |
 
 Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from VesselFinder / MarineTraffic / Equasis for `(mmsi, source)`, with `scraped_at`. Source: `vf`/`mt` with `SCRAPE_CACHE_TTL`; `eq` (Equasis) with no expiry (stored once).
+
+Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lookups per `(mmsi, source)`, with `failed_at` and `reason`. The backfill skips a ship while its failure is newer than `SCRAPE_NEG_CACHE_DAYS`; a successful fetch deletes the row. Avoids re-contacting, on every re-enable, the ships the sources don't know.
 
 **`port_events`** — automatically detected arrival/departure events: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area where the event occurred).
 

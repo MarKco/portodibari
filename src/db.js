@@ -254,6 +254,48 @@ function setScrapedData(mmsi, source, data) {
   return scraped_at;
 }
 
+// ── Scrape negative cache ─────────────────────────────────────────────────────
+// VesselFinder/MarineTraffic don't know every vessel (no IMO → looked up by MMSI
+// → 404 / redirect). A failed lookup writes nothing to ship_scrape_cache, so the
+// ship stays "uncached" and the backfill re-fetches it on every re-enable. This
+// table records the last failure per (mmsi, source); the enrichment skips a ship
+// whose failure is newer than SCRAPE_NEG_CACHE_DAYS, then retries it afterwards.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ship_scrape_failures (
+    mmsi    INTEGER NOT NULL,
+    source  TEXT    NOT NULL,
+    failed_at TEXT  NOT NULL,
+    reason  TEXT,
+    PRIMARY KEY (mmsi, source)
+  )
+`);
+
+const upsertScrapeFailureStmt = db.prepare(`
+  INSERT INTO ship_scrape_failures (mmsi, source, failed_at, reason)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(mmsi, source) DO UPDATE SET
+    failed_at = excluded.failed_at,
+    reason    = excluded.reason
+`);
+
+function setScrapeFailure(mmsi, source, reason) {
+  upsertScrapeFailureStmt.run(mmsi, source, new Date().toISOString(), reason ? String(reason).slice(0, 200) : null);
+}
+
+function clearScrapeFailure(mmsi, source) {
+  db.prepare('DELETE FROM ship_scrape_failures WHERE mmsi = ? AND source = ?').run(mmsi, source);
+}
+
+// True if a lookup for (mmsi, source) failed within the last `days` days. ISO
+// timestamps compare lexicographically, so the cutoff is built the same way.
+function hasRecentScrapeFailure(mmsi, source, days) {
+  if (!days || days <= 0) return false; // negative cache disabled → always retry
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  return !!db
+    .prepare('SELECT 1 FROM ship_scrape_failures WHERE mmsi = ? AND source = ? AND failed_at >= ?')
+    .get(mmsi, source, cutoff);
+}
+
 // ── Meta key/value ───────────────────────────────────────────────────────────
 const getMetaStmt = db.prepare('SELECT value FROM meta WHERE key = ?');
 const setMetaStmt = db.prepare(
@@ -1139,7 +1181,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'notifications', 'risk_history', 'moorings', 'berths', 'meta'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'meta'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -1259,6 +1301,9 @@ module.exports = {
   deleteAll,
   getScrapedData,
   setScrapedData,
+  setScrapeFailure,
+  clearScrapeFailure,
+  hasRecentScrapeFailure,
   insertLog,
   getLog,
   getLogs,

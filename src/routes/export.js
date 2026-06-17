@@ -22,12 +22,121 @@ const UPLOAD_LIMIT = `${MAX_UPLOAD_MB}mb`;
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
+// ── Bundle container (format v2) ──────────────────────────────────────────────
+// A bundle is a single portable file holding the DB + areas + settings. v2 is a
+// streaming binary container so neither writing nor restoring ever holds the
+// whole database in the (small, ~256 MB) V8 heap — the old v1 wrapped the DB as
+// base64 inside one JSON string, costing ~3× the DB size and OOM-ing as the DB
+// grows. Layout:
+//   [4B magic "TPB2"][4B BE uint32 metaLen][metaLen B meta JSON][raw SQLite bytes]
+// meta JSON = { format, version, exportedAt, label?, areas, settings }.
+// Legacy v1 (JSON with base64 `db`) is still read on restore for backward compat.
+const BUNDLE_MAGIC = 'TPB2';
+const COPY_CHUNK = 1 << 20; // 1 MB
+
+// Append the SQLite file at dbFilePath after a v2 header, all synchronously and
+// in bounded memory (1 MB chunks) — no base64, no whole-file buffering.
+function writeBundleFileSync(destPath, meta, dbFilePath) {
+  const metaBuf = Buffer.from(JSON.stringify(meta), 'utf8');
+  const header = Buffer.alloc(8);
+  header.write(BUNDLE_MAGIC, 0, 'ascii');
+  header.writeUInt32BE(metaBuf.length, 4);
+  const outFd = fs.openSync(destPath, 'w');
+  const inFd = fs.openSync(dbFilePath, 'r');
+  try {
+    fs.writeSync(outFd, header);
+    fs.writeSync(outFd, metaBuf);
+    const buf = Buffer.alloc(COPY_CHUNK);
+    let n;
+    while ((n = fs.readSync(inFd, buf, 0, buf.length, null)) > 0) fs.writeSync(outFd, buf, 0, n);
+  } finally {
+    fs.closeSync(inFd);
+    fs.closeSync(outFd);
+  }
+}
+
+// Copy `srcPath[start..EOF]` to destPath synchronously, in bounded memory.
+function copySliceSync(srcPath, start, destPath) {
+  const inFd = fs.openSync(srcPath, 'r');
+  const outFd = fs.openSync(destPath, 'w');
+  try {
+    const buf = Buffer.alloc(COPY_CHUNK);
+    let pos = start;
+    let n;
+    while ((n = fs.readSync(inFd, buf, 0, buf.length, pos)) > 0) {
+      fs.writeSync(outFd, buf, 0, n);
+      pos += n;
+    }
+  } finally {
+    fs.closeSync(inFd);
+    fs.closeSync(outFd);
+  }
+}
+
+function assertSqliteFile(dbPath) {
+  const fd = fs.openSync(dbPath, 'r');
+  try {
+    const b = Buffer.alloc(16);
+    const n = fs.readSync(fd, b, 0, 16, 0);
+    if (n < 15 || b.toString('latin1', 0, 15) !== 'SQLite format 3') {
+      throw new Error('database nel backup non valido');
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// Inspect a bundle file's head. v2 → { version: 2, payload, dbStart } reading
+// only the small header. Legacy → { version: 1, payload } parsing the whole JSON.
+// `payload` carries .areas / .settings (and, for v1, the base64 .db).
+function readBundleHead(bundlePath) {
+  const fd = fs.openSync(bundlePath, 'r');
+  let head;
+  try {
+    head = Buffer.alloc(8);
+    fs.readSync(fd, head, 0, 8, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  if (head.toString('ascii', 0, 4) === BUNDLE_MAGIC) {
+    const metaLen = head.readUInt32BE(4);
+    if (metaLen <= 0 || metaLen > 50 * 1024 * 1024) throw new Error('intestazione backup non valida');
+    const metaBuf = Buffer.alloc(metaLen);
+    const mfd = fs.openSync(bundlePath, 'r');
+    try {
+      fs.readSync(mfd, metaBuf, 0, metaLen, 8);
+    } finally {
+      fs.closeSync(mfd);
+    }
+    let payload;
+    try { payload = JSON.parse(metaBuf.toString('utf8')); } catch { throw new Error('intestazione backup non valida'); }
+    return { version: 2, payload, dbStart: 8 + metaLen };
+  }
+  // Legacy v1: the whole file is JSON with a base64 `db`.
+  let payload;
+  try { payload = JSON.parse(fs.readFileSync(bundlePath, 'utf8')); } catch { throw new Error('formato backup non valido'); }
+  if (!payload || payload.format !== BUNDLE_FORMAT) throw new Error('formato backup non valido');
+  return { version: 1, payload };
+}
+
+// Write the bundle's embedded SQLite DB to destDb, validating the magic header.
+function extractBundleDb(bundlePath, head, destDb) {
+  if (head.version === 2) {
+    copySliceSync(bundlePath, head.dbStart, destDb);
+  } else {
+    if (!head.payload.db) throw new Error('database nel backup non valido');
+    const buf = Buffer.from(head.payload.db, 'base64');
+    fs.writeFileSync(destDb, buf);
+  }
+  assertSqliteFile(destDb);
+}
+
 // ── Auto-backup helpers ───────────────────────────────────────────────────────
 
 function listSavedBackups() {
   try {
     return fs.readdirSync(BACKUP_DIR)
-      .filter((f) => f.startsWith('tracker-porti-') && f.endsWith('.json'))
+      .filter((f) => f.startsWith('tracker-porti-') && (f.endsWith('.tpbk') || f.endsWith('.json')))
       .map((filename) => {
         const stat = fs.statSync(path.join(BACKUP_DIR, filename));
         return { filename, size: stat.size, mtime: stat.mtimeMs };
@@ -45,24 +154,26 @@ function pruneOldBackups() {
   }
 }
 
+// Build the v2 meta blob (everything except the raw DB tail).
+function bundleMeta(label) {
+  return {
+    format: BUNDLE_FORMAT,
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    ...(label ? { label } : {}),
+    areas: exportAreas(),
+    settings: exportSettings(),
+  };
+}
+
 function createAndSaveBundle(label = 'auto') {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `tracker-porti-${label}backup-${ts}.json`;
+  const filename = `tracker-porti-${label}backup-${ts}.tpbk`;
   const filePath = path.join(BACKUP_DIR, filename);
   const tmp = path.join(os.tmpdir(), `tracker-porti-bundle-save-${ts}-${process.pid}.db`);
   try {
     db.backupTo(tmp);
-    const dbB64 = fs.readFileSync(tmp).toString('base64');
-    const bundle = {
-      format: BUNDLE_FORMAT,
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      label,
-      areas: exportAreas(),
-      settings: exportSettings(),
-      db: dbB64,
-    };
-    fs.writeFileSync(filePath, JSON.stringify(bundle), 'utf8');
+    writeBundleFileSync(filePath, bundleMeta(label), tmp); // streamed; DB never enters the heap
     pruneOldBackups();
     return { filename, mtime: fs.statSync(filePath).mtimeMs, size: fs.statSync(filePath).size };
   } finally {
@@ -82,23 +193,16 @@ function restoreDbFromLatestBackup() {
   const { filename } = backups[0];
   const filePath = path.join(BACKUP_DIR, filename);
 
-  let bundle;
+  let head;
   try {
-    bundle = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    head = readBundleHead(filePath);
   } catch (e) {
-    throw new Error(`backup non leggibile (${filename}): ${e.message}`);
-  }
-  if (!bundle || bundle.format !== BUNDLE_FORMAT || !bundle.db) {
-    throw new Error(`formato backup non valido (${filename})`);
+    throw new Error(`backup non valido (${filename}): ${e.message}`);
   }
 
   const tmp = path.join(os.tmpdir(), `tracker-porti-autorestore-${process.pid}.db`);
   try {
-    const buf = Buffer.from(bundle.db, 'base64');
-    if (buf.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
-      throw new Error(`database nel backup non valido (${filename})`);
-    }
-    fs.writeFileSync(tmp, buf);
+    extractBundleDb(filePath, head, tmp); // v2: streamed slice; v1: base64 decode
     const counts = db.restoreFrom(tmp);
     return { filename, counts };
   } finally {
@@ -242,65 +346,60 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
 });
 
 // ── Full bundle (database + areas + settings) ─────────────────────────────────
-// One self-contained JSON file holding everything needed to recreate the app's
-// state: the SQLite database (base64), the area definitions and the settings
-// toggles. Re-importable via POST /bundle/import.
+// One self-contained file holding everything needed to recreate the app's state:
+// the SQLite database, the area definitions and the settings toggles. Format v2
+// is a streaming binary container (see writeBundleFileSync) so the multi-MB DB
+// never enters the heap. Re-importable via POST /bundle/import (also reads the
+// legacy v1 JSON-base64 bundles).
 
 // Download the full bundle.
 router.get('/bundle', (req, res) => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const tmp = path.join(os.tmpdir(), `tracker-porti-bundle-${ts}-${process.pid}.db`);
+  const tmpDb = path.join(os.tmpdir(), `tracker-porti-bundle-${ts}-${process.pid}.db`);
+  const tmpBundle = path.join(os.tmpdir(), `tracker-porti-bundle-${ts}-${process.pid}.tpbk`);
   try {
-    db.backupTo(tmp);
-    const dbB64 = fs.readFileSync(tmp).toString('base64');
-    const bundle = {
-      format: BUNDLE_FORMAT,
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      areas: exportAreas(),
-      settings: exportSettings(),
-      db: dbB64,
-    };
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="tracker-porti-bundle-${ts}.json"`);
-    res.send(JSON.stringify(bundle));
+    db.backupTo(tmpDb);
+    writeBundleFileSync(tmpBundle, bundleMeta(null), tmpDb);
   } catch (e) {
-    if (!res.headersSent) res.status(500).json({ error: `Esportazione fallita: ${e.message}` });
-  } finally {
-    fs.unlink(tmp, () => {});
+    fs.unlink(tmpDb, () => {});
+    fs.unlink(tmpBundle, () => {});
+    return res.status(500).json({ error: `Esportazione fallita: ${e.message}` });
   }
+  fs.unlink(tmpDb, () => {});
+  res.download(tmpBundle, `tracker-porti-bundle-${ts}.tpbk`, (err) => {
+    fs.unlink(tmpBundle, () => {});
+    if (err && !res.headersSent) res.status(500).end();
+  });
 });
 
 // Restore a full bundle: replaces the database, merges the areas and applies the
-// settings. The raw JSON file is sent as the request body (large: contains the
-// base64 database), so it bypasses the global express.json() size limit.
+// settings. The raw file is sent as the request body (large: contains the whole
+// DB), so it bypasses the global express.json() size limit. The upload is spooled
+// to disk and the DB is streamed out of it — never base64-decoded into the heap.
 router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
   if (!req.body || !req.body.length) {
     return res.status(400).json({ error: 'Nessun file ricevuto' });
   }
-  let bundle;
-  try {
-    bundle = JSON.parse(req.body.toString('utf8'));
-  } catch {
-    return res.status(400).json({ error: 'File non valido: JSON non leggibile' });
-  }
-  if (!bundle || bundle.format !== BUNDLE_FORMAT || !bundle.db) {
-    return res.status(400).json({ error: 'File non valido: non è un backup completo di tracker-porti' });
-  }
 
-  const tmp = path.join(os.tmpdir(), `tracker-porti-bundle-restore-${process.pid}.db`);
+  const tmpBundle = path.join(os.tmpdir(), `tracker-porti-bundle-upload-${process.pid}.tpbk`);
+  const tmpDb = path.join(os.tmpdir(), `tracker-porti-bundle-restore-${process.pid}.db`);
   try {
-    const buf = Buffer.from(bundle.db, 'base64');
-    if (buf.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
-      return res.status(400).json({ error: 'Database nel backup non valido' });
+    fs.writeFileSync(tmpBundle, req.body);
+    let head;
+    try {
+      head = readBundleHead(tmpBundle);
+    } catch {
+      return res.status(400).json({ error: 'File non valido: non è un backup completo di tracker-porti' });
     }
-    fs.writeFileSync(tmp, buf);
-    const counts = db.restoreFrom(tmp);
+    const payload = head.payload || {};
+
+    extractBundleDb(tmpBundle, head, tmpDb);
+    const counts = db.restoreFrom(tmpDb);
 
     let areas = null;
-    if (bundle.areas) {
+    if (payload.areas) {
       try {
-        areas = importAreasAndStart(bundle.areas);
+        areas = importAreasAndStart(payload.areas);
       } catch (e) {
         console.error(`[BUNDLE] Import aree fallito: ${e.message}`);
       }
@@ -312,9 +411,9 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
 
     let settings = null;
-    if (bundle.settings) {
+    if (payload.settings) {
       try {
-        settings = applyImportedSettings(bundle.settings);
+        settings = applyImportedSettings(payload.settings);
       } catch (e) {
         console.error(`[BUNDLE] Import impostazioni fallito: ${e.message}`);
       }
@@ -325,7 +424,8 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
   } catch (e) {
     res.status(400).json({ error: `Importazione fallita: ${e.message}` });
   } finally {
-    fs.unlink(tmp, () => {});
+    fs.unlink(tmpBundle, () => {});
+    fs.unlink(tmpDb, () => {});
   }
 });
 
@@ -349,7 +449,7 @@ router.post('/backups/save', (req, res) => {
 // Download a specific backup file.
 router.get('/backups/:filename/download', (req, res) => {
   const filename = path.basename(req.params.filename);
-  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.json$/.test(filename)) {
+  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.(tpbk|json)$/.test(filename)) {
     return res.status(400).json({ error: 'Nome file non valido' });
   }
   const filePath = path.join(BACKUP_DIR, filename);
@@ -360,7 +460,7 @@ router.get('/backups/:filename/download', (req, res) => {
 // Selective restore from a saved backup. Body: { parts: ['db','areas','settings'] }.
 router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req, res) => {
   const filename = path.basename(req.params.filename);
-  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.json$/.test(filename)) {
+  if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.(tpbk|json)$/.test(filename)) {
     return res.status(400).json({ error: 'Nome file non valido' });
   }
   const filePath = path.join(BACKUP_DIR, filename);
@@ -372,15 +472,13 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     return res.status(400).json({ error: 'Parti non valide. Usa: db, areas, settings' });
   }
 
-  let bundle;
+  let head;
   try {
-    bundle = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    head = readBundleHead(filePath);
   } catch (e) {
     return res.status(400).json({ error: `File non leggibile: ${e.message}` });
   }
-  if (!bundle || bundle.format !== BUNDLE_FORMAT) {
-    return res.status(400).json({ error: 'Non è un backup valido di tracker-porti' });
-  }
+  const payload = head.payload || {};
 
   const tmp = path.join(os.tmpdir(), `tracker-porti-backup-restore-${process.pid}.db`);
   try {
@@ -388,17 +486,13 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     let areas = null;
     let settings = null;
 
-    if (parts.includes('db') && bundle.db) {
-      const buf = Buffer.from(bundle.db, 'base64');
-      if (buf.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
-        return res.status(400).json({ error: 'Database nel backup non valido' });
-      }
-      fs.writeFileSync(tmp, buf);
+    if (parts.includes('db')) {
+      extractBundleDb(filePath, head, tmp);
       counts = db.restoreFrom(tmp);
     }
 
-    if (parts.includes('areas') && bundle.areas) {
-      try { areas = importAreasAndStart(bundle.areas); } catch (e) {
+    if (parts.includes('areas') && payload.areas) {
+      try { areas = importAreasAndStart(payload.areas); } catch (e) {
         console.error(`[BACKUP] Import aree: ${e.message}`);
       }
     }
@@ -410,8 +504,8 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     }
     if (parts.includes('db')) rebuildBerthsAfterRestore();
 
-    if (parts.includes('settings') && bundle.settings) {
-      try { settings = applyImportedSettings(bundle.settings); } catch (e) {
+    if (parts.includes('settings') && payload.settings) {
+      try { settings = applyImportedSettings(payload.settings); } catch (e) {
         console.error(`[BACKUP] Import impostazioni: ${e.message}`);
       }
     }

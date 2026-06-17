@@ -176,6 +176,7 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Max record per tipo messaggio   | `src/db.js`                       | `pruneStmt.run(..., 10000)`           | 10.000         |
 | Max punti track mappa           | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` e default `500` | 500 punti      |
 | TTL cache scraping VF/MT        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 ore          |
+| Negative cache scraping VF/MT   | `app.config.properties`           | `SCRAPE_NEG_CACHE_DAYS`               | 3 giorni       |
 | Bounce annullamento eliminazione notifiche | `app.config.properties` | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
 | Raggio clustering banchine      | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
 | Attracchi minimi per banchina   | `app.config.properties`           | `BERTH_MIN_PTS`                       | 3              |
@@ -420,6 +421,13 @@ Garanzie:
 - **Non bloccante**: fire-and-forget, nessun `await` nel loop di ingest AIS. Errori loggati (`[ENRICH:vf|mt]`), mai propagati.
 - Se l'MMSI compare prima dei dati statici (IMO/callsign assenti), VF/MT risolvono comunque tramite MMSI.
 
+#### Backfill all'abilitazione, ripristino e negative cache
+
+- **Backfill al toggle**: abilitando VesselFinder o MarineTraffic dalle impostazioni (`POST /api/settings`), `enrichAllExisting(source)` arricchisce in background tutte le navi viste negli **ultimi 7 giorni** ancora prive di cache per quella fonte (una alla volta, 2 s di intervallo). Le due fonti sono indipendenti (cache per `mmsi`+`source`).
+- **Il ripristino non riscrape**: applicare le impostazioni da un backup/bundle (`applyImportedSettings`) **non** lancia il backfill. I dati VF/MT vivono in `ship_scrape_cache`, che fa parte del backup del DB e viene ripristinato con esso — ri-scrapare ogni nave caricata sarebbe inutile e martellante. Il backfill resta solo sul toggle interattivo.
+- **Negative cache** (`SCRAPE_NEG_CACHE_DAYS`, default 3 giorni): un lookup fallito (la fonte non conosce la nave — tipico delle navi senza IMO, cercate per MMSI → 404/redirect) non scrive nulla in `ship_scrape_cache`, quindi la nave resterebbe "senza cache" e verrebbe ri-contattata a **ogni** riabilitazione. Il fallimento viene perciò registrato in `ship_scrape_failures` (anch'essa nel backup); il backfill salta una nave il cui ultimo fallimento è più recente di `SCRAPE_NEG_CACHE_DAYS`, poi la ritenta. `0` = disabilitato (ritenta sempre). Un fetch riuscito cancella il marcatore.
+- I redirect di VesselFinder verso percorsi **relativi** (es. `/vessels` per le navi sconosciute) vengono risolti contro l'URL corrente in `fetchHttp`, evitando l'errore `Invalid URL`.
+
 ### Lookup Equasis (proprietà/gestione, on-demand)
 
 [Equasis](https://www.equasis.org/) è un database gratuito EU/US che espone i dati di **proprietà e gestione** della nave (registered owner, ISM manager, operator, DOC company) che l'AIS non trasmette e che VF/MT non offrono gratis. Lo scraper [`src/services/scrapers/equasis.js`](src/services/scrapers/equasis.js) (`crawlEquasis(imo)`) è volutamente **fuori** dal percorso di arricchimento proattivo: parte **solo** quando l'utente preme **Recupera informazioni Equasis** nel dettaglio.
@@ -528,7 +536,7 @@ Il server crea automaticamente un backup "bundle" completo (database + aree + im
     - **Impostazioni**
     - Qualsiasi combinazione delle tre. Il ripristino è irreversibile (con conferma).
 
-I backup automatici si trovano in `data/backups/tracker-porti-autobackup-<timestamp>.json`; i manuali in `tracker-porti-manualbackup-<timestamp>.json`.
+I backup automatici si trovano in `data/backups/tracker-porti-autobackup-<timestamp>.tpbk`; i manuali in `tracker-porti-manualbackup-<timestamp>.tpbk`. Il `.tpbk` è un contenitore binario in streaming — intestazione + aree/impostazioni (JSON) + database SQLite grezzo — che evita di tenere l'intero DB in memoria durante salvataggio e ripristino (i vecchi backup `.json`, con il DB in base64, restano comunque ripristinabili: il formato viene rilevato automaticamente).
 
 #### Auto-ripristino dopo un deploy
 
@@ -703,7 +711,7 @@ pm2 save
 | ------------------------------| -------------------------------------------------------------------|
 | `src/server.js` / `src/app.js`| Entry point + factory dell'app Express                            |
 | `src/config.js`               | Config (local.properties/env), preset bbox, costanti, stato runtime; aggiunta/rimozione aree a runtime (`addArea`/`removeArea`, persistite in `bounding-boxes.json`); esporta `areaForPoint(lat, lon)` per risolvere una coordinata al preset più specifico |
-| `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`notifications`/`risk_history`/`moorings`/`berths`, insert/upsert, query, predicato attive |
+| `src/db.js`                   | Wrapper SQLite: schema `readings`/`ships`/`port_events`/`api_log`/`ship_scrape_cache`/`ship_scrape_failures`/`notifications`/`risk_history`/`moorings`/`berths`, insert/upsert, query, predicato attive |
 | `src/services/ais-stream.js`  | Client WebSocket AISStream multi-area (`Map<areaKey, state>`) + riconnessione + eventi porto + notifiche di rientro e cambio area |
 | `src/services/berths.js`      | Rilevamento attracchi + clustering DBSCAN + caratterizzazione banchine (convex hull, point-in-polygon, backfill/ricalcolo) + notifiche di nuova banchina e caratterizzazione |
 | `src/services/ship-categories.js` | Mappa codice tipo nave AIS → categoria larga (cargo/tanker/passeggeri/…) + flag hazmat, usata per caratterizzare le banchine |
@@ -747,6 +755,8 @@ pm2 save
 | `last_area` | TEXT NOT NULL DEFAULT '' | Chiave dell'ultima area in cui la nave è stata rilevata |
 
 Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da VesselFinder / MarineTraffic / Equasis per `(mmsi, source)`, con `scraped_at`. Source: `vf`/`mt` con TTL `SCRAPE_CACHE_TTL`; `eq` (Equasis) senza scadenza (salvato una volta).
+
+Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/MT falliti per `(mmsi, source)`, con `failed_at` e `reason`. Il backfill salta una nave finché il fallimento è più recente di `SCRAPE_NEG_CACHE_DAYS`; un fetch riuscito cancella la riga. Evita di ri-contattare a ogni riabilitazione le navi che le fonti non conoscono.
 
 **`port_events`** — eventi arrivo/partenza rilevati automaticamente: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area in cui è avvenuto l'evento).
 

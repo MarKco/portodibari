@@ -27,7 +27,11 @@ function fetchHttp(url, depth = 0) {
     const req = https.request(options, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        fetchHttp(res.headers.location, depth + 1).then(resolve).catch(reject);
+        // Resolve the Location against the current URL — VesselFinder redirects
+        // unknown vessels to a *relative* path (e.g. "/vessels"), which would
+        // otherwise throw "Invalid URL" when re-parsed without a base.
+        const next = new URL(res.headers.location, url).href;
+        fetchHttp(next, depth + 1).then(resolve).catch(reject);
         return;
       }
       if (res.statusCode !== 200) {

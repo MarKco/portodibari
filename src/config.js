@@ -132,6 +132,9 @@ const STILL_RADIUS_M = num('STILL_RADIUS_M', 100);
 const ACTIVE_WINDOW_HOURS = num('ACTIVE_WINDOW_HOURS', 6);
 const PORT_WINDOW_HOURS = num('PORT_WINDOW_HOURS', 24);
 const SCRAPE_CACHE_TTL = num('SCRAPE_CACHE_TTL_HOURS', 6) * 60 * 60 * 1000;
+// Negative cache: days a ship VF/MT returned no data for is skipped by the
+// backfill (0 = disabled, always retry).
+const SCRAPE_NEG_CACHE_DAYS = num('SCRAPE_NEG_CACHE_DAYS', 3);
 const RECONNECT_DELAY_MS = num('RECONNECT_DELAY_MS', 5000);
 const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
 const MAX_API_LOG_RECORDS = num('MAX_API_LOG_RECORDS', 20000);
@@ -506,6 +509,7 @@ module.exports = {
   ACTIVE_WINDOW_HOURS,
   PORT_WINDOW_HOURS,
   SCRAPE_CACHE_TTL,
+  SCRAPE_NEG_CACHE_DAYS,
   RECONNECT_DELAY_MS,
   MAX_READINGS_PER_TYPE,
   MAX_API_LOG_RECORDS,
