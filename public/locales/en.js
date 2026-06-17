@@ -248,7 +248,9 @@ export default {
 
   // ── Application log (operational event log) ──────────────────────────────────
   'sidebar.logOverlay':   'Activity log',
-  'settings.tab.log':     'Log',
+  'settings.tab.log':     'Activity log',
+  'settings.tab.logs':    'API Log',
+  'settings.tab.health':  'AIS Diagnostics',
   'settings.appLog.name': 'Activity log',
   'settings.appLog.desc': 'Records the app\'s significant operations (stream, data fetches, sanctions, backups, errors) to a file with automatic rotation (max ~5 MB). On by default.',
   'appLog.title':         'Activity log',

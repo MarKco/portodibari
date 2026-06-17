@@ -27,10 +27,8 @@ Non richiede conoscenze tecniche per essere utilizzato.
 | **▶ Avvia il monitoraggio** | Avvia la ricezione dei dati AIS in tempo reale per l'area correntemente visualizzata |
 | **■ Ferma** | Interrompe la ricezione per l'area corrente (i dati già raccolti rimangono) |
 | **🗑 Cancella dati** | Elimina le letture dell'area correntemente visualizzata — **irreversibile** |
-| **📋 Log API** | Apre il pannello tecnico dei log (per diagnosi) |
-| **📡 Diagnostica AIS** | Mostra lo stato della connessione al flusso AIS per l'area corrente |
 | **🗺 Aree** | Apre la schermata di gestione aree: elenco, mappa, aggiunta e rimozione di aree (vedi [Gestione aree](#gestione-aree)) |
-| **⚙ Impostazioni** | Apre le impostazioni dell'applicazione |
+| **⚙ Impostazioni** | Apre le impostazioni dell'applicazione. Include i tab tecnici **Log API** (📋) e **Diagnostica AIS** (📡) |
 | **🔔 Notifiche** | Mostra/nasconde la lista delle notifiche nella barra laterale. Un badge rosso indica il numero di notifiche da leggere (vedi [Notifiche](#notifiche)) |
 | **Area:** | Seleziona la zona geografica da visualizzare. Non avvia né ferma lo stream — ogni area ha il proprio stream indipendente. Le opzioni mostrano 🟢 se lo stream è attivo o ⚪ se è spento. |
 | **N letture** | Contatore in basso: quante posizioni sono state ricevute in sessione |
@@ -381,7 +379,7 @@ Passa il cursore sul badge per vedere i dettagli dei fattori e le fonti.
 
 ## Diagnostica AIS
 
-Apri con **📡 Diagnostica AIS** nella barra laterale. Mostra lo stato della connessione al flusso dati:
+Apri da **⚙ Impostazioni → tab 📡 Diagnostica AIS**. Mostra lo stato della connessione al flusso dati:
 
 - **Connessione** — Connesso / Disconnesso
 - **Uptime sessione** — Da quanto tempo il flusso è attivo

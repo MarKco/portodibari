@@ -13,7 +13,7 @@ const numOr = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const ACTIVE_WINDOW_HOURS = numOr(cfg.ACTIVE_WINDOW_HOURS, 6);
 const PORT_WINDOW_HOURS = numOr(cfg.PORT_WINDOW_HOURS, 24);
 const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
-const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 20000);
+const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 1000);
 const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
 
 // The SQLite file lives at the project root (one level above src/).

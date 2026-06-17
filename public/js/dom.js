@@ -157,10 +157,7 @@ export const el = {
   toggleImportEquasis: $('toggle-import-equasis'),
   btnEquasisLog: $('btn-equasis-log'),
 
-  // Log panel
-  btnLog: $('btn-log'),
-  logPanel: $('log-panel'),
-  btnLogClose: $('btn-log-close'),
+  // API log panel (Settings → Log API tab)
   btnLogClear: $('btn-log-clear'),
   logLiveBadge: $('log-live-badge'),
   logBody: $('log-body'),
@@ -181,9 +178,6 @@ export const el = {
   appLogLive: $('app-log-live'),
   appLogClear: $('btn-app-log-clear'),
 
-  // Health panel
-  btnHealth: $('btn-health'),
-  healthOverlay: $('health-overlay'),
-  healthClose: $('health-close'),
+  // Health panel (Settings → Diagnostica AIS tab)
   healthBody: $('health-body'),
 };

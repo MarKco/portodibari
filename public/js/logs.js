@@ -60,14 +60,14 @@ function connectLogStream() {
   };
 }
 
-function openLogPanel() {
-  el.logPanel.classList.remove('hidden');
+// Called when the Settings → "Log API" tab becomes active.
+export function openLogs() {
   fetchLogs();
   connectLogStream();
 }
 
-function closeLogPanel() {
-  el.logPanel.classList.add('hidden');
+// Called when leaving that tab (or Settings entirely): stop the live stream.
+export function closeLogs() {
   if (logEs) {
     logEs.close();
     logEs = null;
@@ -129,8 +129,6 @@ async function openLogModal(id) {
 }
 
 export function initLogPanel() {
-  el.btnLog.addEventListener('click', openLogPanel);
-  el.btnLogClose.addEventListener('click', closeLogPanel);
   el.btnLogClear.addEventListener('click', async () => {
     if (!confirm(t('confirm.clearLog'))) return;
     await api('/api/logs', 'DELETE');

@@ -182,7 +182,7 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Auto-restore DB after deploy    | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | On-disk auto-backup interval    | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 | Max request/response body bytes in log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
-| Max API log records             | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 20,000         |
+| Max API log records             | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 1,000          |
 | DB compaction interval (WAL + vacuum) | `src/server.js`             | `setInterval(db.runMaintenance, …)`   | 5 min          |
 
 ### Applying changes
@@ -209,7 +209,7 @@ The interface is organized around **ships** (MMSI), not individual readings:
 | **Traffic**        | Aggregate statistics: summary cards, arrivals by hour-of-day chart, arrivals by ship type; **risk score distribution** (green/yellow/red tiles for ships in the last 7 days), **top risk factors** (frequency), **daily arrivals** (last 30 days), **highest-score ships** (top 8, clickable); expected ships (by preset keyword), latest port events |
 | **Areas**          | Runtime area management: list with coordinates/status/stored data, map showing all areas, panel to add (GPS coordinates or map view capture) and delete areas (with related history and a 10s undo window) |
 
-Accessory modals: **Settings** (Area monitoring panel with per-area start/stop toggles, toggle VF/MT import, CSV export, database backup/restore), **AIS Stream Diagnostics** (uptime, msg/min, reconnections, last error), **Logs** (live panel of API requests via SSE). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
+Accessory modals: **Settings**, organized into tabs: **General** (VF/MT/sanctions/PSC/Equasis import toggles and notifications), **Areas** (per-area start/stop stream toggles), **Parameters** (`app.config.properties` editor), **Backup/Restore** (auto-backup, CSV export, database backup/restore), **Activity log** (operational event log, live via SSE), **API Log** (live panel of API requests via SSE) and **AIS Diagnostics** (uptime, msg/min, reconnections, last error). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
 
 A ship "enters" the active list as soon as it receives its first reading. The window is wide (6 hours) because anchored ships transmit infrequently: a moored ship may update its position only every 3 hours (AIS Class A standard). Ships **in port** (see below) have an even wider retention (24 hours), so they remain visible after a server restart before their next transmission.
 
@@ -507,7 +507,7 @@ npm run format   # Prettier
 10. Tab **Traffic**: statistics, arrivals by hour/type charts; risk score distribution (green/yellow/red), most frequent factors, arrivals by day (30 days), top 8 ships by score (clickable); expected ships, latest port events
 11. **⚙ Settings**: **Area monitoring** panel (start/stop toggle per area, with 🟢/⚪ status); enable/disable VesselFinder and MarineTraffic import; **Export CSV** (ZIP with one CSV per message type); database **backup** and **restore** (see below)
 11b. **🗺 Areas**: runtime area management — list with coordinates, status and stored data; map of all areas; add a new area by **GPS coordinates** or with **🎯 Capture current view** (framing the area on the map); delete an area and its history, with a **10s undo toast**. The **🏠 Monitoring** button returns to the home.
-12. **📡 AIS Diagnostics**: connection status (uptime, msg/min, reconnections, errors) for the currently viewed area
+12. **📡 AIS Diagnostics** (tab in Settings): connection status (uptime, msg/min, reconnections, errors) for the currently viewed area
 13. **🗑 Clear data** → deletes readings, ships and port events for the **currently viewed area** only (confirmation dialog shows the area name)
 14. Click **■ Stop** to stop the stream (data remains in the DB)
 15. The 🌙/☀️ button at the bottom right toggles dark/light theme (saved in localStorage)
@@ -740,7 +740,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 
 **`port_events`** — automatically detected arrival/departure events: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area where the event occurred).
 
-**`api_log`** — HTTP request log (max 20,000, automatic rotation): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
+**`api_log`** — HTTP request log (max 1,000, automatic rotation): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
 **`notifications`** — notification feed shown in the sidebar (max 100, automatic rotation): `type` (`revisit`, `area_change`, `high_risk`, `berth_new` or `berth_characterized`), `mmsi`, `ship_name` (for berths: the berth name, if it has one), `area` (destination area), `from_area` (origin area, only for `area_change`), `band` (`low`/`med`/`high` for ship notifications; the berth category for `berth_characterized`) and risk `score` computed at event time, `berth_id` (referenced berth, only for berth notifications), `ts`, `read` (0/1).
 

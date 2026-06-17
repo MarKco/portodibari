@@ -900,8 +900,7 @@ td.empty {
 .pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Modals (shared) ──────────────────────────────────────────────────── */
-#modal-overlay,
-#health-overlay {
+#modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(6, 9, 14, 0.7);
@@ -916,8 +915,7 @@ td.empty {
 }
 @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
 
-#modal,
-#health-modal {
+#modal {
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-lg);
@@ -927,8 +925,7 @@ td.empty {
   overflow: hidden;
   animation: modal-in var(--t-base) var(--ease);
 }
-#modal        { width: min(700px, 95vw); max-height: 85vh; }
-#health-modal { width: min(620px, 95vw); max-height: 85vh; }
+#modal { width: min(700px, 95vw); max-height: 85vh; }
 
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
@@ -998,34 +995,6 @@ pre {
 }
 
 /* ── Log panel ────────────────────────────────────────────────────────── */
-#log-panel {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  padding: 1.75rem;
-  overflow: hidden;
-}
-
-.log-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-.log-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.log-panel-actions { display: flex; align-items: center; gap: 0.75rem; }
 .log-autoscroll-label {
   display: flex;
   align-items: center;
@@ -1037,7 +1006,8 @@ pre {
 }
 
 #log-table-wrap {
-  flex: 1;
+  width: 100%;
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
@@ -1653,8 +1623,14 @@ pre {
 .info-label { color: var(--text-dim); font-size: 0.78rem; }
 
 /* ── Settings view ────────────────────────────────────────────────────── */
-.settings-content { max-width: 680px; }
+.settings-content { max-width: 100%; }
 .settings-content .tabs { margin-bottom: 0; }
+/* Form-style panels keep a readable narrow column; the two log panels and the
+   AIS diagnostics panel span the full page width. */
+#settings-panel-general,
+#settings-panel-areas,
+#settings-panel-params,
+#settings-panel-backup { max-width: 680px; }
 
 .setting-row {
   display: flex;

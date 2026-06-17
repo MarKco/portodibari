@@ -8,9 +8,9 @@ import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
-import { initLogPanel } from './logs.js';
+import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
-import { initHealthPanel } from './health.js';
+import { openHealth, closeHealth } from './health.js';
 import { initAreas } from './areas.js';
 import { initNotifications, loadNotifications } from './notifications.js';
 import { initTheme } from './theme.js';
@@ -243,32 +243,46 @@ async function showEquasisLog() {
   }
 }
 
+// Show one settings panel and start/stop the live feeds tied to each tab.
+// Only one feed runs at a time — the one whose tab is currently visible.
+function activateSettingsPanel(panel) {
+  const target = `settings-panel-${panel}`;
+  el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
+  if (panel === 'backup') loadAutoBackups();
+  if (panel === 'params') loadAppConfig();
+  if (panel === 'log') openSettingsLog(); else closeSettingsLog();
+  if (panel === 'logs') openLogs(); else closeLogs();
+  if (panel === 'health') openHealth(); else closeHealth();
+}
+
+// Stop every live feed when leaving Settings.
+function stopSettingsFeeds() {
+  closeSettingsLog();
+  closeLogs();
+  closeHealth();
+}
+
 function initSettingsModal() {
   el.btnSettings.addEventListener('click', () => {
     if (S.view !== 'settings') S.settingsFrom = S.view;
     showView('settings');
-    // Resume tailing if the user had left Settings on the Log tab.
-    const logTab = document.getElementById('settings-tab-log');
-    if (logTab && logTab.classList.contains('tab-active')) openSettingsLog();
+    // Resume the live feed of whichever tab the user had left active.
+    const active = el.settingsTabs.querySelector('.tab.tab-active');
+    if (active) activateSettingsPanel(active.dataset.panel);
   });
   el.btnSettingsBack.addEventListener('click', () => {
-    closeSettingsLog();
+    stopSettingsFeeds();
     showView(S.settingsFrom || 'active');
   });
 
-  // Settings tabs — switch between the panels (general / areas / params / backup / log).
+  // Settings tabs — switch between the panels
+  // (general / areas / params / backup / log / logs / health).
   el.settingsTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
     el.settingsTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
     tab.classList.add('tab-active');
-    const target = `settings-panel-${tab.dataset.panel}`;
-    el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
-    if (tab.dataset.panel === 'backup') loadAutoBackups();
-    if (tab.dataset.panel === 'params') loadAppConfig();
-    // Tail the live app-log only while its tab is the active one.
-    if (tab.dataset.panel === 'log') openSettingsLog();
-    else closeSettingsLog();
+    activateSettingsPanel(tab.dataset.panel);
   });
 
   // Per-area monitor toggles — start/stop a stream without leaving Settings.
@@ -1011,7 +1025,6 @@ initSettingsModal();
 initBboxSelect();
 initLogPanel();
 initAppLog();
-initHealthPanel();
 initAreas();
 initNotifications();
 initMapResizer();

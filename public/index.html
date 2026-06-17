@@ -57,16 +57,6 @@
         <span class="sb-label" data-i18n="sidebar.clear">Cancella dati</span>
       </button>
       <div class="sb-divider"></div>
-      <button id="btn-log" class="btn btn-secondary sb-btn"
-              data-i18n-title="sidebar.logs" title="Log API">
-        <span class="sb-icon">📋</span>
-        <span class="sb-label" data-i18n="sidebar.logs">Log API</span>
-      </button>
-      <button id="btn-health" class="btn btn-secondary sb-btn"
-              data-i18n-title="sidebar.health" title="Diagnostica AIS">
-        <span class="sb-icon">📡</span>
-        <span class="sb-label" data-i18n="sidebar.health">Diagnostica AIS</span>
-      </button>
       <button id="btn-areas" class="btn btn-secondary sb-btn"
               data-i18n-title="sidebar.areas" title="Aree">
         <span class="sb-icon">🗺</span>
@@ -475,7 +465,11 @@
           <button id="settings-tab-backup" class="tab" data-panel="backup"
                   data-i18n="settings.tab.backup">Backup / Ripristino</button>
           <button id="settings-tab-log" class="tab" data-panel="log"
-                  data-i18n="settings.tab.log">Log</button>
+                  data-i18n="settings.tab.log">Log attività</button>
+          <button id="settings-tab-logs" class="tab" data-panel="logs"
+                  data-i18n="settings.tab.logs">Log API</button>
+          <button id="settings-tab-health" class="tab" data-panel="health"
+                  data-i18n="settings.tab.health">Diagnostica AIS</button>
         </div>
         <div id="settings-panel-general" class="settings-panel">
         <div class="setting-row">
@@ -737,46 +731,42 @@
           </div>
           <div id="app-log-body" class="app-log-body"></div>
         </div>
+        <div id="settings-panel-logs" class="settings-panel hidden">
+          <div class="app-log-toolbar">
+            <span id="log-live-badge" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+            <span class="app-log-toolbar-spacer"></span>
+            <label class="log-autoscroll-label">
+              <input type="checkbox" id="log-autoscroll" checked>
+              <span data-i18n="log.autoscroll">Auto-scroll</span>
+            </label>
+            <button id="btn-log-clear" class="btn btn-clear btn-sm" data-i18n="log.clear">🗑 Cancella log</button>
+          </div>
+          <div id="log-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="log.col.n">#</th>
+                  <th data-i18n="log.col.time">Ora</th>
+                  <th data-i18n="log.col.method">Metodo</th>
+                  <th data-i18n="log.col.path">Path</th>
+                  <th data-i18n="log.col.status">Status</th>
+                  <th data-i18n="log.col.dur">Durata</th>
+                </tr>
+              </thead>
+              <tbody id="log-body">
+                <tr><td colspan="6" class="empty" data-i18n="empty.logs">Nessuna chiamata registrata.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div id="settings-panel-health" class="settings-panel hidden">
+          <div id="health-body"></div>
+        </div>
       </div>
     </div>
 
   </div><!-- /#app -->
   </div><!-- /#layout -->
-
-  <!-- Log panel -->
-  <div id="log-panel" class="hidden">
-    <div class="log-panel-header">
-      <div class="log-panel-title">
-        <span data-i18n="log.title">Log API</span>
-        <span id="log-live-badge" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
-      </div>
-      <div class="log-panel-actions">
-        <label class="log-autoscroll-label">
-          <input type="checkbox" id="log-autoscroll" checked>
-          <span data-i18n="log.autoscroll">Auto-scroll</span>
-        </label>
-        <button id="btn-log-clear" class="btn btn-clear" data-i18n="log.clear">🗑 Cancella log</button>
-        <button id="btn-log-close" class="btn btn-secondary" data-i18n="log.close">✕ Chiudi</button>
-      </div>
-    </div>
-    <div id="log-table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th data-i18n="log.col.n">#</th>
-            <th data-i18n="log.col.time">Ora</th>
-            <th data-i18n="log.col.method">Metodo</th>
-            <th data-i18n="log.col.path">Path</th>
-            <th data-i18n="log.col.status">Status</th>
-            <th data-i18n="log.col.dur">Durata</th>
-          </tr>
-        </thead>
-        <tbody id="log-body">
-          <tr><td colspan="6" class="empty" data-i18n="empty.logs">Nessuna chiamata registrata.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
 
   <!-- Floating application-log overlay window -->
   <div id="log-overlay-window" class="log-overlay-window hidden">
@@ -790,16 +780,6 @@
     <div id="log-ov-body" class="log-ov-body"></div>
   </div>
 
-  <!-- Health modal -->
-  <div id="health-overlay" class="hidden">
-    <div id="health-modal">
-      <div class="modal-header">
-        <h2 data-i18n="health.title">Diagnostica AIS Stream</h2>
-        <button id="health-close">&times;</button>
-      </div>
-      <div id="health-body"></div>
-    </div>
-  </div>
 
   <!-- Modal lettura singola -->
   <div id="modal-overlay" class="hidden">

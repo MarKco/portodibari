@@ -57,25 +57,15 @@ async function fetchHealth() {
   }
 }
 
-function openHealthPanel() {
-  el.healthOverlay.classList.remove('hidden');
+// Called when the Settings → "Diagnostica AIS" tab becomes active: poll health
+// every 5s while visible.
+export function openHealth() {
   fetchHealth();
   healthTimer = setInterval(fetchHealth, 5000);
 }
 
-function closeHealthPanel() {
-  el.healthOverlay.classList.add('hidden');
+// Called when leaving that tab (or Settings entirely): stop polling.
+export function closeHealth() {
   clearInterval(healthTimer);
   healthTimer = null;
-}
-
-export function initHealthPanel() {
-  el.btnHealth.addEventListener('click', openHealthPanel);
-  el.healthClose.addEventListener('click', closeHealthPanel);
-  el.healthOverlay.addEventListener('click', (e) => {
-    if (e.target === el.healthOverlay) closeHealthPanel();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeHealthPanel();
-  });
 }

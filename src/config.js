@@ -137,7 +137,10 @@ const SCRAPE_CACHE_TTL = num('SCRAPE_CACHE_TTL_HOURS', 6) * 60 * 60 * 1000;
 const SCRAPE_NEG_CACHE_DAYS = num('SCRAPE_NEG_CACHE_DAYS', 3);
 const RECONNECT_DELAY_MS = num('RECONNECT_DELAY_MS', 5000);
 const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
-const MAX_API_LOG_RECORDS = num('MAX_API_LOG_RECORDS', 20000);
+// API audit trail (api_log table) is capped to the most recent N requests;
+// older rows are pruned on every insert (see db.js) so the table can't grow
+// unbounded. Default 1000 — enough to inspect recent activity without bloat.
+const MAX_API_LOG_RECORDS = num('MAX_API_LOG_RECORDS', 1000);
 const POLL_INTERVAL_MS = num('POLL_INTERVAL_MS', 300000);
 const TRACK_MERGE_RADIUS_M = num('TRACK_MERGE_RADIUS_M', 100);
 const TRACK_DEFAULT_LIMIT = num('TRACK_DEFAULT_LIMIT', 500);

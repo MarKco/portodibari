@@ -27,10 +27,8 @@ No technical knowledge is required to use it.
 | **▶ Start monitoring** | Start receiving AIS data in real time for the currently viewed area |
 | **■ Ferma** | Stop receiving data for the current area (already collected data is retained) |
 | **🗑 Cancella dati** | Delete readings for the currently viewed area — **irreversible** |
-| **📋 Log API** | Open the API log panel (for diagnostics) |
-| **📡 Diagnostica AIS** | Show connection status to the AIS stream for the current area |
 | **🗺 Areas** | Open the area management screen: list, map, add and remove areas (see [Area management](#area-management)) |
-| **⚙ Impostazioni** | Open application settings |
+| **⚙ Impostazioni** | Open application settings. Includes the technical tabs **API Log** (📋) and **AIS Diagnostics** (📡) |
 | **🔔 Notifications** | Show/hide the notifications list in the sidebar. A red badge shows the number of unread notifications (see [Notifications](#notifications)) |
 | **Area:** | Select the geographic zone to display. This does not start or stop any stream — each area has its own independent stream. Options show 🟢 if the stream is active or ⚪ if it is off. |
 | **N letture** | Counter at the bottom: how many positions have been received this session |
@@ -381,7 +379,7 @@ Hover over the badge to see factor details and sources.
 
 ## AIS diagnostics
 
-Open with **📡 Diagnostica AIS** in the sidebar. Shows the data stream connection status:
+Open from **⚙ Settings → 📡 AIS Diagnostics tab**. Shows the data stream connection status:
 
 - **Connection** — Connected / Disconnected
 - **Session uptime** — How long the stream has been active
