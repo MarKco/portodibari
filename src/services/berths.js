@@ -16,6 +16,7 @@
 // one within eps. Manual berths (geometry locked by the user) are never moved.
 
 const db = require('../db');
+const appLog = require('./app-log');
 const { BERTH, state } = require('../config');
 const { categoryOf, isHazmat } = require('./ship-categories');
 
@@ -388,7 +389,7 @@ function recomputeAll({ skipSync = false } = {}) {
     try {
       out[area] = recomputeArea(area, { skipSync });
     } catch (e) {
-      console.error(`[BERTHS] Recompute fallito per ${area}: ${e.message}`);
+      appLog.error('BERTHS', appLog.t('berths.recompute_failed', { area, error: e.message }), { area });
     }
   }
   return out;
@@ -410,11 +411,12 @@ function flushDirtyAreas() {
   if (!dirtyAreas.size) return;
   const areas = [...dirtyAreas];
   dirtyAreas.clear();
+  appLog.info('BERTHS', appLog.t('berths.recompute_incremental'), { aree: areas });
   for (const area of areas) {
     try {
       recomputeArea(area);
     } catch (e) {
-      console.error(`[BERTHS] Flush ricalcolo fallito per ${area}: ${e.message}`);
+      appLog.error('BERTHS', appLog.t('berths.recompute_incremental_failed', { area, error: e.message }), { area });
     }
   }
 }

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const db = require('../db');
+const appLog = require('../services/app-log');
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.post('/notifications/:id/read', (req, res) => {
 
 router.delete('/notifications/:id', (req, res) => {
   db.deleteNotification(Number(req.params.id));
+  appLog.info('NOTIF', appLog.t('notif.deleted'), { id: Number(req.params.id) });
   res.json({ ok: true, unread: db.getUnreadNotificationCount() });
 });
 
@@ -27,6 +29,7 @@ router.delete('/notifications/:id', (req, res) => {
 // single delete before calling this).
 router.delete('/notifications', (req, res) => {
   db.deleteAllNotifications();
+  appLog.info('NOTIF', appLog.t('notif.all_deleted'));
   res.json({ ok: true, unread: 0 });
 });
 

@@ -232,6 +232,11 @@ const state = {
   // Operational application log (human-readable event log). Default ON unless
   // explicitly disabled in local.properties.
   appLogEnabled: props.APP_LOG_ENABLED !== 'false',
+  // UI language the operational log writes in. Mirrors the browser's localStorage
+  // 'lang' (captured from the lang= query the frontend sends on every API call),
+  // so background events log in whatever language the app is showing. Persisted
+  // so the language survives a restart until the next request refreshes it.
+  uiLang: props.UI_LANG === 'en' ? 'en' : 'it',
   // Notifications default ON unless explicitly disabled in local.properties.
   notificationsEnabled: props.NOTIFICATIONS_ENABLED !== 'false',
   notifyRevisit: props.NOTIFY_REVISIT !== 'false',
@@ -294,6 +299,14 @@ function setImportEquasis(enabled) {
 function setAppLogEnabled(enabled) {
   state.appLogEnabled = !!enabled;
   saveProperty('APP_LOG_ENABLED', state.appLogEnabled);
+}
+
+/** Track the UI language (for the operational log). Persists only on a change. */
+function setUiLang(lang) {
+  const v = lang === 'en' ? 'en' : 'it';
+  if (v === state.uiLang) return;
+  state.uiLang = v;
+  saveProperty('UI_LANG', v);
 }
 
 function setNotificationsEnabled(enabled) {
@@ -547,6 +560,7 @@ module.exports = {
   setImportPsc,
   setImportEquasis,
   setAppLogEnabled,
+  setUiLang,
   setNotificationsEnabled,
   setNotifyRevisit,
   setNotifyAreaChange,

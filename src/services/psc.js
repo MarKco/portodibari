@@ -269,10 +269,10 @@ async function refresh() {
     if (!entries.length) throw new Error('no vessel rows parsed');
     fs.writeFileSync(BANNED.file, body, 'utf8');
     console.log(`[PSC] Saved ${entries.length} banned vessels`);
-    appLog.info('PSC', `Lista navi bandite aggiornata`, { navi: entries.length });
+    appLog.info('PSC', appLog.t('psc.banned_updated'), { navi: entries.length });
   } catch (e) {
     console.error(`[PSC] Banned-list refresh failed: ${e.message}`);
-    appLog.error('PSC', `Aggiornamento lista navi bandite fallito: ${e.message}`);
+    appLog.error('PSC', appLog.t('psc.banned_failed', { error: e.message }));
   }
   loadBanned();
   return loadFromDisk();

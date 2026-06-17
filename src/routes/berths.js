@@ -3,6 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const berths = require('../services/berths');
+const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS, BERTH } = require('../config');
 
 const router = express.Router();
@@ -87,9 +88,11 @@ router.post('/berths/recompute', (req, res) => {
   try {
     if (area) {
       if (!BBOX_PRESETS[area]) return res.status(404).json({ error: 'Area sconosciuta' });
+      appLog.info('BERTHS', appLog.t('berths.recompute_manual'), { area });
       berths.recomputeArea(area);
       res.json({ ok: true, ...listPayload(area) });
     } else {
+      appLog.info('BERTHS', appLog.t('berths.recompute_manual_all'));
       const result = berths.recomputeAll();
       res.json({ ok: true, result });
     }
@@ -115,6 +118,7 @@ router.post('/berths', (req, res) => {
       manual_geom: 1,
       char_override: override || null,
     });
+    appLog.info('BERTHS', appLog.t('berths.created', { name: name ? String(name).trim() : null }), { area, id });
     berths.recomputeArea(area);
     res.json({ ok: true, id, ...listPayload(area) });
   } catch (e) {
@@ -142,6 +146,7 @@ router.patch('/berths/:id', (req, res) => {
       fields.centroid_lon = centroid[1];
     }
     db.updateBerthManual(id, fields);
+    appLog.info('BERTHS', appLog.t('berths.modified', { name: berth.name || null }), { area: berth.area, id, campi: Object.keys(fields) });
     berths.recomputeArea(berth.area);
     res.json({ ok: true, ...listPayload(berth.area) });
   } catch (e) {
@@ -180,6 +185,7 @@ router.post('/berths/merge', (req, res) => {
       char_override: targets.find((b) => b.char_override)?.char_override || null,
     });
     for (const b of targets) db.deleteBerth(b.id);
+    appLog.info('BERTHS', appLog.t('berths.merged', { count: targets.length }), { area, id: mergedId });
     berths.recomputeArea(area);
     res.json({ ok: true, id: mergedId, ...listPayload(area) });
   } catch (e) {
@@ -193,6 +199,7 @@ router.delete('/berths/:id', (req, res) => {
   const berth = db.getBerth(id);
   if (!berth) return res.status(404).json({ error: 'Banchina sconosciuta' });
   db.deleteBerth(id);
+  appLog.info('BERTHS', appLog.t('berths.deleted', { name: berth.name || null }), { area: berth.area, id });
   res.json({ ok: true, ...listPayload(berth.area) });
 });
 

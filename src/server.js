@@ -30,7 +30,7 @@ console.log(
 
 app.listen(PORT, () => {
   console.log(`Tracking porti running at http://localhost:${PORT}`);
-  appLog.info('SERVER', `Server avviato su http://localhost:${PORT}`, { preset: state.preset, area: state.bboxName });
+  appLog.info('SERVER', appLog.t('server.started', { url: `http://localhost:${PORT}` }), { preset: state.preset, area: state.bboxName });
   const keyHint = `${API_KEY.slice(0, 4)}...${API_KEY.slice(-4)} (len:${API_KEY.length})`;
   db.insertLog({
     method: 'SYS',
@@ -49,12 +49,12 @@ app.listen(PORT, () => {
       const r = restoreDbFromLatestBackup();
       if (r) {
         const total = Object.values(r.counts || {}).reduce((a, b) => a + b, 0);
-        appLog.info('RESTORE', `DB assente dopo il deploy → ripristinato l'ultimo backup ${r.filename}`, { righe: total });
+        appLog.info('RESTORE', appLog.t('restore.deploy_restored', { filename: r.filename }), { righe: total });
       } else {
-        appLog.info('RESTORE', 'DB assente e nessun backup disponibile: avvio con database vuoto');
+        appLog.info('RESTORE', appLog.t('restore.deploy_empty'));
       }
     } catch (e) {
-      appLog.error('RESTORE', `Auto-ripristino fallito, avvio con DB vuoto: ${e.message}`);
+      appLog.error('RESTORE', appLog.t('restore.deploy_failed', { error: e.message }));
     }
   }
 
@@ -69,7 +69,7 @@ app.listen(PORT, () => {
   const sig = bboxSignature();
   if (db.getMeta('areas_sig') !== sig) {
     const moved = db.reconcileAreasByCoords(areaForPoint);
-    if (moved) appLog.info('AIS', `Aree riconciliate per coordinate: ${moved} righe corrette`);
+    if (moved) appLog.info('AIS', appLog.t('ais.areas_reconciled', { count: moved }));
     db.setMeta('areas_sig', sig);
   }
 
@@ -86,16 +86,16 @@ app.listen(PORT, () => {
   setTimeout(() => {
     try {
       db.runMaintenance();
-      appLog.info('DB', 'Compattazione iniziale del database completata');
+      appLog.info('DB', appLog.t('db.maint_initial_done'));
     } catch (e) {
-      appLog.error('DB', `Compattazione iniziale fallita: ${e.message}`);
+      appLog.error('DB', appLog.t('db.maint_initial_failed', { error: e.message }));
     }
   }, 10 * 1000);
   setInterval(() => {
     try {
       db.runMaintenance();
     } catch (e) {
-      console.error(`[DB] Compattazione periodica fallita: ${e.message}`);
+      appLog.error('DB', appLog.t('db.maint_periodic_failed', { error: e.message }));
     }
   }, 5 * 60 * 1000);
 
@@ -105,11 +105,13 @@ app.listen(PORT, () => {
     sanctions
       .loadFromDisk()
       .then((n) => {
-        if (!n) return sanctions.refresh();
+        if (n) appLog.info('SANCTIONS', appLog.t('sanctions.loaded_disk'), { navi: n });
+        else return sanctions.refresh();
       })
-      .catch((e) => console.error(`[SANCTIONS] Startup refresh failed: ${e.message}`));
+      .catch((e) => appLog.error('SANCTIONS', appLog.t('sanctions.initial_failed', { error: e.message })));
     setInterval(() => {
-      sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Daily refresh failed: ${e.message}`));
+      appLog.info('SANCTIONS', appLog.t('sanctions.daily_started'));
+      sanctions.refresh().catch((e) => appLog.error('SANCTIONS', appLog.t('sanctions.daily_failed', { error: e.message })));
     }, 24 * 60 * 60 * 1000);
   }
 
@@ -119,10 +121,11 @@ app.listen(PORT, () => {
   if (state.importPsc) {
     psc.loadFromDisk();
     if (!psc.bannedLoaded()) {
-      psc.refresh().catch((e) => console.error(`[PSC] Startup refresh failed: ${e.message}`));
+      psc.refresh().catch((e) => appLog.error('PSC', appLog.t('psc.initial_failed', { error: e.message })));
     }
     setInterval(() => {
-      psc.refresh().catch((e) => console.error(`[PSC] Daily refresh failed: ${e.message}`));
+      appLog.info('PSC', appLog.t('psc.daily_started'));
+      psc.refresh().catch((e) => appLog.error('PSC', appLog.t('psc.daily_failed', { error: e.message })));
     }, 24 * 60 * 60 * 1000);
   }
 
@@ -132,16 +135,16 @@ app.listen(PORT, () => {
   setTimeout(() => {
     try {
       berths.recomputeAll();
-      appLog.info('BERTHS', 'Backfill iniziale banchine completato');
+      appLog.info('BERTHS', appLog.t('berths.backfill_done'));
     } catch (e) {
-      appLog.error('BERTHS', `Backfill banchine fallito: ${e.message}`);
+      appLog.error('BERTHS', appLog.t('berths.backfill_failed', { error: e.message }));
     }
   }, 0);
   setInterval(() => {
     try {
       berths.recomputeAll();
     } catch (e) {
-      console.error(`[BERTHS] Ricalcolo periodico fallito: ${e.message}`);
+      appLog.error('BERTHS', appLog.t('berths.recompute_periodic_failed', { error: e.message }));
     }
   }, BERTH.RECOMPUTE_MIN * 60 * 1000);
 

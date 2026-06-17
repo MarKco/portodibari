@@ -3,6 +3,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const cfg = require('./config');
+const appLog = require('./services/app-log');
 
 // These values are interpolated into SQL strings below (parameter binding can't
 // be used for LIMIT-in-subquery / datetime modifiers / predicate literals), so
@@ -558,6 +559,11 @@ function checkAndLogDepartures() {
       ship.max_draught ?? null,
       ship.last_area || ''
     );
+  }
+  // One per-minute summary line instead of one per ship (mirrors arrivals).
+  if (departed.length) {
+    const list = departed.map((s) => s.ship_name || s.mmsi).join(', ');
+    appLog.info('PORTO', appLog.t('port.departures', { count: departed.length, list }), { navi: departed.length });
   }
   return departed.length;
 }

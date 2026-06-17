@@ -30,16 +30,24 @@ router.get('/app-log', (req, res) => {
 // Wipe the on-disk log.
 router.delete('/app-log', (req, res) => {
   appLog.clear();
-  appLog.info('LOG', 'Log applicazione cancellato');
+  appLog.info('LOG', appLog.t('log.cleared'));
   res.json({ ok: true });
 });
 
 // Toggle logging on/off (persisted). Default is on.
 router.post('/app-log/enabled', (req, res) => {
   const enabled = !!req.body.enabled;
-  setAppLogEnabled(enabled);
-  appLog.setEnabled(enabled);
-  appLog.info('LOG', `Logging applicazione ${enabled ? 'attivato' : 'disattivato'}`);
+  // When disabling, log the event *before* turning logging off so the line is
+  // still persisted; when enabling, turn it on first so the line gets through.
+  if (enabled) {
+    setAppLogEnabled(true);
+    appLog.setEnabled(true);
+    appLog.info('LOG', appLog.t('log.toggled', { on: true }));
+  } else {
+    appLog.info('LOG', appLog.t('log.toggled', { on: false }));
+    setAppLogEnabled(false);
+    appLog.setEnabled(false);
+  }
   res.json({ ok: true, enabled: state.appLogEnabled });
 });
 

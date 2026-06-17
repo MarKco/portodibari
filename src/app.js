@@ -5,6 +5,7 @@ const express = require('express');
 const apiLogger = require('./middleware/api-logger');
 const basicAuth = require('./middleware/auth');
 const apiRoutes = require('./routes');
+const { setUiLang } = require('./config');
 
 /** Build and return the configured Express application. */
 function createApp() {
@@ -16,6 +17,14 @@ function createApp() {
 
   app.use(express.json());
   app.use(express.static(path.join(__dirname, '..', 'public')));
+
+  // Mirror the browser's active language (sent as ?lang= on every API call) so
+  // the operational log — including background events with no request — writes
+  // in whatever language the app is currently showing.
+  app.use('/api', (req, res, next) => {
+    if (req.query.lang) setUiLang(req.query.lang);
+    next();
+  });
 
   // Log + broadcast every API call, then serve it.
   app.use('/api', apiLogger);

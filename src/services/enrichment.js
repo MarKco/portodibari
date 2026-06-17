@@ -16,6 +16,10 @@ const { crawlMarineTraffic } = require('./scrapers/marinetraffic');
 // Guards against duplicate concurrent fetches for the same ship+source.
 const inFlight = new Set();
 
+// Display name per source code, for log messages.
+const SOURCE_NAME = { vf: 'VesselFinder', mt: 'MarineTraffic' };
+const sourceName = (s) => SOURCE_NAME[s] || s.toUpperCase();
+
 // Skip a ship+source that is already cached OR that failed recently (negative
 // cache) — so the backfill doesn't re-hammer VF/MT for vessels they don't know.
 function alreadyResolved(mmsi, source) {
@@ -38,12 +42,12 @@ async function fetchSource(ship, source) {
     }
     db.clearScrapeFailure(ship.mmsi, source); // success → drop any stale failure marker
     invalidateRiskCache(ship.mmsi); // newly cached flag/year/home-port may shift the score
-    appLog.info('SCRAPE', `${source.toUpperCase()} ok per ${ship.ship_name || ship.mmsi}`, { mmsi: ship.mmsi, imo: ship.imo_number || null });
+    appLog.info('SCRAPE', appLog.t('scrape.ok', { source: sourceName(source), name: ship.ship_name || ship.mmsi }), { mmsi: ship.mmsi, imo: ship.imo_number || null });
   } catch (e) {
     // Record the failure so the negative cache skips this ship until it expires.
     db.setScrapeFailure(ship.mmsi, source, e.message);
     console.error(`[ENRICH:${source}] ${ship.mmsi}: ${e.message}`);
-    appLog.warn('SCRAPE', `${source.toUpperCase()} fallito per ${ship.mmsi}: ${e.message}`, { mmsi: ship.mmsi });
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: sourceName(source), name: ship.ship_name || ship.mmsi, error: e.message }), { mmsi: ship.mmsi });
   } finally {
     inFlight.delete(key);
   }
@@ -71,7 +75,7 @@ function enrichNewShip(mmsi) {
 async function enrichAllExisting(source) {
   const ships = db.getRecentShips();
   console.log(`[ENRICH:${source}] Backfill started — ${ships.length} ships to check`);
-  appLog.info('SCRAPE', `Backfill ${source.toUpperCase()} avviato`, { navi: ships.length });
+  appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
   let queued = 0;
   for (const ship of ships) {
     if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed

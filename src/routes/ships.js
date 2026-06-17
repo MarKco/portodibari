@@ -8,6 +8,7 @@ const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const equasisLog = require('../services/equasis-log');
+const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD } = require('../config');
 
@@ -83,6 +84,7 @@ router.patch('/ships/:mmsi/flag', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { flagged } = req.body;
   db.setFlag(mmsi, flagged);
+  appLog.info('SHIP', appLog.t('ship.flag', { on: !!flagged }), { mmsi });
   res.json({ ok: true });
 });
 
@@ -91,6 +93,7 @@ router.patch('/ships/:mmsi/military', (req, res) => {
   const { is_military } = req.body;
   db.setMilitary(mmsi, is_military);
   invalidateRiskCache(mmsi); // military status flips the score to 100
+  appLog.info('SHIP', appLog.t('ship.military', { on: !!is_military }), { mmsi });
   res.json({ ok: true });
 });
 
@@ -98,6 +101,7 @@ router.patch('/ships/:mmsi/seen', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { seen } = req.body;
   db.setSeen(mmsi, seen);
+  appLog.info('SHIP', appLog.t('ship.seen', { on: !!seen }), { mmsi });
   res.json({ ok: true });
 });
 
@@ -105,6 +109,7 @@ router.patch('/ships/:mmsi/notif-muted', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notif_muted } = req.body;
   db.setNotifMuted(mmsi, notif_muted);
+  appLog.info('SHIP', appLog.t('ship.notif_muted', { on: !!notif_muted }), { mmsi });
   res.json({ ok: true });
 });
 
@@ -112,6 +117,7 @@ router.patch('/ships/:mmsi/notes', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notes } = req.body;
   db.updateNotes(mmsi, notes);
+  appLog.info('SHIP', appLog.t('ship.notes', { on: !!notes }), { mmsi });
   res.json({ ok: true });
 });
 
@@ -136,12 +142,14 @@ router.get('/ships/:mmsi/vfdata', async (req, res) => {
     });
   }
   try {
+    appLog.info('SCRAPE', appLog.t('scrape.requested', { source: 'VesselFinder', name: ship.ship_name || mmsi }), { mmsi, id: identifier });
     const data = await crawlVesselFinder(identifier);
     const scraped_at = db.setScrapedData(mmsi, 'vf', data);
     invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
+    appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'VesselFinder', name: ship.ship_name || mmsi }), { mmsi });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
   } catch (e) {
-    console.error('[VF] Crawl error:', e.message);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'VesselFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     if (cached) {
       return res.json({
         enabled: true,
@@ -171,13 +179,15 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
     });
   }
   try {
+    appLog.info('SCRAPE', appLog.t('scrape.requested', { source: 'MarineTraffic', name: ship.ship_name || mmsi }), { mmsi });
     const { data, shipId } = await crawlMarineTraffic(ship);
     if (shipId && shipId !== ship.mt_ship_id) db.setMtShipId(mmsi, shipId);
     const scraped_at = db.setScrapedData(mmsi, 'mt', data);
     invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
+    appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'MarineTraffic', name: ship.ship_name || mmsi }), { mmsi, shipId: shipId || null });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at, shipId });
   } catch (e) {
-    console.error('[MT] Crawl error:', e.message);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'MarineTraffic', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     if (cached) {
       return res.json({
         enabled: true,
@@ -227,12 +237,14 @@ router.get('/ships/:mmsi/equasis', async (req, res) => {
     return res.json({ enabled: true, error: 'Credenziali Equasis mancanti: imposta EQUASIS_USER e EQUASIS_PASSWORD in local.properties' });
   }
   try {
+    appLog.info('EQUASIS', appLog.t('scrape.requested', { source: 'Equasis', name: ship.ship_name || mmsi }), { mmsi, imo: ship.imo_number });
     const data = await crawlEquasis(ship.imo_number);
     const scraped_at = db.setScrapedData(mmsi, 'eq', data);
     equasisLog.append({ mmsi, imo: ship.imo_number, name: ship.ship_name, ok: true, data });
+    appLog.info('EQUASIS', appLog.t('scrape.ok', { source: 'Equasis', name: ship.ship_name || mmsi }), { mmsi, imo: ship.imo_number });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
   } catch (e) {
-    console.error('[EQUASIS] Crawl error:', e.message);
+    appLog.warn('EQUASIS', appLog.t('scrape.failed', { source: 'Equasis', name: ship.ship_name || mmsi, error: e.message }), { mmsi, imo: ship.imo_number });
     equasisLog.append({ mmsi, imo: ship.imo_number, name: ship.ship_name, ok: false, error: e.message });
     res.json({ enabled: true, error: e.message });
   }

@@ -3,6 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const stream = require('../services/ais-stream');
+const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas } = require('../config');
 
 const router = express.Router();
@@ -12,11 +13,12 @@ const router = express.Router();
 // full-bundle import. Returns the merge summary from config.importAreas().
 function importAreasAndStart(raw) {
   const result = importAreas(raw);
+  appLog.info('AREE', appLog.t('areas.imported'), { aggiunte: result.added.length, aggiornate: (result.updated || []).length });
   for (const key of result.added) {
     try {
       stream.startStream(key);
     } catch (e) {
-      console.error(`[AREAS] Autostart fallito per ${key}: ${e.message}`);
+      appLog.warn('AREE', appLog.t('areas.autostart_failed', { key, error: e.message }), { area: key });
     }
   }
   return result;
@@ -63,6 +65,7 @@ router.post('/areas', (req, res) => {
   try {
     const { name, sw, ne, keyword, autostart } = req.body || {};
     const area = addArea({ name, sw, ne, keyword });
+    appLog.info('AREE', appLog.t('areas.added', { name: area.name }), { area: area.key, autostart: autostart !== false });
     if (autostart !== false) stream.startStream(area.key);
     res.json({ ok: true, area });
   } catch (e) {
@@ -79,9 +82,11 @@ router.delete('/areas/:key', (req, res) => {
     return res.status(400).json({ error: 'Deve restare almeno un\'area' });
   }
   try {
+    const areaName = BBOX_PRESETS[key].name;
     stream.removeStream(key);
     db.deleteAll(key);
     const { switched } = removeArea(key);
+    appLog.warn('AREE', appLog.t('areas.deleted', { name: areaName }), { area: key, switched: switched || null });
     res.json({ ok: true, key, switched });
   } catch (e) {
     res.status(400).json({ error: e.message });

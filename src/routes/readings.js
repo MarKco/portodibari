@@ -21,7 +21,7 @@ router.delete('/readings', (req, res) => {
   const area = req.query.area || state.preset;
   db.deleteAll(area);
   pendingAlerts.length = 0;
-  appLog.warn('DATA', `Dati cancellati per l'area`, { area });
+  appLog.warn('DATA', appLog.t('data.area_cleared'), { area });
   res.json({ ok: true, area });
 });
 

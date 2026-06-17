@@ -11,6 +11,7 @@
 
 const express = require('express');
 const fs = require('fs');
+const appLog = require('../services/app-log');
 const { APP_CONFIG_FILE, saveAppProperty } = require('../config');
 
 const router = express.Router();
@@ -251,8 +252,12 @@ router.post('/app-config', (req, res) => {
 
       if (out !== cur.value) {
         saveAppProperty(key, out);
+        appLog.info('CONFIG', appLog.t('config.param_changed', { key, value: out, old: cur.value }));
         changed.push(key);
       }
+    }
+    if (changed.length) {
+      appLog.warn('CONFIG', appLog.t('config.restart_required', { count: changed.length }), { chiavi: changed });
     }
     res.json({ ok: true, changed, restart: changed.length > 0 });
   } catch (e) {

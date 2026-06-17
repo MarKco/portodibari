@@ -20,6 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const { broadcastAppLog } = require('../realtime');
+const { render } = require('./log-messages');
 
 const LOG_DIR = path.join(__dirname, '..', '..', 'data');
 const LOG_FILE = path.join(LOG_DIR, 'app.log');
@@ -104,6 +105,10 @@ const info = (tag, msg, data) => record('info', tag, msg, data);
 const warn = (tag, msg, data) => record('warn', tag, msg, data);
 const error = (tag, msg, data) => record('error', tag, msg, data);
 
+// Render a catalogued message id (see log-messages.js) in the current UI
+// language. Pass the result as the `msg` to info/warn/error.
+const t = (id, params) => render(id, params);
+
 // Read the most recent `limit` entries (oldest → newest), spanning the rotated
 // file when the current one is short. Malformed lines are skipped.
 function tail(limit = TAIL_DEFAULT) {
@@ -140,4 +145,4 @@ function clear() {
   currentSize = 0;
 }
 
-module.exports = { record, info, warn, error, tail, clear, setEnabled, isEnabled };
+module.exports = { record, info, warn, error, t, tail, clear, setEnabled, isEnabled };
