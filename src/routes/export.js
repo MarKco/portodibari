@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const db = require('../db');
 const berths = require('../services/berths');
+const appLog = require('../services/app-log');
 const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
@@ -225,19 +226,23 @@ function rebuildBerthsAfterRestore() {
 function startAutoBackup() {
   setTimeout(() => {
     try {
-      createAndSaveBundle('auto');
+      const r = createAndSaveBundle('auto');
       console.log('[BACKUP] Auto-backup iniziale creato');
+      appLog.info('BACKUP', 'Auto-backup iniziale creato', { file: r.filename, sizeKB: Math.round(r.size / 1024) });
     } catch (e) {
       console.error(`[BACKUP] Auto-backup iniziale fallito: ${e.message}`);
+      appLog.error('BACKUP', `Auto-backup iniziale fallito: ${e.message}`);
     }
   }, 30000);
 
   setInterval(() => {
     try {
-      createAndSaveBundle('auto');
+      const r = createAndSaveBundle('auto');
       console.log('[BACKUP] Auto-backup creato');
+      appLog.info('BACKUP', 'Auto-backup creato', { file: r.filename, sizeKB: Math.round(r.size / 1024) });
     } catch (e) {
       console.error(`[BACKUP] Auto-backup fallito: ${e.message}`);
+      appLog.error('BACKUP', `Auto-backup fallito: ${e.message}`);
     }
   }, BACKUP_INTERVAL_MS);
 }
@@ -337,8 +342,11 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
     db.reconcileAreasByCoords(areaForPoint);
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     rebuildBerthsAfterRestore();
+    const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
+    appLog.info('RESTORE', 'Database ripristinato da file caricato', { righe: total });
     res.json({ ok: true, counts });
   } catch (e) {
+    appLog.error('RESTORE', `Ripristino database fallito: ${e.message}`);
     res.status(400).json({ error: `Ripristino fallito: ${e.message}` });
   } finally {
     fs.unlink(tmp, () => {});
@@ -420,8 +428,11 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
     }
 
     rebuildBerthsAfterRestore();
+    const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
+    appLog.info('BUNDLE', 'Backup completo importato (DB + aree + impostazioni)', { righe: total });
     res.json({ ok: true, counts, areas, settings });
   } catch (e) {
+    appLog.error('BUNDLE', `Importazione backup completo fallita: ${e.message}`);
     res.status(400).json({ error: `Importazione fallita: ${e.message}` });
   } finally {
     fs.unlink(tmpBundle, () => {});
@@ -440,6 +451,7 @@ router.get('/backups', (req, res) => {
 router.post('/backups/save', (req, res) => {
   try {
     const result = createAndSaveBundle('manual');
+    appLog.info('BACKUP', 'Backup manuale salvato', { file: result.filename, sizeKB: Math.round(result.size / 1024) });
     res.json({ ok: true, ...result });
   } catch (e) {
     res.status(500).json({ error: `Salvataggio fallito: ${e.message}` });

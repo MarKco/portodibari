@@ -101,8 +101,15 @@
       </div>
     </div>
     <div class="sidebar-footer">
-      <span class="sb-icon" aria-hidden="true">📊</span>
-      <span id="counter" class="counter sb-label">0 letture</span>
+      <button id="btn-log-overlay" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.logOverlay" title="Log attività">
+        <span class="sb-icon">🪵</span>
+        <span class="sb-label" data-i18n="sidebar.logOverlay">Log attività</span>
+      </button>
+      <div class="sidebar-footer-counter">
+        <span class="sb-icon" aria-hidden="true">📊</span>
+        <span id="counter" class="counter sb-label">0 letture</span>
+      </div>
     </div>
   </nav>
 
@@ -467,6 +474,8 @@
                   data-i18n="settings.tab.params">Parametri</button>
           <button id="settings-tab-backup" class="tab" data-panel="backup"
                   data-i18n="settings.tab.backup">Backup / Ripristino</button>
+          <button id="settings-tab-log" class="tab" data-panel="log"
+                  data-i18n="settings.tab.log">Log</button>
         </div>
         <div id="settings-panel-general" class="settings-panel">
         <div class="setting-row">
@@ -710,6 +719,24 @@
             <input type="file" id="settings-file" accept=".json,application/json" class="hidden">
           </div>
         </div>
+        <div id="settings-panel-log" class="settings-panel hidden">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.appLog.name">Log attività</div>
+              <div class="setting-desc" data-i18n="settings.appLog.desc">Registra le operazioni significative dell'app (stream, recupero dati, sanzioni, backup, errori) in un file con rotazione automatica. Attivo per impostazione predefinita.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-app-log">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="app-log-toolbar">
+            <span id="app-log-live" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+            <span class="app-log-toolbar-spacer"></span>
+            <button id="btn-app-log-clear" class="btn btn-clear btn-sm" data-i18n="appLog.clear">🗑 Svuota log</button>
+          </div>
+          <div id="app-log-body" class="app-log-body"></div>
+        </div>
       </div>
     </div>
 
@@ -749,6 +776,18 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Floating application-log overlay window -->
+  <div id="log-overlay-window" class="log-overlay-window hidden">
+    <div id="log-ov-header" class="log-ov-header">
+      <span class="log-ov-title">🪵 <span data-i18n="appLog.title">Log attività</span></span>
+      <span id="log-ov-live" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+      <span class="log-ov-spacer"></span>
+      <button id="log-ov-clear" class="log-ov-btn" data-i18n-title="appLog.clear" title="Svuota log">🗑</button>
+      <button id="log-ov-close" class="log-ov-btn" data-i18n-title="log.close" title="Chiudi">✕</button>
+    </div>
+    <div id="log-ov-body" class="log-ov-body"></div>
   </div>
 
   <!-- Health modal -->

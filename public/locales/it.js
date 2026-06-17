@@ -246,6 +246,16 @@ export default {
   'log.modal.duration':  'Durata',
   'log.modal.timestamp': 'Timestamp',
 
+  // ── Application log (operational event log) ──────────────────────────────────
+  'sidebar.logOverlay':   'Log attività',
+  'settings.tab.log':     'Log',
+  'settings.appLog.name': 'Log attività',
+  'settings.appLog.desc': 'Registra le operazioni significative dell\'app (stream, recupero dati, sanzioni, backup, errori) in un file con rotazione automatica (max ~5 MB). Attivo per impostazione predefinita.',
+  'appLog.title':         'Log attività',
+  'appLog.empty':         'Nessuna voce di log.',
+  'appLog.clear':         '🗑 Svuota log',
+  'appLog.confirmClear':  'Svuotare tutto il log delle attività?',
+
   // ── Areas screen ───────────────────────────────────────────────────────────
   'areas.addTitle':          'Aggiungi area',
   'areas.addHint':           'Inserisci le coordinate in gradi decimali, oppure inquadra l\'area sulla mappa e premi "Cattura vista corrente".',

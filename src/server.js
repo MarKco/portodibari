@@ -15,8 +15,12 @@ const stream = require('./services/ais-stream');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
+const appLog = require('./services/app-log');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
 const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY } = require('./config');
+
+// Honor the persisted on/off state for the operational log before anything logs.
+appLog.setEnabled(state.appLogEnabled);
 
 const app = createApp();
 
@@ -26,6 +30,7 @@ console.log(
 
 app.listen(PORT, () => {
   console.log(`Tracking porti running at http://localhost:${PORT}`);
+  appLog.info('SERVER', `Server avviato su http://localhost:${PORT}`, { preset: state.preset, area: state.bboxName });
   const keyHint = `${API_KEY.slice(0, 4)}...${API_KEY.slice(-4)} (len:${API_KEY.length})`;
   db.insertLog({
     method: 'SYS',
@@ -44,12 +49,12 @@ app.listen(PORT, () => {
       const r = restoreDbFromLatestBackup();
       if (r) {
         const total = Object.values(r.counts || {}).reduce((a, b) => a + b, 0);
-        console.log(`[RESTORE] DB assente dopo il deploy → ripristinato l'ultimo backup ${r.filename} (${total.toLocaleString()} righe)`);
+        appLog.info('RESTORE', `DB assente dopo il deploy → ripristinato l'ultimo backup ${r.filename}`, { righe: total });
       } else {
-        console.log('[RESTORE] DB assente e nessun backup disponibile: avvio con database vuoto');
+        appLog.info('RESTORE', 'DB assente e nessun backup disponibile: avvio con database vuoto');
       }
     } catch (e) {
-      console.error(`[RESTORE] Auto-ripristino fallito, avvio con DB vuoto: ${e.message}`);
+      appLog.error('RESTORE', `Auto-ripristino fallito, avvio con DB vuoto: ${e.message}`);
     }
   }
 
@@ -64,7 +69,7 @@ app.listen(PORT, () => {
   const sig = bboxSignature();
   if (db.getMeta('areas_sig') !== sig) {
     const moved = db.reconcileAreasByCoords(areaForPoint);
-    if (moved) console.log(`[AIS] Aree riconciliate per coordinate: ${moved} righe corrette`);
+    if (moved) appLog.info('AIS', `Aree riconciliate per coordinate: ${moved} righe corrette`);
     db.setMeta('areas_sig', sig);
   }
 
@@ -106,9 +111,9 @@ app.listen(PORT, () => {
   setTimeout(() => {
     try {
       berths.recomputeAll();
-      console.log('[BERTHS] Backfill iniziale completato');
+      appLog.info('BERTHS', 'Backfill iniziale banchine completato');
     } catch (e) {
-      console.error(`[BERTHS] Backfill fallito: ${e.message}`);
+      appLog.error('BERTHS', `Backfill banchine fallito: ${e.message}`);
     }
   }, 0);
   setInterval(() => {

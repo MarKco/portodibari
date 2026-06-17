@@ -7,6 +7,7 @@
 // Fire-and-forget: failures are logged and never block ingestion.
 
 const db = require('./../db');
+const appLog = require('./app-log');
 const { state, SCRAPE_NEG_CACHE_DAYS } = require('../config');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlVesselFinder } = require('./scrapers/vesselfinder');
@@ -37,10 +38,12 @@ async function fetchSource(ship, source) {
     }
     db.clearScrapeFailure(ship.mmsi, source); // success → drop any stale failure marker
     invalidateRiskCache(ship.mmsi); // newly cached flag/year/home-port may shift the score
+    appLog.info('SCRAPE', `${source.toUpperCase()} ok per ${ship.ship_name || ship.mmsi}`, { mmsi: ship.mmsi, imo: ship.imo_number || null });
   } catch (e) {
     // Record the failure so the negative cache skips this ship until it expires.
     db.setScrapeFailure(ship.mmsi, source, e.message);
     console.error(`[ENRICH:${source}] ${ship.mmsi}: ${e.message}`);
+    appLog.warn('SCRAPE', `${source.toUpperCase()} fallito per ${ship.mmsi}: ${e.message}`, { mmsi: ship.mmsi });
   } finally {
     inFlight.delete(key);
   }
@@ -68,6 +71,7 @@ function enrichNewShip(mmsi) {
 async function enrichAllExisting(source) {
   const ships = db.getRecentShips();
   console.log(`[ENRICH:${source}] Backfill started — ${ships.length} ships to check`);
+  appLog.info('SCRAPE', `Backfill ${source.toUpperCase()} avviato`, { navi: ships.length });
   let queued = 0;
   for (const ship of ships) {
     if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed

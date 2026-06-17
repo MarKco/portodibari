@@ -3,10 +3,13 @@
 // Shared real-time buses used by both the AIS stream and the HTTP layer.
 //
 // - logClients: open SSE responses subscribed to the live API-log stream.
+// - appLogClients: open SSE responses subscribed to the live application-log
+//   stream (the human-readable operational log, separate from the API log).
 // - pendingAlerts: MMSIs of flagged ships that just arrived, drained by
 //   GET /api/alerts and surfaced as a toast in the UI.
 
 const logClients = new Set();
+const appLogClients = new Set();
 const pendingAlerts = [];
 
 // Bound the alert backlog: if nothing ever drains it (GET /api/alerts), it would
@@ -21,10 +24,24 @@ function pushAlert(mmsi) {
   }
 }
 
-/** Push a log entry to every connected SSE client. */
+/** Push an API-log entry to every connected SSE client. */
 function broadcastLog(entry) {
   const payload = `data: ${JSON.stringify(entry)}\n\n`;
   for (const res of logClients) res.write(payload);
 }
 
-module.exports = { logClients, pendingAlerts, pushAlert, broadcastLog };
+/** Push an application-log entry to every connected SSE client. */
+function broadcastAppLog(entry) {
+  if (!appLogClients.size) return;
+  const payload = `data: ${JSON.stringify(entry)}\n\n`;
+  for (const res of appLogClients) res.write(payload);
+}
+
+module.exports = {
+  logClients,
+  appLogClients,
+  pendingAlerts,
+  pushAlert,
+  broadcastLog,
+  broadcastAppLog,
+};

@@ -9,6 +9,7 @@ import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel } from './logs.js';
+import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
 import { initHealthPanel } from './health.js';
 import { initAreas } from './areas.js';
 import { initNotifications, loadNotifications } from './notifications.js';
@@ -115,6 +116,8 @@ async function loadSettings() {
     S.importEquasis = !!s.importEquasis;
     S.equasisConfigured = !!s.equasisConfigured;
     if (el.toggleImportEquasis) el.toggleImportEquasis.checked = S.importEquasis;
+    S.appLogEnabled = s.appLogEnabled !== false;
+    setAppLogToggle(S.appLogEnabled);
     S.notificationsEnabled = s.notificationsEnabled !== false;
     S.notifyRevisit = s.notifyRevisit !== false;
     S.notifyAreaChange = s.notifyAreaChange !== false;
@@ -240,10 +243,16 @@ function initSettingsModal() {
   el.btnSettings.addEventListener('click', () => {
     if (S.view !== 'settings') S.settingsFrom = S.view;
     showView('settings');
+    // Resume tailing if the user had left Settings on the Log tab.
+    const logTab = document.getElementById('settings-tab-log');
+    if (logTab && logTab.classList.contains('tab-active')) openSettingsLog();
   });
-  el.btnSettingsBack.addEventListener('click', () => showView(S.settingsFrom || 'active'));
+  el.btnSettingsBack.addEventListener('click', () => {
+    closeSettingsLog();
+    showView(S.settingsFrom || 'active');
+  });
 
-  // Settings tabs — switch between the panels (general / areas / dev / backup).
+  // Settings tabs — switch between the panels (general / areas / params / backup / log).
   el.settingsTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
@@ -253,6 +262,9 @@ function initSettingsModal() {
     el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
     if (tab.dataset.panel === 'backup') loadAutoBackups();
     if (tab.dataset.panel === 'params') loadAppConfig();
+    // Tail the live app-log only while its tab is the active one.
+    if (tab.dataset.panel === 'log') openSettingsLog();
+    else closeSettingsLog();
   });
 
   // Per-area monitor toggles — start/stop a stream without leaving Settings.
@@ -994,6 +1006,7 @@ initToolbar();
 initSettingsModal();
 initBboxSelect();
 initLogPanel();
+initAppLog();
 initHealthPanel();
 initAreas();
 initNotifications();

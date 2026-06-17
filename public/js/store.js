@@ -29,6 +29,7 @@ export const S = {
   importPsc: false,
   importEquasis: false,
   equasisConfigured: false,
+  appLogEnabled: true,
   notificationsEnabled: true,
   notifyRevisit: true,
   notifyAreaChange: true,

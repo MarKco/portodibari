@@ -20,6 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const appLog = require('./app-log');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
@@ -268,8 +269,10 @@ async function refresh() {
     if (!entries.length) throw new Error('no vessel rows parsed');
     fs.writeFileSync(BANNED.file, body, 'utf8');
     console.log(`[PSC] Saved ${entries.length} banned vessels`);
+    appLog.info('PSC', `Lista navi bandite aggiornata`, { navi: entries.length });
   } catch (e) {
     console.error(`[PSC] Banned-list refresh failed: ${e.message}`);
+    appLog.error('PSC', `Aggiornamento lista navi bandite fallito: ${e.message}`);
   }
   loadBanned();
   return loadFromDisk();

@@ -16,6 +16,7 @@ const { clearRiskCache } = require('../services/risk-score');
 const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
 const equasisLog = require('../services/equasis-log');
+const appLog = require('../services/app-log');
 
 const router = express.Router();
 
@@ -59,6 +60,7 @@ router.get('/settings', (req, res) => {
     psc: psc.getStatus(),
     importEquasis: state.importEquasis,
     equasisConfigured,
+    appLogEnabled: state.appLogEnabled,
     notificationsEnabled: state.notificationsEnabled,
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
@@ -71,6 +73,7 @@ router.get('/settings', (req, res) => {
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
 // returns the dataset status so the UI can reflect "refreshing in progress".
 router.post('/sanctions/refresh', (req, res) => {
+  appLog.info('SANCTIONS', 'Aggiornamento manuale liste sanzioni avviato');
   sanctions
     .refresh()
     .then(() => clearRiskCache()) // new list contents can change matches
@@ -80,6 +83,7 @@ router.post('/sanctions/refresh', (req, res) => {
 
 // Manually re-download the PSC banned list + reload bundled flag lists.
 router.post('/psc/refresh', (req, res) => {
+  appLog.info('PSC', 'Aggiornamento manuale liste PSC avviato');
   psc
     .refresh()
     .then(() => clearRiskCache()) // new flag/banned data can change matches
@@ -186,6 +190,7 @@ router.post('/settings', (req, res) => {
   if (newNotif !== undefined) {
     setNotificationsEnabled(newNotif);
     console.log(`[NOTIF] Notifications enabled: ${state.notificationsEnabled}`);
+    appLog.info('SETTINGS', `Notifiche ${state.notificationsEnabled ? 'attivate' : 'disattivate'}`);
   }
   if (newRevisit !== undefined) {
     setNotifyRevisit(newRevisit);
@@ -212,12 +217,14 @@ router.post('/settings', (req, res) => {
     const wasDisabled = !state.importVfData;
     setImportVf(newImportVf);
     console.log(`[VF] Import VF data: ${state.importVfData}`);
+    appLog.info('SETTINGS', `Import VesselFinder ${state.importVfData ? 'attivato' : 'disattivato'}`);
     if (state.importVfData && wasDisabled) enrichAllExisting('vf');
   }
   if (newImportMt !== undefined) {
     const wasDisabled = !state.importMtData;
     setImportMt(newImportMt);
     console.log(`[MT] Import MT data: ${state.importMtData}`);
+    appLog.info('SETTINGS', `Import MarineTraffic ${state.importMtData ? 'attivato' : 'disattivato'}`);
     if (state.importMtData && wasDisabled) enrichAllExisting('mt');
   }
   // Persist the extra-lists (EU/UK/UN) toggle before the master block so its
@@ -232,6 +239,7 @@ router.post('/settings', (req, res) => {
     const wasDisabled = !state.importSanctions;
     setImportSanctions(newSanctions);
     console.log(`[SANCTIONS] Import sanctions: ${state.importSanctions}`);
+    appLog.info('SETTINGS', `Screening sanzioni ${state.importSanctions ? 'attivato' : 'disattivato'}`);
     // First enable (or no data yet) → download the list in the background.
     if (state.importSanctions && (wasDisabled || !sanctions.getStatus().loaded)) {
       sanctions.refresh().catch((e) => console.error(`[SANCTIONS] Refresh failed: ${e.message}`));
@@ -249,6 +257,7 @@ router.post('/settings', (req, res) => {
     const wasDisabled = !state.importPsc;
     setImportPsc(newPsc);
     console.log(`[PSC] Import PSC data: ${state.importPsc}`);
+    appLog.info('SETTINGS', `Screening Port State Control ${state.importPsc ? 'attivato' : 'disattivato'}`);
     // First enable (or banned list not cached yet) → load bundled flag lists
     // and download the banned list in the background.
     if (state.importPsc && (wasDisabled || !psc.bannedLoaded())) {
@@ -295,6 +304,7 @@ router.post('/settings', (req, res) => {
 
   setPreset(preset);
   console.log(`[AIS] Vista cambiata a: ${state.bboxName}`);
+  appLog.info('SETTINGS', `Vista cambiata a: ${state.bboxName}`, { preset });
   res.json({
     ok: true,
     preset,

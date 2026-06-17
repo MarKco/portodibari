@@ -166,6 +166,21 @@ export const el = {
   logBody: $('log-body'),
   logAutoScrollChk: $('log-autoscroll'),
 
+  // Application log — sidebar toggle + floating overlay window
+  btnLogOverlay: $('btn-log-overlay'),
+  logOvWindow: $('log-overlay-window'),
+  logOvHeader: $('log-ov-header'),
+  logOvBody: $('log-ov-body'),
+  logOvLive: $('log-ov-live'),
+  logOvClear: $('log-ov-clear'),
+  logOvClose: $('log-ov-close'),
+
+  // Application log — Settings → Log tab
+  toggleAppLog: $('toggle-app-log'),
+  appLogBody: $('app-log-body'),
+  appLogLive: $('app-log-live'),
+  appLogClear: $('btn-app-log-clear'),
+
   // Health panel
   btnHealth: $('btn-health'),
   healthOverlay: $('health-overlay'),

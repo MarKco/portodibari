@@ -2,6 +2,7 @@
 
 const express = require('express');
 const db = require('../db');
+const appLog = require('../services/app-log');
 const { state } = require('../config');
 const { pendingAlerts } = require('../realtime');
 const { clampLimit, clampOffset, parseId } = require('../lib/params');
@@ -20,6 +21,7 @@ router.delete('/readings', (req, res) => {
   const area = req.query.area || state.preset;
   db.deleteAll(area);
   pendingAlerts.length = 0;
+  appLog.warn('DATA', `Dati cancellati per l'area`, { area });
   res.json({ ok: true, area });
 });
 

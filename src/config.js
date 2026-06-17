@@ -226,6 +226,9 @@ const state = {
   // Equasis ownership lookup. Off by default and never auto-runs — only the
   // detail-view button triggers a fetch. Needs Equasis credentials too.
   importEquasis: props.IMPORT_EQUASIS === 'true',
+  // Operational application log (human-readable event log). Default ON unless
+  // explicitly disabled in local.properties.
+  appLogEnabled: props.APP_LOG_ENABLED !== 'false',
   // Notifications default ON unless explicitly disabled in local.properties.
   notificationsEnabled: props.NOTIFICATIONS_ENABLED !== 'false',
   notifyRevisit: props.NOTIFY_REVISIT !== 'false',
@@ -283,6 +286,11 @@ function setImportPsc(enabled) {
 function setImportEquasis(enabled) {
   state.importEquasis = !!enabled;
   saveProperty('IMPORT_EQUASIS', state.importEquasis);
+}
+
+function setAppLogEnabled(enabled) {
+  state.appLogEnabled = !!enabled;
+  saveProperty('APP_LOG_ENABLED', state.appLogEnabled);
 }
 
 function setNotificationsEnabled(enabled) {
@@ -535,6 +543,7 @@ module.exports = {
   setImportSanctionsExtra,
   setImportPsc,
   setImportEquasis,
+  setAppLogEnabled,
   setNotificationsEnabled,
   setNotifyRevisit,
   setNotifyAreaChange,

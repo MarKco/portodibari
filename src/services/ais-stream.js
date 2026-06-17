@@ -6,6 +6,7 @@ const db = require('../db');
 const enrichment = require('./enrichment');
 const berths = require('./berths');
 const { computeRiskScore, invalidateRiskCache } = require('./risk-score');
+const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
 const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS, state } = require('../config');
 
@@ -42,6 +43,7 @@ function startStream(areaKey) {
 
   s.wsClient.on('open', () => {
     console.log(`[AIS:${areaKey}] Stream connesso`);
+    appLog.info('AIS', `Stream connesso`, { area: areaKey, riconnessione: s.reconnectCount });
     s.rawFramesReceived = 0;
     s.sessionMessages = 0;
     s.connectedAt = Date.now();
@@ -81,6 +83,7 @@ function startStream(areaKey) {
       const parsed = JSON.parse(data.toString());
       if (parsed.error) {
         console.error(`[AIS:${areaKey}] Error:`, parsed.error);
+        appLog.error('AIS', `Errore API AISStream`, { area: areaKey, error: String(parsed.error) });
         s.lastAisError = String(parsed.error);
         s.lastAisErrorAt = new Date().toISOString();
         broadcastLog(
@@ -185,6 +188,7 @@ function startStream(areaKey) {
       }
     } catch (e) {
       console.error(`[AIS:${areaKey}] Parse error:`, e.message);
+      appLog.error('AIS', `Errore di parsing messaggio`, { area: areaKey, error: e.message });
       broadcastLog(
         db.insertLog({
           method: 'AIS',
@@ -214,12 +218,16 @@ function startStream(areaKey) {
     s.wsClient = null;
     if (s.streamActive) {
       console.log(`[AIS:${areaKey}] Riconnessione in 5s...`);
+      appLog.warn('AIS', `Connessione chiusa (code ${code}) — riconnessione in 5s`, { area: areaKey, upSec });
       s.reconnectTimer = setTimeout(() => startStream(areaKey), RECONNECT_DELAY_MS);
+    } else {
+      appLog.info('AIS', `Connessione chiusa (code ${code})`, { area: areaKey, upSec });
     }
   });
 
   s.wsClient.on('error', (err) => {
     console.error(`[AIS:${areaKey}] WS error:`, err.message);
+    appLog.error('AIS', `Errore WebSocket`, { area: areaKey, error: err.message });
     broadcastLog(
       db.insertLog({
         method: 'AIS',
@@ -245,6 +253,7 @@ function stopStream(areaKey) {
     s.wsClient = null;
   }
   console.log(`[AIS:${areaKey}] Stream fermato`);
+  appLog.info('AIS', `Stream fermato`, { area: areaKey, navi: s.totalReceived });
 }
 
 // Stop an area's stream and forget its state entirely (used when the area is

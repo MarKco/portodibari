@@ -21,6 +21,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const appLog = require('./app-log');
 const { state } = require('../config');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
@@ -314,9 +315,11 @@ async function refresh(only) {
       if (!entries.length) throw new Error('no vessel rows parsed');
       fs.renameSync(tmp, src.file);
       console.log(`[SANCTIONS:${key}] Saved ${entries.length} listed vessels`);
+      appLog.info('SANCTIONS', `Lista ${key.toUpperCase()} aggiornata`, { navi: entries.length });
     } catch (e) {
       try { fs.unlinkSync(tmp); } catch { /* nothing to clean up */ }
       console.error(`[SANCTIONS:${key}] Refresh failed: ${e.message}`);
+      appLog.error('SANCTIONS', `Aggiornamento lista ${key.toUpperCase()} fallito: ${e.message}`);
     }
   }
   return loadFromDisk();

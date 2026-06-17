@@ -15,7 +15,7 @@ const NO_BODY_LOG = /^\/(equasis-log|bundle|restore|backups|settings)\b/;
 // api_log table and broadcasts it to the live SSE log stream. The log stream
 // endpoint itself is skipped to avoid logging the long-lived connection.
 function apiLogger(req, res, next) {
-  if (req.path === '/logs/stream') return next();
+  if (req.path === '/logs/stream' || req.path === '/app-log/stream') return next();
 
   const start = Date.now();
   const captureBodies = !NO_BODY_LOG.test(req.path);

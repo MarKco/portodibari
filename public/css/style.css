@@ -390,18 +390,28 @@ body {
 
 .sidebar-footer {
   flex-shrink: 0;
-  padding: 0.75rem 0.9rem;
+  padding: 0.6rem 0.6rem 0.75rem;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sidebar-footer-counter {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  overflow: hidden;
-  white-space: nowrap;
+  padding: 0 0.3rem;
 }
 .sidebar-footer #counter {
   margin-left: 0;
   font-size: 0.76rem;
   overflow: hidden;
+}
+#btn-log-overlay.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */
@@ -2156,3 +2166,110 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 }
 .param-row.param-dirty { background: var(--accent-soft); border-radius: 6px; }
 .param-row.param-dirty .param-input[type="number"] { border-color: var(--accent); }
+
+/* ── Application log: shared log-line list ─────────────────────────────────── */
+.log-line {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.12rem 0.55rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  border-bottom: 1px solid var(--surface-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line:hover { background: var(--surface-2); }
+.log-line .ll-time { color: var(--text-dim); flex-shrink: 0; }
+.log-line .ll-tag {
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 4.5rem;
+}
+.log-line .ll-msg { color: var(--text); flex: 1; }
+.log-line .ll-data { color: var(--text-muted); }
+.log-line.ll-warn .ll-msg { color: var(--amber); }
+.log-line.ll-warn .ll-tag { color: var(--amber); }
+.log-line.ll-error { background: var(--red-soft); }
+.log-line.ll-error .ll-msg,
+.log-line.ll-error .ll-tag { color: var(--red); }
+.log-empty {
+  padding: 1.2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ── Application log: Settings → Log tab ───────────────────────────────────── */
+.app-log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.5rem;
+}
+.app-log-toolbar-spacer { flex: 1; }
+.app-log-body {
+  height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  user-select: text;
+}
+
+/* ── Application log: floating overlay window ──────────────────────────────── */
+.log-overlay-window {
+  position: fixed;
+  z-index: 120;
+  width: 460px;
+  height: 360px;
+  min-width: 300px;
+  min-height: 200px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  resize: both;
+}
+.log-overlay-window.hidden { display: none; }
+.log-ov-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+.log-ov-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.log-ov-spacer { flex: 1; }
+.log-ov-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--r-sm);
+  line-height: 1;
+}
+.log-ov-btn:hover { color: var(--text); background: var(--surface-3); }
+.log-ov-body {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface-1);
+  user-select: text;
+}

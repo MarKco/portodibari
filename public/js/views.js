@@ -15,11 +15,14 @@ import {
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { enterAreasView, commitPendingDelete } from './areas.js';
+import { closeSettingsLog } from './app-log.js';
 
 export function showView(v, mmsi, shipData) {
   // Leaving the Areas screen counts as "navigating away": commit any pending
   // (undo-window) area deletion before the screen disappears.
   if (S.view === 'areas' && v !== 'areas') commitPendingDelete();
+  // Leaving Settings: stop tailing the app-log into the (now hidden) Log tab.
+  if (S.view === 'settings' && v !== 'settings') closeSettingsLog();
 
   S.view = v;
   el.viewActive.classList.toggle('hidden', v !== 'active');
