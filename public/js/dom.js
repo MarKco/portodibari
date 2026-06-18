@@ -125,6 +125,7 @@ export const el = {
   settingNotifyBerthNew: $('setting-notify-berth-new'),
   toggleNotifyBerthChar: $('toggle-notify-berth-char'),
   settingNotifyBerthChar: $('setting-notify-berth-char'),
+  toggleExcludeTankers: $('toggle-exclude-tankers'),
   btnBackup: $('btn-backup'),
   btnRestore: $('btn-restore'),
   restoreFile: $('restore-file'),

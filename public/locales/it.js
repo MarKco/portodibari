@@ -370,6 +370,8 @@ export default {
   'settings.notifBerthNew.desc':    'Avvisa quando viene rilevata una nuova banchina in un\'area.',
   'settings.notifBerthChar.name':   'Notifica caratterizzazione banchina',
   'settings.notifBerthChar.desc':   'Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente).',
+  'settings.excludeTankers.name':   'Escludi tanker',
+  'settings.excludeTankers.desc':   'Non assegnare il punteggio di rischio di tipo nave ai tanker (tipo AIS 80–89). Utile quando si monitora il trasporto di armi, che i tanker non possono effettuare. Disattivato: i tanker ricevono il punteggio di tipo come le altre navi cargo. Gli altri segnali di rischio (sanzioni, dark activity, ecc.) restano attivi.',
   'settings.export.name':    'Esporta CSV',
   'settings.export.desc':    'Scarica tutte le letture AIS in formato CSV.',
   'settings.export.btn':     '⬇ Esporta',

@@ -134,6 +134,8 @@ async function loadSettings() {
     if (el.toggleNotifyHighRisk) el.toggleNotifyHighRisk.checked = S.notifyHighRisk;
     if (el.toggleNotifyBerthNew) el.toggleNotifyBerthNew.checked = S.notifyBerthNew;
     if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
+    S.excludeTankers = !!s.excludeTankers;
+    if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
     applyNotifSettingsState();
   } catch {
     /* ignore */
@@ -508,6 +510,18 @@ function initSettingsModal() {
       el.toggleNotifyBerthChar.checked = !enabled;
     }
   });
+
+  if (el.toggleExcludeTankers) {
+    el.toggleExcludeTankers.addEventListener('change', async () => {
+      const enabled = el.toggleExcludeTankers.checked;
+      try {
+        await api('/api/settings', 'POST', { excludeTankers: enabled });
+        S.excludeTankers = enabled;
+      } catch {
+        el.toggleExcludeTankers.checked = !enabled;
+      }
+    });
+  }
 
   // Whole-database backup (download .db) and restore (upload .db).
   el.btnBackup.addEventListener('click', () => {

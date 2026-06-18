@@ -370,6 +370,8 @@ export default {
   'settings.notifBerthNew.desc':    'Alert when a new berth is detected in an area.',
   'settings.notifBerthChar.name':   'Berth characterisation alert',
   'settings.notifBerthChar.desc':   'Alert when a berth is characterised for the first time (dominant ship category).',
+  'settings.excludeTankers.name':   'Exclude tankers',
+  'settings.excludeTankers.desc':   'Do not assign the ship-type risk points to tanker vessels (AIS type 80–89). Useful when monitoring arms transport, which tankers cannot carry. When off, tankers get the ship-type points like other cargo vessels. Other risk signals (sanctions, dark activity, etc.) still apply.',
   'settings.export.name':    'Export CSV',
   'settings.export.desc':    'Download all AIS readings as a CSV archive.',
   'settings.export.btn':     '⬇ Export',

@@ -309,9 +309,14 @@ function computeRiskScore(ship, lang) {
   );
   if (dests.size >= 2) add(clamp((dests.size - 1) * R.DEST_PER_CHANGE, 0, R.DEST_MAX), L.destChange(dests.size));
 
-  // 6. Ship type — base contribution for cargo/tanker hulls.
+  // 6. Ship type — base contribution for cargo/tanker hulls. With "exclude
+  //    tankers" on, tanker hulls (80–89) get no type points — useful when
+  //    monitoring arms transport, which tankers cannot carry.
   const t = ship.ship_type;
-  if ((t >= 71 && t <= 74) || (t >= 81 && t <= 84)) add(R.HAZMAT, L.hazmat);
+  const isTanker = t >= 80 && t <= 89;
+  if (state.excludeTankers && isTanker) {
+    /* tanker ship-type bonus suppressed */
+  } else if ((t >= 71 && t <= 74) || (t >= 81 && t <= 84)) add(R.HAZMAT, L.hazmat);
   else if (t >= 70 && t <= 89) add(R.CARGO, L.cargo);
 
   // 7. Flag/name hopping — one MMSI broadcasting multiple hull names.

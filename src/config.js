@@ -269,6 +269,10 @@ const state = {
   // Berth lifecycle alerts: a new berth is detected, or one gets characterised.
   notifyBerthNew: props.NOTIFY_BERTH_NEW !== 'false',
   notifyBerthChar: props.NOTIFY_BERTH_CHAR !== 'false',
+  // Exclude tankers from the ship-type risk bonus. When ON, tanker hulls
+  // (AIS type 80–89) get no CARGO/HAZMAT *type* points — useful when monitoring
+  // arms transport, which tankers cannot carry. Default OFF (current behaviour).
+  excludeTankers: props.EXCLUDE_TANKERS === 'true',
 };
 
 function applyPreset(preset) {
@@ -366,6 +370,11 @@ function setNotifyBerthNew(enabled) {
 function setNotifyBerthChar(enabled) {
   state.notifyBerthChar = !!enabled;
   saveProperty('NOTIFY_BERTH_CHAR', state.notifyBerthChar);
+}
+
+function setExcludeTankers(enabled) {
+  state.excludeTankers = !!enabled;
+  saveProperty('EXCLUDE_TANKERS', state.excludeTankers);
 }
 
 /** Keyword for a preset (used to flag "expected" ships by destination). */
@@ -599,6 +608,7 @@ module.exports = {
   setNotifyHighRisk,
   setNotifyBerthNew,
   setNotifyBerthChar,
+  setExcludeTankers,
   currentKeyword,
   bboxSignature,
   areaForPoint,

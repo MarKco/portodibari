@@ -3,7 +3,7 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -71,6 +71,7 @@ router.get('/settings', (req, res) => {
     notifyHighRisk: state.notifyHighRisk,
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
+    excludeTankers: state.excludeTankers,
   });
 });
 
@@ -113,6 +114,7 @@ function exportSettings() {
     notifyHighRisk: state.notifyHighRisk,
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
+    excludeTankers: state.excludeTankers,
   };
 }
 
@@ -130,6 +132,7 @@ function applyImportedSettings(s) {
   if (s.notifyHighRisk !== undefined) setNotifyHighRisk(s.notifyHighRisk);
   if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
   if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
+  if (s.excludeTankers !== undefined) setExcludeTankers(s.excludeTankers);
 
   // VF/MT toggles: persist only — do NOT backfill. The scraped data lives in
   // ship_scrape_cache, which is part of the DB backup and is restored alongside
@@ -194,6 +197,7 @@ router.post('/settings', (req, res) => {
     importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
+    excludeTankers: newExcludeTankers,
   } = req.body;
 
   if (newNotif !== undefined) {
@@ -220,6 +224,11 @@ router.post('/settings', (req, res) => {
   if (newBerthChar !== undefined) {
     setNotifyBerthChar(newBerthChar);
     console.log(`[NOTIF] Berth-characterised notifications: ${state.notifyBerthChar}`);
+  }
+  if (newExcludeTankers !== undefined) {
+    setExcludeTankers(newExcludeTankers);
+    console.log(`[RISK] Exclude tankers from type score: ${state.excludeTankers}`);
+    appLog.info('SETTINGS', appLog.t('settings.exclude_tankers', { on: state.excludeTankers }));
   }
 
   if (newImportVf !== undefined) {
@@ -313,6 +322,7 @@ router.post('/settings', (req, res) => {
       notifyHighRisk: state.notifyHighRisk,
       notifyBerthNew: state.notifyBerthNew,
       notifyBerthChar: state.notifyBerthChar,
+      excludeTankers: state.excludeTankers,
     });
   }
 

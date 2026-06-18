@@ -38,6 +38,7 @@ export const S = {
   notifyHighRisk: true,
   notifyBerthNew: true,
   notifyBerthChar: true,
+  excludeTankers: false,
   currentPreset: '',
 
   // List filters (client-side, applied before sort/render)
