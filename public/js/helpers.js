@@ -119,7 +119,7 @@ export function riskClass(score) {
 
 function riskSrcDot(sources) {
   if (!sources) return '';
-  const { vf, mt, sanctions } = sources;
+  const { vf, mt, gfw, sanctions } = sources;
   // Sanctions screening shown as its own dot (strongest signal) before VF/MT.
   let out = '';
   if (sanctions && sanctions !== 'none') {
@@ -135,6 +135,11 @@ function riskSrcDot(sources) {
     out += `<span class="risk-src-dot src-vf${!vfUsed ? ' src-dim' : ''}" title="${!vfUsed ? t('risk.src.vfDim') : t('risk.src.vf')}"></span>`;
   else if (mtOn)
     out += `<span class="risk-src-dot src-mt${!mtUsed ? ' src-dim' : ''}" title="${!mtUsed ? t('risk.src.mtDim') : t('risk.src.mt')}"></span>`;
+  const gfwOn = gfw && gfw !== 'none';
+  if (gfwOn) {
+    const gfwUsed = gfw === 'used';
+    out += `<span class="risk-src-dot src-gfw${!gfwUsed ? ' src-dim' : ''}" title="${!gfwUsed ? t('risk.src.gfwDim') : t('risk.src.gfw')}"></span>`;
+  }
   return out;
 }
 

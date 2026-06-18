@@ -197,6 +197,19 @@ Quando **attivi** VesselFinder o MarineTraffic, l'app recupera in background i d
 
 Se il lookup Equasis è abilitato nelle impostazioni, nel dettaglio compare il pannello **Proprietà / gestione (Equasis)** con il pulsante **Recupera informazioni Equasis**. A differenza di VesselFinder/MarineTraffic **non parte mai in automatico**: la ricerca avviene solo quando premi il pulsante, e interroga Equasis per **numero IMO** (se la nave non ha IMO il lookup non è possibile). Restituisce: dati nave (bandiera, call sign, MMSI, tonnellaggi, tipo, anno, stato), **proprietà e gestione** (proprietario registrato, gestore ISM, operatore, manager commerciale), **classificazione** (società, stato, data), **copertura P&I**, indicatori di **performance/rischio** (tasso detenzioni a 36 mesi, classe IACS, performance Paris/Tokyo MOU, targeting USCG) e le **posizioni recenti** (aree in cui la nave è stata vista). Il risultato viene **memorizzato una sola volta** e mostrato senza limite di tempo (nessuna scadenza); il pulsante sparisce dopo il primo recupero. Richiede un account Equasis gratuito configurato in `local.properties`. Ogni recupero viene anche registrato in un log consultabile dalle impostazioni (vedi **Visualizza log Equasis**).
 
+### Global Fishing Watch
+
+Se l'arricchimento Global Fishing Watch è abilitato (lo è **di default**), nel dettaglio compare il pannello **Global Fishing Watch**, sopra la mappa accanto ai pannelli VesselFinder/MarineTraffic/Equasis. Mostra l'**identità** della nave (bandiera, IMO, MMSI, call sign, tipo, anno) e le tabelle degli **eventi comportamentali** che GFW ricava e classifica dal flusso AIS globale:
+
+- **Incontri** — due navi che si incontrano in mare aperto (firma tipica di un trasbordo nave-a-nave).
+- **Loitering** — sosta prolungata in mare aperto.
+- **Port visit** — scali in porto ricostruiti.
+- **AIS spento (gap)** — transponder spento mentre la nave era in navigazione ("dark activity").
+
+Ogni campo/sezione ha un'icona ⓘ al passaggio del mouse che ne spiega il significato. Come VesselFinder/MarineTraffic, l'arricchimento è **proattivo**: parte in background alla prima rilevazione della nave (nessun pulsante da premere). Questi eventi, essendo già derivati dall'AIS e classificati da GFW, sono **conferme autorevoli** dei segnali comportamentali e **alimentano lo score di rischio**.
+
+GFW traccia soprattutto navi da **pesca, di supporto e reefer/carrier**: molte navi mercantili non sono presenti, e in tal caso il pannello mostra la nota "non trovata in GFW". La feature richiede un **token API** GFW configurato in `local.properties` (`GLOBAL_FISHING_WATCH_TOKEN`); senza token resta disattivata e le impostazioni mostrano l'avviso "token non configurato". I dati GFW sono gratuiti **solo per uso non commerciale** (ricerca, ONG, interesse pubblico); l'uso commerciale richiede una licenza dedicata.
+
 ### Mappa posizione
 
 Mappa con la traccia dell'ultima posizione nota della nave.
@@ -230,6 +243,7 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **Liste sanzioni aggiuntive (UE / UK / ONU)** (toggle) | Oltre alla lista OFAC, confronta ogni nave anche con la lista consolidata UE, la lista UK OFSI e la lista ONU delle navi designate. Sottovoce indentata sotto la riga **Screening sanzioni**, attiva solo quando lo screening sanzioni è acceso. Un match in una qualsiasi lista contribuisce allo score come un match OFAC. Le liste vengono scaricate e aggiornate ogni 24 ore (via OpenSanctions). Default attivo. |
 | **Screening Port State Control (Paris/Tokyo MoU)** (toggle) | Confronta ogni nave con due liste ufficiali dei Memorandum d'Intesa: (1) la **performance bandiera** white/grey/black di Paris MoU e Tokyo MoU — una bandiera in black list è un registro ad alto rischio per fermi/ispezioni (contributo medio-alto allo score), una in white list non penalizza; (2) la **lista delle navi bandite** dal Paris MoU (refusal of access dopo fermi multipli) — segnale forte, match per IMO/nome. Le liste bandiera sono incluse nell'applicazione e vanno aggiornate manualmente ~1 volta l'anno; la lista navi bandite è scaricata all'attivazione e aggiornata ogni 24 ore. Il pulsante **Aggiorna liste** forza il download. Sotto al toggle sono mostrati i conteggi bandiere (black/grey/white) e navi bandite con la data dell'ultimo aggiornamento. |
 | **Lookup Equasis (proprietà)** (toggle) | Abilita il pulsante **Recupera informazioni Equasis** nel dettaglio nave per recuperare proprietario registrato, gestore ISM e operatore (per numero IMO). **Mai automatico**: parte solo su richiesta, una nave alla volta. I dati vengono memorizzati una sola volta (nessuna scadenza). Richiede credenziali Equasis (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); senza credenziali il pulsante resta inutilizzabile. Il pulsante **Visualizza log Equasis** (sotto la descrizione) apre il registro testuale di tutti i lookup effettuati, con data, nave e dati recuperati; dalla stessa finestra è possibile **Cancellare il log**. |
+| **Global Fishing Watch** (toggle) | Arricchisce ogni nave con identità ed eventi comportamentali (incontri in mare, loitering, scali in porto, AIS spento) ricavati da GFW dal flusso AIS globale, mostrati in un pannello dedicato nel dettaglio; gli eventi contribuiscono allo score di rischio. **Proattivo** come VesselFinder/MarineTraffic e **attivo di default**. Copre soprattutto navi da pesca, di supporto e reefer/carrier (molte mercantili non sono presenti). Richiede un **token API** GFW (`GLOBAL_FISHING_WATCH_TOKEN` in `local.properties`); senza token la riga mostra l'avviso "token non configurato". Dati gratuiti solo per uso non commerciale. |
 | **Notifiche** (toggle) | Interruttore generale: abilita o disabilita tutte le notifiche nella barra laterale. Se spento, i toggle sottostanti sono disattivati. |
 | **Notifica rientro nave** (toggle) | Avvisa quando una nave rientra in un'area dove era già stata in passato. |
 | **Notifica cambio area** (toggle) | Avvisa quando una nave vista in un'area viene poi rilevata in un'**altra** area. |
@@ -311,6 +325,8 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | `IMPORT_EQUASIS` | `true`/`false` — abilita il lookup Equasis on-demand (proprietà/gestione) nel dettaglio nave |
 | `EQUASIS_USER` | Email dell'account Equasis (registrazione gratuita su https://www.equasis.org/) — richiesta dal lookup Equasis |
 | `EQUASIS_PASSWORD` | Password dell'account Equasis — richiesta dal lookup Equasis |
+| `IMPORT_GFW` | `true`/`false` — abilita l'arricchimento Global Fishing Watch (identità + eventi comportamentali); **default `true`** |
+| `GLOBAL_FISHING_WATCH_TOKEN` | Token API (Bearer) di Global Fishing Watch, generato dal portale API GFW (https://globalfishingwatch.org/our-apis/) — richiesto dall'arricchimento GFW. Dati gratuiti solo per uso non commerciale |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` si cambiano anche dall'interfaccia (selettore area / Impostazioni) e vengono riscritti nel file automaticamente.
 
@@ -370,6 +386,7 @@ Ogni nave riceve un punteggio da 0 a 100 calcolato automaticamente in base a div
 - Punto arancione: entrambe le fonti usate
 - Punto rosso (con alone): nave presente in una lista sanzioni (OFAC / UE / UK / ONU)
 - Etichetta blu (Paris/Tokyo MoU ⚓): segnale dalle liste Port State Control (bandiera black/grey o nave bandita)
+- Punto verde acqua (Global Fishing Watch): punteggio calcolato con dati Global Fishing Watch
 
 Passa il cursore sul badge per vedere i dettagli dei fattori e le fonti.
 

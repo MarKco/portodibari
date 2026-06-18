@@ -29,6 +29,8 @@ export const S = {
   importPsc: false,
   importEquasis: false,
   equasisConfigured: false,
+  importGfw: true,
+  gfwConfigured: false,
   appLogEnabled: true,
   notificationsEnabled: true,
   notifyRevisit: true,

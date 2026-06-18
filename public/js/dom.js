@@ -102,6 +102,8 @@ export const el = {
   btnSettingsBack: $('btn-settings-back'),
   toggleImportVf: $('toggle-import-vf'),
   toggleImportMt: $('toggle-import-mt'),
+  toggleImportGfw: $('toggle-import-gfw'),
+  gfwStatus: $('gfw-status'),
   toggleImportSanctions: $('toggle-import-sanctions'),
   toggleImportSanctionsExtra: $('toggle-import-sanctions-extra'),
   settingSanctionsExtra: $('toggle-import-sanctions-extra')
@@ -156,6 +158,9 @@ export const el = {
   equasisCacheBadge: $('equasis-cache-badge'),
   toggleImportEquasis: $('toggle-import-equasis'),
   btnEquasisLog: $('btn-equasis-log'),
+  gfwDataSection: $('gfw-data-section'),
+  gfwDataBody: $('gfw-data-body'),
+  gfwCacheBadge: $('gfw-cache-badge'),
 
   // API log panel (Settings → Log API tab)
   btnLogClear: $('btn-log-clear'),

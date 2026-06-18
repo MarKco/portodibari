@@ -197,6 +197,19 @@ When you **enable** VesselFinder or MarineTraffic, the app fetches data in the b
 
 If the Equasis lookup is enabled in settings, the detail view shows an **Ownership / management (Equasis)** panel with a **Fetch Equasis information** button. Unlike VesselFinder/MarineTraffic it **never runs automatically**: the lookup happens only when you press the button, and queries Equasis by **IMO number** (if the ship has no IMO the lookup is not possible). It returns: ship particulars (flag, call sign, MMSI, tonnages, type, year, status), **ownership and management** (registered owner, ISM manager, operator, commercial manager), **classification** (society, status, date), **P&I cover**, **performance/risk** indicators (36-month detention rate, IACS class, Paris/Tokyo MOU performance, USCG targeting) and **recent positions** (areas the ship was seen in). The result is **stored once** and shown indefinitely (no expiry); the button disappears after the first fetch. Requires a free Equasis account configured in `local.properties`. Every fetch is also recorded in a log viewable from settings (see **View Equasis log**).
 
+### Global Fishing Watch
+
+If Global Fishing Watch enrichment is enabled (it is **on by default**), the detail view shows a **Global Fishing Watch** panel, above the map alongside the VesselFinder/MarineTraffic/Equasis panels. It shows the vessel's **identity** (flag, IMO, MMSI, call sign, type, year) and the **behavioural event** tables that GFW derives and classifies from the global AIS feed:
+
+- **Encounters** — two vessels meeting at sea (the typical signature of a ship-to-ship transfer).
+- **Loitering** — a prolonged stop in open sea.
+- **Port visits** — reconstructed port calls.
+- **AIS-off (gaps)** — transponder switched off while the ship was underway ("dark activity").
+
+Each field/section has a hover ⓘ info icon explaining it. Like VesselFinder/MarineTraffic, the enrichment is **proactive**: it runs in the background on the ship's first detection (no button to press). Because these events are already AIS-derived and classified by GFW, they are **authoritative confirmations** of the behavioural signals and they **feed the risk score**.
+
+GFW mainly tracks **fishing, support, and reefer/carrier vessels**: many merchant ships are not present, and in that case the panel shows a "not found in GFW" note. The feature requires a GFW **API token** configured in `local.properties` (`GLOBAL_FISHING_WATCH_TOKEN`); without a token it stays disabled and the settings show a "token not configured" hint. GFW data is free **for non-commercial use only** (research, NGO, public good); commercial use requires a dedicated license.
+
 ### Position map
 
 Map showing the vessel's last known position.
@@ -230,6 +243,7 @@ Open with the **⚙ Settings** button in the sidebar.
 | **Additional sanctions lists (EU / UK / UN)** (toggle) | On top of the OFAC list, also matches every ship against the EU consolidated list, the UK OFSI list and the UN designated-vessels list. Indented sub-row under the **Sanctions screening** row, active only while sanctions screening is on. A match on any list contributes to the score like an OFAC match. The lists are downloaded and refreshed every 24 hours (via OpenSanctions). Default on. |
 | **Port State Control screening (Paris/Tokyo MoU)** (toggle) | Matches every ship against two official Memorandum of Understanding lists: (1) the **flag performance** white/grey/black lists of Paris MoU and Tokyo MoU — a black-listed flag is a high-risk registry for detentions/inspections (medium-high score contribution), a white-listed one carries no penalty; (2) the **banned-ships list** of the Paris MoU (refusal of access after repeated detentions) — a strong signal, matched by IMO/name. The flag lists are bundled with the app and must be updated manually ~once a year; the banned-ships list is downloaded on enable and refreshed every 24 hours. The **Refresh lists** button forces a download. Below the toggle the flag counts (black/grey/white) and banned-ship count are shown with the last refresh date. |
 | **Equasis lookup (ownership)** (toggle) | Enables the **Fetch Equasis information** button in the ship detail to retrieve registered owner, ISM manager and operator (by IMO number). **Never automatic**: runs only on request, one ship at a time. Data is stored once (no expiry). Requires Equasis credentials (`EQUASIS_USER` / `EQUASIS_PASSWORD` in `local.properties`); without credentials the button stays unusable. The **View Equasis log** button (below the description) opens the plain-text record of every lookup performed, with date, ship and retrieved data; the same window lets you **Clear the log**. |
+| **Global Fishing Watch** (toggle) | Enriches every ship with identity and behavioural events (at-sea encounters, loitering, port visits, AIS-off gaps) derived by GFW from the global AIS feed, shown in a dedicated panel in the detail view; the events contribute to the risk score. **Proactive** like VesselFinder/MarineTraffic and **on by default**. Covers mainly fishing, support and reefer/carrier vessels (many merchant ships are not present). Requires a GFW **API token** (`GLOBAL_FISHING_WATCH_TOKEN` in `local.properties`); without a token the row shows a "token not configured" hint. Data is free for non-commercial use only. |
 | **Notifications** (toggle) | Master switch: enable or disable all sidebar notifications. When off, the toggles below are disabled. |
 | **Ship revisit alert** (toggle) | Alert when a ship returns to an area it had visited before. |
 | **Area change alert** (toggle) | Alert when a ship seen in one area is later detected in a **different** area. |
@@ -311,6 +325,8 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `IMPORT_EQUASIS` | `true`/`false` — enable the on-demand Equasis lookup (ownership/management) in the ship detail |
 | `EQUASIS_USER` | Equasis account email (free registration at https://www.equasis.org/) — required by the Equasis lookup |
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup |
+| `IMPORT_GFW` | `true`/`false` — enable Global Fishing Watch enrichment (identity + behavioural events); **default `true`** |
+| `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the GFW API portal (https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. Data is free for non-commercial use only |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the interface (area selector / Settings) and are rewritten to the file automatically.
 
@@ -370,6 +386,7 @@ Each vessel receives a score from 0 to 100 calculated automatically based on sev
 - Red dot (with glow): ship present on a sanctions list (OFAC / EU / UK / UN)
 - Orange dot: both sources used
 - Blue label (Paris/Tokyo MoU ⚓): signal from the Port State Control lists (black/grey flag or banned vessel)
+- Teal dot (Global Fishing Watch): score calculated using Global Fishing Watch data
 
 Hover over the badge to see factor details and sources.
 

@@ -12,12 +12,14 @@ const { state, SCRAPE_NEG_CACHE_DAYS } = require('../config');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlVesselFinder } = require('./scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('./scrapers/marinetraffic');
+const { crawlGfw } = require('./gfw');
+const { GFW_TOKEN } = require('../config');
 
 // Guards against duplicate concurrent fetches for the same ship+source.
 const inFlight = new Set();
 
 // Display name per source code, for log messages.
-const SOURCE_NAME = { vf: 'VesselFinder', mt: 'MarineTraffic' };
+const SOURCE_NAME = { vf: 'VesselFinder', mt: 'MarineTraffic', gfw: 'Global Fishing Watch' };
 const sourceName = (s) => SOURCE_NAME[s] || s.toUpperCase();
 
 // Skip a ship+source that is already cached OR that failed recently (negative
@@ -27,6 +29,9 @@ function alreadyResolved(mmsi, source) {
 }
 
 async function fetchSource(ship, source) {
+  // GFW needs an API token: without it, don't even attempt the call (and don't
+  // record a negative-cache failure — it's a config gap, not a real miss).
+  if (source === 'gfw' && !GFW_TOKEN) return;
   const key = `${ship.mmsi}:${source}`;
   if (inFlight.has(key)) return;
   if (alreadyResolved(ship.mmsi, source)) return;
@@ -35,6 +40,17 @@ async function fetchSource(ship, source) {
     if (source === 'vf') {
       const data = await crawlVesselFinder(ship.imo_number || ship.mmsi);
       db.setScrapedData(ship.mmsi, 'vf', data);
+    } else if (source === 'gfw') {
+      const data = await crawlGfw(ship);
+      if (!data.found) {
+        // GFW simply has no record for this vessel (typical for merchant ships).
+        // Treat like a VF/MT 404: negative-cache it so the backfill stops asking,
+        // but it's not an error — just log a quiet note and skip caching.
+        db.setScrapeFailure(ship.mmsi, source, 'non presente in GFW');
+        appLog.info('GFW', appLog.t('gfw.not_found', { name: ship.ship_name || ship.mmsi }), { mmsi: ship.mmsi });
+        return;
+      }
+      db.setScrapedData(ship.mmsi, 'gfw', data);
     } else {
       const { data, shipId } = await crawlMarineTraffic(ship);
       if (shipId && shipId !== ship.mt_ship_id) db.setMtShipId(ship.mmsi, shipId);
@@ -59,11 +75,13 @@ async function fetchSource(ship, source) {
  * immediately (fire-and-forget) — the AIS ingestion loop is never blocked.
  */
 function enrichNewShip(mmsi) {
-  if (!state.importVfData && !state.importMtData) return;
+  const gfwOn = state.importGfw && GFW_TOKEN;
+  if (!state.importVfData && !state.importMtData && !gfwOn) return;
   const ship = db.getShip(mmsi);
   if (!ship) return;
   if (state.importVfData) fetchSource(ship, 'vf');
   if (state.importMtData) fetchSource(ship, 'mt');
+  if (gfwOn) fetchSource(ship, 'gfw');
 }
 
 /**
@@ -87,4 +105,26 @@ async function enrichAllExisting(source) {
   console.log(`[ENRICH:${source}] Backfill queued ${queued} fetches`);
 }
 
-module.exports = { enrichNewShip, enrichAllExisting };
+/**
+ * Enrich only the ships *currently being monitored* — those active within the
+ * AIS active window across the streamed areas — for the given source. Used when
+ * GFW is toggled on: unlike enrichAllExisting (the 7-day fleet) this stays small
+ * and current, touching just the vessels presently transmitting. Skips
+ * already-cached/recently-failed ships and staggers requests 2 s apart.
+ */
+async function enrichActiveShips(source) {
+  if (source === 'gfw' && !GFW_TOKEN) return; // no token → nothing to do
+  const ships = db.getActiveShips(); // no area → all currently-active ships
+  console.log(`[ENRICH:${source}] Active-only enrichment — ${ships.length} ships to check`);
+  appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
+  let queued = 0;
+  for (const ship of ships) {
+    if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed
+    queued++;
+    await new Promise((r) => setTimeout(r, 2000));
+    fetchSource(ship, source); // fire-and-forget per ship
+  }
+  console.log(`[ENRICH:${source}] Active-only enrichment queued ${queued} fetches`);
+}
+
+module.exports = { enrichNewShip, enrichAllExisting, enrichActiveShips };

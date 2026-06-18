@@ -2,16 +2,18 @@
 
 const express = require('express');
 const {
-  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setNotificationsEnabled, setNotifyRevisit,
+  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
   setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
-  EQUASIS_USER, EQUASIS_PASSWORD,
+  EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
 
 // Whether Equasis credentials are present (the lookup is unusable without them).
 const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
-const { enrichAllExisting } = require('../services/enrichment');
+// Whether a GFW API token is present (enrichment no-ops without it).
+const gfwConfigured = !!GFW_TOKEN;
+const { enrichAllExisting, enrichActiveShips } = require('../services/enrichment');
 const { clearRiskCache } = require('../services/risk-score');
 const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
@@ -60,6 +62,8 @@ router.get('/settings', (req, res) => {
     psc: psc.getStatus(),
     importEquasis: state.importEquasis,
     equasisConfigured,
+    importGfw: state.importGfw,
+    gfwConfigured,
     appLogEnabled: state.appLogEnabled,
     notificationsEnabled: state.notificationsEnabled,
     notifyRevisit: state.notifyRevisit,
@@ -102,6 +106,7 @@ function exportSettings() {
     importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
     importEquasis: state.importEquasis,
+    importGfw: state.importGfw,
     notificationsEnabled: state.notificationsEnabled,
     notifyRevisit: state.notifyRevisit,
     notifyAreaChange: state.notifyAreaChange,
@@ -155,6 +160,10 @@ function applyImportedSettings(s) {
   // Equasis is a manual, on-demand lookup: just persist the toggle, never backfill.
   if (s.importEquasis !== undefined) setImportEquasis(s.importEquasis);
 
+  // GFW: persist only, no backfill on import (same reasoning as VF/MT — the
+  // enrichment lives in ship_scrape_cache and is restored with the DB).
+  if (s.importGfw !== undefined) setImportGfw(s.importGfw);
+
   if (s.preset && BBOX_PRESETS[s.preset]) setPreset(s.preset);
 
   clearRiskCache(); // import may have flipped sources that feed the score
@@ -182,7 +191,7 @@ router.post('/settings/import', (req, res) => {
 router.post('/settings', (req, res) => {
   const {
     preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
-    importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis,
+    importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
   } = req.body;
@@ -270,6 +279,15 @@ router.post('/settings', (req, res) => {
     setImportEquasis(newEquasis);
     console.log(`[EQUASIS] Import Equasis: ${state.importEquasis}`);
   }
+  if (newGfw !== undefined) {
+    const wasDisabled = !state.importGfw;
+    setImportGfw(newGfw);
+    console.log(`[GFW] Import GFW data: ${state.importGfw}`);
+    appLog.info('SETTINGS', appLog.t('settings.import_gfw', { on: state.importGfw }));
+    // First enable → enrich only the ships *currently being monitored* (active
+    // window), NOT the 7-day fleet. No token → no attempt (guarded downstream).
+    if (state.importGfw && wasDisabled && GFW_TOKEN) enrichActiveShips('gfw');
+  }
 
   // Any toggle above (VF/MT/sanctions/PSC/Equasis) can change which signals feed
   // the risk score, so drop the memoised scores.
@@ -287,6 +305,8 @@ router.post('/settings', (req, res) => {
       psc: psc.getStatus(),
       importEquasis: state.importEquasis,
       equasisConfigured,
+      importGfw: state.importGfw,
+      gfwConfigured,
       notificationsEnabled: state.notificationsEnabled,
       notifyRevisit: state.notifyRevisit,
       notifyAreaChange: state.notifyAreaChange,
@@ -317,6 +337,7 @@ router.post('/settings', (req, res) => {
     importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
     importEquasis: state.importEquasis,
+    importGfw: state.importGfw,
   });
 });
 

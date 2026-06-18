@@ -35,6 +35,15 @@ EQUASIS_PASSWORD=
 # (downloaded daily). Banned = refusal of access after repeated detentions.
 IMPORT_PSC=false
 
+# Global Fishing Watch enrichment (true | false). Default ON. Adds GFW vessel
+# identity + behavioural events (encounters, loitering, port visits, AIS-off
+# "gaps") to the ship detail and the risk score. Needs an API token (NOT the
+# website login): generate one at https://globalfishingwatch.org/our-apis/ and
+# paste it below. Free tier is non-commercial use only. Without a token the
+# feature stays inert (the detail panel shows a hint).
+IMPORT_GFW=true
+GLOBAL_FISHING_WATCH_TOKEN=
+
 # HTTP Basic Auth. Leave AUTH_PASSWORD empty to disable auth (recommended only
 # for local use). Set a password to gate the whole app behind a browser login
 # before exposing it on a network/internet. Basic auth sends credentials in

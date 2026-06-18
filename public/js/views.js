@@ -7,6 +7,7 @@ import {
   loadVfData,
   loadMtData,
   loadEquasisData,
+  loadGfwData,
   renderDetailInfoBar,
   updateDetailFlagBtn,
   updateDetailSeenBtn,
@@ -60,7 +61,9 @@ export function showView(v, mmsi, shipData) {
     renderDetailInfoBar(shipData, null);
     loadDetail();
     loadTrack(mmsi);
-    Promise.all([loadVfData(mmsi), loadMtData(mmsi)]).then(() => loadDetail());
+    // VF/MT/GFW are proactive enrichment and can shift the risk score, so
+    // refresh the detail (score + factors) once they resolve.
+    Promise.all([loadVfData(mmsi), loadMtData(mmsi), loadGfwData(mmsi)]).then(() => loadDetail());
     // Equasis is manual: only show cached data here, never auto-fetch.
     loadEquasisData(mmsi, false);
   } else if (v === 'active') {

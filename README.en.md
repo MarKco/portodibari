@@ -20,6 +20,7 @@ App for tracking ships via [AISStream.io](https://aisstream.io). The monitoring 
 Browser ←──polling 5min──→ Express (Node.js) ←──WebSocket──→ AISStream.io
                                  │         └──node-libcurl──→ MarineTraffic (Cloudflare)
                                  │         └──https───────────→ VesselFinder
+                                 │         └──https (token)───→ Global Fishing Watch API
                              SQLite (ais_data.db)
 ```
 
@@ -55,6 +56,7 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │   │   ├── enrichment.js      # Proactive VF/MT enrichment on first ship detection
 │   │   ├── sanctions.js       # OFAC SDN + EU/UK/UN sanctions lists (OpenSanctions): download, index, match by IMO/name/call sign
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): flag performance + banned vessels
+│   │   ├── gfw.js             # Global Fishing Watch API client: vessel identity + behavioural events (encounters, loitering, port visits, AIS gaps)
 │   │   ├── equasis-log.js     # Append-only audit log of Equasis lookups (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # HTTP/node-libcurl helper + HTML parsing
@@ -96,6 +98,8 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `IMPORT_EQUASIS` | Enable the on-demand Equasis lookup (ownership/management) in the ship detail (`true`/`false`) | `false` |
 | `EQUASIS_USER` | Equasis account email (free registration at [equasis.org](https://www.equasis.org/)) — required by the Equasis lookup | *(empty)* |
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup | *(empty)* |
+| `IMPORT_GFW` | Enable Global Fishing Watch enrichment (identity + AIS-derived behavioural events) (`true`/`false`) | `true` |
+| `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the [GFW API portal](https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. GFW data is free **for non-commercial use only** (research/NGO/public good); commercial use requires a dedicated license. Without a token the feature silently no-ops | *(empty)* |
 | `AUTH_USER` | Username for HTTP Basic authentication (see [Authentication](#-authentication)) | `admin` |
 | `AUTH_PASSWORD` | Password for HTTP Basic authentication. **Empty = auth disabled** | *(empty)* |
 
@@ -256,6 +260,7 @@ Each detected signature adds weighted points to an **anomaly subtotal**:
 | **External enrichment (VF/MT)** | Registry data from VesselFinder/MarineTraffic, **only if import is enabled and already cached** (see below): flag registered under embargo → 12, flag of convenience → 5, aged hull (≥ 35 years) → 6, home port in high-risk zone → 8 | 12 |
 | **Sanctions (OFAC SDN + EU/UK/UN)** | Match against the sanctions lists by IMO/name/call sign, only if `IMPORT_SANCTIONS` (see `sanctions.js`): on top of OFAC SDN, also matches the EU consolidated list, the UK OFSI list and the UN designated-vessels list (via OpenSanctions), extra lists gated by `IMPORT_SANCTIONS_EXTRA`. Very strong direct signal | 60 |
 | **Port State Control (Paris/Tokyo MoU)** | Only if `IMPORT_PSC` (see below): flag on MoU black list → 12, on grey list → 5; vessel on the Paris MoU banned list (refusal of access after repeated detentions) → 40 | 40 |
+| **Global Fishing Watch events** | Only if `IMPORT_GFW` (see below): behavioural events derived and classified by GFW from the global AIS feed, **authoritative confirmations** of the signals the AIS-only model infers heuristically. At-sea encounter (ship-to-ship transshipment signature, `RISK_GFW_ENCOUNTER`) → 18, AIS-off/gap event while underway (`RISK_GFW_GAP`) → 15, loitering (`RISK_GFW_LOITERING`) → 12, port call in a high-risk area (`RISK_GFW_PORT_VISIT_HIGH_RISK`) → 15. Behavioural factors (pass through the geopolitical multiplier) | 18 |
 
 **Geopolitical context multiplier** applied to the anomaly subtotal:
 
@@ -323,6 +328,7 @@ Helpers in `public/js/helpers.js`: `riskClass(score)` (maps band → CSS class) 
 | Orange | Score includes VesselFinder **+** MarineTraffic data |
 | Red (Sanctions ⚠) | Vessel present on a sanctions list (OFAC / EU / UK / UN) |
 | Blue (Paris/Tokyo MoU ⚓) | Signal from the Port State Control lists (black/grey flag or banned vessel) |
+| Teal (Global Fishing Watch) | Score calculated using Global Fishing Watch events/identity |
 | *(absent)* | AIS-only data |
 
 The dot appears only if the data was already in cache at calculation time (same guarantee as the "Cache only, never live" point above).
@@ -441,6 +447,18 @@ Differences from VF/MT:
 Flow (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`j_email`+`j_password`) → session cookie → `POST /EquasisWeb/restricted/ShipInfo` (`P_IMO`) → detail HTML. Cookies live in a throwaway jar for the lifetime of the two calls. Like MarineTraffic, it **uses `node-libcurl`** (no system `curl` dependency). The detail page is split into commented sections (`<!-- Overview -->`, `<!-- MGT DET -->`, `<!-- Classification -->`, `<!-- PI -->`, `<!-- Geo -->`, …), each duplicated as desktop (`<table>`) and mobile (`hidden-md hidden-lg`) markup: the parser always reads the desktop copy and ignores the duplicate. It extracts six blocks: `particulars` (name/IMO from the `<h4>` plus flag, call sign, MMSI, tonnages, type, year, status from the `<b>label</b>` blocks), `management` (`parseManagement`, the *Management detail(s)* table mapped by column header so it survives Equasis reordering its columns), `classification` (society, status, date), `pi` (P&I club + inception), `risk` (36-month detention rate, IACS class, Paris/Tokyo MOU performance, USCG targeting from the *Overview* section) and `positions` (most recent areas the ship was seen in).
 
 **Audit log**: every lookup (success or error) is appended to a plain-text file `equasis.log` (project root, gitignored) by [`src/services/equasis-log.js`](src/services/equasis-log.js): timestamp, MMSI, IMO, ship name and the retrieved data (or the error message). The log is viewable from the UI via the **View Equasis log** button in Settings (endpoint `GET /api/equasis-log`, read tail-truncated to 256 KB; `DELETE /api/equasis-log` clears it).
+
+### Global Fishing Watch enrichment
+
+[Global Fishing Watch](https://globalfishingwatch.org/) (GFW) enriches each ship with its **identity** (flag, IMO, MMSI, call sign, type, year) and with the **behavioural events** that GFW derives and classifies from the global AIS feed: **encounters** (two vessels meeting at sea = ship-to-ship transshipment signature), **loitering** (a prolonged stop in open sea), **port visits** (reconstructed port calls) and **gaps** (AIS switched off while underway = "dark activity"). Because these events are already AIS-derived and classified by GFW, they are **authoritative confirmations** of the behavioural signals the app otherwise infers heuristically from raw positions, and they feed the [risk score](#-risk-score-potential-arms-transport) directly. Implemented in [`src/services/gfw.js`](src/services/gfw.js).
+
+Unlike VF/MT/Equasis/PSC, GFW is **on by default** (`IMPORT_GFW=true`). Like VF/MT, the enrichment is **proactive**: it runs in the background on the ship's first detection and backfills existing ships when first enabled, cached in the same `ship_scrape_cache` (source code `gfw`). **Restoring** a backup does **not** re-fetch the data (it is already in the restored DB), exactly like VF/MT.
+
+- **API token (not username/password)**: a GFW Bearer token is required, configured in `local.properties` as `GLOBAL_FISHING_WATCH_TOKEN` and generated from the [GFW API portal](https://globalfishingwatch.org/our-apis/). Without a token the feature silently no-ops and the settings panel shows a "token not configured" hint.
+- **Non-commercial license**: GFW data is free **for non-commercial use only** (research, NGO, public good); commercial use requires a dedicated license from GFW.
+- **Coverage**: GFW mainly tracks **fishing, support, and reefer/carrier vessels** — many merchant ships are simply not in GFW (the detail panel shows a "not found in GFW" note for those).
+
+In the ship detail view a new **Global Fishing Watch** panel appears (when enabled), above the map alongside the VF/MT/Equasis panels: it shows the identity table and the event tables (encounters, loitering, port visits, AIS-off), each field/section with a hover ⓘ info icon explaining it.
 
 ## 📋 Port events, statistics and alerts
 

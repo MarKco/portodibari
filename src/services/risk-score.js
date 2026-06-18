@@ -91,6 +91,10 @@ function getLabels(lang) {
     pscBlackFlag: (f, m)    => `Flag on ${m} black list (high-risk registry): ${f}`,
     pscGreyFlag: (f, m)     => `Flag on ${m} grey list (medium-risk registry): ${f}`,
     pscBanned: (r, on)      => `Vessel on Paris MoU banned list${r ? ` — ${r}` : ''} (matched by ${on})`,
+    gfwEncounter: (n)       => `At-sea encounter detected by Global Fishing Watch (${n} event${n > 1 ? 's' : ''}) — possible transshipment`,
+    gfwGap: (n)             => `AIS-off ("dark") event detected by Global Fishing Watch (${n})`,
+    gfwLoiter: (n)          => `Loitering in open sea detected by Global Fishing Watch (${n})`,
+    gfwPortHigh: (p)        => `Global Fishing Watch port call in a high-risk area: ${p}`,
     highRiskPort: (p, s)    => `Home port in high-risk zone: ${p} (source ${s})`,
     highRiskCtx: (ctx, m)   => `High-risk context: ${ctx} (×${m})`,
     ctxDest: 'destination under embargo/conflict zone',
@@ -117,6 +121,10 @@ function getLabels(lang) {
     pscBlackFlag: (f, m)    => `Bandiera in black list ${m} (registro ad alto rischio): ${f}`,
     pscGreyFlag: (f, m)     => `Bandiera in grey list ${m} (registro a rischio medio): ${f}`,
     pscBanned: (r, on)      => `Nave nella banned list Paris MoU${r ? ` — ${r}` : ''} (match per ${on})`,
+    gfwEncounter: (n)       => `Incontro in mare rilevato da Global Fishing Watch (${n} event${n > 1 ? 'i' : 'o'}) — possibile trasbordo`,
+    gfwGap: (n)             => `Evento AIS spento ("dark") rilevato da Global Fishing Watch (${n})`,
+    gfwLoiter: (n)          => `Sosta in mare aperto rilevata da Global Fishing Watch (${n})`,
+    gfwPortHigh: (p)        => `Scalo Global Fishing Watch in zona ad alto rischio: ${p}`,
     highRiskPort: (p, s)    => `Porto di armamento in zona ad alto rischio: ${p} (fonte ${s})`,
     highRiskCtx: (ctx, m)   => `Contesto ad alto rischio: ${ctx} (×${m})`,
     ctxDest: 'destinazione sotto embargo/zona di conflitto',
@@ -144,7 +152,7 @@ function pick(data, needles) {
 //   'none'      – source disabled or no cached data (not yet fetched via detail view)
 //   'available' – cached data found; whether it contributes to score is determined later
 function loadEnrichment(mmsi) {
-  let vfStatus = 'none', mtStatus = 'none';
+  let vfStatus = 'none', mtStatus = 'none', gfwStatus = 'none';
   const sources = [];
   if (state.importVfData) {
     const row = db.getScrapedData(mmsi, 'vf');
@@ -153,6 +161,22 @@ function loadEnrichment(mmsi) {
   if (state.importMtData) {
     const row = db.getScrapedData(mmsi, 'mt');
     if (row) { mtStatus = 'available'; sources.push(['MarineTraffic', row]); }
+  }
+
+  // GFW uses a structured shape ({ identity, events }) rather than the flat
+  // label→value map VF/MT produce, so it's parsed separately and its identity
+  // fields are merged as a *fallback* (VF/MT win when both are present).
+  let gfwData = null;
+  if (state.importGfw) {
+    const row = db.getScrapedData(mmsi, 'gfw');
+    if (row) {
+      try {
+        const parsed = JSON.parse(row.data_json);
+        if (parsed && parsed.found) { gfwData = parsed; gfwStatus = 'available'; }
+      } catch {
+        /* corrupt cache row — ignore */
+      }
+    }
   }
 
   const fields = {}; // field → { value, src }; first source to provide it wins
@@ -170,7 +194,15 @@ function loadEnrichment(mmsi) {
     set('year', pick(data, ['anno costruzione', 'year of build', 'built', 'anno']));
     set('homePort', pick(data, ['porto di armamento', 'home port', 'homeport']));
   }
-  return { fields, vfStatus, mtStatus };
+  // GFW identity fills only what VF/MT left empty (no home-port field in GFW).
+  if (gfwData && gfwData.identity) {
+    const set = (key, value) => {
+      if (value && !fields[key]) fields[key] = { value: String(value), src: 'Global Fishing Watch' };
+    };
+    set('flag', gfwData.identity.flag);
+    set('year', gfwData.identity.year);
+  }
+  return { fields, vfStatus, mtStatus, gfwStatus, gfwData };
 }
 
 function bandOf(score) {
@@ -205,7 +237,7 @@ function computeRiskScore(ship, lang) {
       score: 100,
       band: 'high',
       factors: [{ label: L.military, points: 100 }],
-      sources: { vf: 'none', mt: 'none', sanctions: 'none', psc: 'none' },
+      sources: { vf: 'none', mt: 'none', gfw: 'none', sanctions: 'none', psc: 'none' },
     };
   }
 
@@ -289,13 +321,14 @@ function computeRiskScore(ship, lang) {
   //    user enabled the corresponding import and the data is already cached.
   //    Tracks which sources actually contributed points ('used') vs were merely
   //    consulted but had no relevant data ('available').
-  const { fields: enr, vfStatus, mtStatus } = loadEnrichment(mmsi);
-  let vfContributed = false, mtContributed = false, pscContributed = false;
+  const { fields: enr, vfStatus, mtStatus, gfwStatus, gfwData } = loadEnrichment(mmsi);
+  let vfContributed = false, mtContributed = false, gfwContributed = false, pscContributed = false;
   const addEnr = (points, label, src) => {
     add(points, label);
     if (points > 0) {
       if (src === 'VesselFinder') vfContributed = true;
       if (src === 'MarineTraffic') mtContributed = true;
+      if (src === 'Global Fishing Watch') gfwContributed = true;
     }
   };
   if (enr.flag) {
@@ -368,6 +401,26 @@ function computeRiskScore(ship, lang) {
     }
   }
 
+  // 11. Global Fishing Watch behavioural events. These are AIS-derived signals
+  //     already classified by GFW from the global feed, so they are authoritative
+  //     confirmations of the behavioural heuristics computed above (blocks 1–3)
+  //     and contribute to the anomaly subtotal (pass through the multiplier).
+  //     Identity-based GFW contributions (flag/year, block 8) already set
+  //     gfwContributed; here we add the event factors.
+  if (gfwData && gfwData.events) {
+    const ev = gfwData.events;
+    if (ev.encounters?.length) addEnr(R.GFW_ENCOUNTER, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch');
+    if (ev.gaps?.length) addEnr(R.GFW_GAP, L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
+    if (ev.loitering?.length) addEnr(R.GFW_LOITERING, L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
+    const highRiskCall = (ev.portVisits || []).find((pv) => {
+      const hay = `${pv.port || ''} ${pv.country || ''}`.toUpperCase();
+      return HIGH_RISK_DEST.some((k) => hay.includes(k));
+    });
+    if (highRiskCall) {
+      addEnr(R.GFW_PORT_HIGH, L.gfwPortHigh(highRiskCall.port || highRiskCall.country), 'Global Fishing Watch');
+    }
+  }
+
   // ── Geopolitical context multiplier ────────────────────────────────────────
   const destUpper = (ship.destination || '').toUpperCase();
   const highRiskDest = HIGH_RISK_DEST.some((k) => destUpper.includes(k));
@@ -395,9 +448,10 @@ function computeRiskScore(ship, lang) {
   //   'used'      – data in cache AND contributed points to the score
   const resolvedVf = vfStatus === 'none' ? 'none' : vfContributed ? 'used' : 'available';
   const resolvedMt = mtStatus === 'none' ? 'none' : mtContributed ? 'used' : 'available';
+  const resolvedGfw = gfwStatus === 'none' ? 'none' : gfwContributed ? 'used' : 'available';
 
   factors.sort((a, b) => b.points - a.points);
-  return { score, band: bandOf(score), factors, sources: { vf: resolvedVf, mt: resolvedMt, sanctions: sanctionStatus, psc: pscStatus } };
+  return { score, band: bandOf(score), factors, sources: { vf: resolvedVf, mt: resolvedMt, gfw: resolvedGfw, sanctions: sanctionStatus, psc: pscStatus } };
 }
 
 // Name prefixes / keywords that identify military or NATO vessels in AIS data.

@@ -7,10 +7,11 @@ const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache, isMilitar
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
+const { crawlGfw } = require('../services/gfw');
 const equasisLog = require('../services/equasis-log');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN } = require('../config');
 
 const router = express.Router();
 
@@ -246,6 +247,61 @@ router.get('/ships/:mmsi/equasis', async (req, res) => {
   } catch (e) {
     appLog.warn('EQUASIS', appLog.t('scrape.failed', { source: 'Equasis', name: ship.ship_name || mmsi, error: e.message }), { mmsi, imo: ship.imo_number });
     equasisLog.append({ mmsi, imo: ship.imo_number, name: ship.ship_name, ok: false, error: e.message });
+    res.json({ enabled: true, error: e.message });
+  }
+});
+
+// Global Fishing Watch enrichment (vessel identity + behavioural events). Like
+// VF/MT this is proactive (the background enrichment caches it on first sight),
+// so the detail view just serves the cache and only triggers a live fetch when
+// nothing is cached yet and isn't negative-cached. `notFound` means GFW has no
+// record for this vessel (normal for non-fishing/non-carrier ships).
+router.get('/ships/:mmsi/gfwdata', async (req, res) => {
+  if (!state.importGfw) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+  if (!GFW_TOKEN) {
+    return res.json({ enabled: true, error: 'Token GFW mancante: imposta GLOBAL_FISHING_WATCH_TOKEN in local.properties' });
+  }
+
+  const cached = db.getScrapedData(mmsi, 'gfw');
+  if (cached && Date.now() - new Date(cached.scraped_at).getTime() < SCRAPE_CACHE_TTL) {
+    return res.json({
+      enabled: true,
+      data: JSON.parse(cached.data_json),
+      cached: true,
+      cachedAt: cached.scraped_at,
+    });
+  }
+  // A recent "not in GFW" result → don't re-hammer the API; report it as such.
+  if (!cached && db.hasRecentScrapeFailure(mmsi, 'gfw', SCRAPE_NEG_CACHE_DAYS)) {
+    return res.json({ enabled: true, data: null, notFound: true });
+  }
+  try {
+    appLog.info('GFW', appLog.t('scrape.requested', { source: 'Global Fishing Watch', name: ship.ship_name || mmsi }), { mmsi });
+    const data = await crawlGfw(ship);
+    if (!data.found) {
+      db.setScrapeFailure(mmsi, 'gfw', 'non presente in GFW');
+      appLog.info('GFW', appLog.t('gfw.not_found', { name: ship.ship_name || mmsi }), { mmsi });
+      return res.json({ enabled: true, data: null, notFound: true });
+    }
+    const scraped_at = db.setScrapedData(mmsi, 'gfw', data);
+    db.clearScrapeFailure(mmsi, 'gfw');
+    invalidateRiskCache(mmsi); // GFW events/identity may now contribute to the score
+    appLog.info('GFW', appLog.t('scrape.ok', { source: 'Global Fishing Watch', name: ship.ship_name || mmsi }), { mmsi });
+    res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
+  } catch (e) {
+    appLog.warn('GFW', appLog.t('scrape.failed', { source: 'Global Fishing Watch', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
+    if (cached) {
+      return res.json({
+        enabled: true,
+        data: JSON.parse(cached.data_json),
+        cached: true,
+        cachedAt: cached.scraped_at,
+        error: e.message,
+      });
+    }
     res.json({ enabled: true, error: e.message });
   }
 });

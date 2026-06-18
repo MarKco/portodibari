@@ -899,6 +899,139 @@ function renderEquasisData(container, data) {
   container.innerHTML = html;
 }
 
+// ── Global Fishing Watch data (proactive: identity + behavioural events) ─────
+// Loaded automatically on detail open (like VF/MT). The server serves the cache
+// the background enrichment built and only fetches live on a cache miss.
+export async function loadGfwData(mmsi) {
+  if (!S.importGfw) {
+    el.gfwDataSection.classList.add('hidden');
+    return;
+  }
+  el.gfwDataSection.classList.remove('hidden');
+  el.gfwCacheBadge.classList.add('hidden');
+  el.gfwDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingGfw')}</p>`;
+  try {
+    const result = await api(`/api/ships/${mmsi}/gfwdata`);
+    if (!result.enabled) {
+      el.gfwDataSection.classList.add('hidden');
+      return;
+    }
+    if (result.error && !result.data) {
+      el.gfwDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
+      return;
+    }
+    if (result.notFound) {
+      el.gfwDataBody.innerHTML = `<p class="vf-empty">${t('scrape.gfwNotFound')}</p>`;
+      return;
+    }
+    if (!result.data) {
+      el.gfwDataSection.classList.add('hidden');
+      return;
+    }
+    if (result.cachedAt) {
+      el.gfwCacheBadge.textContent = `${result.cached ? t('scrape.cache') : t('scrape.updated')} · ${formatTime(result.cachedAt)}`;
+      el.gfwCacheBadge.classList.remove('hidden');
+    }
+    renderGfwData(el.gfwDataBody, result.data);
+  } catch {
+    el.gfwDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
+  }
+}
+
+// Glossary for the GFW identity field labels and event-section titles. Like the
+// Equasis glossary above, the explanations are in Italian regardless of UI
+// language (same convention as EQ_LABEL_GLOSSARY / SCRAPE_LABEL_GLOSSARY).
+const GFW_IDENTITY_GLOSSARY = {
+  flag: 'Stato di bandiera registrato in GFW (derivato dal codice MMSI e dai registri navali).',
+  type: 'Tipo di nave o attrezzo da pesca secondo la classificazione di Global Fishing Watch.',
+  year: 'Anno di costruzione (consegna) della nave secondo i dati GFW.',
+  callsign: 'Nominativo radio internazionale (call sign): codice radio univoco della nave.',
+  imo: 'Numero IMO: identificativo univoco a 7 cifre, permanente per tutta la vita della nave.',
+  mmsi: 'MMSI: identificativo AIS a 9 cifre. Le prime 3 cifre (MID) indicano il Paese di bandiera.',
+};
+const GFW_SECTION_GLOSSARY = {
+  'scrape.gfwEncounters': 'Incontro in mare: GFW ha rilevato due navi ravvicinate e quasi ferme in mare aperto per un periodo prolungato. È la firma classica di un trasbordo nave-a-nave (ship-to-ship), tecnica usata anche per eludere i controlli.',
+  'scrape.gfwLoitering': 'Loitering: la nave è rimasta a lungo quasi ferma in mare aperto, lontano dai porti. Comportamento anomalo per una nave da trasporto.',
+  'scrape.gfwPortVisits': 'Scalo in porto ricostruito da GFW dall’analisi delle tracce AIS (ingresso, sosta, uscita). Confrontato con la lista dei porti ad alto rischio.',
+  'scrape.gfwGaps': 'Evento AIS spento ("gap" / dark activity): la nave ha interrotto la trasmissione AIS mentre era in navigazione, riapparendo poi altrove. Può indicare la volontà di non farsi tracciare.',
+};
+
+// Localised label for GFW identity rows (reuses generic detail keys where they
+// exist; falls back to a capitalised field name otherwise).
+const GFW_IDENTITY_LABEL = {
+  flag: 'Bandiera', type: 'Tipo', year: 'Anno di costruzione',
+  callsign: 'Call sign', imo: 'IMO', mmsi: 'MMSI', shipname: 'Nome',
+};
+
+function gfwPos(lat, lon) {
+  if (lat == null || lon == null) return '';
+  return `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`;
+}
+function gfwDur(h) {
+  return h == null ? '' : t('scrape.gfwHours', { h: Math.round(h) });
+}
+
+// One event table; `cols` is an array of { key (i18n), get (row→cell html) }.
+function gfwEventTable(titleKey, rows, cols) {
+  if (!rows || !rows.length) return '';
+  const head = cols.map((c) => `<th>${t(c.key)}</th>`).join('');
+  const body = rows
+    .map((r) => `<tr>${cols.map((c) => `<td>${c.get(r)}</td>`).join('')}</tr>`)
+    .join('');
+  const info = eqInfoIcon(t(titleKey), GFW_SECTION_GLOSSARY[titleKey]);
+  return `<h4 class="eq-subtitle">${t(titleKey)}${info}</h4><table class="vf-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderGfwData(container, data) {
+  const identity = (data && data.identity) || {};
+  const events = (data && data.events) || {};
+  const enc = events.encounters || [];
+  const loi = events.loitering || [];
+  const prt = events.portVisits || [];
+  const gaps = events.gaps || [];
+
+  let html = '';
+
+  // Identity table (only the fields GFW actually returned), each with a ⓘ hint.
+  const idRows = Object.keys(GFW_IDENTITY_LABEL)
+    .filter((k) => identity[k] != null && identity[k] !== '')
+    .map((k) => {
+      const info = eqInfoIcon(GFW_IDENTITY_LABEL[k], GFW_IDENTITY_GLOSSARY[k]);
+      return `<tr><td class="vf-td-label">${escHtml(GFW_IDENTITY_LABEL[k])}${info}</td><td class="vf-td-val">${escHtml(String(identity[k]))}</td></tr>`;
+    })
+    .join('');
+  if (idRows) {
+    html += `<h4 class="eq-subtitle">${t('scrape.gfwIdentity')}</h4><table class="vf-table">${idRows}</table>`;
+  }
+
+  // Event tables (newest GFW returns first).
+  html += gfwEventTable('scrape.gfwEncounters', enc, [
+    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { key: 'scrape.gfwColWith', get: (r) => escHtml(r.withName || r.withMmsi || '—') },
+    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  ]);
+  html += gfwEventTable('scrape.gfwLoitering', loi, [
+    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  ]);
+  html += gfwEventTable('scrape.gfwPortVisits', prt, [
+    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { key: 'scrape.gfwColPort', get: (r) => escHtml([r.port, r.country].filter(Boolean).join(', ') || '—') },
+  ]);
+  html += gfwEventTable('scrape.gfwGaps', gaps, [
+    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  ]);
+
+  if (!enc.length && !loi.length && !prt.length && !gaps.length) {
+    html += `<p class="vf-empty">${t('scrape.gfwNoEvents')}</p>`;
+  }
+  container.innerHTML = html;
+}
+
 // Glossary for the VesselFinder / MarineTraffic scraped tables. Labels are
 // open-set (parseShipHtml in src/services/scrapers/http.js grabs every
 // <tr><td>label</td><td>value</td></tr> on the page), so we match on a

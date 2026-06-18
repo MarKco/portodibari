@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisData } from './ships.js';
+import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisData, loadGfwData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -116,6 +116,10 @@ async function loadSettings() {
     S.importEquasis = !!s.importEquasis;
     S.equasisConfigured = !!s.equasisConfigured;
     if (el.toggleImportEquasis) el.toggleImportEquasis.checked = S.importEquasis;
+    S.importGfw = s.importGfw !== false;
+    S.gfwConfigured = !!s.gfwConfigured;
+    if (el.toggleImportGfw) el.toggleImportGfw.checked = S.importGfw;
+    renderGfwStatus();
     S.appLogEnabled = s.appLogEnabled !== false;
     setAppLogToggle(S.appLogEnabled);
     S.notificationsEnabled = s.notificationsEnabled !== false;
@@ -191,6 +195,13 @@ function renderPscStatus(st) {
     .replace('{white}', c.white)
     .replace('{banned}', st.bannedCount || 0)
     .replace('{date}', when);
+}
+
+// GFW substatus: warn when the import is on but no API token is configured (the
+// enrichment silently no-ops in that case).
+function renderGfwStatus() {
+  if (!el.gfwStatus) return;
+  el.gfwStatus.textContent = S.importGfw && !S.gfwConfigured ? t('settings.gfw.noToken') : '';
 }
 
 // Upload a user-selected file to an import endpoint, showing a busy label on the
@@ -336,6 +347,20 @@ function initSettingsModal() {
         if (S.view === 'detail' && S.detailMmsi != null) loadEquasisData(S.detailMmsi, false);
       } catch {
         el.toggleImportEquasis.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleImportGfw) {
+    el.toggleImportGfw.addEventListener('change', async () => {
+      const enabled = el.toggleImportGfw.checked;
+      try {
+        await api('/api/settings', 'POST', { importGfw: enabled });
+        S.importGfw = enabled;
+        renderGfwStatus();
+        if (S.view === 'detail' && S.detailMmsi != null) loadGfwData(S.detailMmsi);
+      } catch {
+        el.toggleImportGfw.checked = !enabled;
       }
     });
   }
@@ -922,13 +947,14 @@ function initRiskTooltip() {
     const factorsHtml = factors.length
       ? `<ul class="rt-factors">${factors.map((f) => `<li><span class="rt-pts risk-${risk.band}">+${f.points}</span> ${escHtml(f.label)}</li>`).join('')}</ul>`
       : '<p class="rt-none">Nessuna anomalia rilevata</p>';
-    const { vf, mt, sanctions, psc } = risk.sources || {};
+    const { vf, mt, gfw, sanctions, psc } = risk.sources || {};
     const vfUsed = vf === 'used', vfAvail = vf === 'available';
     const mtUsed = mt === 'used', mtAvail = mt === 'available';
+    const gfwUsed = gfw === 'used', gfwAvail = gfw === 'available';
     const sancUsed = sanctions === 'used', sancAvail = sanctions === 'available';
     const pscUsed = psc === 'used', pscAvail = psc === 'available';
-    const anyUsed = vfUsed || mtUsed || sancUsed || pscUsed;
-    const anyAvail = vfAvail || mtAvail || sancAvail || pscAvail;
+    const anyUsed = vfUsed || mtUsed || gfwUsed || sancUsed || pscUsed;
+    const anyAvail = vfAvail || mtAvail || gfwAvail || sancAvail || pscAvail;
     let srcHtml;
     if (anyUsed || anyAvail) {
       const parts = [];
@@ -940,6 +966,8 @@ function initRiskTooltip() {
       else if (vfAvail) parts.push('<span class="rt-src rt-src-vf rt-src-dim" title="Consultato, nessun dato rilevante per lo score">VesselFinder</span>');
       if (mtUsed) parts.push('<span class="rt-src rt-src-mt">MarineTraffic</span>');
       else if (mtAvail) parts.push('<span class="rt-src rt-src-mt rt-src-dim" title="Consultato, nessun dato rilevante per lo score">MarineTraffic</span>');
+      if (gfwUsed) parts.push('<span class="rt-src rt-src-gfw">Global Fishing Watch</span>');
+      else if (gfwAvail) parts.push('<span class="rt-src rt-src-gfw rt-src-dim" title="Consultato, nessun evento/dato rilevante per lo score">Global Fishing Watch</span>');
       srcHtml = parts.join(' <span class="rt-src-sep">+</span> ');
       if (!anyUsed) srcHtml += ' <span class="rt-src-note">(nessun dato rilevante per lo score)</span>';
     } else {

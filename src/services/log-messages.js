@@ -156,6 +156,10 @@ const MESSAGES = {
   'scrape.ok': { it: (p) => `${p.source} ok per ${p.name}`, en: (p) => `${p.source} ok for ${p.name}` },
   'scrape.failed': { it: (p) => `${p.source} fallito per ${p.name}: ${p.error}`, en: (p) => `${p.source} failed for ${p.name}: ${p.error}` },
   'scrape.backfill_started': { it: (p) => `Backfill ${p.source} avviato`, en: (p) => `${p.source} backfill started` },
+  'gfw.not_found': {
+    it: (p) => `Nave non presente in Global Fishing Watch: ${p.name}`,
+    en: (p) => `Vessel not found in Global Fishing Watch: ${p.name}`,
+  },
 
   // ── Settings toggles ──
   'settings.notifications': onOff(['Notifiche attivate', 'Notifiche disattivate'], ['Notifications enabled', 'Notifications disabled']),
@@ -163,6 +167,7 @@ const MESSAGES = {
   'settings.import_mt': onOff(['Import MarineTraffic attivato', 'Import MarineTraffic disattivato'], ['MarineTraffic import enabled', 'MarineTraffic import disabled']),
   'settings.import_sanctions': onOff(['Screening sanzioni attivato', 'Screening sanzioni disattivato'], ['Sanctions screening enabled', 'Sanctions screening disabled']),
   'settings.import_psc': onOff(['Screening Port State Control attivato', 'Screening Port State Control disattivato'], ['Port State Control screening enabled', 'Port State Control screening disabled']),
+  'settings.import_gfw': onOff(['Import Global Fishing Watch attivato', 'Import Global Fishing Watch disattivato'], ['Global Fishing Watch import enabled', 'Global Fishing Watch import disabled']),
   'settings.view_changed': { it: (p) => `Vista cambiata a: ${p.name}`, en: (p) => `View changed to: ${p.name}` },
 
   // ── Data / notifications / log ──

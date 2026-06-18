@@ -1251,6 +1251,7 @@ pre {
 .src-vf   { background: #d400d4; }
 .src-mt   { background: #e8d800; }
 .src-both { background: #ff7800; }
+.src-gfw  { background: #1fb6a6; }
 .src-sanction { background: #ff2d2d; box-shadow: 0 0 4px rgba(255, 45, 45, 0.8); }
 .risk-low  { background: var(--green-soft); color: var(--green); border-color: var(--green-bd); }
 .risk-med  { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-bd); }
@@ -1332,6 +1333,7 @@ pre {
 .rt-src-both { background: #ff7800; color: #fff; }
 .rt-src-sanction { background: #ff2d2d; color: #fff; }
 .rt-src-psc { background: #0a6ebd; color: #fff; }
+.rt-src-gfw { background: #1fb6a6; color: #fff; }
 .rt-src-ais { background: var(--surface-4); color: var(--text-muted); }
 .rt-src-dim { opacity: 0.45; }
 .rt-src-note { color: var(--text-dim); font-style: italic; font-weight: 400; }
@@ -1735,6 +1737,7 @@ pre {
 }
 .scrape-badge--mt { color: #7c9fc0; }
 .scrape-badge--eq { color: #c0a37c; }
+.scrape-badge--gfw { color: #1fb6a6; }
 
 /* Equasis: button sits inline in the section title, management sub-tables. */
 #equasis-data-section .detail-section-title {

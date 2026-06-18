@@ -255,6 +255,15 @@
         <div id="equasis-data-body"></div>
       </div>
 
+      <!-- Global Fishing Watch data (proactive: identity + behavioural events) -->
+      <div id="gfw-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.gfwTitle">Global Fishing Watch</span>
+          <span id="gfw-cache-badge" class="scrape-badge scrape-badge--gfw hidden"></span>
+        </h3>
+        <div id="gfw-data-body"></div>
+      </div>
+
       <div id="detail-map"></div>
       <div id="table-wrap-detail">
         <table>
@@ -500,6 +509,17 @@
           </div>
           <label class="toggle">
             <input type="checkbox" id="toggle-import-equasis">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.gfw.name">Global Fishing Watch</div>
+            <div class="setting-desc" data-i18n="settings.gfw.desc">Arricchisce le navi con identità ed eventi comportamentali di Global Fishing Watch. Richiede un token API GFW. Uso gratuito solo non commerciale.</div>
+            <div id="gfw-status" class="setting-substatus"></div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-gfw">
             <span class="toggle-slider"></span>
           </label>
         </div>

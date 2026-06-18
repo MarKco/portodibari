@@ -82,6 +82,17 @@ const AUTH_PASSWORD = props.AUTH_PASSWORD || process.env.AUTH_PASSWORD || '';
 const EQUASIS_USER = props.EQUASIS_USER || process.env.EQUASIS_USER || '';
 const EQUASIS_PASSWORD = props.EQUASIS_PASSWORD || process.env.EQUASIS_PASSWORD || '';
 
+// ── Global Fishing Watch API token (optional) ─────────────────────────────────
+// The GFW API authenticates with a long-lived Bearer token generated in the GFW
+// API portal (https://globalfishingwatch.org/our-apis/ → API tokens) — NOT the
+// website username/password. Enrichment from GFW stays inert until it is set.
+const GFW_TOKEN = props.GLOBAL_FISHING_WATCH_TOKEN || process.env.GLOBAL_FISHING_WATCH_TOKEN || '';
+const GFW_TOKEN_SOURCE = props.GLOBAL_FISHING_WATCH_TOKEN
+  ? 'local.properties'
+  : process.env.GLOBAL_FISHING_WATCH_TOKEN
+    ? 'env'
+    : null;
+
 // ── Bounding-box presets ─────────────────────────────────────────────────────
 // Loaded from `bounding-boxes.json` so users can add/edit monitoring areas
 // without touching code. Each entry: { name, keyword, sw: [lat,lon], ne: [lat,lon] }.
@@ -208,6 +219,12 @@ const RISK = {
   PSC_BLACK_FLAG:    num('RISK_PSC_BLACK_FLAG_POINTS', 12),
   PSC_GREY_FLAG:     num('RISK_PSC_GREY_FLAG_POINTS', 5),
   PSC_BANNED:        num('RISK_PSC_BANNED_POINTS', 40),
+  // Global Fishing Watch behavioural-event signatures (AIS-derived, authoritative
+  // — far stronger than the local-reading heuristics they reinforce).
+  GFW_ENCOUNTER:     num('RISK_GFW_ENCOUNTER', 18),
+  GFW_GAP:           num('RISK_GFW_GAP', 15),
+  GFW_LOITERING:     num('RISK_GFW_LOITERING', 12),
+  GFW_PORT_HIGH:     num('RISK_GFW_PORT_VISIT_HIGH_RISK', 15),
   OLD_MIN_AGE:       num('RISK_OLD_VESSEL_MIN_AGE', 35),
   MULT_HIGH_RISK:    num('RISK_MULT_HIGH_RISK', 0.5),
   MULT_FOC:          num('RISK_MULT_FOC', 0.2),
@@ -232,6 +249,10 @@ const state = {
   // Equasis ownership lookup. Off by default and never auto-runs — only the
   // detail-view button triggers a fetch. Needs Equasis credentials too.
   importEquasis: props.IMPORT_EQUASIS === 'true',
+  // Global Fishing Watch enrichment (vessel identity + behavioural events).
+  // Default ON unless explicitly disabled. Effective only when a GFW token is
+  // set; otherwise the enrichment no-ops and the detail panel shows a hint.
+  importGfw: props.IMPORT_GFW !== 'false',
   // Operational application log (human-readable event log). Default ON unless
   // explicitly disabled in local.properties.
   appLogEnabled: props.APP_LOG_ENABLED !== 'false',
@@ -297,6 +318,11 @@ function setImportPsc(enabled) {
 function setImportEquasis(enabled) {
   state.importEquasis = !!enabled;
   saveProperty('IMPORT_EQUASIS', state.importEquasis);
+}
+
+function setImportGfw(enabled) {
+  state.importGfw = !!enabled;
+  saveProperty('IMPORT_GFW', state.importGfw);
 }
 
 function setAppLogEnabled(enabled) {
@@ -528,6 +554,8 @@ module.exports = {
   AUTH_PASSWORD,
   EQUASIS_USER,
   EQUASIS_PASSWORD,
+  GFW_TOKEN,
+  GFW_TOKEN_SOURCE,
   PORT,
   AIS_URL,
   MSG_TYPES,
@@ -562,6 +590,7 @@ module.exports = {
   setImportSanctionsExtra,
   setImportPsc,
   setImportEquasis,
+  setImportGfw,
   setAppLogEnabled,
   setUiLang,
   setNotificationsEnabled,
