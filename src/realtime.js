@@ -26,6 +26,7 @@ function pushAlert(mmsi) {
 
 /** Push an API-log entry to every connected SSE client. */
 function broadcastLog(entry) {
+  if (!entry) return; // insertLog returns null when a log write was dropped
   const payload = `data: ${JSON.stringify(entry)}\n\n`;
   for (const res of logClients) res.write(payload);
 }

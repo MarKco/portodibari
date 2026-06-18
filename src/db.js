@@ -22,6 +22,12 @@ const db = new DatabaseSync(DB_PATH);
 
 db.exec(`PRAGMA journal_mode = WAL`);
 db.exec(`PRAGMA synchronous = NORMAL`);
+// Wait (and retry internally) up to 5s for a lock instead of throwing
+// SQLITE_BUSY ("database is locked") on the spot. WAL serializes writers, and a
+// second connection can briefly contend during a deploy's backup→restore
+// overlap or a checkpoint; without this any such collision throws and, if the
+// throw lands somewhere unguarded, takes the whole process down.
+db.exec(`PRAGMA busy_timeout = 5000`);
 // Return freed pages to the OS incrementally so deletes/prunes actually shrink
 // the file. On an existing DB created with auto_vacuum=NONE this pragma only
 // takes effect after a one-time VACUUM (run by runMaintenance() at startup).
@@ -1192,14 +1198,22 @@ let logInsertCount = 0;
 
 function insertLog({ method, path, status, duration_ms, request_body = null, response_body = null }) {
   const ts = new Date().toISOString();
-  const result = insertLogStmt.run(ts, method, path, status, duration_ms, request_body, response_body);
-  logInsertCount++;
-  if (logInsertCount % 500 === 0) {
-    db.prepare(
-      `DELETE FROM api_log WHERE id NOT IN (SELECT id FROM api_log ORDER BY id DESC LIMIT ${MAX_API_LOG_RECORDS})`
-    ).run();
+  // Best-effort: a log write must never crash the process. This is called from
+  // hot paths (incl. error handlers that re-log on failure), so a transient
+  // SQLITE_BUSY here used to propagate uncaught and kill the app. Swallow it.
+  try {
+    const result = insertLogStmt.run(ts, method, path, status, duration_ms, request_body, response_body);
+    logInsertCount++;
+    if (logInsertCount % 500 === 0) {
+      db.prepare(
+        `DELETE FROM api_log WHERE id NOT IN (SELECT id FROM api_log ORDER BY id DESC LIMIT ${MAX_API_LOG_RECORDS})`
+      ).run();
+    }
+    return { id: Number(result.lastInsertRowid), ts, method, path, status, duration_ms };
+  } catch (e) {
+    console.error(`[DB] insertLog fallito (ignorato): ${e.message}`);
+    return null;
   }
-  return { id: Number(result.lastInsertRowid), ts, method, path, status, duration_ms };
 }
 
 function getLog(id) {
