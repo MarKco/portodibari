@@ -146,6 +146,10 @@ export const el = {
   btnManualBackup: $('btn-manual-backup'),
   autoBackupList: $('auto-backup-list'),
 
+  // Sanctions match section
+  sanctionsDataSection: $('sanctions-data-section'),
+  sanctionsDataBody: $('sanctions-data-body'),
+
   // Scraped data sections
   vfDataSection: $('vf-data-section'),
   vfDataBody: $('vf-data-body'),

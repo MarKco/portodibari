@@ -1412,6 +1412,31 @@ pre {
   letter-spacing: 0.06em;
   margin: 0 0 0.85rem;
 }
+/* Sanctions match panel — red accent to signal a hard hit. */
+.detail-section--sanction {
+  border-color: #ff2d2d;
+  border-left-width: 4px;
+  background: rgba(255, 45, 45, 0.05);
+}
+.detail-section--sanction .detail-section-title { color: #ff2d2d; }
+.sanction-lead { margin: 0 0 0.85rem; font-size: 0.84rem; line-height: 1.5; }
+.sanction-concept {
+  margin: 0.85rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sanction-disclaimer {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #b35900;
+  background: rgba(255, 153, 0, 0.1);
+  border-radius: var(--r-sm, 6px);
+  padding: 0.5rem 0.65rem;
+}
+.sanction-link { margin-top: 0.85rem; }
+
 .notes-wrap { display: flex; flex-direction: column; gap: 0.6rem; }
 .notes-textarea {
   width: 100%;

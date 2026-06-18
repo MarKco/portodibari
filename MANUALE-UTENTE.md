@@ -210,6 +210,17 @@ Ogni campo/sezione ha un'icona ⓘ al passaggio del mouse che ne spiega il signi
 
 GFW traccia soprattutto navi da **pesca, di supporto e reefer/carrier**: molte navi mercantili non sono presenti, e in tal caso il pannello mostra la nota "non trovata in GFW". La feature richiede un **token API** GFW configurato in `local.properties` (`GLOBAL_FISHING_WATCH_TOKEN`); senza token resta disattivata e le impostazioni mostrano l'avviso "token non configurato". I dati GFW sono gratuiti **solo per uso non commerciale** (ricerca, ONG, interesse pubblico); l'uso commerciale richiede una licenza dedicata.
 
+### Sanzioni
+
+Quando una nave corrisponde a una lista sanzioni (screening attivo, vedi impostazioni), nel dettaglio compare in cima — prima dei pannelli VesselFinder/MarineTraffic/GFW e con bordo rosso — il pannello **Sanzioni**. Spiega in breve **cosa sono le sanzioni** e mostra i dati del match:
+
+- **Lista** — il regime che ha prodotto il match: OFAC SDN (Tesoro USA), lista consolidata UE, UK OFSI o Consiglio di Sicurezza ONU (ris. 1718).
+- **Programma** — il programma sanzionatorio specifico (es. EU-MARE, GB-RUS, UN-SC1718), quando disponibile.
+- **Corrispondenza per** — il campo su cui è avvenuto il match: **IMO** o **call sign** (alta affidabilità) oppure **nome** (più debole, possibile omonimia).
+- **Nome in lista**, **bandiera**, **proprietario** e **alias** dell'entità designata, quando presenti nella fonte.
+
+Un riquadro spiega il regime corrispondente (OFAC / UE / UK / ONU) e un **avviso** ricorda di verificare sempre sulla fonte ufficiale: in particolare un match **solo per nome** può essere un falso positivo (omonimia). Quando l'identificativo dell'entità è disponibile, il pulsante **Apri scheda ufficiale** apre la pagina pubblica della nave (OpenSanctions per UE/UK/ONU, OFAC Sanctions Search per OFAC). Il pannello compare **solo** per le navi effettivamente in lista; per tutte le altre non viene mostrato.
+
 ### Mappa posizione
 
 Mappa con la traccia dell'ultima posizione nota della nave.

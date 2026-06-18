@@ -9,6 +9,7 @@ import {
   loadEquasisData,
   loadGfwData,
   renderDetailInfoBar,
+  renderSanctionsSection,
   updateDetailFlagBtn,
   updateDetailSeenBtn,
   updateDetailNotifMuteBtn,
@@ -59,6 +60,7 @@ export function showView(v, mmsi, shipData) {
       ? `https://www.marinetraffic.com/it/ais/details/ships/shipid:${shipData.mt_ship_id}`
       : `https://www.marinetraffic.com/it/ais/details/ships/mmsi:${mmsi}`;
     renderDetailInfoBar(shipData, null);
+    renderSanctionsSection(shipData?.risk);
     loadDetail();
     loadTrack(mmsi);
     // VF/MT/GFW are proactive enrichment and can shift the risk score, so

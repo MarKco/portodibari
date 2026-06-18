@@ -449,6 +449,7 @@ export async function loadDetail() {
       const events = eventsData?.events || [];
       const latestArrival = events.find((e) => e.event_type === 'arrived');
       renderDetailInfoBar(shipData, latestArrival);
+      renderSanctionsSection(shipData.risk);
       renderDetailEvents(events);
     }
     S.detailTotal = data.total;
@@ -650,6 +651,54 @@ function riskFactorsHtml(risk) {
       <span class="info-label">${t('info.riskLabel', { score: risk.score })}</span>
       <ul class="rf-list">${body}</ul>
     </div>`;
+}
+
+// ── Sanctions match detail panel ─────────────────────────────────────────────
+// Shown only when the vessel is actually listed (risk.sanctionMatch present).
+// Combines the concrete match (source / programme / matched field) with a short
+// explanation of the regime and a reliability disclaimer, plus a deep link to
+// the official entity profile when we captured its id.
+export function renderSanctionsSection(risk) {
+  const sec = el.sanctionsDataSection;
+  if (!sec) return;
+  const m = risk && risk.sanctionMatch;
+  if (!m) {
+    sec.classList.add('hidden');
+    el.sanctionsDataBody.innerHTML = '';
+    return;
+  }
+  const rows = [
+    [t('sanctions.list'), m.source],
+    [t('sanctions.program'), m.program],
+    [t('sanctions.matchedOn'), m.matchedOnLabel || m.matchedOn],
+    [t('sanctions.listedName'), m.listedName],
+    [t('sanctions.flag'), m.flag],
+    [t('sanctions.owner'), m.owner],
+  ];
+  if (m.aliases && m.aliases.length) rows.push([t('sanctions.aliases'), m.aliases.join(', ')]);
+  const table =
+    `<table class="vf-table">${rows
+      .map(
+        ([label, value]) =>
+          `<tr><td class="vf-td-label">${escHtml(label)}</td><td class="vf-td-val">${escHtml(value) || '—'}</td></tr>`
+      )
+      .join('')}</table>`;
+  // Regime explanation: regime-specific text when known, generic fallback otherwise.
+  const known = ['ofac', 'eu', 'uk', 'un'];
+  const concept = t(known.includes(m.sourceKey) ? `sanctions.concept.${m.sourceKey}` : 'sanctions.concept.generic');
+  // Disclaimer: a name-only match is the weakest signal (homonyms → false positives).
+  const disclaimer =
+    m.matchedOn === 'name' ? t('sanctions.disclaimerName') : t('sanctions.disclaimerStrong');
+  const link = m.url
+    ? `<a class="btn btn-secondary btn-sm sanction-link" href="${escHtml(m.url)}" target="_blank" rel="noopener noreferrer">${t('sanctions.openProfile')} ↗</a>`
+    : '';
+  el.sanctionsDataBody.innerHTML = `
+    <p class="sanction-lead">${t('sanctions.lead')}</p>
+    ${table}
+    <p class="sanction-concept">${concept}</p>
+    <p class="sanction-disclaimer">⚠ ${disclaimer}</p>
+    ${link}`;
+  sec.classList.remove('hidden');
 }
 
 // ── Scraped data (VesselFinder / MarineTraffic) ──────────────────────────────

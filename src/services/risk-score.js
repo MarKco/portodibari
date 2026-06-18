@@ -371,12 +371,26 @@ function computeRiskScore(ship, lang) {
   //    'none' = disabled or dataset not loaded; 'available' = checked, no match;
   //    'used' = matched and contributed points.
   let sanctionStatus = 'none';
+  let sanctionMatch = null;
   if (state.importSanctions && sanctions.getStatus().loaded) {
     const hit = sanctions.matchShip(ship);
     if (hit) {
       const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][hit.matchedOn] || hit.matchedOn;
       add(R.SANCTION_MATCH, L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
       sanctionStatus = 'used';
+      // Structured detail for the dedicated sanctions panel in the ship detail view.
+      sanctionMatch = {
+        source: hit.entry.source,
+        sourceKey: hit.entry.sourceKey || null,
+        program: hit.entry.program || null,
+        flag: hit.entry.flag || null,
+        owner: hit.entry.owner || null,
+        aliases: hit.entry.aliases || [],
+        listedName: hit.entry.name || null,
+        matchedOn: hit.matchedOn,
+        matchedOnLabel: onLabel,
+        url: sanctions.entityUrl(hit.entry),
+      };
     } else {
       sanctionStatus = 'available';
     }
@@ -451,7 +465,7 @@ function computeRiskScore(ship, lang) {
   const resolvedGfw = gfwStatus === 'none' ? 'none' : gfwContributed ? 'used' : 'available';
 
   factors.sort((a, b) => b.points - a.points);
-  return { score, band: bandOf(score), factors, sources: { vf: resolvedVf, mt: resolvedMt, gfw: resolvedGfw, sanctions: sanctionStatus, psc: pscStatus } };
+  return { score, band: bandOf(score), factors, sanctionMatch, sources: { vf: resolvedVf, mt: resolvedMt, gfw: resolvedGfw, sanctions: sanctionStatus, psc: pscStatus } };
 }
 
 // Name prefixes / keywords that identify military or NATO vessels in AIS data.

@@ -45,23 +45,34 @@ const SOURCES = {
     extra: true,
     url: `${OS}/eu_sanctions/targets.simple.csv`,
     file: path.join(DATA_DIR, 'eu-sanctions.csv'),
-    parse: (f) => parseOpenSanctions(f, 'EU Consolidated'),
+    parse: (f) => parseOpenSanctions(f, 'EU Consolidated', 'eu'),
   },
   uk: {
     label: 'UK OFSI',
     extra: true,
     url: `${OS}/gb_fcdo_sanctions/targets.simple.csv`,
     file: path.join(DATA_DIR, 'uk-sanctions.csv'),
-    parse: (f) => parseOpenSanctions(f, 'UK OFSI'),
+    parse: (f) => parseOpenSanctions(f, 'UK OFSI', 'uk'),
   },
   un: {
     label: 'UN Security Council',
     extra: true,
     url: `${OS}/un_1718_vessels/targets.simple.csv`,
     file: path.join(DATA_DIR, 'un-sanctions.csv'),
-    parse: (f) => parseOpenSanctions(f, 'UN Security Council'),
+    parse: (f) => parseOpenSanctions(f, 'UN Security Council', 'un'),
   },
 };
+
+/** Public profile URL for a listed entity, when we captured its id.
+ *  OFAC → its sanctions-search detail page (id = SDN ent_num).
+ *  OpenSanctions lists (EU/UK/UN) → the entity page (id = OpenSanctions id). */
+function entityUrl(entry) {
+  if (!entry || !entry.entityId) return null;
+  if (entry.sourceKey === 'ofac') {
+    return `https://sanctionssearch.ofac.treas.gov/Details.aspx?id=${encodeURIComponent(entry.entityId)}`;
+  }
+  return `https://www.opensanctions.org/entities/${encodeURIComponent(entry.entityId)}/`;
+}
 
 /** Which source keys are active right now: OFAC always, the extra lists only
  *  while the importSanctionsExtra toggle is on. */
@@ -218,6 +229,8 @@ async function parseOfacSdn(filePath) {
       imo,
       aliases,
       source: 'OFAC SDN',
+      sourceKey: 'ofac',
+      entityId: clean(cols[0]),
     });
   });
   return entries;
@@ -229,7 +242,7 @@ async function parseOfacSdn(filePath) {
 // `sanctions` column as a fallback. `countries` are ISO-2 flag codes.
 //   id,schema,name,aliases,birth_date,countries,addresses,identifiers,
 //   sanctions,phones,emails,program_ids,dataset,first_seen,last_seen,last_change
-async function parseOpenSanctions(filePath, label) {
+async function parseOpenSanctions(filePath, label, sourceKey) {
   const entries = [];
   let col = null; // resolved from the header row (first row seen)
   await parseCsvFile(filePath, (cols) => {
@@ -237,6 +250,7 @@ async function parseOpenSanctions(filePath, label) {
       const header = cols.map((h) => h.trim().toLowerCase());
       const at = (name) => header.indexOf(name);
       col = {
+        id: at('id'),
         schema: at('schema'), name: at('name'), aliases: at('aliases'),
         countries: at('countries'), ident: at('identifiers'),
         program: at('program_ids'), sanctions: at('sanctions'),
@@ -255,6 +269,8 @@ async function parseOpenSanctions(filePath, label) {
       imo,
       aliases,
       source: label,
+      sourceKey,
+      entityId: col.id >= 0 ? ((cols[col.id] || '').trim() || null) : null,
     });
   });
   return entries;
@@ -367,4 +383,4 @@ function getStatus() {
   };
 }
 
-module.exports = { loadFromDisk, refresh, matchShip, getStatus };
+module.exports = { loadFromDisk, refresh, matchShip, getStatus, entityUrl };

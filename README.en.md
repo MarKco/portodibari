@@ -275,7 +275,7 @@ Final formula:
 score = clamp( round( anomalySubtotal × multiplier ), 0, 100 )
 ```
 
-`computeRiskScore(ship, lang)` returns `{ score, band, factors, sources }`, where `band` ∈ `low|med|high`, `factors` is the ordered list `{label, points}` of signatures that contributed (labels in the requested language), and `sources: { vf, mt, sanctions, psc }` indicates which external sources were present/consulted at calculation time (each `none`/`available`/`used`). The `lang` parameter (`'it'` default, `'en'` supported) is forwarded automatically by `api.js` based on the language selected in the frontend.
+`computeRiskScore(ship, lang)` returns `{ score, band, factors, sanctionMatch, sources }`, where `band` ∈ `low|med|high`, `factors` is the ordered list `{label, points}` of signatures that contributed (labels in the requested language), `sanctionMatch` is `null` or the structured sanctions-match detail (`{ source, sourceKey, program, flag, owner, aliases, listedName, matchedOn, matchedOnLabel, url }`, consumed by the Sanctions panel in the ship detail view), and `sources: { vf, mt, gfw, sanctions, psc }` indicates which external sources were present/consulted at calculation time (each `none`/`available`/`used`). The `lang` parameter (`'it'` default, `'en'` supported) is forwarded automatically by `api.js` based on the language selected in the frontend.
 
 ### Score enrichment from VF/MT
 

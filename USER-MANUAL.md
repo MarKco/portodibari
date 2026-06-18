@@ -210,6 +210,17 @@ Each field/section has a hover ⓘ info icon explaining it. Like VesselFinder/Ma
 
 GFW mainly tracks **fishing, support, and reefer/carrier vessels**: many merchant ships are not present, and in that case the panel shows a "not found in GFW" note. The feature requires a GFW **API token** configured in `local.properties` (`GLOBAL_FISHING_WATCH_TOKEN`); without a token it stays disabled and the settings show a "token not configured" hint. GFW data is free **for non-commercial use only** (research, NGO, public good); commercial use requires a dedicated license.
 
+### Sanctions
+
+When a ship matches a sanctions list (screening enabled, see settings), the detail view shows a **Sanctions** panel at the top — before the VesselFinder/MarineTraffic/GFW panels and with a red border. It briefly explains **what sanctions are** and shows the match data:
+
+- **List** — the regime that produced the match: OFAC SDN (US Treasury), EU consolidated list, UK OFSI, or UN Security Council (res. 1718).
+- **Programme** — the specific sanctions programme (e.g. EU-MARE, GB-RUS, UN-SC1718), when available.
+- **Matched by** — the field the match was made on: **IMO** or **call sign** (high confidence), or **name** (weaker, possible homonym).
+- **Listed name**, **flag**, **owner**, and **aliases** of the designated entity, when present in the source.
+
+A box explains the matching regime (OFAC / EU / UK / UN) and a **warning** reminds you to always verify on the official source: in particular, a **name-only** match may be a false positive (homonym). When the entity id is available, the **Open official profile** button opens the vessel's public page (OpenSanctions for EU/UK/UN, OFAC Sanctions Search for OFAC). The panel appears **only** for ships actually on a list; it is hidden for all others.
+
 ### Position map
 
 Map showing the vessel's last known position.
