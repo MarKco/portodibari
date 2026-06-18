@@ -149,12 +149,29 @@ export default {
   'cargo.non_cargo':    'Nave non da carico',
   'cargo.unknown':      'Sconosciuto',
   'cargo.src':          'fonte {src}',
+
+  // ── Cargo class explanations (value "ⓘ") ───────────────────────────────────
+  'cargo.help.container':    'Nave portacontainer: trasporta merci in container standard ISO (20\'/40\'). Carico molto vario — manufatti e beni di consumo, ma anche merci containerizzate non sempre dichiarate.',
+  'cargo.help.dry_bulk':     'Rinfusiera per carichi secchi sfusi non confezionati: minerali, carbone, cereali, cemento, fertilizzanti.',
+  'cargo.help.crude_oil':    'Petroliera per greggio (petrolio non raffinato) trasportato sfuso in grandi cisterne.',
+  'cargo.help.oil_products': 'Petroliera per prodotti petroliferi raffinati: gasolio, benzina, oli, bitume, combustibile per bunker.',
+  'cargo.help.chemical':     'Chimichiera: trasporta prodotti chimici liquidi sfusi (acidi, solventi, prodotti industriali), spesso pericolosi.',
+  'cargo.help.gas':          'Gasiera: trasporta gas liquefatti (GNL/metano o GPL) in cisterne pressurizzate o refrigerate.',
+  'cargo.help.vehicles':     'Nave per trasporto veicoli (PCC/PCTC): auto, camion e mezzi caricati su ponti multipli.',
+  'cargo.help.roro':         'Nave Ro-Ro (roll-on/roll-off): carichi che salgono e scendono su ruote tramite rampe — mezzi, rimorchi, materiale rotabile.',
+  'cargo.help.reefer':       'Nave frigorifera (reefer): trasporta merci deperibili a temperatura controllata (alimentari, prodotti freschi).',
+  'cargo.help.general_cargo':'Nave da carico generale: merci varie non containerizzate — colli, materiale break-bulk e crateato.',
+  'cargo.help.livestock':    'Nave per il trasporto di animali vivi (bestiame).',
+  'cargo.help.cargo_other':  'Nave da carico di sottotipo non determinato (codice AIS 70–79). Famiglia cargo generica, merceologia ignota.',
+  'cargo.help.tanker_other': 'Nave cisterna di sottotipo non determinato (codice AIS 80–89). Famiglia tanker generica, liquido trasportato ignoto.',
+  'cargo.help.non_cargo':    'Nave non adibita al trasporto merci: rimorchiatori, navi di servizio/appoggio, passeggeri, pesca, diporto.',
   // Load condition (estimated from draught)
   'load.laden':    'Carica',
   'load.partial':  'Parziale',
   'load.ballast':  'In zavorra',
   'load.unknown':  'Non determinabile',
   'load.estimated':'stimato',
+  'load.estimatedNote': 'Stima indicativa dal pescaggio dichiarato (AIS): non è il carico reale a bordo.',
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In porto',
@@ -190,6 +207,8 @@ export default {
   'map.detail':   'Dettaglio →',
   'map.unknown':  'Sconosciuta',
   'map.risk':     '🎯 Rischio:',
+  'map.play':     'Riproduci percorso',
+  'map.pause':    'Pausa',
 
   // ── Pagination ─────────────────────────────────────────────────────────────
   'page.prev': '← Prec',
@@ -480,6 +499,8 @@ export default {
   // ── Traffico section titles ────────────────────────────────────────────────
   'traffico.byHour':      'Arrivi per ora del giorno',
   'traffico.byType':      'Arrivi per tipo nave',
+  'traffico.byCargo':     'Distribuzione per tipo di carico',
+  'traffico.loadDist':    'Stato di carico stimato',
   'traffico.riskDist':    'Distribuzione score rischio',
   'traffico.riskFactors': 'Principali fattori di rischio',
   'traffico.daily':       'Arrivi giornalieri (ultimi 30 giorni)',
@@ -518,6 +539,8 @@ export default {
   'empty.eventsShip': 'Nessun evento registrato per questa nave.',
   'empty.logs':       'Nessuna chiamata registrata.',
   'empty.typeData':   'Dati insufficienti.',
+  'empty.cargoData':  'Nessun dato sul tipo di carico.',
+  'empty.loadData':   'Stato di carico non determinabile.',
   'empty.riskData':   'Dati insufficienti.',
   'empty.factors':    'Nessun fattore di rischio rilevato.',
   'empty.daily':      'Nessun dato disponibile.',
@@ -553,6 +576,19 @@ export default {
   'type.tankerB':      'Tanker – Hazmat B',
   'type.tankerC':      'Tanker – Hazmat C',
   'type.tankerD':      'Tanker – Hazmat D',
+
+  // ── Ship-type explanations ("ⓘ", soprattutto le categorie Hazmat) ──────────
+  'type.cargo.help':   'Nave da carico generica (codice AIS 70 o 75–79), senza categoria di merci pericolose dichiarata.',
+  'type.cargoA.help':  'Nave da carico che dichiara merci pericolose di categoria A (codice AIS 71): la classe di MASSIMA pericolosità nella scala AIS/IMO (A=più pericolosa → D=meno).',
+  'type.cargoB.help':  'Nave da carico con merci pericolose di categoria B (codice AIS 72): pericolosità alta, inferiore alla categoria A.',
+  'type.cargoC.help':  'Nave da carico con merci pericolose di categoria C (codice AIS 73): pericolosità media.',
+  'type.cargoD.help':  'Nave da carico con merci pericolose di categoria D (codice AIS 74): la classe meno pericolosa della scala.',
+  'type.tanker.help':  'Nave cisterna generica (codice AIS 80 o 85–89), senza categoria di sostanze pericolose dichiarata.',
+  'type.tankerA.help': 'Nave cisterna che dichiara sostanze pericolose di categoria A (codice AIS 81): la classe di MASSIMA pericolosità nella scala AIS/IMO (A=più pericolosa → D=meno).',
+  'type.tankerB.help': 'Nave cisterna con sostanze pericolose di categoria B (codice AIS 82): pericolosità alta, inferiore alla categoria A.',
+  'type.tankerC.help': 'Nave cisterna con sostanze pericolose di categoria C (codice AIS 83): pericolosità media.',
+  'type.tankerD.help': 'Nave cisterna con sostanze pericolose di categoria D (codice AIS 84): la classe meno pericolosa della scala.',
+
   'type.highSpeed':    'Alta velocità',
   'type.passenger':    'Passeggeri',
   'type.other':        'Altro',

@@ -14,7 +14,6 @@ import {
   directionBadge,
   shipTypeLabel,
   shipTypeBadge,
-  isHazmat,
   riskBadge,
   riskClass,
   cargoTypeHtml,
@@ -570,9 +569,7 @@ export function renderDetailInfoBar(ship, latestArrival) {
   const stayDuration = latestArrival
     ? formatDuration(new Date(ship.last_seen_at) - new Date(latestArrival.ts))
     : '—';
-  const typeHtml = isHazmat(ship.ship_type)
-    ? `<span class="hazmat-badge">☢ ${shipTypeLabel(ship.ship_type)}</span>`
-    : shipTypeLabel(ship.ship_type);
+  const typeHtml = shipTypeBadge(ship.ship_type);
 
   const items = [
     [t('info.riskScore'),  riskBadge(ship.risk)],

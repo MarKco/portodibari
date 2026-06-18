@@ -149,12 +149,29 @@ export default {
   'cargo.non_cargo':    'Non-cargo vessel',
   'cargo.unknown':      'Unknown',
   'cargo.src':          'source {src}',
+
+  // ── Cargo class explanations (value "ⓘ") ───────────────────────────────────
+  'cargo.help.container':    'Container ship: carries goods in standard ISO containers (20\'/40\'). Highly varied cargo — manufactured and consumer goods, but also containerised cargo that is not always declared.',
+  'cargo.help.dry_bulk':     'Dry bulk carrier for unpackaged loose cargo: ores, coal, grain, cement, fertiliser.',
+  'cargo.help.crude_oil':    'Tanker for crude (unrefined) oil carried in bulk in large tanks.',
+  'cargo.help.oil_products': 'Tanker for refined petroleum products: diesel, petrol, oils, bitumen, bunker fuel.',
+  'cargo.help.chemical':     'Chemical tanker: carries bulk liquid chemicals (acids, solvents, industrial products), often hazardous.',
+  'cargo.help.gas':          'Gas carrier: transports liquefied gases (LNG/methane or LPG) in pressurised or refrigerated tanks.',
+  'cargo.help.vehicles':     'Vehicle carrier (PCC/PCTC): cars, trucks and machinery loaded on multiple decks.',
+  'cargo.help.roro':         'Ro-Ro (roll-on/roll-off) ship: cargo driven on and off via ramps — vehicles, trailers, rolling stock.',
+  'cargo.help.reefer':       'Reefer (refrigerated) ship: carries perishable goods at controlled temperature (food, fresh produce).',
+  'cargo.help.general_cargo':'General cargo ship: assorted non-containerised goods — packages, break-bulk and crated materiel.',
+  'cargo.help.livestock':    'Livestock carrier: transports live animals.',
+  'cargo.help.cargo_other':  'Cargo ship of undetermined subtype (AIS code 70–79). Generic cargo family, commodity unknown.',
+  'cargo.help.tanker_other': 'Tanker of undetermined subtype (AIS code 80–89). Generic tanker family, liquid carried unknown.',
+  'cargo.help.non_cargo':    'Vessel not used to carry cargo: tugs, service/support vessels, passenger, fishing, pleasure craft.',
   // Load condition (estimated from draught)
   'load.laden':    'Laden',
   'load.partial':  'Partial',
   'load.ballast':  'In ballast',
   'load.unknown':  'Not determinable',
   'load.estimated':'estimated',
+  'load.estimatedNote': 'Indicative estimate from the declared AIS draught: not the actual cargo on board.',
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In port',
@@ -190,6 +207,8 @@ export default {
   'map.detail':  'Detail →',
   'map.unknown': 'Unknown',
   'map.risk':    '🎯 Risk:',
+  'map.play':    'Play track',
+  'map.pause':   'Pause',
 
   // ── Pagination ─────────────────────────────────────────────────────────────
   'page.prev': '← Prev',
@@ -480,6 +499,8 @@ export default {
   // ── Traffico section titles ────────────────────────────────────────────────
   'traffico.byHour':      'Arrivals by hour of day',
   'traffico.byType':      'Arrivals by ship type',
+  'traffico.byCargo':     'Distribution by cargo type',
+  'traffico.loadDist':    'Estimated load condition',
   'traffico.riskDist':    'Risk score distribution',
   'traffico.riskFactors': 'Top risk factors',
   'traffico.daily':       'Daily arrivals (last 30 days)',
@@ -518,6 +539,8 @@ export default {
   'empty.eventsShip': 'No events recorded for this ship.',
   'empty.logs':       'No calls recorded.',
   'empty.typeData':   'Insufficient data.',
+  'empty.cargoData':  'No cargo-type data.',
+  'empty.loadData':   'Load condition not determinable.',
   'empty.riskData':   'Insufficient data.',
   'empty.factors':    'No risk factors detected.',
   'empty.daily':      'No data available.',
@@ -553,6 +576,19 @@ export default {
   'type.tankerB':      'Tanker – Hazmat B',
   'type.tankerC':      'Tanker – Hazmat C',
   'type.tankerD':      'Tanker – Hazmat D',
+
+  // ── Ship-type explanations ("ⓘ", mainly the Hazmat categories) ─────────────
+  'type.cargo.help':   'Generic cargo ship (AIS code 70 or 75–79), with no declared dangerous-goods category.',
+  'type.cargoA.help':  'Cargo ship declaring dangerous goods of category A (AIS code 71): the HIGHEST hazard class on the AIS/IMO scale (A=most dangerous → D=least).',
+  'type.cargoB.help':  'Cargo ship carrying dangerous goods of category B (AIS code 72): high hazard, below category A.',
+  'type.cargoC.help':  'Cargo ship carrying dangerous goods of category C (AIS code 73): medium hazard.',
+  'type.cargoD.help':  'Cargo ship carrying dangerous goods of category D (AIS code 74): the lowest hazard class on the scale.',
+  'type.tanker.help':  'Generic tanker (AIS code 80 or 85–89), with no declared hazardous-substance category.',
+  'type.tankerA.help': 'Tanker declaring hazardous substances of category A (AIS code 81): the HIGHEST hazard class on the AIS/IMO scale (A=most dangerous → D=least).',
+  'type.tankerB.help': 'Tanker carrying hazardous substances of category B (AIS code 82): high hazard, below category A.',
+  'type.tankerC.help': 'Tanker carrying hazardous substances of category C (AIS code 83): medium hazard.',
+  'type.tankerD.help': 'Tanker carrying hazardous substances of category D (AIS code 84): the lowest hazard class on the scale.',
+
   'type.highSpeed':    'High speed craft',
   'type.passenger':    'Passenger',
   'type.other':        'Other',

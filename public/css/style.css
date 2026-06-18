@@ -828,6 +828,59 @@ td.empty {
   z-index: 0;
 }
 
+/* Track playback controls (ship-detail map) */
+.track-anim {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: -0.75rem 0 1.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+}
+.track-play {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  background: #1e40af;
+  border: 1px solid #3b82f6;
+  border-radius: var(--r-md);
+}
+.track-slider {
+  flex: 1 1 auto;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+.track-time {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.85rem;
+}
+/* Animated ship glyph — inner element is rotated per frame by heading. */
+.track-ship {
+  background: none;
+  border: none;
+}
+.track-ship-rot {
+  width: 26px;
+  height: 26px;
+  transform-origin: 50% 50%;
+}
+.track-ship-rot svg path {
+  fill: #f8fafc;
+  stroke: #1e3a8a;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
 /* Leaflet popup theming */
 .leaflet-popup-content-wrapper {
   background: var(--surface-2) !important;
@@ -1620,6 +1673,10 @@ pre {
   color: var(--text-dim);
   margin-top: 0.4rem;
 }
+/* load-condition tiles reuse the band-tile layout with their own soft palette */
+.band-tile.load-laden   { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-bd); }
+.band-tile.load-partial { background: var(--surface-3); color: var(--text); border-color: var(--border); }
+.band-tile.load-ballast { background: var(--blue-soft, var(--surface-3)); color: var(--blue, var(--text)); border-color: var(--blue-bd, var(--border)); }
 
 /* daily arrivals bar chart */
 .daily-bars {

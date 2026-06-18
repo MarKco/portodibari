@@ -26,12 +26,20 @@ router.get('/stats/scores', (req, res) => {
   const ships = db.getRecentShips(area);
   const byBand = { low: 0, med: 0, high: 0 };
   const factorCounts = {};
+  const cargoCounts = {};
+  const loadCounts = {};
   const scored = ships.map((s) => {
     const risk = computeRiskScoreCached(s, lang);
     byBand[risk.band] = (byBand[risk.band] || 0) + 1;
     (risk.factors || []).forEach((f) => {
       factorCounts[f.label] = (factorCounts[f.label] || 0) + 1;
     });
+    const cls = risk.cargo?.class;
+    if (cls && cls !== 'unknown' && cls !== 'non_cargo') {
+      cargoCounts[cls] = (cargoCounts[cls] || 0) + 1;
+    }
+    const ld = risk.cargo?.loadState;
+    if (ld && ld !== 'unknown') loadCounts[ld] = (loadCounts[ld] || 0) + 1;
     return { mmsi: s.mmsi, ship_name: s.ship_name, score: risk.score, band: risk.band };
   });
   const topShips = scored
@@ -42,8 +50,12 @@ router.get('/stats/scores', (req, res) => {
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+  const byCargo = Object.entries(cargoCounts)
+    .map(([cls, count]) => ({ cls, count }))
+    .sort((a, b) => b.count - a.count);
+  const byLoad = ['laden', 'partial', 'ballast'].map((state) => ({ state, count: loadCounts[state] || 0 }));
   const dailyArrivals = db.getDailyArrivals(area);
-  res.json({ byBand, topShips, byFactor, dailyArrivals, total: ships.length });
+  res.json({ byBand, topShips, byFactor, byCargo, byLoad, dailyArrivals, total: ships.length });
 });
 
 router.get('/alerts', (req, res) => {

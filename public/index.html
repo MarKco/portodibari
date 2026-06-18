@@ -273,6 +273,13 @@
       </div>
 
       <div id="detail-map"></div>
+      <div id="track-anim" class="track-anim hidden">
+        <button id="track-play" class="track-play" type="button"
+                data-i18n-title="map.pause" title="Pausa">⏸</button>
+        <input id="track-slider" class="track-slider" type="range"
+               min="0" max="1000" value="0" step="1" aria-label="Timeline" />
+        <span id="track-time" class="track-time">—</span>
+      </div>
       <div id="table-wrap-detail">
         <table>
           <thead>
@@ -350,6 +357,17 @@
         <div class="traffico-panel">
           <h3 class="detail-section-title" data-i18n="traffico.byType">Arrivi per tipo nave</h3>
           <div id="chart-type" class="type-chart"></div>
+        </div>
+      </div>
+
+      <div class="traffico-grid">
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.byCargo">Distribuzione per tipo di carico</h3>
+          <div id="chart-cargo" class="type-chart"></div>
+        </div>
+        <div class="traffico-panel">
+          <h3 class="detail-section-title" data-i18n="traffico.loadDist">Stato di carico stimato</h3>
+          <div id="chart-cargo-load"></div>
         </div>
       </div>
 

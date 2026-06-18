@@ -2,7 +2,16 @@ import { S } from './store.js';
 import { api } from './api.js';
 import { showView } from './views.js';
 import { t } from './i18n.js';
-import { escHtml, formatTime, formatDuration, shipTypeBadge, riskBadge } from './helpers.js';
+import {
+  escHtml,
+  formatTime,
+  formatDuration,
+  shipTypeBadge,
+  riskBadge,
+  cargoClassLabel,
+  cargoClassHelpText,
+  infoIcon,
+} from './helpers.js';
 
 export async function loadTraffco() {
   try {
@@ -18,6 +27,8 @@ export async function loadTraffco() {
     renderPortEventsTable(eventsData?.rows || []);
     renderExpectedTable(expectedData?.ships || [], expectedData?.keyword);
     renderBandChart(scoreData?.byBand, scoreData?.total);
+    renderCargoChart(scoreData?.byCargo);
+    renderLoadChart(scoreData?.byLoad);
     renderFactorsChart(scoreData?.byFactor);
     renderDailyChart(scoreData?.dailyArrivals);
     renderTopShips(scoreData?.topShips);
@@ -80,6 +91,52 @@ function renderTypeChart(byType) {
     </div>`
     )
     .join('');
+}
+
+// Arrivals broken down by cargo class (what the ships are built to carry).
+// Each row carries an "ⓘ" explaining the class, since labels like
+// "Tanker (generico)" or "Ro-Ro merci" aren't self-evident.
+function renderCargoChart(byCargo) {
+  const elc = document.getElementById('chart-cargo');
+  if (!elc) return;
+  if (!byCargo?.length) {
+    elc.innerHTML = `<p class="empty">${t('empty.cargoData')}</p>`;
+    return;
+  }
+  const total = byCargo.reduce((s, r) => s + r.count, 0);
+  elc.innerHTML = byCargo
+    .map((r) => {
+      const label = cargoClassLabel(r.cls);
+      return `
+    <div class="type-bar-row">
+      <div class="type-bar-label">${escHtml(label)}${infoIcon(label, cargoClassHelpText(r.cls))}</div>
+      <div class="type-bar-track"><div class="type-bar-fill" style="width:${Math.round((r.count / total) * 100)}%"></div></div>
+      <div class="type-bar-count">${r.count}</div>
+    </div>`;
+    })
+    .join('');
+}
+
+// Estimated load condition (laden / partial / in ballast) across present ships —
+// an indicative AIS-draught proxy for "are arrivals coming in full or empty".
+function renderLoadChart(byLoad) {
+  const elc = document.getElementById('chart-cargo-load');
+  if (!elc) return;
+  const total = (byLoad || []).reduce((s, r) => s + r.count, 0);
+  if (!total) {
+    elc.innerHTML = `<p class="empty">${t('empty.loadData')}</p>`;
+    return;
+  }
+  elc.innerHTML = `<div class="band-tiles">${byLoad
+    .map((r) => {
+      const pct = Math.round((r.count / total) * 100);
+      return `<div class="band-tile load-${r.state}">
+        <div class="band-tile-count">${r.count}</div>
+        <div class="band-tile-label">${t('load.' + r.state)}</div>
+        <div class="band-tile-pct">${pct}%</div>
+      </div>`;
+    })
+    .join('')}</div><div class="band-total">${t('load.estimatedNote')}</div>`;
 }
 
 function renderPortEventsTable(rows) {

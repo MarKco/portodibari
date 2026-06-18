@@ -76,10 +76,54 @@ function collapseTrack(pts) {
   return nodes;
 }
 
+// Bearing (deg, 0=N) from point A to point B — fallback when COG is missing.
+function bearing(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const dLon = (lon2 - lon1) * r;
+  const y = Math.sin(dLon) * Math.cos(lat2 * r);
+  const x =
+    Math.cos(lat1 * r) * Math.sin(lat2 * r) -
+    Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dLon);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+
+// COG counts as a usable heading only when present and below the AIS
+// "not available" sentinel (≥360). Otherwise fall back to segment bearing.
+function cogValid(c) {
+  return c != null && c >= 0 && c < 360;
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Rotatable ship glyph (points north at 0°); Leaflet translates the outer
+// icon, so we rotate the inner element on each frame.
+const SHIP_ICON = L.divIcon({
+  className: 'track-ship',
+  html: '<div class="track-ship-rot"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 2 L19 21 L12 17 L5 21 Z"/></svg></div>',
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
+});
+
+const TRACK_DURATION_MS = 12000;
+
+// Stop and tear down any running track playback (called on reload / leaving
+// the detail view). Leaves the static layer intact.
+export function stopTrackAnim() {
+  const A = S.trackAnim;
+  if (!A) return;
+  if (A.rafId) cancelAnimationFrame(A.rafId);
+  if (A.play) A.play.onclick = null;
+  if (A.slider) A.slider.oninput = null;
+  S.trackAnim = null;
+}
+
 export async function loadTrack(mmsi) {
   initMap();
+  stopTrackAnim();
   S.aisMap.invalidateSize();
   S.trackLayer.clearLayers();
+  const ctrls = document.getElementById('track-anim');
+  if (ctrls) ctrls.classList.add('hidden');
 
   try {
     const data = await api(`/api/ships/${mmsi}/track`);
@@ -88,7 +132,8 @@ export async function loadTrack(mmsi) {
 
     const nodes = collapseTrack(pts);
     const latlngs = nodes.map((n) => [n.latitude, n.longitude]);
-    L.polyline(latlngs, { color: '#3b82f6', weight: 2.5, opacity: 0.75 }).addTo(S.trackLayer);
+    // Full route as faint context; a bright trail grows over it during playback.
+    L.polyline(latlngs, { color: '#3b82f6', weight: 2, opacity: 0.22 }).addTo(S.trackLayer);
     nodes.forEach((n, i) => {
       const isLast = i === nodes.length - 1;
       const isSosta = n.count > 1;
@@ -111,9 +156,126 @@ export async function loadTrack(mmsi) {
 
     const bounds = L.latLngBounds(latlngs);
     if (bounds.isValid()) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+
+    setupTrackAnim(nodes);
   } catch {
     /* track unavailable */
   }
+}
+
+// Build playback over the collapsed nodes: a ship marker (rotated by COG, or
+// segment bearing when COG is missing) sliding along the path at a fixed total
+// duration, with a trail that grows behind it. Autoplays; play/pause + a
+// timeline scrubber let the user replay or seek.
+function setupTrackAnim(nodes) {
+  const ctrls = document.getElementById('track-anim');
+  if (!ctrls || nodes.length < 2) return;
+
+  // Cumulative geometry — progress maps to distance so the pace is spatially
+  // uniform regardless of how long the ship lingered between fixes.
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    const d = haversineM(a.latitude, a.longitude, b.latitude, b.longitude);
+    segs.push({ i, d, cum: total });
+    total += d;
+  }
+  if (total <= 0) return; // all positions coincide — nothing to animate
+
+  const play = document.getElementById('track-play');
+  const slider = document.getElementById('track-slider');
+  const timeEl = document.getElementById('track-time');
+  ctrls.classList.remove('hidden');
+
+  const trail = L.polyline([latOf(0)], { color: '#3b82f6', weight: 3.5, opacity: 0.95 }).addTo(
+    S.trackLayer
+  );
+  const ship = L.marker(latOf(0), { icon: SHIP_ICON, interactive: false, zIndexOffset: 1000 }).addTo(
+    S.trackLayer
+  );
+
+  const A = { rafId: null, playing: false, p: 0, startTs: null, play, slider, ship, trail };
+  S.trackAnim = A;
+
+  function latOf(i) {
+    return [nodes[i].latitude, nodes[i].longitude];
+  }
+
+  // Render the scene at progress p∈[0,1].
+  function render(p) {
+    const dd = p * total;
+    let s = segs[segs.length - 1];
+    for (const seg of segs) {
+      if (dd <= seg.cum + seg.d) {
+        s = seg;
+        break;
+      }
+    }
+    const a = nodes[s.i];
+    const b = nodes[s.i + 1];
+    const lt = s.d > 0 ? (dd - s.cum) / s.d : 1;
+    const lat = lerp(a.latitude, b.latitude, lt);
+    const lon = lerp(a.longitude, b.longitude, lt);
+
+    ship.setLatLng([lat, lon]);
+    const hdg = cogValid(a.cog) ? a.cog : bearing(a.latitude, a.longitude, b.latitude, b.longitude);
+    const rot = ship.getElement()?.querySelector('.track-ship-rot');
+    if (rot) rot.style.transform = `rotate(${hdg}deg)`;
+
+    const pts = nodes.slice(0, s.i + 1).map((n) => [n.latitude, n.longitude]);
+    pts.push([lat, lon]);
+    trail.setLatLngs(pts);
+
+    const ta = new Date(a.received_at).getTime();
+    const tb = new Date(b.received_at).getTime();
+    timeEl.textContent = formatTime(new Date(lerp(ta, tb, lt)).toISOString());
+    slider.value = String(Math.round(p * 1000));
+  }
+
+  function setPlaying(on) {
+    A.playing = on;
+    play.textContent = on ? '⏸' : '▶';
+    play.title = on ? t('map.pause') : t('map.play');
+  }
+
+  function step(ts) {
+    if (!A.playing) return;
+    if (A.startTs == null) A.startTs = ts - A.p * TRACK_DURATION_MS;
+    A.p = Math.min(1, (ts - A.startTs) / TRACK_DURATION_MS);
+    render(A.p);
+    if (A.p >= 1) {
+      setPlaying(false);
+      return;
+    }
+    A.rafId = requestAnimationFrame(step);
+  }
+
+  play.onclick = () => {
+    if (A.playing) {
+      if (A.rafId) cancelAnimationFrame(A.rafId);
+      setPlaying(false);
+      return;
+    }
+    if (A.p >= 1) A.p = 0; // replay from start
+    A.startTs = null;
+    setPlaying(true);
+    A.rafId = requestAnimationFrame(step);
+  };
+
+  slider.oninput = () => {
+    if (A.rafId) cancelAnimationFrame(A.rafId);
+    setPlaying(false);
+    A.p = Number(slider.value) / 1000;
+    render(A.p);
+  };
+
+  // Autoplay.
+  render(0);
+  setPlaying(true);
+  A.startTs = null;
+  A.rafId = requestAnimationFrame(step);
 }
 
 // ── Active-ships overview map ────────────────────────────────────────────────

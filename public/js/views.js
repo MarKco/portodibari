@@ -14,7 +14,7 @@ import {
   updateDetailSeenBtn,
   updateDetailNotifMuteBtn,
 } from './ships.js';
-import { loadTrack } from './maps.js';
+import { loadTrack, stopTrackAnim } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { enterAreasView, commitPendingDelete } from './areas.js';
 import { closeSettingsLog } from './app-log.js';
@@ -25,6 +25,8 @@ export function showView(v, mmsi, shipData) {
   // Leaving the Areas screen counts as "navigating away": commit any pending
   // (undo-window) area deletion before the screen disappears.
   if (S.view === 'areas' && v !== 'areas') commitPendingDelete();
+  // Leaving the ship detail: stop any running track playback (rAF loop).
+  if (S.view === 'detail' && v !== 'detail') stopTrackAnim();
   // Leaving Settings: stop every live feed bound to a settings tab
   // (app-log tail, API-log stream, AIS health polling).
   if (S.view === 'settings' && v !== 'settings') {

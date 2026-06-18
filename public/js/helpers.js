@@ -103,16 +103,50 @@ export function isHazmat(code) {
   return (code >= 71 && code <= 74) || (code >= 81 && code <= 84);
 }
 
+// Hover-explainer "ⓘ" icon. Shares markup + the global tooltip handler with the
+// Equasis icons (main.js: initGlossaryTooltip). Empty `def` → no icon.
+export function infoIcon(term, def) {
+  if (!def) return '';
+  return ` <span class="eq-info" data-term="${escHtml(term)}" data-tip="${escHtml(def)}" aria-label="${escHtml(term)}: ${escHtml(def)}" role="img">ⓘ</span>`;
+}
+
+// Plain-language explanation for an AIS ship-type code (e.g. what "Hazmat A"
+// means). Derived from the type's i18n key + ".help"; returns '' when no help
+// string is defined for that type, so the icon only appears where it adds value.
+export function shipTypeHelpText(code) {
+  if (code == null) return '';
+  let baseKey = SHIP_TYPE_KEYS[code];
+  if (!baseKey) {
+    if (code >= 40 && code <= 49) baseKey = 'type.highSpeed';
+    else if (code >= 60 && code <= 69) baseKey = 'type.passenger';
+    else if (code >= 90 && code <= 99) baseKey = 'type.other';
+  }
+  if (!baseKey) return '';
+  const helpKey = baseKey + '.help';
+  const txt = t(helpKey);
+  return txt === helpKey ? '' : txt;
+}
+
 export function shipTypeBadge(code) {
   const label = shipTypeLabel(code);
-  if (isHazmat(code)) return `<span class="hazmat-badge">☢ ${label}</span>`;
-  return label;
+  const help = infoIcon(label, shipTypeHelpText(code));
+  if (isHazmat(code)) return `<span class="hazmat-badge">☢ ${label}</span>${help}`;
+  return `${label}${help}`;
 }
 
 // ── Cargo type (merchandise class) ─────────────────────────────────────────────
 // Translated label for a cargo class key (from cargo-type.js on the server).
 export function cargoClassLabel(cls) {
   return cls ? t('cargo.' + cls) : '—';
+}
+
+// Plain-language explanation of a cargo class (what the merchandise category
+// actually is). Returns '' when no help string is defined for that class.
+export function cargoClassHelpText(cls) {
+  if (!cls) return '';
+  const key = 'cargo.help.' + cls;
+  const txt = t(key);
+  return txt === key ? '' : txt;
 }
 
 // Detail-view cell for a ship's cargo type: the granular VF/MT subtype when
@@ -124,7 +158,8 @@ export function cargoTypeHtml(cargo) {
   const src = cargo.source && cargo.source !== 'AIS' && cargo.source !== 'none'
     ? ` <span class="cargo-src">(${t('cargo.src', { src: cargo.source })})</span>`
     : '';
-  return `${main}${src}`;
+  const help = infoIcon(cargoClassLabel(cargo.class), cargoClassHelpText(cargo.class));
+  return `${main}${src}${help}`;
 }
 
 // Load condition badge (laden / ballast / …), estimated from draught.

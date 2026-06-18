@@ -57,6 +57,7 @@ export const S = {
   // Maps
   aisMap: null,
   trackLayer: null,
+  trackAnim: null, // active track-playback state (see maps.js)
   activeMap: null,
   activeMarkersLayer: null,
   activeShipsCache: new Map(),
