@@ -95,7 +95,7 @@ Sulla mappa delle navi presenti puoi attivare un **overlay delle banchine**: il 
 
 - Spunta la casella **Banchine** nella barra dei filtri sopra la mappa per mostrare/nascondere l'overlay (la scelta viene ricordata).
 - Ogni banchina ha un poligono colorato e un **pallino centrale** sempre visibile (il poligono di una banchina è largo poche decine di metri e a livello di zoom dell'intera area risulterebbe minuscolo: il pallino la rende individuabile).
-- **Clicca su una banchina** (poligono o pallino) per vedere nome, caratterizzazione, numero di attracchi, distribuzione percentuale per categoria ed eventuale quota di merci pericolose (☢).
+- **Clicca su una banchina** (poligono o pallino) per vedere nome, caratterizzazione, numero di attracchi, distribuzione percentuale per categoria, **distribuzione per tipo di carico** (classe merceologica delle navi che vi attraccano) ed eventuale quota di merci pericolose (☢).
 
 **Correggere a mano** (pulsante **⚓ Banchine**): apre il pannello di gestione, dove puoi:
 
@@ -170,6 +170,8 @@ Griglia con tutti i dati disponibili della nave:
 |---|---|
 | Score rischio | Badge colorato 0–100 |
 | Tipo nave | Categoria; "☢ Hazmat" se trasporta merci pericolose |
+| Tipo carico | Classe merceologica (portacontainer, petroliera greggio, chimichiera, gasiera, rinfusiera, ecc.) derivata dal sottotipo VesselFinder/MarineTraffic, con ripiego sul codice AIS. Tra parentesi la fonte |
+| Stato carico | Stima carica / parziale / in zavorra dal pescaggio dichiarato confrontato con il minimo/massimo osservato per quella nave (indicato come "stimato") |
 | Nominativo | Indicativo radio (call sign) |
 | IMO | Numero IMO di registrazione |
 | Destinazione | Porto dichiarato |
@@ -261,6 +263,8 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **Notifica score alto** (toggle) | Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100). |
 | **Notifica nuova banchina** (toggle) | Avvisa quando viene rilevata una nuova banchina in un'area. |
 | **Notifica caratterizzazione banchina** (toggle) | Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente). |
+| **Escludi tanker** (toggle) | Non assegnare il punteggio di rischio di tipo nave alle navi su scafo tanker. Utile quando si monitora il trasporto di armi, che i tanker non possono effettuare. |
+| **Pesi rischio per tipo di carico** (griglia) | Punti di rischio assegnati per ciascuna classe merceologica (portacontainer, petroliera greggio, chimichiera, gasiera, rinfusiera, ecc.). La classe è derivata dal sottotipo VesselFinder/MarineTraffic con ripiego sul codice AIS. Sostituisce il vecchio punteggio fisso Cargo/Hazmat. Modifica i valori e premi **💾 Salva pesi** (effetto immediato, senza riavvio); **Ripristina default** ricarica i valori predefiniti nella griglia (da salvare per applicarli). I pesi sono inclusi nell'export delle impostazioni e del bundle. |
 | **⬇ Esporta CSV** | Scarica tutte le letture come file CSV (importabile in Excel) |
 | **⬇ Scarica backup** | Scarica il file del database (.db) come backup |
 | **⬆ Ripristina** | Carica un file .db precedentemente salvato per ripristinare i dati |
@@ -400,6 +404,8 @@ Ogni nave riceve un punteggio da 0 a 100 calcolato automaticamente in base a div
 - Punto verde acqua (Global Fishing Watch): punteggio calcolato con dati Global Fishing Watch
 
 Passa il cursore sul badge per vedere i dettagli dei fattori e le fonti.
+
+**Peso per tipo di carico:** uno dei fattori del punteggio dipende dalla classe merceologica della nave (vedi [Tipo carico](#barra-informazioni)). Ogni classe ha un peso configurabile da **⚙ Impostazioni → "Pesi rischio per tipo di carico"** (es. petroliere/chimichiere/gasiere pesano più delle portacontainer). Le modifiche hanno effetto immediato, senza riavvio. Con **"Escludi tanker"** attivo le classi su scafo tanker non assegnano punti.
 
 **Navi militari:** sono automaticamente classificate a rischio massimo.
 

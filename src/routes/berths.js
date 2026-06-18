@@ -4,6 +4,7 @@ const express = require('express');
 const db = require('../db');
 const berths = require('../services/berths');
 const appLog = require('../services/app-log');
+const { cargoTypeForShip } = require('../services/cargo-type');
 const { state, BBOX_PRESETS, BERTH } = require('../config');
 
 const router = express.Router();
@@ -11,7 +12,8 @@ const router = express.Router();
 // Shape a stored berth row for the client: parse geometry/distribution, expose
 // the *effective* label (manual override wins over the computed one) and the
 // thresholds so the UI can explain why a berth is or isn't characterised.
-function serialize(b) {
+// `cargoDist` is computed at read time (not stored) — see cargoDistByBerth.
+function serialize(b, cargoDist = []) {
   let polygon = [];
   let dist = [];
   try {
@@ -36,14 +38,48 @@ function serialize(b) {
     override: b.char_override || null,
     count: b.mooring_count,
     dist,
+    cargoDist,
     hazmatPct: b.hazmat_pct,
     updatedAt: b.updated_at,
   };
 }
 
+// Cargo-class distribution per berth, derived live from the area's moorings
+// (no stored column — keeps the DB schema and backups unchanged). Each mooring
+// is classified by its ship; the class is memoised per MMSI so the repeated
+// scrape-cache reads cost once per vessel, not once per visit. Counting is
+// per-mooring, matching the existing category `dist`.
+function cargoDistByBerth(area) {
+  const byMmsi = new Map();
+  const tallies = new Map(); // berth_id → { class: count }
+  for (const m of db.getMoorings(area)) {
+    if (m.berth_id == null) continue;
+    let cls = byMmsi.get(m.mmsi);
+    if (cls === undefined) {
+      cls = cargoTypeForShip({ mmsi: m.mmsi, ship_type: m.ship_type }).class;
+      byMmsi.set(m.mmsi, cls);
+    }
+    if (!tallies.has(m.berth_id)) tallies.set(m.berth_id, {});
+    const t = tallies.get(m.berth_id);
+    t[cls] = (t[cls] || 0) + 1;
+  }
+  const out = new Map();
+  for (const [bid, tally] of tallies) {
+    const total = Object.values(tally).reduce((a, n) => a + n, 0);
+    out.set(
+      bid,
+      Object.entries(tally)
+        .map(([cls, n]) => ({ class: cls, n, pct: Math.round((n / total) * 100) }))
+        .sort((a, n) => n.n - a.n)
+    );
+  }
+  return out;
+}
+
 function listPayload(area) {
+  const cargo = cargoDistByBerth(area);
   return {
-    berths: db.getBerths(area).map(serialize),
+    berths: db.getBerths(area).map((b) => serialize(b, cargo.get(b.id) || [])),
     minMoorings: BERTH.MIN_MOORINGS,
     dominantPct: BERTH.DOMINANT_PCT,
   };

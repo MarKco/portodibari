@@ -14,7 +14,7 @@ import { openHealth, closeHealth } from './health.js';
 import { initAreas } from './areas.js';
 import { initNotifications, loadNotifications } from './notifications.js';
 import { initTheme } from './theme.js';
-import { escHtml } from './helpers.js';
+import { escHtml, cargoClassLabel } from './helpers.js';
 import { t, getLang, setLang, LANG_NAMES, applyToDOM } from './i18n.js';
 
 // ── Stream status ────────────────────────────────────────────────────────────
@@ -136,10 +136,42 @@ async function loadSettings() {
     if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
     S.excludeTankers = !!s.excludeTankers;
     if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
+    if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
+    if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;
+    if (s.cargoWeights) S.cargoWeights = s.cargoWeights;
+    renderCargoWeights();
     applyNotifSettingsState();
   } catch {
     /* ignore */
   }
+}
+
+// Build the per-cargo-type weight editor: one number input per class, ordered
+// as the server lists them. Non-cargo / unknown classes are shown too (weight
+// usually 0) so the operator sees the full set. `values` overrides the stored
+// weights (used by the reset button to preview defaults before saving).
+function renderCargoWeights(values) {
+  if (!el.cargoWeightsGrid || !S.cargoClasses) return;
+  const w = values || S.cargoWeights || {};
+  el.cargoWeightsGrid.innerHTML = S.cargoClasses
+    .map(
+      (cls) => `
+      <label class="cargo-weight-item">
+        <span class="cargo-weight-label">${escHtml(cargoClassLabel(cls))}</span>
+        <input type="number" min="0" step="1" class="cargo-weight-input" data-class="${cls}" value="${w[cls] != null ? w[cls] : 0}">
+      </label>`
+    )
+    .join('');
+}
+
+// Collect the grid into a { class: weight } map.
+function collectCargoWeights() {
+  const map = {};
+  el.cargoWeightsGrid.querySelectorAll('.cargo-weight-input').forEach((inp) => {
+    const v = Number(inp.value);
+    if (Number.isFinite(v) && v >= 0) map[inp.dataset.class] = v;
+  });
+  return map;
 }
 
 // Dim/disable the notification sub-toggles when the master switch is off.
@@ -520,6 +552,28 @@ function initSettingsModal() {
       } catch {
         el.toggleExcludeTankers.checked = !enabled;
       }
+    });
+  }
+
+  if (el.btnCargoWeightsSave) {
+    el.btnCargoWeightsSave.addEventListener('click', async () => {
+      const cargoWeights = collectCargoWeights();
+      try {
+        const r = await api('/api/settings/cargo-weights', 'POST', { cargoWeights });
+        S.cargoWeights = r.cargoWeights || cargoWeights;
+        renderCargoWeights();
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.saved');
+      } catch {
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  if (el.btnCargoWeightsReset) {
+    el.btnCargoWeightsReset.addEventListener('click', () => {
+      // Preview the defaults in the grid; not persisted until "Salva" is pressed.
+      renderCargoWeights(S.defaultCargoWeights);
+      if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.resetHint');
     });
   }
 

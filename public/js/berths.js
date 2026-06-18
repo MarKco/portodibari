@@ -3,7 +3,7 @@
 import { S } from './store.js';
 import { api } from './api.js';
 import { el } from './dom.js';
-import { escHtml, haversineM } from './helpers.js';
+import { escHtml, haversineM, cargoClassLabel } from './helpers.js';
 import { showAlert } from './toast.js';
 import { t } from './i18n.js';
 import { showView } from './views.js';
@@ -218,6 +218,28 @@ function distBars(b) {
   );
 }
 
+// Cargo-class distribution (what kinds of cargo moor here), derived server-side
+// at read time. Non-cargo / unknown classes are dropped so the breakdown shows
+// only meaningful merchandise types; nothing renders when none remain.
+function cargoDistBars(b) {
+  const rows = (b.cargoDist || []).filter((d) => d.class !== 'unknown' && d.class !== 'non_cargo');
+  if (!rows.length) return '';
+  return (
+    `<div class="berth-cargo-dist"><div class="berth-cargo-title">${t('info.cargoType')}</div>` +
+    rows
+      .map(
+        (d) =>
+          `<div class="berth-dist-row">` +
+          `<span class="berth-dist-cat">${escHtml(cargoClassLabel(d.class))}</span>` +
+          `<span class="berth-dist-bar"><span style="width:${d.pct}%"></span></span>` +
+          `<span class="berth-dist-pct">${d.pct}% (${d.n})</span>` +
+          `</div>`
+      )
+      .join('') +
+    `</div>`
+  );
+}
+
 function berthPopup(b) {
   const name = b.name || t('berth.unnamed');
   const labelTxt = b.label
@@ -241,6 +263,7 @@ function berthPopup(b) {
     `<div class="berth-count">${t('berth.moorings', { n: b.count })}</div>` +
     hazmat +
     distBars(b) +
+    cargoDistBars(b) +
     note +
     `</div>`
   );

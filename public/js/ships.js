@@ -17,6 +17,8 @@ import {
   isHazmat,
   riskBadge,
   riskClass,
+  cargoTypeHtml,
+  loadStateHtml,
 } from './helpers.js';
 
 // ── Detail header buttons ────────────────────────────────────────────────────
@@ -525,7 +527,7 @@ function renderDetailEvents(events) {
     .map(({ arrival, departure, ms, delta }) => {
       let draughtStr = '—';
       if (delta != null) {
-        const val = (delta / 10).toFixed(1);
+        const val = delta.toFixed(1);
         draughtStr =
           delta > 0
             ? `<span class="delta-up">${t('draught.load', { val: '+' + val })}</span>`
@@ -537,7 +539,7 @@ function renderDetailEvents(events) {
         <td><span class="event-badge departed">${t('event.departed')}</span></td>
         <td>${formatTime(departure.ts)}</td>
         <td>${escHtml(departure.destination) || '—'}</td>
-        <td>${departure.draught != null ? (departure.draught / 10).toFixed(1) + ' m' : '—'} ${draughtStr}</td>
+        <td>${departure.draught != null ? departure.draught.toFixed(1) + ' m' : '—'} ${draughtStr}</td>
         <td>—</td>
       </tr>`
         : '';
@@ -546,7 +548,7 @@ function renderDetailEvents(events) {
         <td><span class="event-badge arrived">${t('event.arrived')}</span></td>
         <td>${formatTime(arrival.ts)}</td>
         <td>${escHtml(arrival.destination) || '—'}</td>
-        <td>${arrival.draught != null ? (arrival.draught / 10).toFixed(1) + ' m' : '—'}</td>
+        <td>${arrival.draught != null ? arrival.draught.toFixed(1) + ' m' : '—'}</td>
         <td>${departure ? formatDuration(ms) : `<span class="in-porto">${t('event.inPort')}</span>`}</td>
       </tr>${depRow}`;
     })
@@ -575,11 +577,13 @@ export function renderDetailInfoBar(ship, latestArrival) {
   const items = [
     [t('info.riskScore'),  riskBadge(ship.risk)],
     [t('info.shipType'),   typeHtml],
+    [t('info.cargoType'),  cargoTypeHtml(ship.risk?.cargo)],
+    [t('info.loadState'),  loadStateHtml(ship.risk?.cargo?.loadState)],
     [t('info.callSign'),   escHtml(ship.call_sign) || '—'],
     [t('info.imo'),        ship.imo_number || '—'],
     [t('info.dest'),       escHtml(ship.destination) || '—'],
     [t('info.eta'),        escHtml(ship.eta) || '—'],
-    [t('info.maxDraught'), ship.max_draught != null ? (ship.max_draught / 10).toFixed(1) + ' m' : '—'],
+    [t('info.maxDraught'), ship.max_draught != null ? ship.max_draught.toFixed(1) + ' m' : '—'],
     [t('info.length'),     dimLen],
     [t('info.beam'),       dimBeam],
     [t('info.sog'),        ship.last_sog != null ? ship.last_sog.toFixed(1) + ' kn' : '—'],
@@ -1210,7 +1214,7 @@ async function generateReport(mmsi) {
       row(t('info.imo'), ship.imo_number),
       row(t('info.dest'), ship.destination),
       row(t('info.eta'), ship.eta),
-      row(t('info.maxDraught'), ship.max_draught != null ? (ship.max_draught / 10).toFixed(1) + ' m' : '—'),
+      row(t('info.maxDraught'), ship.max_draught != null ? ship.max_draught.toFixed(1) + ' m' : '—'),
       row(t('info.length'), dimLen),
       row(t('info.beam'), dimBeam),
       row(t('info.sog'), ship.last_sog != null ? ship.last_sog.toFixed(1) + ' kn' : '—'),
@@ -1234,7 +1238,7 @@ async function generateReport(mmsi) {
               <td>${e.event_type === 'arrived' ? t('event.arrived') : t('event.departed')}</td>
               <td>${escHtml(formatTime(e.ts))}</td>
               <td>${escHtml(e.destination) || '—'}</td>
-              <td>${e.draught != null ? (e.draught / 10).toFixed(1) + ' m' : '—'}</td>
+              <td>${e.draught != null ? e.draught.toFixed(1) + ' m' : '—'}</td>
             </tr>`
           )
           .join('')

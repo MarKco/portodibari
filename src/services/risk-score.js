@@ -17,8 +17,29 @@
 const db = require('../db');
 const { state, SOG_FERMA, RISK: R } = require('../config');
 const { haversineM } = require('./ship-analysis');
+const { cargoTypeForShip, isTankerClass, loadStateOf } = require('./cargo-type');
 const sanctions = require('./sanctions');
 const psc = require('./psc');
+
+// Human labels for the cargo classes (keys defined in cargo-type.js). The
+// frontend owns its own copy for the ship card / settings; this set is only for
+// the risk-factor description line.
+const CARGO_CLASS_LABELS = {
+  en: {
+    container: 'Container ship', dry_bulk: 'Dry bulk carrier', crude_oil: 'Crude oil tanker',
+    oil_products: 'Oil products tanker', chemical: 'Chemical tanker', gas: 'Gas carrier (LNG/LPG)',
+    vehicles: 'Vehicles carrier', roro: 'Ro-Ro cargo', reefer: 'Reefer (refrigerated)',
+    general_cargo: 'General cargo', livestock: 'Livestock carrier', cargo_other: 'Cargo (generic)',
+    tanker_other: 'Tanker (generic)', non_cargo: 'Non-cargo vessel', unknown: 'Unknown cargo type',
+  },
+  it: {
+    container: 'Portacontainer', dry_bulk: 'Rinfusiera (carico secco)', crude_oil: 'Petroliera (greggio)',
+    oil_products: 'Petroliera (prodotti raffinati)', chemical: 'Chimichiera', gas: 'Gasiera (LNG/LPG)',
+    vehicles: 'Trasporto veicoli', roro: 'Ro-Ro merci', reefer: 'Frigorifera (reefer)',
+    general_cargo: 'Carico generale', livestock: 'Trasporto bestiame', cargo_other: 'Cargo (generico)',
+    tanker_other: 'Tanker (generico)', non_cargo: 'Nave non da carico', unknown: 'Tipo carico sconosciuto',
+  },
+};
 
 // Self-declared destinations / known ports tied to arms embargoes or conflict
 // zones. Matched case-insensitively as substrings of the AIS destination field.
@@ -83,6 +104,7 @@ function getLabels(lang) {
     destChange: (n)         => `Declared destination changed (${n} different)`,
     hazmat: 'Cargo/Tanker hazardous goods (Hazmat)',
     cargo:  'Cargo/Tanker (relevant for arms transport)',
+    cargoClass: (c) => `Cargo type: ${c.subtype || CARGO_CLASS_LABELS.en[c.class] || c.class}${c.source && c.source !== 'AIS' ? ` (source ${c.source})` : ''}`,
     nameHop: (n)            => `Hull name change (${n} names on same MMSI)`,
     embargoFlag: (f, s)     => `Flag registered under embargo: ${f} (source ${s})`,
     focFlag: (f, s)         => `Flag of convenience: ${f} (source ${s})`,
@@ -113,6 +135,7 @@ function getLabels(lang) {
     destChange: (n)         => `Destinazione dichiarata variata (${n} diverse)`,
     hazmat: 'Cargo/Tanker merci pericolose (Hazmat)',
     cargo:  'Cargo/Tanker (rilevante per trasporto armi)',
+    cargoClass: (c) => `Tipo carico: ${c.subtype || CARGO_CLASS_LABELS.it[c.class] || c.class}${c.source && c.source !== 'AIS' ? ` (fonte ${c.source})` : ''}`,
     nameHop: (n)            => `Cambio nome scafo (${n} nomi sullo stesso MMSI)`,
     embargoFlag: (f, s)     => `Bandiera registrata sotto embargo: ${f} (fonte ${s})`,
     focFlag: (f, s)         => `Bandiera di comodo: ${f} (fonte ${s})`,
@@ -288,14 +311,14 @@ function computeRiskScore(ship, lang) {
   }
 
   // 4. Draught load — significant increase in declared draught across a stop
-  //    (heavier cargo taken on). AIS draught is in 1/10 m units.
+  //    (heavier cargo taken on). Draught is stored in metres.
   let maxLoad = 0;
   for (let i = 1; i < events.length; i++) {
     // events are newest-first; compare each with the older neighbour
     const newer = events[i - 1];
     const older = events[i];
     if (newer.draught != null && older.draught != null) {
-      const deltaM = (newer.draught - older.draught) / 10;
+      const deltaM = newer.draught - older.draught;
       if (deltaM > maxLoad) maxLoad = deltaM;
     }
   }
@@ -309,15 +332,17 @@ function computeRiskScore(ship, lang) {
   );
   if (dests.size >= 2) add(clamp((dests.size - 1) * R.DEST_PER_CHANGE, 0, R.DEST_MAX), L.destChange(dests.size));
 
-  // 6. Ship type — base contribution for cargo/tanker hulls. With "exclude
-  //    tankers" on, tanker hulls (80–89) get no type points — useful when
+  // 6. Cargo type — per-class weight (replaces the old flat hazmat/cargo points).
+  //    The class is derived from the granular VesselFinder/MarineTraffic subtype
+  //    when imported & cached, falling back to the AIS hull code. Each class has
+  //    its own weight (state.cargoWeights, editable from Settings). With "exclude
+  //    tankers" on, tanker-hull classes contribute nothing — useful when
   //    monitoring arms transport, which tankers cannot carry.
-  const t = ship.ship_type;
-  const isTanker = t >= 80 && t <= 89;
-  if (state.excludeTankers && isTanker) {
-    /* tanker ship-type bonus suppressed */
-  } else if ((t >= 71 && t <= 74) || (t >= 81 && t <= 84)) add(R.HAZMAT, L.hazmat);
-  else if (t >= 70 && t <= 89) add(R.CARGO, L.cargo);
+  const cargo = cargoTypeForShip(ship);
+  if (!(state.excludeTankers && isTankerClass(cargo.class))) {
+    const w = state.cargoWeights[cargo.class] || 0;
+    if (w > 0) add(w, L.cargoClass(cargo));
+  }
 
   // 7. Flag/name hopping — one MMSI broadcasting multiple hull names.
   if (names.length >= 2) add(R.NAME_HOP, L.nameHop(names.length));
@@ -469,8 +494,21 @@ function computeRiskScore(ship, lang) {
   const resolvedMt = mtStatus === 'none' ? 'none' : mtContributed ? 'used' : 'available';
   const resolvedGfw = gfwStatus === 'none' ? 'none' : gfwContributed ? 'used' : 'available';
 
+  // Cargo type + estimated load condition for the detail view (the cargo class
+  // also fed the score above). Load state compares the latest declared draught
+  // against the min/max ever observed for this MMSI — a laden/ballast estimate.
+  const draughts = events.map((e) => e.draught).filter((d) => d != null);
+  const loadState = loadStateOf(ship.max_draught, draughts);
+
   factors.sort((a, b) => b.points - a.points);
-  return { score, band: bandOf(score), factors, sanctionMatch, sources: { vf: resolvedVf, mt: resolvedMt, gfw: resolvedGfw, sanctions: sanctionStatus, psc: pscStatus } };
+  return {
+    score,
+    band: bandOf(score),
+    factors,
+    sanctionMatch,
+    cargo: { class: cargo.class, subtype: cargo.subtype, source: cargo.source, loadState: loadState.state, loadRatio: loadState.ratio },
+    sources: { vf: resolvedVf, mt: resolvedMt, gfw: resolvedGfw, sanctions: sanctionStatus, psc: pscStatus },
+  };
 }
 
 // Name prefixes / keywords that identify military or NATO vessels in AIS data.

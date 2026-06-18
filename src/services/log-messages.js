@@ -169,6 +169,7 @@ const MESSAGES = {
   'settings.import_psc': onOff(['Screening Port State Control attivato', 'Screening Port State Control disattivato'], ['Port State Control screening enabled', 'Port State Control screening disabled']),
   'settings.import_gfw': onOff(['Import Global Fishing Watch attivato', 'Import Global Fishing Watch disattivato'], ['Global Fishing Watch import enabled', 'Global Fishing Watch import disabled']),
   'settings.exclude_tankers': onOff(['Esclusione tanker dal punteggio attivata', 'Esclusione tanker dal punteggio disattivata'], ['Tankers excluded from score enabled', 'Tankers excluded from score disabled']),
+  'settings.cargo_weights': { it: () => 'Pesi rischio per tipo di carico aggiornati', en: () => 'Per-cargo-type risk weights updated' },
   'settings.view_changed': { it: (p) => `Vista cambiata a: ${p.name}`, en: (p) => `View changed to: ${p.name}` },
 
   // ── Data / notifications / log ──

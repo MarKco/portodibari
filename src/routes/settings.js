@@ -3,11 +3,12 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCargoWeights, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
+const { CARGO_CLASSES } = require('../services/cargo-type');
 
 // Whether Equasis credentials are present (the lookup is unusable without them).
 const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
@@ -72,7 +73,20 @@ router.get('/settings', (req, res) => {
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
+    cargoClasses: CARGO_CLASSES,
+    cargoWeights: state.cargoWeights,
+    defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
   });
+});
+
+// Update the per-cargo-type risk weights and drop the memoised scores so the
+// next read reflects the new weighting. Accepts a partial { class: weight } map.
+router.post('/settings/cargo-weights', (req, res) => {
+  const map = req.body && req.body.cargoWeights ? req.body.cargoWeights : req.body;
+  const weights = setCargoWeights(map);
+  clearRiskCache();
+  appLog.info('SETTINGS', appLog.t('settings.cargo_weights'));
+  res.json({ ok: true, cargoWeights: weights });
 });
 
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
@@ -115,6 +129,7 @@ function exportSettings() {
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
+    cargoWeights: state.cargoWeights,
   };
 }
 
@@ -133,6 +148,10 @@ function applyImportedSettings(s) {
   if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
   if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
   if (s.excludeTankers !== undefined) setExcludeTankers(s.excludeTankers);
+  // Per-cargo-type risk weights. Null-safe: an older bundle (pre-feature) omits
+  // this key, so the local defaults are kept; setCargoWeights drops unknown
+  // classes and clamps values, so a malformed/partial map can't corrupt state.
+  if (s.cargoWeights !== undefined) setCargoWeights(s.cargoWeights);
 
   // VF/MT toggles: persist only — do NOT backfill. The scraped data lives in
   // ship_scrape_cache, which is part of the DB backup and is restored alongside

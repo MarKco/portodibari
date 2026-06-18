@@ -109,6 +109,30 @@ export function shipTypeBadge(code) {
   return label;
 }
 
+// ── Cargo type (merchandise class) ─────────────────────────────────────────────
+// Translated label for a cargo class key (from cargo-type.js on the server).
+export function cargoClassLabel(cls) {
+  return cls ? t('cargo.' + cls) : '—';
+}
+
+// Detail-view cell for a ship's cargo type: the granular VF/MT subtype when
+// available, else the translated class, plus the source (when not the coarse AIS
+// fallback). `cargo` is the { class, subtype, source } object from the risk result.
+export function cargoTypeHtml(cargo) {
+  if (!cargo || !cargo.class || cargo.class === 'unknown') return '—';
+  const main = cargo.subtype ? escHtml(cargo.subtype) : cargoClassLabel(cargo.class);
+  const src = cargo.source && cargo.source !== 'AIS' && cargo.source !== 'none'
+    ? ` <span class="cargo-src">(${t('cargo.src', { src: cargo.source })})</span>`
+    : '';
+  return `${main}${src}`;
+}
+
+// Load condition badge (laden / ballast / …), estimated from draught.
+export function loadStateHtml(stateKey) {
+  if (!stateKey || stateKey === 'unknown') return '—';
+  return `<span class="load-badge load-${stateKey}">${t('load.' + stateKey)}</span> <span class="cargo-src">(${t('load.estimated')})</span>`;
+}
+
 // ── Risk score ───────────────────────────────────────────────────────────────
 export function riskClass(score) {
   if (score == null) return 'risk-na';

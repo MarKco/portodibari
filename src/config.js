@@ -230,6 +230,37 @@ const RISK = {
   MULT_FOC:          num('RISK_MULT_FOC', 0.2),
 };
 
+// ── Per-cargo-type risk weights (runtime-editable, persisted to local.properties)
+// Replaces the old flat HAZMAT/CARGO points: the ship's cargo class (derived
+// from VesselFinder/MarineTraffic subtype, falling back to the AIS code) picks a
+// weight here. Stored as a single JSON property RISK_CARGO_WEIGHTS so the whole
+// map round-trips in one settings line; unknown keys are dropped and missing
+// keys keep their built-in default. Unlike the RISK.* weights above (boot-only,
+// from app.config.properties) these are editable live from the Settings UI.
+const { DEFAULT_CARGO_WEIGHTS } = require('./services/cargo-type');
+
+/** Sanitize an incoming weight map: keep only known classes, coerce to a
+ *  non-negative number, and fall back to the default for anything missing. */
+function normalizeCargoWeights(raw) {
+  const out = { ...DEFAULT_CARGO_WEIGHTS };
+  if (raw && typeof raw === 'object') {
+    for (const k of Object.keys(DEFAULT_CARGO_WEIGHTS)) {
+      const v = Number(raw[k]);
+      if (Number.isFinite(v) && v >= 0) out[k] = v;
+    }
+  }
+  return out;
+}
+
+function parseCargoWeightsProp() {
+  if (!props.RISK_CARGO_WEIGHTS) return { ...DEFAULT_CARGO_WEIGHTS };
+  try {
+    return normalizeCargoWeights(JSON.parse(props.RISK_CARGO_WEIGHTS));
+  } catch {
+    return { ...DEFAULT_CARGO_WEIGHTS };
+  }
+}
+
 // ── Mutable runtime state ────────────────────────────────────────────────────
 // Shared by reference across modules so live updates (preset / import toggles)
 // are visible everywhere without re-wiring.
@@ -273,6 +304,8 @@ const state = {
   // (AIS type 80–89) get no CARGO/HAZMAT *type* points — useful when monitoring
   // arms transport, which tankers cannot carry. Default OFF (current behaviour).
   excludeTankers: props.EXCLUDE_TANKERS === 'true',
+  // Per-cargo-type risk weights (see normalizeCargoWeights / DEFAULT_CARGO_WEIGHTS).
+  cargoWeights: parseCargoWeightsProp(),
 };
 
 function applyPreset(preset) {
@@ -375,6 +408,15 @@ function setNotifyBerthChar(enabled) {
 function setExcludeTankers(enabled) {
   state.excludeTankers = !!enabled;
   saveProperty('EXCLUDE_TANKERS', state.excludeTankers);
+}
+
+/** Update the per-cargo-type risk weights and persist them as one JSON line.
+ *  Accepts a partial map; unknown keys are dropped, missing keys keep their
+ *  current/default value. Returns the full normalized map. */
+function setCargoWeights(map) {
+  state.cargoWeights = normalizeCargoWeights({ ...state.cargoWeights, ...(map || {}) });
+  saveProperty('RISK_CARGO_WEIGHTS', JSON.stringify(state.cargoWeights));
+  return state.cargoWeights;
 }
 
 /** Keyword for a preset (used to flag "expected" ships by destination). */
@@ -609,6 +651,8 @@ module.exports = {
   setNotifyBerthNew,
   setNotifyBerthChar,
   setExcludeTankers,
+  setCargoWeights,
+  DEFAULT_CARGO_WEIGHTS,
   currentKeyword,
   bboxSignature,
   areaForPoint,

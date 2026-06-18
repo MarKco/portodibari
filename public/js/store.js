@@ -39,6 +39,9 @@ export const S = {
   notifyBerthNew: true,
   notifyBerthChar: true,
   excludeTankers: false,
+  cargoClasses: null,
+  cargoWeights: null,
+  defaultCargoWeights: null,
   currentPreset: '',
 
   // List filters (client-side, applied before sort/render)

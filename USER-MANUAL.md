@@ -95,7 +95,7 @@ On the active-ships map you can enable a **berths overlay**: the system learns b
 
 - Tick the **Berths** checkbox in the filter bar above the map to show/hide the overlay (the choice is remembered).
 - Each berth has a coloured polygon plus an always-visible **centre dot** (a berth polygon is only a few tens of metres wide and would be tiny at the area-wide zoom level: the dot keeps it findable).
-- **Click a berth** (polygon or dot) to see its name, characterization, mooring count, per-category percentage distribution and any hazmat share (☢).
+- **Click a berth** (polygon or dot) to see its name, characterization, mooring count, per-category percentage distribution, **per-cargo-type distribution** (merchandise class of the vessels mooring there) and any hazmat share (☢).
 
 **Correcting by hand** (the **⚓ Berths** button): opens the management panel, where you can:
 
@@ -170,6 +170,8 @@ Grid with all available vessel data:
 |---|---|
 | Risk score | Color-coded badge 0–100 |
 | Ship type | Category; "☢ Hazmat" if carrying dangerous cargo |
+| Cargo type | Merchandise class (container ship, crude oil tanker, chemical tanker, gas carrier, bulk carrier, etc.) derived from the VesselFinder/MarineTraffic subtype, falling back to the AIS code. The source is shown in parentheses |
+| Load state | Estimated laden / partial / in-ballast from the declared draught compared with the min/max observed for that vessel (marked "estimated") |
 | Call sign | Radio call sign |
 | IMO | IMO registration number |
 | Destination | Declared port |
@@ -261,6 +263,8 @@ Open with the **⚙ Settings** button in the sidebar.
 | **High-risk score alert** (toggle) | Alert when a ship arrives with a risk score in the red band (71–100). |
 | **New berth alert** (toggle) | Alert when a new berth is detected in an area. |
 | **Berth characterisation alert** (toggle) | Alert when a berth is characterised for the first time (dominant ship category). |
+| **Exclude tankers** (toggle) | Do not assign the ship-type risk points to tanker-hull vessels. Useful when monitoring arms transport, which tankers cannot carry. |
+| **Per-cargo-type risk weights** (grid) | Risk points assigned to each merchandise class (container ship, crude oil tanker, chemical tanker, gas carrier, bulk carrier, etc.). The class is derived from the VesselFinder/MarineTraffic subtype, falling back to the AIS code. Replaces the old fixed Cargo/Hazmat points. Edit the values and press **💾 Save weights** (immediate effect, no restart); **Reset to defaults** reloads the built-in values into the grid (save to apply). The weights are included in the settings and bundle export. |
 | **⬇ Export CSV** | Download all readings as a CSV file (importable in Excel) |
 | **⬇ Download backup** | Download the database file (.db) as a backup |
 | **⬆ Restore** | Load a previously saved .db file to restore data |
@@ -400,6 +404,8 @@ Each vessel receives a score from 0 to 100 calculated automatically based on sev
 - Teal dot (Global Fishing Watch): score calculated using Global Fishing Watch data
 
 Hover over the badge to see factor details and sources.
+
+**Per-cargo-type weight:** one of the score factors depends on the vessel's merchandise class (see [Cargo type](#information-bar)). Each class has a weight configurable from **⚙ Settings → "Per-cargo-type risk weights"** (e.g. crude oil / chemical / gas carriers weigh more than container ships). Changes take effect immediately, no restart. With **"Exclude tankers"** on, tanker-hull classes contribute no points.
 
 **Military vessels:** automatically classified at maximum risk.
 
