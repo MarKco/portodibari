@@ -577,8 +577,8 @@ export function renderDetailInfoBar(ship, latestArrival) {
   const items = [
     [t('info.riskScore'),  riskBadge(ship.risk)],
     [t('info.shipType'),   typeHtml],
-    [t('info.cargoType'),  cargoTypeHtml(ship.risk?.cargo)],
-    [t('info.loadState'),  loadStateHtml(ship.risk?.cargo?.loadState)],
+    [t('info.cargoType') + eqInfoIcon(t('info.cargoType'), t('info.cargoTypeHelp')),  cargoTypeHtml(ship.risk?.cargo)],
+    [t('info.loadState') + eqInfoIcon(t('info.loadState'), t('info.loadStateHelp')),  loadStateHtml(ship.risk?.cargo?.loadState)],
     [t('info.callSign'),   escHtml(ship.call_sign) || '—'],
     [t('info.imo'),        ship.imo_number || '—'],
     [t('info.dest'),       escHtml(ship.destination) || '—'],

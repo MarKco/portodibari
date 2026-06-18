@@ -127,7 +127,9 @@ export default {
   'info.firstSeen':  'Primo contatto',
   'info.lastSeen':   'Ultimo contatto',
   'info.cargoType':  'Tipo carico',
+  'info.cargoTypeHelp': 'Classe merceologica della nave (cosa è costruita per trasportare), derivata dal sottotipo dettagliato di VesselFinder/MarineTraffic (es. "Crude Oil Tanker", "Container Ship"); se non disponibile si ripiega sul codice tipo AIS, più grossolano. Tra parentesi la fonte del dato. Questa classe determina anche il peso del rischio per tipo di carico (configurabile in Impostazioni).',
   'info.loadState':  'Stato carico',
+  'info.loadStateHelp': 'Stima della condizione di carico attuale (carica / parziale / in zavorra) ricavata dal pescaggio dichiarato confrontato con il minimo e il massimo osservati per quella stessa nave nel tempo. È una stima indicativa: il carico effettivo a bordo non è ricavabile dai dati AIS.',
   'info.riskLabel':  'Fattori di rischio (score {score}/100)',
 
   // ── Cargo type (merchandise class) ───────────────────────────────────────────
@@ -398,6 +400,10 @@ export default {
   'settings.notifBerthChar.desc':   'Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente).',
   'settings.excludeTankers.name':   'Escludi tanker',
   'settings.excludeTankers.desc':   'Non assegnare il punteggio di rischio di tipo nave ai tanker (tipo AIS 80–89). Utile quando si monitora il trasporto di armi, che i tanker non possono effettuare. Disattivato: i tanker ricevono il punteggio di tipo come le altre navi cargo. Gli altri segnali di rischio (sanzioni, dark activity, ecc.) restano attivi.',
+  'settings.checkSpoofing.name':    'Controlla salto di posizione',
+  'settings.checkSpoofing.desc':    'Includi nel punteggio di rischio la voce "Salto di posizione impossibile". Disattiva nelle aree con copertura AIS scarsa, dove i report di posizione radi producono salti apparenti che non sono spoofing reale. Default attivo.',
+  'settings.checkDark.name':        'Controlla blackout AIS',
+  'settings.checkDark.desc':        'Includi nel punteggio di rischio la voce "Blackout AIS". Disattiva nelle aree poco coperte, dove i buchi di ricezione sembrano spegnimenti deliberati del transponder. Default attivo.',
   'settings.cargoWeights.name':     'Pesi rischio per tipo di carico',
   'settings.cargoWeights.desc':     'Punti di rischio assegnati in base al tipo di carico della nave (classe derivata da VesselFinder/MarineTraffic, con ripiego sul codice AIS). Sostituisce il vecchio punteggio fisso Cargo/Hazmat. Le modifiche hanno effetto subito, senza riavvio. Con "Escludi tanker" attivo, le classi su scafo tanker non assegnano punti.',
   'settings.cargoWeights.save':     '💾 Salva pesi',

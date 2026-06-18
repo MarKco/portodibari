@@ -266,36 +266,44 @@ function computeRiskScore(ship, lang) {
 
   // 1. Dark activity — longest AIS blackout while underway. In-port ships
   //    legitimately transmit rarely, so only gaps that *begin* while moving
-  //    (sog ≥ threshold) count as a deliberate transponder shutdown.
-  let maxGapH = 0;
-  for (let i = 1; i < positions.length; i++) {
-    const prev = positions[i - 1];
-    const movingBefore = prev.sog != null && prev.sog >= SOG_FERMA;
-    if (!movingBefore) continue;
-    const dtH = (new Date(positions[i].received_at) - new Date(prev.received_at)) / 3.6e6;
-    if (dtH > maxGapH) maxGapH = dtH;
-  }
-  if (maxGapH >= R.DARK_MAX_H) {
-    add(R.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
-  } else if (maxGapH >= R.DARK_MIN_H) {
-    const t = (maxGapH - R.DARK_MIN_H) / (R.DARK_MAX_H - R.DARK_MIN_H);
-    add(R.DARK_PARTIAL_MIN + t * (R.DARK_MAX - R.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
+  //    (sog ≥ threshold) count as a deliberate transponder shutdown. Skipped
+  //    entirely when the user disabled it (coverage gaps in poorly-served areas
+  //    masquerade as deliberate dark activity).
+  if (state.checkDarkActivity) {
+    let maxGapH = 0;
+    for (let i = 1; i < positions.length; i++) {
+      const prev = positions[i - 1];
+      const movingBefore = prev.sog != null && prev.sog >= SOG_FERMA;
+      if (!movingBefore) continue;
+      const dtH = (new Date(positions[i].received_at) - new Date(prev.received_at)) / 3.6e6;
+      if (dtH > maxGapH) maxGapH = dtH;
+    }
+    if (maxGapH >= R.DARK_MAX_H) {
+      add(R.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
+    } else if (maxGapH >= R.DARK_MIN_H) {
+      const t = (maxGapH - R.DARK_MIN_H) / (R.DARK_MAX_H - R.DARK_MIN_H);
+      add(R.DARK_PARTIAL_MIN + t * (R.DARK_MAX - R.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
+    }
   }
 
   // 2. Spoofing — physically impossible jump between consecutive positions.
-  let maxImplied = 0;
-  for (let i = 1; i < positions.length; i++) {
-    const a = positions[i - 1];
-    const b = positions[i];
-    const dtH = (new Date(b.received_at) - new Date(a.received_at)) / 3.6e6;
-    if (dtH <= 0 || dtH > 1) continue; // ignore long gaps (handled as blackout)
-    const dM = haversineM(a.lat, a.lon, b.lat, b.lon);
-    if (dM < 500) continue; // GPS jitter
-    const kn = dM / 1852 / dtH;
-    if (kn > maxImplied) maxImplied = kn;
+  //    Skipped when disabled: sparse position reports in low-coverage areas
+  //    produce large apparent jumps that are not real spoofing.
+  if (state.checkSpoofing) {
+    let maxImplied = 0;
+    for (let i = 1; i < positions.length; i++) {
+      const a = positions[i - 1];
+      const b = positions[i];
+      const dtH = (new Date(b.received_at) - new Date(a.received_at)) / 3.6e6;
+      if (dtH <= 0 || dtH > 1) continue; // ignore long gaps (handled as blackout)
+      const dM = haversineM(a.lat, a.lon, b.lat, b.lon);
+      if (dM < 500) continue; // GPS jitter
+      const kn = dM / 1852 / dtH;
+      if (kn > maxImplied) maxImplied = kn;
+    }
+    if (maxImplied > R.SPOOF_IMPOSSIBLE) add(R.SPOOF_MAX, L.spoofImpossible(maxImplied.toFixed(0)));
+    else if (maxImplied > R.SPOOF_ANOMALOUS) add(R.SPOOF_ANOM_PTS, L.spoofAnom(maxImplied.toFixed(0)));
   }
-  if (maxImplied > R.SPOOF_IMPOSSIBLE) add(R.SPOOF_MAX, L.spoofImpossible(maxImplied.toFixed(0)));
-  else if (maxImplied > R.SPOOF_ANOMALOUS) add(R.SPOOF_ANOM_PTS, L.spoofAnom(maxImplied.toFixed(0)));
 
   // 3. Loitering — stationary in open water (far from the monitored port centre)
   //    while NOT moored/anchored: classic ship-to-ship transfer signature.
@@ -483,7 +491,7 @@ function computeRiskScore(ship, lang) {
     if (highRiskDest) ctx.push(L.ctxDest);
     if (embargoFlag) ctx.push(L.ctxEmbargoFlag);
     if (focFlag) ctx.push(L.ctxFoc);
-    factors.push({ label: L.highRiskCtx(ctx.join(', '), mult.toFixed(1)), points: score - anomaly });
+    factors.push({ label: L.highRiskCtx(ctx.join(', '), mult.toFixed(1)), points: Math.round(score - anomaly) });
   }
 
   // Resolve final source status:

@@ -635,6 +635,26 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.checkSpoofing.name">Controlla salto di posizione</div>
+            <div class="setting-desc" data-i18n="settings.checkSpoofing.desc">Includi nel punteggio la voce "Salto di posizione impossibile". Disattiva nelle aree con copertura AIS scarsa, dove i report radi producono salti apparenti non reali.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-check-spoofing">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.checkDark.name">Controlla blackout AIS</div>
+            <div class="setting-desc" data-i18n="settings.checkDark.desc">Includi nel punteggio la voce "Blackout AIS". Disattiva nelle aree poco coperte, dove i buchi di ricezione sembrano spegnimenti deliberati del transponder.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-check-dark">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="setting-row setting-row-col">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.cargoWeights.name">Pesi rischio per tipo di carico</div>

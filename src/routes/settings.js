@@ -3,7 +3,7 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCargoWeights, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -73,6 +73,8 @@ router.get('/settings', (req, res) => {
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
+    checkSpoofing: state.checkSpoofing,
+    checkDarkActivity: state.checkDarkActivity,
     cargoClasses: CARGO_CLASSES,
     cargoWeights: state.cargoWeights,
     defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
@@ -129,6 +131,8 @@ function exportSettings() {
     notifyBerthNew: state.notifyBerthNew,
     notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
+    checkSpoofing: state.checkSpoofing,
+    checkDarkActivity: state.checkDarkActivity,
     cargoWeights: state.cargoWeights,
   };
 }
@@ -148,6 +152,8 @@ function applyImportedSettings(s) {
   if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
   if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
   if (s.excludeTankers !== undefined) setExcludeTankers(s.excludeTankers);
+  if (s.checkSpoofing !== undefined) setCheckSpoofing(s.checkSpoofing);
+  if (s.checkDarkActivity !== undefined) setCheckDarkActivity(s.checkDarkActivity);
   // Per-cargo-type risk weights. Null-safe: an older bundle (pre-feature) omits
   // this key, so the local defaults are kept; setCargoWeights drops unknown
   // classes and clamps values, so a malformed/partial map can't corrupt state.
@@ -216,7 +222,7 @@ router.post('/settings', (req, res) => {
     importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
-    excludeTankers: newExcludeTankers,
+    excludeTankers: newExcludeTankers, checkSpoofing: newCheckSpoofing, checkDarkActivity: newCheckDarkActivity,
   } = req.body;
 
   if (newNotif !== undefined) {
@@ -248,6 +254,16 @@ router.post('/settings', (req, res) => {
     setExcludeTankers(newExcludeTankers);
     console.log(`[RISK] Exclude tankers from type score: ${state.excludeTankers}`);
     appLog.info('SETTINGS', appLog.t('settings.exclude_tankers', { on: state.excludeTankers }));
+  }
+  if (newCheckSpoofing !== undefined) {
+    setCheckSpoofing(newCheckSpoofing);
+    console.log(`[RISK] Check position spoofing: ${state.checkSpoofing}`);
+    appLog.info('SETTINGS', appLog.t('settings.check_spoofing', { on: state.checkSpoofing }));
+  }
+  if (newCheckDarkActivity !== undefined) {
+    setCheckDarkActivity(newCheckDarkActivity);
+    console.log(`[RISK] Check AIS blackout: ${state.checkDarkActivity}`);
+    appLog.info('SETTINGS', appLog.t('settings.check_dark', { on: state.checkDarkActivity }));
   }
 
   if (newImportVf !== undefined) {
@@ -342,6 +358,8 @@ router.post('/settings', (req, res) => {
       notifyBerthNew: state.notifyBerthNew,
       notifyBerthChar: state.notifyBerthChar,
       excludeTankers: state.excludeTankers,
+      checkSpoofing: state.checkSpoofing,
+      checkDarkActivity: state.checkDarkActivity,
     });
   }
 

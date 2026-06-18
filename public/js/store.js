@@ -39,6 +39,8 @@ export const S = {
   notifyBerthNew: true,
   notifyBerthChar: true,
   excludeTankers: false,
+  checkSpoofing: true,
+  checkDarkActivity: true,
   cargoClasses: null,
   cargoWeights: null,
   defaultCargoWeights: null,

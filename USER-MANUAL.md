@@ -264,6 +264,8 @@ Open with the **⚙ Settings** button in the sidebar.
 | **New berth alert** (toggle) | Alert when a new berth is detected in an area. |
 | **Berth characterisation alert** (toggle) | Alert when a berth is characterised for the first time (dominant ship category). |
 | **Exclude tankers** (toggle) | Do not assign the ship-type risk points to tanker-hull vessels. Useful when monitoring arms transport, which tankers cannot carry. |
+| **Check position jump** (toggle) | Include the "Impossible position jump" factor in the risk score. Turn off in areas with poor AIS coverage, where sparse position reports produce apparent jumps that are not real spoofing. On by default. |
+| **Check AIS blackout** (toggle) | Include the "AIS blackout" factor in the risk score. Turn off in poorly-covered areas, where reception gaps look like deliberate transponder shutdowns. On by default. |
 | **Per-cargo-type risk weights** (grid) | Risk points assigned to each merchandise class (container ship, crude oil tanker, chemical tanker, gas carrier, bulk carrier, etc.). The class is derived from the VesselFinder/MarineTraffic subtype, falling back to the AIS code. Replaces the old fixed Cargo/Hazmat points. Edit the values and press **💾 Save weights** (immediate effect, no restart); **Reset to defaults** reloads the built-in values into the grid (save to apply). The weights are included in the settings and bundle export. |
 | **⬇ Export CSV** | Download all readings as a CSV file (importable in Excel) |
 | **⬇ Download backup** | Download the database file (.db) as a backup |

@@ -264,6 +264,8 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 | **Notifica nuova banchina** (toggle) | Avvisa quando viene rilevata una nuova banchina in un'area. |
 | **Notifica caratterizzazione banchina** (toggle) | Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente). |
 | **Escludi tanker** (toggle) | Non assegnare il punteggio di rischio di tipo nave alle navi su scafo tanker. Utile quando si monitora il trasporto di armi, che i tanker non possono effettuare. |
+| **Controlla salto di posizione** (toggle) | Includi nel punteggio di rischio la voce "Salto di posizione impossibile". Disattiva nelle aree con copertura AIS scarsa, dove i report di posizione radi producono salti apparenti che non sono spoofing reale. Default attivo. |
+| **Controlla blackout AIS** (toggle) | Includi nel punteggio di rischio la voce "Blackout AIS". Disattiva nelle aree poco coperte, dove i buchi di ricezione sembrano spegnimenti deliberati del transponder. Default attivo. |
 | **Pesi rischio per tipo di carico** (griglia) | Punti di rischio assegnati per ciascuna classe merceologica (portacontainer, petroliera greggio, chimichiera, gasiera, rinfusiera, ecc.). La classe è derivata dal sottotipo VesselFinder/MarineTraffic con ripiego sul codice AIS. Sostituisce il vecchio punteggio fisso Cargo/Hazmat. Modifica i valori e premi **💾 Salva pesi** (effetto immediato, senza riavvio); **Ripristina default** ricarica i valori predefiniti nella griglia (da salvare per applicarli). I pesi sono inclusi nell'export delle impostazioni e del bundle. |
 | **⬇ Esporta CSV** | Scarica tutte le letture come file CSV (importabile in Excel) |
 | **⬇ Scarica backup** | Scarica il file del database (.db) come backup |

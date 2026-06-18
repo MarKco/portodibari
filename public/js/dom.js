@@ -126,6 +126,8 @@ export const el = {
   toggleNotifyBerthChar: $('toggle-notify-berth-char'),
   settingNotifyBerthChar: $('setting-notify-berth-char'),
   toggleExcludeTankers: $('toggle-exclude-tankers'),
+  toggleCheckSpoofing: $('toggle-check-spoofing'),
+  toggleCheckDark: $('toggle-check-dark'),
   cargoWeightsGrid: $('cargo-weights-grid'),
   btnCargoWeightsSave: $('btn-cargo-weights-save'),
   btnCargoWeightsReset: $('btn-cargo-weights-reset'),

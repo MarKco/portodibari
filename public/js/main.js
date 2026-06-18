@@ -136,6 +136,10 @@ async function loadSettings() {
     if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
     S.excludeTankers = !!s.excludeTankers;
     if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
+    S.checkSpoofing = s.checkSpoofing !== false;
+    S.checkDarkActivity = s.checkDarkActivity !== false;
+    if (el.toggleCheckSpoofing) el.toggleCheckSpoofing.checked = S.checkSpoofing;
+    if (el.toggleCheckDark) el.toggleCheckDark.checked = S.checkDarkActivity;
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;
     if (s.cargoWeights) S.cargoWeights = s.cargoWeights;
@@ -551,6 +555,30 @@ function initSettingsModal() {
         S.excludeTankers = enabled;
       } catch {
         el.toggleExcludeTankers.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleCheckSpoofing) {
+    el.toggleCheckSpoofing.addEventListener('change', async () => {
+      const enabled = el.toggleCheckSpoofing.checked;
+      try {
+        await api('/api/settings', 'POST', { checkSpoofing: enabled });
+        S.checkSpoofing = enabled;
+      } catch {
+        el.toggleCheckSpoofing.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleCheckDark) {
+    el.toggleCheckDark.addEventListener('change', async () => {
+      const enabled = el.toggleCheckDark.checked;
+      try {
+        await api('/api/settings', 'POST', { checkDarkActivity: enabled });
+        S.checkDarkActivity = enabled;
+      } catch {
+        el.toggleCheckDark.checked = !enabled;
       }
     });
   }

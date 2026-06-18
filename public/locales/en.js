@@ -127,7 +127,9 @@ export default {
   'info.firstSeen':  'First contact',
   'info.lastSeen':   'Last contact',
   'info.cargoType':  'Cargo type',
+  'info.cargoTypeHelp': 'The vessel\'s merchandise class (what it is built to carry), derived from the detailed VesselFinder/MarineTraffic subtype (e.g. "Crude Oil Tanker", "Container Ship"); when unavailable it falls back to the coarser AIS type code. The source is shown in parentheses. This class also drives the per-cargo-type risk weight (configurable in Settings).',
   'info.loadState':  'Load state',
+  'info.loadStateHelp': 'Estimated current load condition (laden / partial / in ballast) from the declared draught compared with the minimum and maximum observed for that same vessel over time. It is an indicative estimate: the actual cargo on board cannot be derived from AIS data.',
   'info.riskLabel':  'Risk factors (score {score}/100)',
 
   // ── Cargo type (merchandise class) ───────────────────────────────────────────
@@ -398,6 +400,10 @@ export default {
   'settings.notifBerthChar.desc':   'Alert when a berth is characterised for the first time (dominant ship category).',
   'settings.excludeTankers.name':   'Exclude tankers',
   'settings.excludeTankers.desc':   'Do not assign the ship-type risk points to tanker vessels (AIS type 80–89). Useful when monitoring arms transport, which tankers cannot carry. When off, tankers get the ship-type points like other cargo vessels. Other risk signals (sanctions, dark activity, etc.) still apply.',
+  'settings.checkSpoofing.name':    'Check position jump',
+  'settings.checkSpoofing.desc':    'Include the "Impossible position jump" factor in the risk score. Turn off in areas with poor AIS coverage, where sparse position reports produce apparent jumps that are not real spoofing. On by default.',
+  'settings.checkDark.name':        'Check AIS blackout',
+  'settings.checkDark.desc':        'Include the "AIS blackout" factor in the risk score. Turn off in poorly-covered areas, where reception gaps look like deliberate transponder shutdowns. On by default.',
   'settings.cargoWeights.name':     'Per-cargo-type risk weights',
   'settings.cargoWeights.desc':     'Risk points assigned by the ship\'s cargo type (class derived from VesselFinder/MarineTraffic, falling back to the AIS code). Replaces the old fixed Cargo/Hazmat points. Changes take effect immediately, no restart. With "Exclude tankers" on, tanker-hull classes contribute no points.',
   'settings.cargoWeights.save':     '💾 Save weights',

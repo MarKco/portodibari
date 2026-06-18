@@ -306,6 +306,12 @@ const state = {
   excludeTankers: props.EXCLUDE_TANKERS === 'true',
   // Per-cargo-type risk weights (see normalizeCargoWeights / DEFAULT_CARGO_WEIGHTS).
   cargoWeights: parseCargoWeightsProp(),
+  // Risk-factor switches for signals that are unreliable in poorly-covered areas.
+  // Both default ON; turning one off removes that factor from the score entirely.
+  //   checkSpoofing     → "Impossible position jump" (sparse AIS = false jumps)
+  //   checkDarkActivity → "AIS blackout" (coverage gaps look like deliberate dark)
+  checkSpoofing: props.CHECK_SPOOFING !== 'false',
+  checkDarkActivity: props.CHECK_DARK_ACTIVITY !== 'false',
 };
 
 function applyPreset(preset) {
@@ -408,6 +414,16 @@ function setNotifyBerthChar(enabled) {
 function setExcludeTankers(enabled) {
   state.excludeTankers = !!enabled;
   saveProperty('EXCLUDE_TANKERS', state.excludeTankers);
+}
+
+function setCheckSpoofing(enabled) {
+  state.checkSpoofing = !!enabled;
+  saveProperty('CHECK_SPOOFING', state.checkSpoofing);
+}
+
+function setCheckDarkActivity(enabled) {
+  state.checkDarkActivity = !!enabled;
+  saveProperty('CHECK_DARK_ACTIVITY', state.checkDarkActivity);
 }
 
 /** Update the per-cargo-type risk weights and persist them as one JSON line.
@@ -651,6 +667,8 @@ module.exports = {
   setNotifyBerthNew,
   setNotifyBerthChar,
   setExcludeTankers,
+  setCheckSpoofing,
+  setCheckDarkActivity,
   setCargoWeights,
   DEFAULT_CARGO_WEIGHTS,
   currentKeyword,
