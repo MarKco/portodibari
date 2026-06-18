@@ -170,6 +170,8 @@ const MESSAGES = {
   'settings.import_gfw': onOff(['Import Global Fishing Watch attivato', 'Import Global Fishing Watch disattivato'], ['Global Fishing Watch import enabled', 'Global Fishing Watch import disabled']),
   'settings.exclude_tankers': onOff(['Esclusione tanker dal punteggio attivata', 'Esclusione tanker dal punteggio disattivata'], ['Tankers excluded from score enabled', 'Tankers excluded from score disabled']),
   'settings.cargo_weights': { it: () => 'Pesi rischio per tipo di carico aggiornati', en: () => 'Per-cargo-type risk weights updated' },
+  'settings.cargo_preset_applied': { it: (p) => `Classe di pesi applicata: ${p.name}`, en: (p) => `Weight preset applied: ${p.name}` },
+  'settings.cargo_preset_saved': { it: (p) => `Classe di pesi salvata: ${p.name}`, en: (p) => `Weight preset saved: ${p.name}` },
   'settings.check_spoofing': onOff(['Controllo salto di posizione attivato', 'Controllo salto di posizione disattivato'], ['Position-jump check enabled', 'Position-jump check disabled']),
   'settings.check_dark': onOff(['Controllo blackout AIS attivato', 'Controllo blackout AIS disattivato'], ['AIS-blackout check enabled', 'AIS-blackout check disabled']),
   'settings.view_changed': { it: (p) => `Vista cambiata a: ${p.name}`, en: (p) => `View changed to: ${p.name}` },

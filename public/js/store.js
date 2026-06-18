@@ -44,6 +44,8 @@ export const S = {
   cargoClasses: null,
   cargoWeights: null,
   defaultCargoWeights: null,
+  cargoPresets: null,
+  cargoWeightsPreset: null,
   currentPreset: '',
 
   // List filters (client-side, applied before sort/render)

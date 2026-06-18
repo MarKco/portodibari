@@ -63,6 +63,42 @@ const DEFAULT_CARGO_WEIGHTS = {
   unknown: 0,
 };
 
+// ── Built-in weight presets ("classi di pesi") ───────────────────────────────
+// Named cargo-weight sets the operator can apply with one click from Settings.
+// `default` mirrors DEFAULT_CARGO_WEIGHTS (the all-round shipping-risk weighting).
+// `arms_transport` retunes the score for monitoring weapons movements: ro-ro,
+// vehicle carriers and break-bulk / container / generic cargo hulls score high
+// (tanks, vehicles and crated materiel ride these), while tankers, reefers,
+// livestock carriers and non-cargo hulls — which cannot plausibly carry arms —
+// score zero so they drop out of the ranking.
+const ARMS_TRANSPORT_WEIGHTS = {
+  roro: 15,
+  general_cargo: 15, // crated materiel — the most recurrent hull in real arms-shipment cases
+  vehicles: 14,
+  container: 13, // containerised arms / ammunition / components — common in illicit trafficking
+  cargo_other: 12, // generic AIS cargo hull (unknown subtype): keep high, could be any of the above
+  dry_bulk: 6, // arms concealed under bulk cargo (e.g. weapons under sacks)
+  reefer: 0,
+  livestock: 0,
+  crude_oil: 0,
+  oil_products: 0,
+  chemical: 0,
+  gas: 0,
+  tanker_other: 0,
+  non_cargo: 0,
+  unknown: 0,
+};
+
+// Ordered list of built-in presets. `name` is the Italian default label; the
+// frontend may translate by id (settings.cargoPresets.builtin.<id>). Built-ins
+// cannot be edited or deleted — only applied (or used as the base for a
+// "save as" of the live weights). User-defined presets live in the DB `meta`
+// table (see services/cargo-presets.js) so they survive a backup/restore.
+const BUILTIN_CARGO_PRESETS = [
+  { id: 'default', name: 'Standard', builtin: true, weights: { ...DEFAULT_CARGO_WEIGHTS } },
+  { id: 'arms_transport', name: 'Trasporto armi', builtin: true, weights: { ...ARMS_TRANSPORT_WEIGHTS } },
+];
+
 /** True for a cargo class that rides on a tanker hull. */
 function isTankerClass(cls) {
   return TANKER_CLASSES.has(cls);
@@ -192,6 +228,8 @@ function cargoTypeForShip(ship) {
 module.exports = {
   CARGO_CLASSES,
   DEFAULT_CARGO_WEIGHTS,
+  ARMS_TRANSPORT_WEIGHTS,
+  BUILTIN_CARGO_PRESETS,
   isTankerClass,
   classFromSubtype,
   classFromAis,

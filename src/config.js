@@ -306,6 +306,12 @@ const state = {
   excludeTankers: props.EXCLUDE_TANKERS === 'true',
   // Per-cargo-type risk weights (see normalizeCargoWeights / DEFAULT_CARGO_WEIGHTS).
   cargoWeights: parseCargoWeightsProp(),
+  // Id of the weight preset ("classe di pesi") the live weights were last set
+  // from, or null when they were hand-edited (a "custom" set). Purely a UI hint
+  // so Settings can show which preset is active; the authoritative weights are
+  // always state.cargoWeights. Built-in ids live in BUILTIN_CARGO_PRESETS,
+  // user-defined ones in the DB `meta` table.
+  cargoWeightsPreset: props.RISK_CARGO_WEIGHTS_PRESET || null,
   // Risk-factor switches for signals that are unreliable in poorly-covered areas.
   // Both default ON; turning one off removes that factor from the score entirely.
   //   checkSpoofing     → "Impossible position jump" (sparse AIS = false jumps)
@@ -433,6 +439,15 @@ function setCargoWeights(map) {
   state.cargoWeights = normalizeCargoWeights({ ...state.cargoWeights, ...(map || {}) });
   saveProperty('RISK_CARGO_WEIGHTS', JSON.stringify(state.cargoWeights));
   return state.cargoWeights;
+}
+
+/** Record which weight preset the live weights came from (or null = custom).
+ *  Stored as a plain string in local.properties so it round-trips with the
+ *  other settings; the empty string is normalized to null. */
+function setCargoWeightsPreset(id) {
+  state.cargoWeightsPreset = id ? String(id) : null;
+  saveProperty('RISK_CARGO_WEIGHTS_PRESET', state.cargoWeightsPreset || '');
+  return state.cargoWeightsPreset;
 }
 
 /** Keyword for a preset (used to flag "expected" ships by destination). */
@@ -670,6 +685,8 @@ module.exports = {
   setCheckSpoofing,
   setCheckDarkActivity,
   setCargoWeights,
+  setCargoWeightsPreset,
+  normalizeCargoWeights,
   DEFAULT_CARGO_WEIGHTS,
   currentKeyword,
   bboxSignature,

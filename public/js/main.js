@@ -143,7 +143,10 @@ async function loadSettings() {
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;
     if (s.cargoWeights) S.cargoWeights = s.cargoWeights;
+    if (s.cargoPresets) S.cargoPresets = s.cargoPresets;
+    S.cargoWeightsPreset = s.cargoWeightsPreset || null;
     renderCargoWeights();
+    renderCargoPresets();
     applyNotifSettingsState();
   } catch {
     /* ignore */
@@ -166,6 +169,33 @@ function renderCargoWeights(values) {
       </label>`
     )
     .join('');
+}
+
+// Translated display name for a preset. Built-ins (id default/arms_transport)
+// get a localized label; user presets keep their stored name.
+function cargoPresetLabel(p) {
+  if (p.builtin) {
+    const key = 'settings.cargoPresets.builtin.' + p.id;
+    const tr = t(key);
+    if (tr && tr !== key) return tr;
+  }
+  return p.name;
+}
+
+// Build the preset dropdown: built-ins first, then user presets, plus a
+// "(personalizzato)" entry shown only when the live weights match no preset.
+function renderCargoPresets() {
+  if (!el.cargoPresetSelect || !S.cargoPresets) return;
+  const active = S.cargoWeightsPreset;
+  const opts = S.cargoPresets
+    .map((p) => `<option value="${escHtml(p.id)}"${p.id === active ? ' selected' : ''}>${escHtml(cargoPresetLabel(p))}${p.builtin ? '' : ' ★'}</option>`)
+    .join('');
+  const customSel = active ? '' : ' selected';
+  el.cargoPresetSelect.innerHTML =
+    `<option value=""${customSel}>${escHtml(t('settings.cargoPresets.custom'))}</option>` + opts;
+  // Only user presets can be deleted.
+  const sel = S.cargoPresets.find((p) => p.id === active);
+  if (el.btnCargoPresetDelete) el.btnCargoPresetDelete.disabled = !sel || sel.builtin;
 }
 
 // Collect the grid into a { class: weight } map.
@@ -589,7 +619,10 @@ function initSettingsModal() {
       try {
         const r = await api('/api/settings/cargo-weights', 'POST', { cargoWeights });
         S.cargoWeights = r.cargoWeights || cargoWeights;
+        // A manual save detaches from any named preset (server returns null).
+        S.cargoWeightsPreset = r.cargoWeightsPreset || null;
         renderCargoWeights();
+        renderCargoPresets();
         if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.saved');
       } catch {
         if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
@@ -602,6 +635,77 @@ function initSettingsModal() {
       // Preview the defaults in the grid; not persisted until "Salva" is pressed.
       renderCargoWeights(S.defaultCargoWeights);
       if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.resetHint');
+    });
+  }
+
+  // Selecting a preset previews its weights in the grid right away (not yet
+  // persisted — "Applica" saves them). The "(custom)" entry restores the
+  // current live weights. Mirrors the reset button's preview behaviour.
+  if (el.cargoPresetSelect) {
+    el.cargoPresetSelect.addEventListener('change', () => {
+      const id = el.cargoPresetSelect.value;
+      const preset = id && S.cargoPresets && S.cargoPresets.find((p) => p.id === id);
+      renderCargoWeights(preset ? preset.weights : S.cargoWeights);
+      if (el.btnCargoPresetDelete) el.btnCargoPresetDelete.disabled = !preset || preset.builtin;
+      if (el.cargoWeightsStatus) {
+        el.cargoWeightsStatus.textContent = preset ? t('settings.cargoPresets.previewHint') : '';
+      }
+    });
+  }
+
+  // Apply the selected preset: server copies its weights into the live set.
+  if (el.btnCargoPresetApply) {
+    el.btnCargoPresetApply.addEventListener('click', async () => {
+      const id = el.cargoPresetSelect && el.cargoPresetSelect.value;
+      if (!id) return; // "(custom)" entry — nothing to apply
+      try {
+        const r = await api('/api/settings/cargo-presets/apply', 'POST', { id });
+        S.cargoWeights = r.cargoWeights;
+        S.cargoWeightsPreset = r.cargoWeightsPreset || null;
+        renderCargoWeights();
+        renderCargoPresets();
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoPresets.applied');
+      } catch {
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  // Save the weights currently shown in the grid as a named user preset.
+  if (el.btnCargoPresetSave) {
+    el.btnCargoPresetSave.addEventListener('click', async () => {
+      const name = (window.prompt(t('settings.cargoPresets.namePrompt')) || '').trim();
+      if (!name) return;
+      const weights = collectCargoWeights();
+      try {
+        const r = await api('/api/settings/cargo-presets', 'POST', { name, weights });
+        S.cargoPresets = r.presets;
+        S.cargoWeights = r.cargoWeights || weights;
+        S.cargoWeightsPreset = r.cargoWeightsPreset || null;
+        renderCargoWeights();
+        renderCargoPresets();
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoPresets.saved');
+      } catch {
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  // Delete the selected user preset (built-ins are guarded server- and UI-side).
+  if (el.btnCargoPresetDelete) {
+    el.btnCargoPresetDelete.addEventListener('click', async () => {
+      const id = el.cargoPresetSelect && el.cargoPresetSelect.value;
+      if (!id) return;
+      if (!confirm(t('settings.cargoPresets.deleteConfirm'))) return;
+      try {
+        const r = await api('/api/settings/cargo-presets/' + encodeURIComponent(id), 'DELETE');
+        S.cargoPresets = r.presets;
+        S.cargoWeightsPreset = r.cargoWeightsPreset || null;
+        renderCargoPresets();
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoPresets.deleted');
+      } catch {
+        if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
     });
   }
 

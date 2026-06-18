@@ -3,12 +3,13 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
 const { CARGO_CLASSES } = require('../services/cargo-type');
+const cargoPresets = require('../services/cargo-presets');
 
 // Whether Equasis credentials are present (the lookup is unusable without them).
 const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
@@ -78,6 +79,8 @@ router.get('/settings', (req, res) => {
     cargoClasses: CARGO_CLASSES,
     cargoWeights: state.cargoWeights,
     defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
+    cargoWeightsPreset: state.cargoWeightsPreset,
+    cargoPresets: cargoPresets.listPresets(),
   });
 });
 
@@ -86,9 +89,64 @@ router.get('/settings', (req, res) => {
 router.post('/settings/cargo-weights', (req, res) => {
   const map = req.body && req.body.cargoWeights ? req.body.cargoWeights : req.body;
   const weights = setCargoWeights(map);
+  // A manual edit detaches the live weights from any named preset → "custom".
+  const preset = setCargoWeightsPreset(null);
   clearRiskCache();
   appLog.info('SETTINGS', appLog.t('settings.cargo_weights'));
-  res.json({ ok: true, cargoWeights: weights });
+  res.json({ ok: true, cargoWeights: weights, cargoWeightsPreset: preset });
+});
+
+// ── Weight presets ("classi di pesi") ────────────────────────────────────────
+// List built-in + user presets (the same payload GET /settings embeds, exposed
+// standalone so the UI can refresh the list after a save/delete).
+router.get('/settings/cargo-presets', (req, res) => {
+  res.json({ presets: cargoPresets.listPresets(), active: state.cargoWeightsPreset });
+});
+
+// Apply a preset: copy its weights into the live set and remember the id.
+router.post('/settings/cargo-presets/apply', (req, res) => {
+  const id = req.body && req.body.id;
+  const preset = cargoPresets.getPreset(id);
+  if (!preset) return res.status(404).json({ error: 'Preset sconosciuto' });
+  const weights = setCargoWeights(preset.weights);
+  const active = setCargoWeightsPreset(preset.id);
+  clearRiskCache();
+  appLog.info('SETTINGS', appLog.t('settings.cargo_preset_applied', { name: preset.name }));
+  res.json({ ok: true, cargoWeights: weights, cargoWeightsPreset: active });
+});
+
+// Save the current live weights as a named user preset (stored in the DB, so it
+// survives a backup/restore). Returns the refreshed preset list.
+router.post('/settings/cargo-presets', (req, res) => {
+  try {
+    const name = req.body && req.body.name;
+    // Save whatever weights the caller passes, else the current live weights.
+    const weights = req.body && req.body.weights ? req.body.weights : state.cargoWeights;
+    const saved = cargoPresets.savePreset(name, weights);
+    // Treat the just-saved set as the active preset (the live weights match it).
+    setCargoWeights(saved.weights);
+    const active = setCargoWeightsPreset(saved.id);
+    clearRiskCache();
+    appLog.info('SETTINGS', appLog.t('settings.cargo_preset_saved', { name: saved.name }));
+    res.json({ ok: true, preset: saved, presets: cargoPresets.listPresets(), cargoWeights: state.cargoWeights, cargoWeightsPreset: active });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Delete a user preset. If it was the active one, the live weights are kept but
+// detached (active → custom).
+router.delete('/settings/cargo-presets/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const removed = cargoPresets.deletePreset(id);
+    if (!removed) return res.status(404).json({ error: 'Preset sconosciuto' });
+    let active = state.cargoWeightsPreset;
+    if (active === id) active = setCargoWeightsPreset(null);
+    res.json({ ok: true, presets: cargoPresets.listPresets(), cargoWeightsPreset: active });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
@@ -134,6 +192,7 @@ function exportSettings() {
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
     cargoWeights: state.cargoWeights,
+    cargoWeightsPreset: state.cargoWeightsPreset,
   };
 }
 
@@ -158,6 +217,10 @@ function applyImportedSettings(s) {
   // this key, so the local defaults are kept; setCargoWeights drops unknown
   // classes and clamps values, so a malformed/partial map can't corrupt state.
   if (s.cargoWeights !== undefined) setCargoWeights(s.cargoWeights);
+  // Active-preset id (UI hint). User presets themselves live in the DB `meta`
+  // table and ride along with the database restore, so nothing to apply here
+  // beyond remembering which one was selected.
+  if (s.cargoWeightsPreset !== undefined) setCargoWeightsPreset(s.cargoWeightsPreset);
 
   // VF/MT toggles: persist only — do NOT backfill. The scraped data lives in
   // ship_scrape_cache, which is part of the DB backup and is restored alongside

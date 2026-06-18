@@ -660,6 +660,13 @@
             <div class="setting-name" data-i18n="settings.cargoWeights.name">Pesi rischio per tipo di carico</div>
             <div class="setting-desc" data-i18n="settings.cargoWeights.desc">Punti di rischio assegnati in base al tipo di carico della nave (classe derivata da VesselFinder/MarineTraffic, con ripiego sul codice AIS). Sostituisce il vecchio punteggio fisso Cargo/Hazmat. Le modifiche hanno effetto subito, senza riavvio.</div>
           </div>
+          <div class="cargo-presets-toolbar">
+            <label class="cargo-presets-label" data-i18n="settings.cargoPresets.label" for="cargo-preset-select">Classe di pesi</label>
+            <select id="cargo-preset-select"></select>
+            <button id="btn-cargo-preset-apply" class="btn" data-i18n="settings.cargoPresets.apply">Applica</button>
+            <button id="btn-cargo-preset-save" class="btn" data-i18n="settings.cargoPresets.saveAs">Salva come…</button>
+            <button id="btn-cargo-preset-delete" class="btn" data-i18n="settings.cargoPresets.delete">Elimina</button>
+          </div>
           <div id="cargo-weights-grid" class="cargo-weights-grid"></div>
           <div class="cargo-weights-toolbar">
             <button id="btn-cargo-weights-save" class="btn btn-clear" data-i18n="settings.cargoWeights.save">💾 Salva pesi</button>
