@@ -330,13 +330,25 @@
         <div id="sanctions-data-body"></div>
       </div>
 
-      <!-- VesselFinder data -->
-      <div id="vf-data-section" class="detail-section hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
-          <span id="vf-cache-badge" class="scrape-badge hidden"></span>
-        </h3>
-        <div id="vf-data-body"></div>
+      <!-- Map + VesselFinder data: side-by-side when VF available, full-width otherwise -->
+      <div id="detail-map-vf-row">
+        <div id="vf-data-section" class="detail-section hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
+            <span id="vf-cache-badge" class="scrape-badge hidden"></span>
+          </h3>
+          <div id="vf-data-body"></div>
+        </div>
+        <div id="detail-map-wrap">
+          <div id="detail-map"></div>
+          <div id="track-anim" class="track-anim hidden">
+            <button id="track-play" class="track-play" type="button"
+                    data-i18n-title="map.pause" title="Pausa">⏸</button>
+            <input id="track-slider" class="track-slider" type="range"
+                   min="0" max="1000" value="0" step="1" aria-label="Timeline" />
+            <span id="track-time" class="track-time">—</span>
+          </div>
+        </div>
       </div>
 
       <!-- MarineTraffic data -->
@@ -366,15 +378,6 @@
           <span id="gfw-cache-badge" class="scrape-badge scrape-badge--gfw hidden"></span>
         </h3>
         <div id="gfw-data-body"></div>
-      </div>
-
-      <div id="detail-map"></div>
-      <div id="track-anim" class="track-anim hidden">
-        <button id="track-play" class="track-play" type="button"
-                data-i18n-title="map.pause" title="Pausa">⏸</button>
-        <input id="track-slider" class="track-slider" type="range"
-               min="0" max="1000" value="0" step="1" aria-label="Timeline" />
-        <span id="track-time" class="track-time">—</span>
       </div>
       <div id="table-wrap-detail">
         <table>

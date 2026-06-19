@@ -735,18 +735,24 @@ export function renderSanctionsSection(risk) {
 }
 
 // ── Scraped data (VesselFinder / MarineTraffic) ──────────────────────────────
+function invalidateDetailMap() {
+  setTimeout(() => { if (S.aisMap) S.aisMap.invalidateSize(); }, 50);
+}
+
 export async function loadVfData(mmsi) {
   if (!S.importVfData) {
     el.vfDataSection.classList.add('hidden');
     return;
   }
   el.vfDataSection.classList.remove('hidden');
+  invalidateDetailMap();
   el.vfCacheBadge.classList.add('hidden');
   el.vfDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingVf')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/vfdata`);
     if (!result.enabled) {
       el.vfDataSection.classList.add('hidden');
+      invalidateDetailMap();
       return;
     }
     if (result.error && !result.data) {

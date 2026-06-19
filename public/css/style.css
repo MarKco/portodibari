@@ -845,6 +845,53 @@ td.empty {
   z-index: 0;
 }
 
+/* Map + VesselFinder side-by-side row */
+#detail-map-vf-row {
+  display: flex;
+  gap: 1.25rem;
+  align-items: stretch;
+  margin-top: 1.25rem;
+}
+#detail-map-vf-row #vf-data-section {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+#detail-map-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Map stretches to match VF table height; min-height is the fallback when VF is hidden */
+#detail-map-vf-row #detail-map {
+  flex: 1;
+  height: auto;
+  min-height: 260px;
+  margin-bottom: 0.5rem;
+}
+/* track-anim sits below map, no extra margins needed */
+#detail-map-vf-row .track-anim {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+@media (max-width: 768px) {
+  #detail-map-vf-row {
+    flex-direction: column;
+  }
+  #detail-map-vf-row #vf-data-section,
+  #detail-map-wrap {
+    width: 100%;
+  }
+  #detail-map-wrap {
+    order: -1;
+  }
+  #detail-map-vf-row #detail-map {
+    height: 360px;
+    flex: none;
+  }
+}
+
 /* Track playback controls (ship-detail map) */
 .track-anim {
   display: flex;
