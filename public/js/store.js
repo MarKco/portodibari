@@ -11,7 +11,7 @@ export const S = {
   trackSogStop: 0.5,
   notifDeleteUndoSeconds: 5,
   // View / detail
-  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'areas' | 'settings'
+  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'followed' | 'areas' | 'settings'
   detailMmsi: null,
   detailFrom: 'active',
   settingsFrom: 'active',
@@ -51,6 +51,9 @@ export const S = {
   // List filters (client-side, applied before sort/render)
   activeFilter: { q: '', band: '', inPort: false, flagged: false },
   pastFilter: { q: '', band: '', flagged: false },
+  followedFilter: { q: '', band: '', inPort: false, flagged: false },
+  followedPastFilter: { q: '', band: '', flagged: false },
+  followedSubview: 'active', // 'active' | 'past' within the Navi seguite section
   allStreamStatus: {},
   presets: {},
 
@@ -62,6 +65,9 @@ export const S = {
   activeMarkersLayer: null,
   activeShipsCache: new Map(),
   currentBbox: null, // [[swLat, swLon], [neLat, neLon]]
+  followedMap: null,
+  followedMarkersLayer: null,
+  followedShipsCache: new Map(),
 
   // Berths (mooring characterization overlay on the overview map)
   berthsLayer: null,

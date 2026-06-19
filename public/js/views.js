@@ -16,6 +16,7 @@ import {
 } from './ships.js';
 import { loadTrack, stopTrackAnim } from './maps.js';
 import { loadTraffco } from './traffico.js';
+import { loadFollowed } from './followed.js';
 import { enterAreasView, commitPendingDelete } from './areas.js';
 import { closeSettingsLog } from './app-log.js';
 import { closeLogs } from './logs.js';
@@ -40,9 +41,12 @@ export function showView(v, mmsi, shipData) {
   el.viewPast.classList.toggle('hidden', v !== 'past');
   el.viewDetail.classList.toggle('hidden', v !== 'detail');
   el.viewTraffco.classList.toggle('hidden', v !== 'traffico');
+  if (el.viewFollowed) el.viewFollowed.classList.toggle('hidden', v !== 'followed');
   el.viewAreas.classList.toggle('hidden', v !== 'areas');
   el.viewSettings.classList.toggle('hidden', v !== 'settings');
-  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'areas' || v === 'settings');
+  // Hide the Monitoraggi tab bar outside the active/past/traffico section
+  // (the Navi seguite section carries its own tab bar).
+  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'followed' || v === 'areas' || v === 'settings');
 
   el.tabActive.classList.toggle('tab-active', v === 'active');
   el.tabPast.classList.toggle('tab-active', v === 'past');
@@ -76,6 +80,8 @@ export function showView(v, mmsi, shipData) {
     loadPast();
   } else if (v === 'traffico') {
     loadTraffco();
+  } else if (v === 'followed') {
+    loadFollowed();
   } else if (v === 'areas') {
     enterAreasView();
   }

@@ -148,6 +148,7 @@ const MESSAGES = {
   'ship.flag': onOff(['Nave segnalata manualmente', 'Nave desegnalata manualmente'], ['Ship flagged manually', 'Ship unflagged manually']),
   'ship.military': onOff(['Nave marcata come militare', 'Nave marcata come non militare'], ['Ship marked as military', 'Ship marked as non-military']),
   'ship.seen': onOff(['Nave marcata come vista', 'Nave marcata come non vista'], ['Ship marked as seen', 'Ship marked as not seen']),
+  'ship.follow': onOff(['Nave seguita', 'Nave non più seguita'], ['Ship followed', 'Ship unfollowed']),
   'ship.notif_muted': onOff(['Notifiche nave silenziate', 'Notifiche nave riattivate'], ['Ship notifications muted', 'Ship notifications unmuted']),
   'ship.notes': onOff(['Note nave aggiornate', 'Note nave cancellate'], ['Ship notes updated', 'Ship notes cleared']),
 

@@ -162,6 +162,18 @@ const TRACK_MAX_LIMIT = num('TRACK_MAX_LIMIT', 2000);
 const MAX_BODY = num('MAX_BODY_BYTES', 2048);
 const NOTIF_DELETE_UNDO_SECONDS = num('NOTIF_DELETE_UNDO_SECONDS', 5);
 
+// ── Follow (segui) parameters ────────────────────────────────────────────────
+// Half-side of the per-ship bounding box, in degrees: a FOLLOW_BOX_DEG box is
+// ~2× this wide. 0.5° ≈ 60nm of latitude — comfortably covers a fast ship's
+// movement between two refreshes.
+const FOLLOW_BOX_HALF_DEG = num('FOLLOW_BOX_HALF_DEG', 0.5);
+// How often the follow stream rebuilds its boxes from current positions and
+// re-subscribes, and runs the inactivity auto-stop sweep.
+const FOLLOW_REFRESH_MS = num('FOLLOW_REFRESH_MIN', 5) * 60 * 1000;
+// A followed ship with no position for this many hours is auto-unfollowed and
+// moves to the "passate" history.
+const FOLLOW_STALE_HOURS = num('FOLLOW_STALE_HOURS', 48);
+
 // Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer
 // express.raw() allocates, so a single request can't exhaust memory. Generous
 // by default to fit a large base64-encoded database (~1.3× the .db size).
@@ -657,6 +669,9 @@ module.exports = {
   MAX_BODY,
   MAX_UPLOAD_MB,
   NOTIF_DELETE_UNDO_SECONDS,
+  FOLLOW_BOX_HALF_DEG,
+  FOLLOW_REFRESH_MS,
+  FOLLOW_STALE_HOURS,
   BACKUP_INTERVAL_MIN,
   AUTO_RESTORE_ON_DEPLOY,
   APP_CONFIG_FILE,

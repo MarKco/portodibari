@@ -6,6 +6,7 @@ export default {
   // ── Sidebar ────────────────────────────────────────────────────────────────
   'sidebar.toggle':   'Comprimi barra laterale',
   'sidebar.home':     'Monitoraggi',
+  'sidebar.followed': 'Navi seguite',
   'sidebar.start':    'Avvia il monitoraggio',
   'sidebar.stop':     'Ferma',
   'sidebar.clear':    'Cancella dati',
@@ -40,6 +41,8 @@ export default {
   'tab.active':   'Navi presenti',
   'tab.past':     'Navi passate',
   'tab.traffico': 'Traffico',
+  'tab.followActive': 'Seguite',
+  'tab.followPast':   'Seguite in passato',
 
   // ── Table headers ──────────────────────────────────────────────────────────
   'col.flags':       'Flag',
@@ -60,6 +63,8 @@ export default {
   'detail.flagRemove':   'Rimuovi segnalazione',
   'detail.seenAdd':      'Segna come vista',
   'detail.seenRemove':   'Segna come non vista',
+  'detail.followAdd':    'Segui nave',
+  'detail.followRemove': 'Smetti di seguire',
   'detail.militaryAdd':    'Segna come nave militare',
   'detail.militaryActive': '✓ Nave militare',
   'detail.militaryRemove': 'Rimuovi flag militare',
@@ -533,6 +538,8 @@ export default {
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     "Nessuna nave nell'area. Avvia il monitoraggio.",
   'empty.past':       'Nessuna nave passata.',
+  'empty.followActive': 'Nessuna nave seguita. Attiva 🗺 su una nave per seguirla.',
+  'empty.followPast':   'Nessuna nave seguita in passato.',
   'empty.loading':    'Caricamento…',
   'empty.readings':   'Nessuna lettura.',
   'empty.events':     'Nessun evento registrato.',

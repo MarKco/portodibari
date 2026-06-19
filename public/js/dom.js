@@ -26,6 +26,19 @@ export const el = {
   activeBody: $('active-body'),
   pastBody: $('past-body'),
 
+  // Navi seguite (followed ships) section
+  btnFollowed: $('btn-followed'),
+  viewFollowed: $('view-followed'),
+  followedTabs: $('followed-tabs'),
+  tabFollActive: $('tab-foll-active'),
+  tabFollPast: $('tab-foll-past'),
+  follActiveView: $('foll-active-view'),
+  follPastView: $('foll-past-view'),
+  follActiveCount: $('foll-active-count'),
+  follPastCount: $('foll-past-count'),
+  follActiveBody: $('foll-active-body'),
+  follPastBody: $('foll-past-body'),
+
   // Berths overlay (overview map)
   berthsToggle: $('berths-toggle'),
   btnBerthsManage: $('btn-berths-manage'),
@@ -49,6 +62,7 @@ export const el = {
   detailInfoBar: $('detail-info-bar'),
   btnFlagDetail: $('btn-flag-detail'),
   btnSeenDetail: $('btn-seen-detail'),
+  btnFollowDetail: $('btn-follow-detail'),
   btnMilitaryDetail: $('btn-military-detail'),
   btnNotifMuteDetail: $('btn-notif-mute-detail'),
   btnVfDetail: $('btn-vf-detail'),

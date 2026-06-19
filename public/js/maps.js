@@ -297,6 +297,66 @@ window.openShipDetail = function (mmsi) {
   showView('detail', mmsi, S.activeShipsCache.get(mmsi) || null);
 };
 
+// ── Followed-ships overview map ──────────────────────────────────────────────
+// Followed ships are scattered across the open sea (not confined to one area),
+// so this map frames the ships themselves rather than an area bounding box.
+export function initFollowedMap() {
+  if (S.followedMap) return;
+  S.followedMap = L.map('followed-map', { zoomControl: true }).setView([41.138, 16.843], 6);
+  L.tileLayer(OSM_TILES, { attribution: OSM_ATTR, maxZoom: 19 }).addTo(S.followedMap);
+  S.followedMarkersLayer = L.layerGroup().addTo(S.followedMap);
+}
+
+window.openFollowedShipDetail = function (mmsi) {
+  S.followedMap.closePopup();
+  S.detailFrom = 'followed';
+  showView('detail', mmsi, S.followedShipsCache.get(mmsi) || null);
+};
+
+export function renderFollowedMap(ships) {
+  initFollowedMap();
+  S.followedMap.invalidateSize();
+  S.followedMarkersLayer.clearLayers();
+  S.followedShipsCache.clear();
+  ships.forEach((s) => S.followedShipsCache.set(s.mmsi, s));
+
+  const positioned = ships.filter((s) => s.last_latitude != null && s.last_longitude != null);
+  if (!positioned.length) return;
+
+  const latlngs = [];
+  positioned.forEach((s) => {
+    const ll = [s.last_latitude, s.last_longitude];
+    latlngs.push(ll);
+    const RISK_STYLE = {
+      high: { radius: 9, color: '#f87171', fillColor: '#dc2626', weight: 3 },
+      med: { radius: 8, color: '#fbbf24', fillColor: '#d97706', weight: 2.5 },
+      low: { radius: 7, color: '#34d399', fillColor: '#059669', weight: 2 },
+    };
+    const style = s.flagged
+      ? { radius: 10, color: '#a78bfa', fillColor: '#7c3aed', weight: 3 }
+      : RISK_STYLE[s.risk?.band] || RISK_STYLE.low;
+    L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
+      .bindPopup(
+        `<b style="font-size:1rem">${escHtml(s.ship_name || t('map.unknown'))}</b><br>` +
+          `<span style="color:#9ca3af;font-size:0.8rem">MMSI: ${s.mmsi}</span><br><br>` +
+          `🚢 ${shipTypeLabel(s.ship_type)}<br>` +
+          `${t('map.risk')} ${riskBadge(s.risk)}<br>` +
+          `📍 ${s.destination ? escHtml(s.destination) : '—'}<br>` +
+          `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
+          `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
+          `🕐 ${formatTime(s.last_seen_at)}<br>` +
+          `<div style="margin-top:8px;display:flex;gap:6px">` +
+          `<button onclick="openFollowedShipDetail(${s.mmsi})" style="padding:4px 12px;cursor:pointer;border:1px solid #3b82f6;background:#1e40af;color:#fff;border-radius:4px;font-size:0.8rem;flex:1">${t('map.detail')}</button>` +
+          `<a href="https://www.vesselfinder.com/vessels/details/${s.mmsi}" target="_blank" rel="noopener" style="padding:4px 10px;cursor:pointer;border:1px solid #374151;background:#1e2330;color:#9ca3af;border-radius:4px;font-size:0.8rem;text-decoration:none;display:flex;align-items:center" title="VesselFinder">⧉</a>` +
+          `</div>`
+      )
+      .addTo(S.followedMarkersLayer);
+  });
+
+  const bounds = L.latLngBounds(latlngs);
+  if (bounds.isValid()) S.followedMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+}
+
 export function renderActiveMap(ships) {
   initActiveMap();
   S.activeMap.invalidateSize();

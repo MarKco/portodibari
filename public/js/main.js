@@ -1031,6 +1031,7 @@ function initToolbar() {
   el.tabPast.addEventListener('click', () => showView('past'));
   el.tabTraffco.addEventListener('click', () => showView('traffico'));
   el.btnHome.addEventListener('click', () => showView('active'));
+  if (el.btnFollowed) el.btnFollowed.addEventListener('click', () => showView('followed'));
   el.btnAreas.addEventListener('click', () => showView('areas'));
 
   el.btnBack.addEventListener('click', () => showView(S.detailFrom));

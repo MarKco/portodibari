@@ -9,6 +9,7 @@ const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const { crawlGfw } = require('../services/gfw');
 const equasisLog = require('../services/equasis-log');
+const shipFollow = require('../services/ship-follow');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN } = require('../config');
@@ -40,6 +41,27 @@ router.get('/ships/past', (req, res) => {
   const lang = req.query.lang || 'it';
   const area = req.query.area || state.preset;
   const ships = db.getPastShips(area).map((s) => {
+    const mil = isMilitary(s);
+    return { ...s, risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
+  });
+  res.json({ ships });
+});
+
+// Followed ships ("Navi seguite"). Currently followed = "presenti"; ships that
+// were followed but no longer are = "passate" (history). Same enrichment as the
+// active/past lists so the frontend can reuse the rendering.
+router.get('/ships/followed/active', (req, res) => {
+  const lang = req.query.lang || 'it';
+  const ships = db.getFollowedShips().map((s) => {
+    const mil = isMilitary(s);
+    return { ...s, direction: computeDirection(s), in_port: isInPort(s), risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
+  });
+  res.json({ ships });
+});
+
+router.get('/ships/followed/past', (req, res) => {
+  const lang = req.query.lang || 'it';
+  const ships = db.getPastFollowedShips().map((s) => {
     const mil = isMilitary(s);
     return { ...s, risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
   });
@@ -95,6 +117,17 @@ router.patch('/ships/:mmsi/military', (req, res) => {
   db.setMilitary(mmsi, is_military);
   invalidateRiskCache(mmsi); // military status flips the score to 100
   appLog.info('SHIP', appLog.t('ship.military', { on: !!is_military }), { mmsi });
+  res.json({ ok: true });
+});
+
+router.patch('/ships/:mmsi/follow', (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  const { followed } = req.body;
+  db.setFollow(mmsi, followed);
+  // Reconcile the follow stream immediately (rebuild boxes / connect / disconnect)
+  // instead of waiting for the next periodic refresh.
+  shipFollow.refresh();
+  appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });
   res.json({ ok: true });
 });
 

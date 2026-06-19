@@ -12,6 +12,7 @@ const dbFileExisted = fs.existsSync(DB_PATH);
 const createApp = require('./app');
 const db = require('./db');
 const stream = require('./services/ais-stream');
+const shipFollow = require('./services/ship-follow');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
@@ -152,5 +153,7 @@ app.listen(PORT, () => {
   berths.startDirtyFlush();
 
   stream.startStream(state.preset);
+  // Follow stream: connects on its own only when there are ships to follow.
+  shipFollow.init();
   startAutoBackup();
 });

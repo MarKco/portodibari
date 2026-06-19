@@ -34,6 +34,13 @@ export function updateDetailSeenBtn(seen) {
   el.btnSeenDetail.title = seen ? t('detail.seenRemove') : t('detail.seenAdd');
 }
 
+export function updateDetailFollowBtn(followed) {
+  if (!el.btnFollowDetail) return;
+  el.btnFollowDetail.dataset.followed = followed ? '1' : '0';
+  el.btnFollowDetail.classList.toggle('followed', !!followed);
+  el.btnFollowDetail.title = followed ? t('detail.followRemove') : t('detail.followAdd');
+}
+
 export function updateDetailMilitaryBtn(isMilitary) {
   el.btnMilitaryDetail.dataset.military = isMilitary ? '1' : '0';
   el.btnMilitaryDetail.classList.toggle('active', !!isMilitary);
@@ -73,6 +80,16 @@ el.btnSeenDetail.addEventListener('click', async () => {
   if (S.detailShipData) S.detailShipData.seen = newSeen;
 });
 
+if (el.btnFollowDetail) {
+  el.btnFollowDetail.addEventListener('click', async () => {
+    if (S.detailMmsi == null) return;
+    const newFollow = el.btnFollowDetail.dataset.followed === '1' ? 0 : 1;
+    await api(`/api/ships/${S.detailMmsi}/follow`, 'PATCH', { followed: newFollow });
+    updateDetailFollowBtn(newFollow);
+    if (S.detailShipData) S.detailShipData.followed = newFollow;
+  });
+}
+
 el.btnMilitaryDetail.addEventListener('click', async () => {
   if (S.detailMmsi == null) return;
   const newMilitary = el.btnMilitaryDetail.dataset.military === '1' ? 0 : 1;
@@ -106,7 +123,7 @@ let activeSort = { col: null, dir: 'asc' };
 let pastShipsData = [];
 let pastSort = { col: null, dir: 'asc' };
 
-function sortShips(ships, col, dir) {
+export function sortShips(ships, col, dir) {
   if (!col) return ships;
   return [...ships].sort((a, b) => {
     let va, vb;
@@ -133,7 +150,7 @@ function sortShips(ships, col, dir) {
 }
 
 // ── List filters (client-side) ─────────────────────────────────────────────────
-function filterShips(ships, f, opts = {}) {
+export function filterShips(ships, f, opts = {}) {
   const q = (f.q || '').trim().toLowerCase();
   return ships.filter((s) => {
     if (f.band && s.risk?.band !== f.band) return false;
@@ -149,7 +166,7 @@ function filterShips(ships, f, opts = {}) {
   });
 }
 
-function updateFilterCount(elId, shown, total) {
+export function updateFilterCount(elId, shown, total) {
   const node = document.getElementById(elId);
   if (!node) return;
   node.textContent = shown === total ? '' : t('filter.count', { shown, total });
@@ -172,7 +189,7 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-function exportShipsCsv(ships, prefix) {
+export function exportShipsCsv(ships, prefix) {
   const headers = [
     'MMSI', 'Nome', 'Tipo (codice)', 'Destinazione', 'SOG (kn)', 'COG',
     'In porto', 'Score rischio', 'Fascia', 'Segnalata', 'Militare',
@@ -230,7 +247,7 @@ export async function loadActive() {
   }
 }
 
-function flagSeenButtonsHtml(s) {
+export function flagSeenButtonsHtml(s) {
   return `
     <button class="flag-btn ${s.flagged ? 'flagged' : ''}"
             data-mmsi="${s.mmsi}" data-flagged="${s.flagged}"
@@ -242,11 +259,16 @@ function flagSeenButtonsHtml(s) {
             title="${s.seen ? t('detail.seenRemove') : t('detail.seenAdd')}">
       ✓
     </button>
+    <button class="follow-btn ${s.followed ? 'followed' : ''}"
+            data-mmsi="${s.mmsi}" data-followed="${s.followed ? 1 : 0}"
+            title="${s.followed ? t('detail.followRemove') : t('detail.followAdd')}">
+      🗺
+    </button>
     <a class="vf-link" href="https://www.vesselfinder.com/vessels/details/${s.mmsi}"
        target="_blank" rel="noopener" title="${t('detail.vfLink')}">⧉</a>`;
 }
 
-function bindFlagSeenButtons(tbody, reload) {
+export function bindFlagSeenButtons(tbody, reload) {
   tbody.querySelectorAll('.flag-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -262,6 +284,15 @@ function bindFlagSeenButtons(tbody, reload) {
       const mmsi = Number(btn.dataset.mmsi);
       const newSeen = Number(btn.dataset.seen) ? 0 : 1;
       await api(`/api/ships/${mmsi}/seen`, 'PATCH', { seen: newSeen });
+      reload();
+    });
+  });
+  tbody.querySelectorAll('.follow-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const mmsi = Number(btn.dataset.mmsi);
+      const newFollow = Number(btn.dataset.followed) ? 0 : 1;
+      await api(`/api/ships/${mmsi}/follow`, 'PATCH', { followed: newFollow });
       reload();
     });
   });
@@ -413,10 +444,10 @@ function renderPastTable(ships) {
   applyPastSortHeader();
 }
 
-function bindShipRows(tbody, fromView, ships) {
+export function bindShipRows(tbody, fromView, ships) {
   tbody.querySelectorAll('.ship-row').forEach((tr) => {
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.vf-link'))
+      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.follow-btn') || e.target.closest('.vf-link'))
         return;
       S.detailFrom = fromView;
       const mmsi = Number(tr.dataset.mmsi);
@@ -442,6 +473,7 @@ export async function loadDetail() {
       if (shipData.ship_name) el.detailName.textContent = shipData.ship_name;
       updateDetailFlagBtn(shipData.flagged);
       updateDetailSeenBtn(shipData.seen);
+      updateDetailFollowBtn(shipData.followed);
       updateDetailMilitaryBtn(shipData.is_military);
       updateDetailNotifMuteBtn(shipData.notif_muted);
       if (el.detailNotesEl !== document.activeElement) {

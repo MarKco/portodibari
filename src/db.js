@@ -214,6 +214,24 @@ for (const col of ['notif_muted INTEGER NOT NULL DEFAULT 0']) {
   }
 }
 
+// "Follow" (segui) — track a ship across the open sea via a dedicated AISstream
+// connection with a small bounding box around its last known position. `followed`
+// is the live flag; follow_started_at marks the first time it was ever followed
+// (so a now-unfollowed ship with a non-null start still shows in the "passate"
+// history); follow_ended_at is when following stopped (manual de-select or the
+// 48h-inactivity auto-stop).
+for (const col of [
+  'followed INTEGER NOT NULL DEFAULT 0',
+  'follow_started_at TEXT',
+  'follow_ended_at TEXT',
+]) {
+  try {
+    db.exec(`ALTER TABLE ships ADD COLUMN ${col}`);
+  } catch {
+    /* column already exists */
+  }
+}
+
 for (const col of ['request_body TEXT', 'response_body TEXT']) {
   try {
     db.exec(`ALTER TABLE api_log ADD COLUMN ${col}`);
@@ -538,6 +556,80 @@ function insert(parsed, areaKey = '') {
   }
 
   return { arrivedFlagged, newShip, revisit, areaChange, arrived };
+}
+
+// Like upsertShipStmt but for the follow stream: a followed ship out on the open
+// sea has no monitored area, so last_area must NOT be clobbered to '' (that would
+// drop it from its last area's active list prematurely). Only overwrite last_area
+// when the follow position actually falls inside a monitored area.
+const upsertFollowStmt = db.prepare(`
+  INSERT INTO ships (mmsi, ship_name, first_seen_at, last_seen_at,
+    last_latitude, last_longitude, last_sog, last_cog, last_navigational_status, last_area)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(mmsi) DO UPDATE SET
+    ship_name = COALESCE(excluded.ship_name, ships.ship_name),
+    last_seen_at = excluded.last_seen_at,
+    last_latitude = COALESCE(excluded.last_latitude, ships.last_latitude),
+    last_longitude = COALESCE(excluded.last_longitude, ships.last_longitude),
+    last_sog = COALESCE(excluded.last_sog, ships.last_sog),
+    last_cog = COALESCE(excluded.last_cog, ships.last_cog),
+    last_navigational_status = COALESCE(excluded.last_navigational_status, ships.last_navigational_status),
+    last_area = CASE WHEN excluded.last_area != '' THEN excluded.last_area ELSE ships.last_area END
+`);
+
+// Lightweight write for positions arriving on the follow stream. Updates the
+// ship's last position and appends a reading (so the track stays continuous),
+// but deliberately skips the port-event / arrival / berth / notification logic
+// of insert(): the follow stream's job is "where is it now", not port analytics.
+// If the ship is inside a monitored area, that area's own stream handles arrivals.
+// `area` is the resolved monitored-area key for this position (or '' if at sea).
+function insertFollowPosition(parsed, area = '') {
+  const { MessageType, MetaData, Message } = parsed;
+  const meta = MetaData || {};
+  const msgData = Message?.[MessageType] || {};
+  const mmsi = meta.MMSI ?? null;
+  if (!mmsi) return null;
+
+  const received_at = parseGoTime(meta.time_utc);
+  const name = (meta.ShipName || msgData.Name || '').trim() || null;
+  const lat = meta.latitude ?? null;
+  const lon = meta.longitude ?? null;
+
+  insertReading.run(
+    received_at,
+    MessageType,
+    mmsi,
+    name,
+    lat,
+    lon,
+    msgData.NavigationalStatus?.toString() ?? null,
+    msgData.Sog ?? null,
+    msgData.Cog ?? null,
+    msgData.TrueHeading ?? null,
+    MessageType === 'ShipStaticData' || MessageType === 'ExtendedClassBPositionReport'
+      ? JSON.stringify(parsed)
+      : '',
+    area
+  );
+
+  upsertFollowStmt.run(
+    mmsi,
+    name,
+    received_at,
+    received_at,
+    lat,
+    lon,
+    msgData.Sog ?? null,
+    msgData.Cog ?? null,
+    msgData.NavigationalStatus?.toString() ?? null,
+    area
+  );
+
+  insertCounters[MessageType] = (insertCounters[MessageType] || 0) + 1;
+  if (insertCounters[MessageType] % 500 === 0) {
+    pruneStmt.run(MessageType, MessageType, MAX_READINGS_PER_TYPE);
+  }
+  return mmsi;
 }
 
 function checkAndLogDepartures() {
@@ -1047,6 +1139,73 @@ function setSeen(mmsi, seen) {
   db.prepare('UPDATE ships SET seen = ? WHERE mmsi = ?').run(seen ? 1 : 0, mmsi);
 }
 
+// Toggle "follow" for a ship. Turning it on stamps follow_started_at (and clears
+// any prior end), turning it off stamps follow_ended_at so it moves to the
+// "passate" history. follow_started_at, once set, is never cleared — it marks
+// that the ship was ever followed.
+function setFollow(mmsi, on) {
+  const now = new Date().toISOString();
+  if (on) {
+    db.prepare(
+      'UPDATE ships SET followed = 1, follow_started_at = ?, follow_ended_at = NULL WHERE mmsi = ?'
+    ).run(now, mmsi);
+  } else {
+    db.prepare('UPDATE ships SET followed = 0, follow_ended_at = ? WHERE mmsi = ?').run(now, mmsi);
+  }
+}
+
+// Currently-followed ships (the "presenti" tab of Navi seguite).
+function getFollowedShips() {
+  return db
+    .prepare(
+      `SELECT * FROM ships WHERE followed = 1
+       ORDER BY flagged DESC, seen ASC, last_seen_at DESC`
+    )
+    .all();
+}
+
+// Ships that were followed at some point but no longer are (manual de-select or
+// the 48h auto-stop) — the "passate" history tab.
+function getPastFollowedShips() {
+  return db
+    .prepare(
+      `SELECT * FROM ships WHERE followed = 0 AND follow_started_at IS NOT NULL
+       ORDER BY follow_ended_at DESC, last_seen_at DESC`
+    )
+    .all();
+}
+
+// mmsi + last position of every currently-followed ship that has a known
+// position — the follow stream builds one bounding box per row.
+function getFollowedPositions() {
+  return db
+    .prepare(
+      `SELECT mmsi, ship_name, last_latitude AS lat, last_longitude AS lon, last_seen_at
+       FROM ships
+       WHERE followed = 1 AND last_latitude IS NOT NULL AND last_longitude IS NOT NULL`
+    )
+    .all();
+}
+
+// Auto-stop follows that have gone silent: no position for `hours`. Returns the
+// affected ships (for logging). Called periodically by the follow service.
+function autoStopStaleFollows(hours) {
+  const stale = db
+    .prepare(
+      `SELECT mmsi, ship_name FROM ships
+       WHERE followed = 1 AND last_seen_at < datetime('now', ?)`
+    )
+    .all(`-${hours} hours`);
+  if (stale.length) {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      'UPDATE ships SET followed = 0, follow_ended_at = ? WHERE mmsi = ?'
+    );
+    for (const s of stale) stmt.run(now, s.mmsi);
+  }
+  return stale;
+}
+
 function updateNotes(mmsi, notes) {
   db.prepare('UPDATE ships SET notes = ? WHERE mmsi = ?').run(notes || null, mmsi);
 }
@@ -1328,9 +1487,15 @@ function restoreFrom(src) {
 
 module.exports = {
   insert,
+  insertFollowPosition,
   getAreaCounts,
   getActiveShips,
   getPastShips,
+  getFollowedShips,
+  getPastFollowedShips,
+  getFollowedPositions,
+  autoStopStaleFollows,
+  setFollow,
   getShip,
   getShipReadings,
   getShipTrack,

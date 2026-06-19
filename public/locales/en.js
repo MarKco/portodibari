@@ -6,6 +6,7 @@ export default {
   // ── Sidebar ────────────────────────────────────────────────────────────────
   'sidebar.toggle':   'Collapse sidebar',
   'sidebar.home':     'Monitoring',
+  'sidebar.followed': 'Followed ships',
   'sidebar.start':    'Start monitoring',
   'sidebar.stop':     'Stop',
   'sidebar.clear':    'Clear data',
@@ -40,6 +41,8 @@ export default {
   'tab.active':   'Present ships',
   'tab.past':     'Past ships',
   'tab.traffico': 'Traffic',
+  'tab.followActive': 'Followed',
+  'tab.followPast':   'Previously followed',
 
   // ── Table headers ──────────────────────────────────────────────────────────
   'col.flags':       'Flags',
@@ -60,6 +63,8 @@ export default {
   'detail.flagRemove':   'Remove flag',
   'detail.seenAdd':      'Mark as seen',
   'detail.seenRemove':   'Mark as unseen',
+  'detail.followAdd':    'Follow ship',
+  'detail.followRemove': 'Stop following',
   'detail.militaryAdd':    'Mark as military vessel',
   'detail.militaryActive': '✓ Military vessel',
   'detail.militaryRemove': 'Remove military flag',
@@ -533,6 +538,8 @@ export default {
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     'No ships in area. Start monitoring.',
   'empty.past':       'No past ships.',
+  'empty.followActive': 'No followed ships. Toggle 🗺 on a ship to follow it.',
+  'empty.followPast':   'No previously followed ships.',
   'empty.loading':    'Loading…',
   'empty.readings':   'No readings.',
   'empty.events':     'No events recorded.',

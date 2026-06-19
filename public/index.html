@@ -39,6 +39,11 @@
         <span class="sb-icon">🏠</span>
         <span class="sb-label" data-i18n="sidebar.home">Monitoraggi</span>
       </button>
+      <button id="btn-followed" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.followed" title="Navi seguite">
+        <span class="sb-icon">🗺</span>
+        <span class="sb-label" data-i18n="sidebar.followed">Navi seguite</span>
+      </button>
       <div class="sb-divider"></div>
       <button id="btn-start" class="btn btn-primary sb-btn"
               data-i18n-title="sidebar.start" title="Avvia il monitoraggio">
@@ -202,6 +207,95 @@
       </div>
     </div>
 
+    <!-- View: navi seguite -->
+    <div id="view-followed" class="hidden">
+      <div class="tabs" id="followed-tabs">
+        <button id="tab-foll-active" class="tab tab-active">
+          <span data-i18n="tab.followActive">Seguite</span>
+          <span id="foll-active-count" class="tab-count">0</span>
+        </button>
+        <button id="tab-foll-past" class="tab">
+          <span data-i18n="tab.followPast">Seguite in passato</span>
+          <span id="foll-past-count" class="tab-count">0</span>
+        </button>
+      </div>
+
+      <!-- Sub-view: navi attualmente seguite -->
+      <div id="foll-active-view">
+        <div id="followed-map"></div>
+        <div class="list-toolbar">
+          <input type="search" id="foll-active-search" class="list-search"
+                 data-i18n-placeholder="filter.searchHolder" placeholder="Cerca nome, MMSI, IMO, destinazione…">
+          <select id="foll-active-band" class="list-band">
+            <option value="" data-i18n="filter.allBands">Tutte le fasce</option>
+            <option value="low" data-i18n="filter.bandLow">Verde (0–30)</option>
+            <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
+            <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
+          </select>
+          <label class="list-check"><input type="checkbox" id="foll-active-inport"><span data-i18n="filter.inPort">Solo in porto</span></label>
+          <label class="list-check"><input type="checkbox" id="foll-active-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+          <span class="list-toolbar-spacer"></span>
+          <span id="foll-active-filter-count" class="list-filter-count"></span>
+          <button id="foll-active-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+        </div>
+        <div id="table-wrap-foll-active">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-flags" data-i18n="col.flags">Flag</th>
+                <th data-col="last_seen_at" data-i18n="col.lastSeen">Ultimo avv.</th>
+                <th data-col="ship_name" data-i18n="col.shipName">Nome nave</th>
+                <th data-col="mmsi" data-i18n="col.mmsi">MMSI</th>
+                <th data-col="ship_type" data-i18n="col.shipType">Tipo nave</th>
+                <th data-col="destination" data-i18n="col.destination">Destinazione</th>
+                <th data-col="last_sog" data-i18n="col.sog">SOG</th>
+                <th data-col="direction" data-i18n="col.direction">Direzione</th>
+                <th data-col="risk" data-i18n="col.risk">Rischio</th>
+              </tr>
+            </thead>
+            <tbody id="foll-active-body">
+              <tr><td colspan="9" class="empty" data-i18n="empty.followActive">Nessuna nave seguita.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-view: navi seguite in passato (storico) -->
+      <div id="foll-past-view" class="hidden">
+        <div class="list-toolbar">
+          <input type="search" id="foll-past-search" class="list-search"
+                 data-i18n-placeholder="filter.searchHolder" placeholder="Cerca nome, MMSI, IMO, destinazione…">
+          <select id="foll-past-band" class="list-band">
+            <option value="" data-i18n="filter.allBands">Tutte le fasce</option>
+            <option value="low" data-i18n="filter.bandLow">Verde (0–30)</option>
+            <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
+            <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
+          </select>
+          <label class="list-check"><input type="checkbox" id="foll-past-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+          <span class="list-toolbar-spacer"></span>
+          <span id="foll-past-filter-count" class="list-filter-count"></span>
+          <button id="foll-past-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+        </div>
+        <div id="table-wrap-foll-past">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-flags" data-i18n="col.flags">Flag</th>
+                <th data-col="ship_name" data-i18n="col.shipName">Nome nave</th>
+                <th data-col="mmsi" data-i18n="col.mmsi">MMSI</th>
+                <th data-col="last_seen_at" data-i18n="col.lastSeen">Ultimo avv.</th>
+                <th data-col="last_sog" data-i18n="col.sog">SOG</th>
+                <th data-col="risk" data-i18n="col.risk">Rischio</th>
+              </tr>
+            </thead>
+            <tbody id="foll-past-body">
+              <tr><td colspan="6" class="empty" data-i18n="empty.followPast">Nessuna nave seguita in passato.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- View: dettaglio nave -->
     <div id="view-detail" class="hidden">
       <div class="detail-nav">
@@ -213,6 +307,8 @@
                   data-i18n-title="detail.flagAdd" title="Segna come segnalata">☆</button>
           <button id="btn-seen-detail" class="seen-btn"
                   data-i18n-title="detail.seenAdd" title="Segna come vista">✓</button>
+          <button id="btn-follow-detail" class="follow-btn"
+                  data-i18n-title="detail.followAdd" title="Segui nave">🗺</button>
           <button id="btn-military-detail" class="military-btn" title="Segna come nave militare">🪖 <span id="military-btn-label">Segna come nave militare</span></button>
           <button id="btn-notif-mute-detail" class="notif-mute-btn"
                   data-i18n-title="detail.notifMuteAdd" title="Silenzia notifiche">🔔</button>
