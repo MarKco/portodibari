@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Amministrazione — Tracker Porti</title>
+<style>
+  :root { --bg:#0a0d13; --surface:#141a24; --surface-2:#1c2430; --border:#2a3441;
+          --text:#e6edf5; --text-muted:#9aa7b5; --accent:#3b82f6; --accent-hover:#2563eb;
+          --red:#ef4444; --green:#22c55e; --amber:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:1rem;
+           padding:1rem 1.5rem; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; }
+  h1 { font-size:1.1rem; margin:0; }
+  .wrap { padding:1.5rem; max-width:1100px; margin:0 auto; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .tablewrap { overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+  table { border-collapse:collapse; width:100%; min-width:760px; }
+  th, td { text-align:left; padding:.6rem .75rem; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--text-muted); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; }
+  tr:last-child td { border-bottom:0; }
+  .pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.72rem; font-weight:600; }
+  .pill.active { background:rgba(34,197,94,.15); color:#86efac; }
+  .pill.pending { background:rgba(245,158,11,.15); color:#fcd34d; }
+  .pill.disabled { background:rgba(239,68,68,.15); color:#fca5a5; }
+  .pill.admin { background:var(--accent-soft,rgba(59,130,246,.18)); color:#93c5fd; }
+  .pill.user { background:var(--surface-2); color:var(--text-muted); }
+  button { font:inherit; padding:.32rem .6rem; border-radius:7px; border:1px solid var(--border);
+           background:var(--surface-2); color:var(--text); cursor:pointer; font-size:.8rem; }
+  button:hover { border-color:var(--accent); }
+  button.danger:hover { border-color:var(--red); color:#fca5a5; }
+  .acts { display:flex; gap:.35rem; flex-wrap:wrap; }
+  .msg { margin:.8rem 0; min-height:1.2em; font-size:.85rem; }
+  .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
+  .me { color:var(--text-muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Amministrazione utenti</h1>
+    <div class="me">
+      <a href="/">← App</a>
+      &nbsp;·&nbsp;
+      <a href="#" id="logout">Esci</a>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="msg" id="msg"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Email / Username</th><th>Ruolo</th><th>Stato</th><th>Aree</th><th>Azioni</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+<script>
+  const msg = document.getElementById('msg');
+  let ME = null;
+  function show(t, ok) { msg.className = 'msg ' + (ok ? 'ok' : 'err'); msg.textContent = t; }
+
+  async function api(method, url, body) {
+    const r = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Operazione non riuscita');
+    return data;
+  }
+
+  function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+  function render(users) {
+    const tb = document.getElementById('rows');
+    tb.innerHTML = '';
+    for (const u of users) {
+      const tr = document.createElement('tr');
+      const name = `${esc(u.first_name || '')} ${esc(u.last_name || '')}`.trim() || '—';
+      const acts = [];
+      if (u.status === 'pending') acts.push(`<button data-act="approve" data-id="${u.id}">Approva</button>`);
+      if (u.status === 'active') acts.push(`<button data-act="disable" data-id="${u.id}">Disabilita</button>`);
+      if (u.status === 'disabled') acts.push(`<button data-act="enable" data-id="${u.id}">Riabilita</button>`);
+      acts.push(`<button data-act="role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? 'Rendi utente' : 'Rendi admin'}</button>`);
+      acts.push(`<button data-act="reset" data-id="${u.id}">Reset password</button>`);
+      if (u.id !== ME && u.status === 'active') acts.push(`<button data-act="impersonate" data-id="${u.id}">Impersona</button>`);
+      if (u.id !== ME) acts.push(`<button class="danger" data-act="delete" data-id="${u.id}">Elimina</button>`);
+      tr.innerHTML =
+        `<td>${name}${u.id === ME ? ' <span class="me">(tu)</span>' : ''}</td>` +
+        `<td>${esc(u.email)}<br><span class="me">${esc(u.username || '')}</span></td>` +
+        `<td><span class="pill ${u.role}">${u.role}</span></td>` +
+        `<td><span class="pill ${u.status}">${u.status}</span></td>` +
+        `<td>${u.areas}</td>` +
+        `<td><div class="acts">${acts.join('')}</div></td>`;
+      tb.appendChild(tr);
+    }
+  }
+
+  async function load() {
+    try {
+      const data = await api('GET', '/api/admin/users');
+      ME = data.me;
+      render(data.users);
+    } catch (e) { show(e.message, false); }
+  }
+
+  document.getElementById('rows').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    try {
+      if (act === 'approve') { await api('POST', `/api/admin/users/${id}/approve`); show('Utente approvato', true); }
+      else if (act === 'disable') { await api('POST', `/api/admin/users/${id}/status`, { status: 'disabled' }); show('Utente disabilitato', true); }
+      else if (act === 'enable') { await api('POST', `/api/admin/users/${id}/status`, { status: 'active' }); show('Utente riabilitato', true); }
+      else if (act === 'role') { await api('POST', `/api/admin/users/${id}/role`, { role: btn.dataset.role }); show('Ruolo aggiornato', true); }
+      else if (act === 'reset') { const d = await api('POST', `/api/admin/users/${id}/reset`); const link = location.origin + d.resetUrl; await navigator.clipboard?.writeText(link).catch(()=>{}); show('Link di reset (valido 24h, copiato): ' + link, true); }
+      else if (act === 'impersonate') { await api('POST', `/api/admin/impersonate/${id}`); location.href = '/'; return; }
+      else if (act === 'delete') { if (!confirm('Eliminare definitivamente questo utente e i suoi dati?')) return; await api('DELETE', `/api/admin/users/${id}`); show('Utente eliminato', true); }
+      load();
+    } catch (err) { show(err.message, false); }
+  });
+
+  document.getElementById('logout').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.href = '/login';
+  });
+
+  load();
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const cfg = require('./config');
 const appLog = require('./services/app-log');
+const auth = require('./services/auth');
 
 // These values are interpolated into SQL strings below (parameter binding can't
 // be used for LIMIT-in-subquery / datetime modifiers / predicate literals), so
@@ -181,6 +182,126 @@ db.exec(`
   );
 `);
 
+// ── Users & sessions (multi-user auth) ───────────────────────────────────────
+// `users`: one row per account. Password stored as scrypt hash+salt (never
+//   recoverable). role = 'user' | 'admin'. status = 'pending' (awaiting admin
+//   approval) | 'active' | 'disabled'. email_verified + verify_token support a
+//   future email-confirmation step (inert until SMTP is configured). reset_token
+//   / reset_expires back the password-reset flow (admin-initiated for now).
+// `sessions`: opaque token → user. Cookie carries an HMAC-signed copy of `id`.
+//   impersonating_user_id lets an admin view another user's world read-only; the
+//   session still belongs to the admin (audit), the effective user is resolved
+//   in the auth middleware.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    username TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    pw_hash TEXT NOT NULL,
+    pw_salt TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    status TEXT NOT NULL DEFAULT 'pending',
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    verify_token TEXT,
+    reset_token TEXT,
+    reset_expires TEXT,
+    created_at TEXT NOT NULL,
+    approved_at TEXT,
+    approved_by INTEGER
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(LOWER(username)) WHERE username IS NOT NULL;
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    impersonating_user_id INTEGER,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    ip TEXT,
+    user_agent TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+`);
+
+// ── Per-user data model ──────────────────────────────────────────────────────
+// `areas`: the global catalog of monitoring areas (the source of truth that
+//   replaces bounding-boxes.json; the JSON file is now only a first-run seed).
+//   Each area is a single bbox; streams + areaForPoint() run over this catalog,
+//   deduped by geometry. created_by records the author (admin for seeded ones).
+// `user_areas`: which users monitor which catalog areas ("le proprie aree").
+// `user_flags` / `user_follows` / `user_mutes`: per-user replacements for the
+//   old global ships.flagged / ships.followed / ships.notif_muted columns.
+// `user_settings`: per-user personal preferences (notif toggles, map display,
+//   language, default area) as key/value rows.
+// Core AIS data (readings/ships/...) stays GLOBAL and shared; per-user views are
+// derived by geography (a ship is visible if its last position is in any of the
+// user's areas' bboxes).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS areas (
+    key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    keyword TEXT,
+    sw_lat REAL NOT NULL,
+    sw_lon REAL NOT NULL,
+    ne_lat REAL NOT NULL,
+    ne_lon REAL NOT NULL,
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS user_areas (
+    user_id INTEGER NOT NULL,
+    area_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, area_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_areas_user ON user_areas(user_id);
+  CREATE INDEX IF NOT EXISTS idx_user_areas_area ON user_areas(area_key);
+
+  CREATE TABLE IF NOT EXISTS user_flags (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, mmsi)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_flags_user ON user_flags(user_id);
+
+  CREATE TABLE IF NOT EXISTS user_follows (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    followed INTEGER NOT NULL DEFAULT 1,
+    follow_started_at TEXT,
+    follow_ended_at TEXT,
+    PRIMARY KEY (user_id, mmsi)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_follows_user ON user_follows(user_id);
+  CREATE INDEX IF NOT EXISTS idx_user_follows_active ON user_follows(followed);
+
+  CREATE TABLE IF NOT EXISTS user_mutes (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    PRIMARY KEY (user_id, mmsi)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_settings (
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT,
+    PRIMARY KEY (user_id, key)
+  );
+`);
+
+// notifications get a user_id (fan-out per owning user). Legacy rows (null) are
+// re-homed to the admin by the multi-user migration.
+for (const col of ['user_id INTEGER']) {
+  try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
+
 // Migrate existing DB: add new columns if missing
 for (const col of [
   'ship_type INTEGER',
@@ -345,6 +466,565 @@ function setMeta(key, value) {
   setMetaStmt.run(key, value == null ? null : String(value));
 }
 
+// ── Users & sessions ─────────────────────────────────────────────────────────
+
+const PUBLIC_USER_COLS =
+  'id, email, username, first_name, last_name, role, status, email_verified, created_at, approved_at, approved_by';
+
+/** Lazily create + cache the HMAC secret used to sign session cookies. Persisted
+ *  in `meta` so it survives restarts/deploys and every instance agrees. */
+function getSessionSecret() {
+  let secret = getMeta('session_secret');
+  if (!secret) {
+    secret = auth.randomToken(32);
+    setMeta('session_secret', secret);
+  }
+  return secret;
+}
+
+const insertUserStmt = db.prepare(`
+  INSERT INTO users (email, username, first_name, last_name, pw_hash, pw_salt,
+    role, status, email_verified, verify_token, created_at, approved_at, approved_by)
+  VALUES (@email, @username, @first_name, @last_name, @pw_hash, @pw_salt,
+    @role, @status, @email_verified, @verify_token, @created_at, @approved_at, @approved_by)
+`);
+
+/** Create a user. `password` is hashed here; caller passes plaintext. Returns the
+ *  new public user row. Throws on a duplicate email/username (UNIQUE index). */
+function createUser({ email, username = null, firstName = null, lastName = null, password, role = 'user', status = 'pending', emailVerified = 0, approvedBy = null }) {
+  const { hash, salt } = auth.hashPassword(password);
+  const now = new Date().toISOString();
+  const info = insertUserStmt.run({
+    email: String(email).trim(),
+    username: username ? String(username).trim() : null,
+    first_name: firstName,
+    last_name: lastName,
+    pw_hash: hash,
+    pw_salt: salt,
+    role,
+    status,
+    email_verified: emailVerified ? 1 : 0,
+    verify_token: emailVerified ? null : auth.randomToken(24),
+    created_at: now,
+    approved_at: status === 'active' ? now : null,
+    approved_by: approvedBy,
+  });
+  return getUserById(Number(info.lastInsertRowid));
+}
+
+const getUserByIdStmt = db.prepare(`SELECT ${PUBLIC_USER_COLS} FROM users WHERE id = ?`);
+const getUserAuthStmt = db.prepare('SELECT * FROM users WHERE id = ?');
+function getUserById(id) {
+  return getUserByIdStmt.get(id) || null;
+}
+/** Full row incl. password hash — for the auth path only, never serialized. */
+function getUserAuthRow(id) {
+  return getUserAuthStmt.get(id) || null;
+}
+
+// Login lookup: match email OR username, case-insensitively. Returns the full
+// row (incl. hash) so the caller can verify the password.
+const findLoginStmt = db.prepare(
+  'SELECT * FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?) LIMIT 1'
+);
+function findUserByLogin(identifier) {
+  const id = String(identifier || '').trim();
+  if (!id) return null;
+  return findLoginStmt.get(id, id) || null;
+}
+
+const listUsersStmt = db.prepare(`SELECT ${PUBLIC_USER_COLS} FROM users ORDER BY created_at ASC`);
+function listUsers() {
+  return listUsersStmt.all();
+}
+
+function countUsers() {
+  return db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+}
+function countAdmins() {
+  return db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active'").get().n;
+}
+
+const setUserStatusStmt = db.prepare('UPDATE users SET status = ? WHERE id = ?');
+function setUserStatus(id, status) {
+  setUserStatusStmt.run(status, id);
+}
+
+const approveUserStmt = db.prepare(
+  "UPDATE users SET status = 'active', approved_at = ?, approved_by = ? WHERE id = ?"
+);
+function approveUser(id, approvedBy) {
+  approveUserStmt.run(new Date().toISOString(), approvedBy, id);
+}
+
+const setUserRoleStmt = db.prepare('UPDATE users SET role = ? WHERE id = ?');
+function setUserRole(id, role) {
+  setUserRoleStmt.run(role === 'admin' ? 'admin' : 'user', id);
+}
+
+const setUserPasswordStmt = db.prepare(
+  'UPDATE users SET pw_hash = ?, pw_salt = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?'
+);
+function setUserPassword(id, password) {
+  const { hash, salt } = auth.hashPassword(password);
+  setUserPasswordStmt.run(hash, salt, id);
+}
+
+const setResetTokenStmt = db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?');
+/** Issue a one-shot password-reset token (returns it). expiresMs from now. */
+function issueResetToken(id, expiresMs = 60 * 60 * 1000) {
+  const token = auth.randomToken(24);
+  const expires = new Date(Date.now() + expiresMs).toISOString();
+  setResetTokenStmt.run(token, expires, id);
+  return token;
+}
+
+const findResetStmt = db.prepare('SELECT * FROM users WHERE reset_token = ? LIMIT 1');
+/** Resolve a reset token to a user, only if it hasn't expired. */
+function findUserByResetToken(token) {
+  if (!token) return null;
+  const u = findResetStmt.get(String(token));
+  if (!u) return null;
+  if (!u.reset_expires || u.reset_expires < new Date().toISOString()) return null;
+  return u;
+}
+
+const findVerifyStmt = db.prepare('SELECT * FROM users WHERE verify_token = ? LIMIT 1');
+const markVerifiedStmt = db.prepare('UPDATE users SET email_verified = 1, verify_token = NULL WHERE id = ?');
+function verifyEmailToken(token) {
+  if (!token) return null;
+  const u = findVerifyStmt.get(String(token));
+  if (!u) return null;
+  markVerifiedStmt.run(u.id);
+  return getUserById(u.id);
+}
+
+const deleteUserStmt = db.prepare('DELETE FROM users WHERE id = ?');
+const deleteUserSessionsStmt = db.prepare('DELETE FROM sessions WHERE user_id = ?');
+// Cascade a user's per-user data on delete (no FKs in this schema). Areas left
+// memberless are re-homed to the admin by migrateMultiUser on the next boot.
+function deleteUser(id) {
+  for (const t of ['sessions', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'notifications']) {
+    db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(id);
+  }
+  deleteUserStmt.run(id);
+}
+
+// Sessions ────────────────────────────────────────────────────────────────────
+
+const insertSessionStmt = db.prepare(`
+  INSERT INTO sessions (id, user_id, impersonating_user_id, created_at, expires_at, ip, user_agent)
+  VALUES (?, ?, NULL, ?, ?, ?, ?)
+`);
+/** Create a session for `userId`. Returns the opaque session id (cookie value). */
+function createSession(userId, { ttlMs = 30 * 24 * 60 * 60 * 1000, ip = null, userAgent = null } = {}) {
+  const id = auth.randomToken(32);
+  const now = Date.now();
+  insertSessionStmt.run(id, userId, new Date(now).toISOString(), new Date(now + ttlMs).toISOString(), ip, userAgent ? String(userAgent).slice(0, 255) : null);
+  return id;
+}
+
+const getSessionStmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
+/** Resolve a session id to its row, or null if missing/expired (expired → pruned). */
+function getSession(id) {
+  const s = getSessionStmt.get(id);
+  if (!s) return null;
+  if (s.expires_at < new Date().toISOString()) {
+    deleteSession(id);
+    return null;
+  }
+  return s;
+}
+
+const deleteSessionStmt = db.prepare('DELETE FROM sessions WHERE id = ?');
+function deleteSession(id) {
+  deleteSessionStmt.run(id);
+}
+
+/** Destroy all sessions for a user (e.g. after a password reset or disable). */
+function deleteUserSessions(userId) {
+  deleteUserSessionsStmt.run(userId);
+}
+
+const setImpersonationStmt = db.prepare('UPDATE sessions SET impersonating_user_id = ? WHERE id = ?');
+function setSessionImpersonation(sessionId, targetUserId) {
+  setImpersonationStmt.run(targetUserId, sessionId);
+}
+
+function pruneExpiredSessions() {
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
+}
+
+/**
+ * Ensure the built-in admin account exists. Idempotent: only creates it when no
+ * account with the configured admin username is present, so a later password
+ * change or role edit is never clobbered on restart.
+ */
+function seedDefaultAdmin({ username = 'admin', email = 'admin@local', password } = {}) {
+  if (!password) return null;
+  const existing = findUserByLogin(username);
+  if (existing) return existing;
+  // Also avoid colliding with a user who already claimed the synthetic email.
+  if (findUserByLogin(email)) return null;
+  appLog.info('AUTH', `Creazione utente amministratore di default "${username}"`);
+  return createUser({
+    email,
+    username,
+    firstName: 'Amministratore',
+    lastName: null,
+    password,
+    role: 'admin',
+    status: 'active',
+    emailVerified: 1,
+  });
+}
+
+// ── Area catalog & per-user ownership ────────────────────────────────────────
+
+const getAllAreasStmt = db.prepare('SELECT * FROM areas ORDER BY created_at ASC, key ASC');
+/** Full catalog as rows (raw columns). */
+function getAllAreas() {
+  return getAllAreasStmt.all();
+}
+
+const upsertAreaStmt = db.prepare(`
+  INSERT INTO areas (key, name, keyword, sw_lat, sw_lon, ne_lat, ne_lon, created_by, created_at)
+  VALUES (@key, @name, @keyword, @sw_lat, @sw_lon, @ne_lat, @ne_lon, @created_by, @created_at)
+  ON CONFLICT(key) DO UPDATE SET
+    name = excluded.name, keyword = excluded.keyword,
+    sw_lat = excluded.sw_lat, sw_lon = excluded.sw_lon,
+    ne_lat = excluded.ne_lat, ne_lon = excluded.ne_lon
+`);
+/** Insert or update one catalog area. `box` = [[swLat,swLon],[neLat,neLon]]. */
+function upsertArea({ key, name, keyword = null, sw, ne, createdBy = null }) {
+  upsertAreaStmt.run({
+    key,
+    name,
+    keyword: keyword || null,
+    sw_lat: sw[0], sw_lon: sw[1],
+    ne_lat: ne[0], ne_lon: ne[1],
+    created_by: createdBy,
+    created_at: new Date().toISOString(),
+  });
+}
+
+const deleteAreaRowStmt = db.prepare('DELETE FROM areas WHERE key = ?');
+const deleteAreaMembershipsStmt = db.prepare('DELETE FROM user_areas WHERE area_key = ?');
+/** Remove a catalog area and every membership of it. */
+function deleteAreaRow(key) {
+  deleteAreaMembershipsStmt.run(key);
+  deleteAreaRowStmt.run(key);
+}
+
+const addUserAreaStmt = db.prepare(
+  'INSERT INTO user_areas (user_id, area_key, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING'
+);
+function addUserArea(userId, areaKey) {
+  addUserAreaStmt.run(userId, areaKey, new Date().toISOString());
+}
+
+const removeUserAreaStmt = db.prepare('DELETE FROM user_areas WHERE user_id = ? AND area_key = ?');
+function removeUserArea(userId, areaKey) {
+  removeUserAreaStmt.run(userId, areaKey);
+}
+
+const getUserAreaKeysStmt = db.prepare('SELECT area_key FROM user_areas WHERE user_id = ?');
+/** Set of catalog keys the user monitors. */
+function getUserAreaKeys(userId) {
+  return getUserAreaKeysStmt.all(userId).map((r) => r.area_key);
+}
+
+const areaOwnerCountStmt = db.prepare('SELECT COUNT(*) AS n FROM user_areas WHERE area_key = ?');
+/** How many users monitor this area. */
+function areaOwnerCount(areaKey) {
+  return areaOwnerCountStmt.get(areaKey).n;
+}
+
+/** Catalog keys monitored by NO user (memberless) — re-homed to admin by migration. */
+function getOrphanAreaKeys() {
+  return db
+    .prepare('SELECT key FROM areas WHERE key NOT IN (SELECT DISTINCT area_key FROM user_areas)')
+    .all()
+    .map((r) => r.key);
+}
+
+/**
+ * Seed the area catalog from an in-memory preset list (the bounding-boxes.json
+ * shape) when the catalog is empty — first-run bootstrap only. `list` items:
+ * { key, name, keyword, sw:[lat,lon], ne:[lat,lon] }. Returns the number seeded.
+ */
+function seedAreaCatalogIfEmpty(list, createdBy = null) {
+  const n = db.prepare('SELECT COUNT(*) AS n FROM areas').get().n;
+  if (n > 0) return 0;
+  db.exec('BEGIN');
+  try {
+    for (const a of list) upsertArea({ ...a, createdBy });
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  return list.length;
+}
+
+// ── Multi-user migration (idempotent, self-retiring) ─────────────────────────
+//
+// Re-homes legacy GLOBAL state to the admin when a pre-multi-user database is
+// imported (deploy path: take an old backup, restore into this version). Safe to
+// run on every boot:
+//   - The legacy→user_* steps fire ONLY while the new per-user table is empty AND
+//     the old global column still carries data, then RETIRE the legacy column
+//     (zero it) so a later restart can't resurrect un-flagged/un-followed ships.
+//   - A new-version backup already carries the user_* tables (restored verbatim),
+//     so those steps see a non-empty table and no-op.
+//   - notifications.user_id backfill and orphan-area re-homing are naturally
+//     idempotent (WHERE ... IS NULL / NOT IN (...)).
+function migrateMultiUser(adminId) {
+  if (!adminId) return;
+  const count = (sql, ...args) => db.prepare(sql).get(...args).n;
+
+  // 1) notifications without an owner → admin.
+  db.prepare('UPDATE notifications SET user_id = ? WHERE user_id IS NULL').run(adminId);
+
+  // 2) flagged ships → admin user_flags (then retire ships.flagged).
+  if (count('SELECT COUNT(*) AS n FROM user_flags') === 0 &&
+      count('SELECT COUNT(*) AS n FROM ships WHERE flagged = 1') > 0) {
+    db.prepare(
+      'INSERT OR IGNORE INTO user_flags (user_id, mmsi, created_at) SELECT ?, mmsi, ? FROM ships WHERE flagged = 1'
+    ).run(adminId, new Date().toISOString());
+    db.prepare('UPDATE ships SET flagged = 0 WHERE flagged = 1').run();
+  }
+
+  // 3) followed ships + follow history → admin user_follows (retire ships cols).
+  if (count('SELECT COUNT(*) AS n FROM user_follows') === 0 &&
+      count('SELECT COUNT(*) AS n FROM ships WHERE followed = 1 OR follow_started_at IS NOT NULL') > 0) {
+    db.prepare(
+      `INSERT OR IGNORE INTO user_follows (user_id, mmsi, followed, follow_started_at, follow_ended_at)
+       SELECT ?, mmsi, followed, follow_started_at, follow_ended_at
+       FROM ships WHERE followed = 1 OR follow_started_at IS NOT NULL`
+    ).run(adminId);
+    db.prepare('UPDATE ships SET followed = 0 WHERE followed = 1').run();
+  }
+
+  // 4) muted ships → admin user_mutes (retire ships.notif_muted).
+  if (count('SELECT COUNT(*) AS n FROM user_mutes') === 0 &&
+      count('SELECT COUNT(*) AS n FROM ships WHERE notif_muted = 1') > 0) {
+    db.prepare('INSERT OR IGNORE INTO user_mutes (user_id, mmsi) SELECT ?, mmsi FROM ships WHERE notif_muted = 1').run(adminId);
+    db.prepare('UPDATE ships SET notif_muted = 0 WHERE notif_muted = 1').run();
+  }
+
+  // 5) memberless catalog areas → admin (covers a fresh seed from JSON and any
+  //    area whose owners all vanished).
+  const orphans = getOrphanAreaKeys();
+  for (const key of orphans) addUserArea(adminId, key);
+
+  return { orphanAreas: orphans.length };
+}
+
+// ── Per-user visibility (geographic) ─────────────────────────────────────────
+// A user sees AIS data whose position falls inside any of the bounding boxes of
+// the areas they monitor. Computed from the catalog so overlapping boxes work:
+// owning a wide "puglia" box surfaces a ship tagged with the contained "taranto".
+
+const getUserBoxesStmt = db.prepare(
+  `SELECT a.key, a.sw_lat, a.sw_lon, a.ne_lat, a.ne_lon
+   FROM user_areas u JOIN areas a ON a.key = u.area_key
+   WHERE u.user_id = ?`
+);
+/** Bounding boxes (with key) of every area the user monitors. */
+function getUserBoxes(userId) {
+  return getUserBoxesStmt.all(userId);
+}
+
+/**
+ * Build a SQL predicate that is true when (latCol, lonCol) lies in ANY of the
+ * given boxes. Coordinates are coerced to finite numbers, so the interpolation
+ * is injection-proof. No boxes → '0' (matches nothing: a user with no areas sees
+ * no data). null/undefined boxes → '1' (no filter, for background callers).
+ */
+function boxesSql(boxes, latCol, lonCol) {
+  if (boxes == null) return '1';
+  if (!boxes.length) return '0';
+  const fin = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return (
+    '(' +
+    boxes
+      .map((b) => `(${latCol} BETWEEN ${fin(b.sw_lat)} AND ${fin(b.ne_lat)} AND ${lonCol} BETWEEN ${fin(b.sw_lon)} AND ${fin(b.ne_lon)})`)
+      .join(' OR ') +
+    ')'
+  );
+}
+
+/** True if the ship's last known position is visible to the user. */
+function isShipVisible(userId, mmsi) {
+  const ship = db.prepare('SELECT last_latitude AS lat, last_longitude AS lon FROM ships WHERE mmsi = ?').get(mmsi);
+  if (!ship || ship.lat == null || ship.lon == null) return false;
+  const boxes = getUserBoxes(userId);
+  return boxes.some(
+    (b) => ship.lat >= b.sw_lat && ship.lat <= b.ne_lat && ship.lon >= b.sw_lon && ship.lon <= b.ne_lon
+  );
+}
+
+/** Catalog area keys whose box intersects any of the user's boxes — used to
+ *  scope area-tagged tables that carry no coordinates (port_events). */
+function getVisibleAreaKeys(userId) {
+  const mine = getUserBoxes(userId);
+  if (!mine.length) return [];
+  const out = new Set(mine.map((b) => b.key));
+  for (const a of getAllAreas()) {
+    if (out.has(a.key)) continue;
+    const hit = mine.some(
+      (b) => !(a.ne_lat < b.sw_lat || a.sw_lat > b.ne_lat || a.ne_lon < b.sw_lon || a.sw_lon > b.ne_lon)
+    );
+    if (hit) out.add(a.key);
+  }
+  return [...out];
+}
+
+// ── Per-user flags / mutes / follows ─────────────────────────────────────────
+
+const getUserFlagSetStmt = db.prepare('SELECT mmsi FROM user_flags WHERE user_id = ?');
+function getUserFlaggedMmsis(userId) {
+  return new Set(getUserFlagSetStmt.all(userId).map((r) => r.mmsi));
+}
+const addUserFlagStmt = db.prepare('INSERT INTO user_flags (user_id, mmsi, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING');
+const removeUserFlagStmt = db.prepare('DELETE FROM user_flags WHERE user_id = ? AND mmsi = ?');
+function setUserFlag(userId, mmsi, on) {
+  if (on) addUserFlagStmt.run(userId, mmsi, new Date().toISOString());
+  else removeUserFlagStmt.run(userId, mmsi);
+}
+
+const getUserMuteSetStmt = db.prepare('SELECT mmsi FROM user_mutes WHERE user_id = ?');
+function getUserMutedMmsis(userId) {
+  return new Set(getUserMuteSetStmt.all(userId).map((r) => r.mmsi));
+}
+function isUserMuted(userId, mmsi) {
+  return !!db.prepare('SELECT 1 FROM user_mutes WHERE user_id = ? AND mmsi = ?').get(userId, mmsi);
+}
+const addUserMuteStmt = db.prepare('INSERT INTO user_mutes (user_id, mmsi) VALUES (?, ?) ON CONFLICT DO NOTHING');
+const removeUserMuteStmt = db.prepare('DELETE FROM user_mutes WHERE user_id = ? AND mmsi = ?');
+function setUserMute(userId, mmsi, on) {
+  if (on) addUserMuteStmt.run(userId, mmsi);
+  else removeUserMuteStmt.run(userId, mmsi);
+}
+
+// Toggle a per-user follow. Mirrors the old global setFollow semantics:
+// follow_started_at is stamped once (kept forever), follow_ended_at marks when
+// following stopped (→ "passate" history).
+const upsertUserFollowOnStmt = db.prepare(
+  `INSERT INTO user_follows (user_id, mmsi, followed, follow_started_at, follow_ended_at)
+   VALUES (?, ?, 1, ?, NULL)
+   ON CONFLICT(user_id, mmsi) DO UPDATE SET followed = 1, follow_started_at = COALESCE(user_follows.follow_started_at, excluded.follow_started_at), follow_ended_at = NULL`
+);
+const followOffStmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ? WHERE user_id = ? AND mmsi = ?');
+function setUserFollow(userId, mmsi, on) {
+  const now = new Date().toISOString();
+  if (on) upsertUserFollowOnStmt.run(userId, mmsi, now);
+  else followOffStmt.run(now, userId, mmsi);
+}
+
+/** Currently-followed ships for a user (joined to ship rows). */
+function getUserFollowedShips(userId) {
+  return db
+    .prepare(
+      `SELECT s.*, f.follow_started_at, f.follow_ended_at FROM user_follows f
+       JOIN ships s ON s.mmsi = f.mmsi
+       WHERE f.user_id = ? AND f.followed = 1
+       ORDER BY s.seen ASC, s.last_seen_at DESC`
+    )
+    .all(userId);
+}
+
+/** Ships a user followed in the past but no longer ("passate"). */
+function getUserPastFollowedShips(userId) {
+  return db
+    .prepare(
+      `SELECT s.*, f.follow_started_at, f.follow_ended_at FROM user_follows f
+       JOIN ships s ON s.mmsi = f.mmsi
+       WHERE f.user_id = ? AND f.followed = 0 AND f.follow_started_at IS NOT NULL
+       ORDER BY f.follow_ended_at DESC, s.last_seen_at DESC`
+    )
+    .all(userId);
+}
+
+function getUserFollowedMmsis(userId) {
+  return new Set(db.prepare('SELECT mmsi FROM user_follows WHERE user_id = ? AND followed = 1').all(userId).map((r) => r.mmsi));
+}
+
+/** UNION of every user's active follows + last position — drives the single
+ *  shared follow stream (one bbox per distinct followed ship). */
+function getAllFollowedPositions() {
+  return db
+    .prepare(
+      `SELECT s.mmsi, s.ship_name, s.last_latitude AS lat, s.last_longitude AS lon, s.last_seen_at
+       FROM ships s
+       WHERE s.last_latitude IS NOT NULL AND s.last_longitude IS NOT NULL
+         AND s.mmsi IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
+    )
+    .all();
+}
+
+/** Users who actively follow a given ship (for notification fan-out). */
+function getFollowersOf(mmsi) {
+  return db.prepare('SELECT user_id FROM user_follows WHERE mmsi = ? AND followed = 1').all(mmsi).map((r) => r.user_id);
+}
+
+/** User ids whose monitored areas geographically contain the given point —
+ *  the recipients of a position-based notification (arrival/high-risk/…). */
+function getUsersSeeingPoint(lat, lon) {
+  if (lat == null || lon == null) return [];
+  return db
+    .prepare(
+      `SELECT DISTINCT ua.user_id FROM user_areas ua JOIN areas a ON a.key = ua.area_key
+       WHERE ? BETWEEN a.sw_lat AND a.ne_lat AND ? BETWEEN a.sw_lon AND a.ne_lon`
+    )
+    .all(lat, lon)
+    .map((r) => r.user_id);
+}
+
+/** User ids who have flagged a given ship. */
+function getUsersFlagging(mmsi) {
+  return db.prepare('SELECT user_id FROM user_flags WHERE mmsi = ?').all(mmsi).map((r) => r.user_id);
+}
+
+/** User ids who monitor a given catalog area (membership) — for area-based
+ *  notification fan-out (e.g. berth lifecycle alerts). */
+function getAreaOwners(areaKey) {
+  return db.prepare('SELECT user_id FROM user_areas WHERE area_key = ?').all(areaKey).map((r) => r.user_id);
+}
+
+// ── Per-user settings (key/value) ────────────────────────────────────────────
+const getUserSettingsStmt = db.prepare('SELECT key, value FROM user_settings WHERE user_id = ?');
+/** Raw {key: value} map of a user's stored settings (values are strings). */
+function getUserSettings(userId) {
+  const out = {};
+  for (const r of getUserSettingsStmt.all(userId)) out[r.key] = r.value;
+  return out;
+}
+const setUserSettingStmt = db.prepare(
+  'INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value'
+);
+function setUserSetting(userId, key, value) {
+  setUserSettingStmt.run(userId, key, value == null ? null : String(value));
+}
+
+/** Auto-stop follows whose ship has been silent for `hours`, across ALL users.
+ *  Returns the distinct ships affected (for logging). */
+function autoStopStaleFollowsAll(hours) {
+  const stale = db
+    .prepare(
+      `SELECT DISTINCT f.mmsi, s.ship_name FROM user_follows f JOIN ships s ON s.mmsi = f.mmsi
+       WHERE f.followed = 1 AND s.last_seen_at < datetime('now', ?)`
+    )
+    .all(`-${hours} hours`);
+  if (stale.length) {
+    const now = new Date().toISOString();
+    const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ? WHERE mmsi = ? AND followed = 1');
+    for (const s of stale) stmt.run(now, s.mmsi);
+  }
+  return stale;
+}
+
 const insertReading = db.prepare(`
   INSERT INTO readings (received_at, message_type, mmsi, ship_name, latitude, longitude,
     navigational_status, sog, cog, true_heading, raw_json, area)
@@ -388,6 +1068,9 @@ const upsertShipStmt = db.prepare(`
 const getShipLastSeen = db.prepare(
   'SELECT last_seen_at, ship_name, ship_type, destination, max_draught, flagged, last_area FROM ships WHERE mmsi = ?'
 );
+
+// 1 if ANY user has flagged this ship (per-user flags replaced the global column).
+const anyUserFlagStmt = db.prepare('SELECT 1 FROM user_flags WHERE mmsi = ? LIMIT 1');
 
 const insertPortEventStmt = db.prepare(
   'INSERT INTO port_events (mmsi, ship_name, event_type, ts, ship_type, destination, draught, area) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -545,7 +1228,9 @@ function insert(parsed, areaKey = '') {
         areaKey
       );
       if (priorSameArea > 0 && lastEvent?.event_type === 'departed') revisit = row.mmsi;
-      if (existing?.flagged) arrivedFlagged = row.mmsi;
+      // Flagged is now per-user: signal the arrival if ANY user flagged this ship
+      // (the stream fans the toast out to those users who also monitor the area).
+      if (anyUserFlagStmt.get(row.mmsi)) arrivedFlagged = row.mmsi;
       arrived = row.mmsi; // any arrival (new or after >60min absence)
     }
   }
@@ -681,26 +1366,30 @@ const ACTIVE_PREDICATE = `(
   )
 )`;
 
-function getActiveShips(area) {
+// `boxes` (optional): per-user geographic scope. null → no geo filter (used by
+// background callers like enrichment that operate over every area).
+function getActiveShips(area, boxes = null) {
   const filter = area ? 'AND last_area = ?' : '';
+  const geo = `AND ${boxesSql(boxes, 'last_latitude', 'last_longitude')}`;
   const params = area ? [area] : [];
   return db
     .prepare(
       `SELECT * FROM ships
-       WHERE ${ACTIVE_PREDICATE} ${filter}
-       ORDER BY flagged DESC, seen ASC, last_seen_at DESC`
+       WHERE ${ACTIVE_PREDICATE} ${filter} ${geo}
+       ORDER BY seen ASC, last_seen_at DESC`
     )
     .all(...params);
 }
 
-function getPastShips(area) {
+function getPastShips(area, boxes = null) {
   const filter = area ? 'AND last_area = ?' : '';
+  const geo = `AND ${boxesSql(boxes, 'last_latitude', 'last_longitude')}`;
   const params = area ? [area] : [];
   return db
     .prepare(
       `SELECT * FROM ships
-       WHERE NOT ${ACTIVE_PREDICATE} ${filter}
-       ORDER BY flagged DESC, seen ASC, last_seen_at DESC`
+       WHERE NOT ${ACTIVE_PREDICATE} ${filter} ${geo}
+       ORDER BY seen ASC, last_seen_at DESC`
     )
     .all(...params);
 }
@@ -781,15 +1470,14 @@ function getShipTrack(mmsi, limit = 500) {
     .all(mmsi, limit);
 }
 
-function getPortEvents(limit = 100, offset = 0, area) {
-  const filter = area ? 'WHERE area = ?' : '';
-  const params = area ? [area, limit, offset] : [limit, offset];
+function getPortEvents(limit = 100, offset = 0, area, areaKeys = null) {
+  const f = areaKeyFilter('area', area, areaKeys);
+  // areaKeyFilter yields an "AND ..." clause; turn the first one into a WHERE.
+  const where = f.sql ? `WHERE ${f.sql.replace(/^AND /, '')}` : '';
   const rows = db
-    .prepare(`SELECT * FROM port_events ${filter} ORDER BY ts DESC LIMIT ? OFFSET ?`)
-    .all(...params);
-  const total = area
-    ? db.prepare('SELECT COUNT(*) as n FROM port_events WHERE area = ?').get(area).n
-    : db.prepare('SELECT COUNT(*) as n FROM port_events').get().n;
+    .prepare(`SELECT * FROM port_events ${where} ORDER BY ts DESC LIMIT ? OFFSET ?`)
+    .all(...f.params, limit, offset);
+  const total = db.prepare(`SELECT COUNT(*) as n FROM port_events ${where}`).get(...f.params).n;
   return { rows, total };
 }
 
@@ -961,44 +1649,48 @@ function deleteBerth(id) {
 const MAX_NOTIFICATIONS = 100;
 
 const insertNotificationStmt = db.prepare(
-  `INSERT INTO notifications (type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  `INSERT INTO notifications (user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 );
+// Prune per-user: keep only the most recent MAX_NOTIFICATIONS rows for that user.
 const pruneNotificationsStmt = db.prepare(
-  `DELETE FROM notifications WHERE id NOT IN (
-     SELECT id FROM notifications ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
+  `DELETE FROM notifications WHERE user_id IS ? AND id NOT IN (
+     SELECT id FROM notifications WHERE user_id IS ? ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
    )`
 );
 
-function addNotification({ type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null, berth_lat = null, berth_lon = null }) {
+// Notifications are now per-user: `user_id` identifies the recipient. The stream
+// fan-out (see ais-stream.js) calls this once per user who should be alerted.
+function addNotification({ user_id = null, type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null, berth_lat = null, berth_lon = null }) {
   const ts = new Date().toISOString();
-  const result = insertNotificationStmt.run(type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts);
-  pruneNotificationsStmt.run();
-  return { id: Number(result.lastInsertRowid), type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read: 0 };
+  const result = insertNotificationStmt.run(user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts);
+  pruneNotificationsStmt.run(user_id, user_id);
+  return { id: Number(result.lastInsertRowid), user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read: 0 };
 }
 
-function getNotifications(limit = MAX_NOTIFICATIONS) {
-  return db.prepare('SELECT * FROM notifications ORDER BY id DESC LIMIT ?').all(limit);
+function getNotifications(userId, limit = MAX_NOTIFICATIONS) {
+  return db.prepare('SELECT * FROM notifications WHERE user_id IS ? ORDER BY id DESC LIMIT ?').all(userId, limit);
 }
 
-function getUnreadNotificationCount() {
-  return db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE read = 0').get().n;
+function getUnreadNotificationCount(userId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id IS ? AND read = 0').get(userId).n;
 }
 
-function markNotificationRead(id) {
-  db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(id);
+// Mutations are scoped to the owner so a user can't touch another's notifications.
+function markNotificationRead(id, userId) {
+  db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id IS ?').run(id, userId);
 }
 
-function deleteNotification(id) {
-  db.prepare('DELETE FROM notifications WHERE id = ?').run(id);
+function deleteNotification(id, userId) {
+  db.prepare('DELETE FROM notifications WHERE id = ? AND user_id IS ?').run(id, userId);
 }
 
-function deleteAllNotifications() {
-  db.prepare('DELETE FROM notifications').run();
+function deleteAllNotifications(userId) {
+  db.prepare('DELETE FROM notifications WHERE user_id IS ?').run(userId);
 }
 
-function markAllNotificationsRead() {
-  db.prepare('UPDATE notifications SET read = 1 WHERE read = 0').run();
+function markAllNotificationsRead(userId) {
+  db.prepare('UPDATE notifications SET read = 1 WHERE user_id IS ? AND read = 0').run(userId);
 }
 
 // ── Risk-score history ─────────────────────────────────────────────────────────
@@ -1035,9 +1727,23 @@ function getRiskHistory(mmsi, limit = 200) {
     .all(mmsi, limit);
 }
 
-function getStats(area) {
-  const af = area ? 'AND area = ?' : '';
-  const ap = (base) => area ? [...base, area] : base;
+// Build an area filter for port_events queries. `area` (single, user-picked) wins;
+// otherwise `areaKeys` (the user's visible set) → IN (...). An empty areaKeys
+// array means "no visible areas" → matches nothing. Pass `aliased` for the
+// avgStay subquery which references the table alias `a`.
+function areaKeyFilter(col, area, areaKeys) {
+  if (area) return { sql: `AND ${col} = ?`, params: [area] };
+  if (Array.isArray(areaKeys)) {
+    if (!areaKeys.length) return { sql: 'AND 0', params: [] };
+    return { sql: `AND ${col} IN (${areaKeys.map(() => '?').join(',')})`, params: areaKeys };
+  }
+  return { sql: '', params: [] };
+}
+
+function getStats(area, areaKeys = null) {
+  const f = areaKeyFilter('area', area, areaKeys);
+  const af = f.sql;
+  const ap = (base) => [...base, ...f.params];
 
   const arrivalsToday = db
     .prepare(`SELECT COUNT(*) as n FROM port_events WHERE event_type = 'arrived' AND ts >= date('now') ${af}`)
@@ -1065,9 +1771,9 @@ function getStats(area) {
          )
        WHERE a.event_type = 'arrived'
          AND (julianday(d.ts) - julianday(a.ts)) * 24 BETWEEN 0.1 AND 72
-         ${area ? 'AND a.area = ?' : ''}`
+         ${areaKeyFilter('a.area', area, areaKeys).sql}`
     )
-    .get(...(area ? [area] : [])).avg;
+    .get(...areaKeyFilter('a.area', area, areaKeys).params).avg;
 
   const byHour = db
     .prepare(
@@ -1088,35 +1794,36 @@ function getStats(area) {
   return { arrivalsToday, arrivalsWeek, totalArrivals, avgStayHours, byHour, byType };
 }
 
-function getRecentShips(area) {
+function getRecentShips(area, boxes = null) {
   const filter = area ? 'AND last_area = ?' : '';
+  const geo = `AND ${boxesSql(boxes, 'last_latitude', 'last_longitude')}`;
   const params = area ? [area] : [];
   return db
     .prepare(
       `SELECT * FROM ships
-       WHERE last_seen_at >= datetime('now', '-7 days') ${filter}
+       WHERE last_seen_at >= datetime('now', '-7 days') ${filter} ${geo}
        ORDER BY last_seen_at DESC`
     )
     .all(...params);
 }
 
-function getDailyArrivals(area) {
-  const filter = area ? 'AND area = ?' : '';
-  const params = area ? [area] : [];
+function getDailyArrivals(area, areaKeys = null) {
+  const f = areaKeyFilter('area', area, areaKeys);
   return db
     .prepare(
       `SELECT date(ts) as day, COUNT(*) as n
        FROM port_events
        WHERE event_type = 'arrived'
-         AND ts >= datetime('now', '-30 days') ${filter}
+         AND ts >= datetime('now', '-30 days') ${f.sql}
        GROUP BY day
        ORDER BY day ASC`
     )
-    .all(...params);
+    .all(...f.params);
 }
 
-function getExpectedShips(keyword) {
+function getExpectedShips(keyword, boxes = null) {
   if (!keyword) return [];
+  const geo = `AND ${boxesSql(boxes, 'last_latitude', 'last_longitude')}`;
   return db
     .prepare(
       `
@@ -1124,6 +1831,7 @@ function getExpectedShips(keyword) {
     WHERE destination LIKE ?
       AND last_seen_at <= datetime('now', '-60 minutes')
       AND last_seen_at >= datetime('now', '-48 hours')
+      ${geo}
     ORDER BY last_seen_at DESC
     LIMIT 50
   `
@@ -1222,14 +1930,14 @@ function setNotifMuted(mmsi, muted) {
   db.prepare('UPDATE ships SET notif_muted = ? WHERE mmsi = ?').run(muted ? 1 : 0, mmsi);
 }
 
-function getReadings({ type, limit = 50, offset = 0 }) {
+function getReadings({ type, limit = 50, offset = 0, boxes = null }) {
   let sql =
     'SELECT id, received_at, message_type, mmsi, ship_name, latitude, longitude, navigational_status, sog, cog, true_heading FROM readings';
   const params = [];
-  if (type) {
-    sql += ' WHERE message_type = ?';
-    params.push(type);
-  }
+  const where = [];
+  if (type) { where.push('message_type = ?'); params.push(type); }
+  if (boxes != null) where.push(boxesSql(boxes, 'latitude', 'longitude'));
+  if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
   return db.prepare(sql).all(...params);
@@ -1239,11 +1947,15 @@ function getReading(id) {
   return db.prepare('SELECT * FROM readings WHERE id = ?').get(id);
 }
 
-function getTotalCount(type) {
-  if (type) {
-    return db.prepare('SELECT COUNT(*) as n FROM readings WHERE message_type = ?').get(type).n;
-  }
-  return db.prepare('SELECT COUNT(*) as n FROM readings').get().n;
+// `boxes` (optional) scopes the count to a user's areas (for the readings view);
+// background callers pass nothing → global count.
+function getTotalCount(type, boxes = null) {
+  const where = [];
+  const params = [];
+  if (type) { where.push('message_type = ?'); params.push(type); }
+  if (boxes != null) where.push(boxesSql(boxes, 'latitude', 'longitude'));
+  const clause = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  return db.prepare(`SELECT COUNT(*) as n FROM readings${clause}`).get(...params).n;
 }
 
 function getDistinctTypes() {
@@ -1394,7 +2106,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'meta'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'meta', 'users', 'sessions', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -1551,6 +2263,62 @@ module.exports = {
   getMeta,
   setMeta,
   deleteAll,
+  // Users & sessions
+  getSessionSecret,
+  createUser,
+  getUserById,
+  getUserAuthRow,
+  findUserByLogin,
+  listUsers,
+  countUsers,
+  countAdmins,
+  setUserStatus,
+  approveUser,
+  setUserRole,
+  setUserPassword,
+  issueResetToken,
+  findUserByResetToken,
+  verifyEmailToken,
+  deleteUser,
+  createSession,
+  getSession,
+  deleteSession,
+  deleteUserSessions,
+  setSessionImpersonation,
+  pruneExpiredSessions,
+  seedDefaultAdmin,
+  // Area catalog & per-user ownership
+  getAllAreas,
+  upsertArea,
+  deleteAreaRow,
+  addUserArea,
+  removeUserArea,
+  getUserAreaKeys,
+  areaOwnerCount,
+  getOrphanAreaKeys,
+  seedAreaCatalogIfEmpty,
+  migrateMultiUser,
+  // Per-user visibility & ship state
+  getUserBoxes,
+  isShipVisible,
+  getVisibleAreaKeys,
+  getUserFlaggedMmsis,
+  setUserFlag,
+  getUserMutedMmsis,
+  isUserMuted,
+  setUserMute,
+  setUserFollow,
+  getUserFollowedShips,
+  getUserPastFollowedShips,
+  getUserFollowedMmsis,
+  getAllFollowedPositions,
+  getFollowersOf,
+  getUsersSeeingPoint,
+  getUsersFlagging,
+  getAreaOwners,
+  getUserSettings,
+  setUserSetting,
+  autoStopStaleFollowsAll,
   getScrapedData,
   setScrapedData,
   setScrapeFailure,

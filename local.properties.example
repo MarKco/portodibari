@@ -44,9 +44,25 @@ IMPORT_PSC=false
 IMPORT_GFW=true
 GLOBAL_FISHING_WATCH_TOKEN=
 
-# HTTP Basic Auth. Leave AUTH_PASSWORD empty to disable auth (recommended only
-# for local use). Set a password to gate the whole app behind a browser login
-# before exposing it on a network/internet. Basic auth sends credentials in
-# base64 (≈ cleartext) — put TLS in front or use an SSH tunnel when public.
-AUTH_USER=admin
-AUTH_PASSWORD=
+# ── Authentication (multi-user) ──────────────────────────────────────────────
+# The app is gated by a session login. Users register (name, surname, email,
+# password) and must be approved by an administrator before they can sign in.
+# Each user has their own areas, settings, flagged + followed ships.
+#
+# A built-in administrator is always (re)seeded at startup if missing. Override
+# its credentials here; the password defaults to the shipped value if unset.
+# Login accepts the username OR the email.
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@local
+ADMIN_PASSWORD=
+
+# Set to 'true' when serving over HTTPS so the session cookie is only sent over
+# TLS (recommended for any public/network deployment). Default off for local dev.
+COOKIE_SECURE=false
+
+# Session lifetime in days (how long a login stays valid). Default 30.
+# SESSION_TTL_DAYS=30
+
+# Email is NOT yet wired up: registration email-confirmation and the
+# "forgot password" email link are inert. Password resets are admin-initiated
+# (the user list has a "Reset password" action that produces a one-time link).

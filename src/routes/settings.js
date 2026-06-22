@@ -2,14 +2,22 @@
 
 const express = require('express');
 const {
-  state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setShowOpenSeaMap, setShowOpenSeaMapMarkers, setOpenSeaMapHidden, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
+  state, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
+  setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
+const db = require('../db');
+const userPrefs = require('../services/user-prefs');
+const { requireAdmin } = require('../middleware/session-auth');
 const { CARGO_CLASSES } = require('../services/cargo-type');
 const cargoPresets = require('../services/cargo-presets');
+
+// True if the session owner is an admin (impersonation never grants admin).
+function isAdminReq(req) {
+  return !!(req.realUser && req.realUser.role === 'admin');
+}
 
 // Whether Equasis credentials are present (the lookup is unusable without them).
 const equasisConfigured = !!(EQUASIS_USER && EQUASIS_PASSWORD);
@@ -26,11 +34,11 @@ const router = express.Router();
 
 // Equasis lookup audit log — read the plain-text trail of past lookups (shown in
 // the Settings modal) and clear it.
-router.get('/equasis-log', (req, res) => {
+router.get('/equasis-log', requireAdmin, (req, res) => {
   res.json(equasisLog.read());
 });
 
-router.delete('/equasis-log', (req, res) => {
+router.delete('/equasis-log', requireAdmin, (req, res) => {
   equasisLog.clear();
   res.json({ ok: true });
 });
@@ -46,15 +54,31 @@ router.get('/config', (req, res) => {
 });
 
 router.get('/settings', (req, res) => {
+  const prefs = userPrefs.get(req.user.id);
+  // The user's view preset: their saved default area if still owned, else the
+  // first area they monitor (only the user's own areas are offered).
+  const myKeys = db.getUserAreaKeys(req.user.id);
+  const preset = (prefs.defaultArea && myKeys.includes(prefs.defaultArea)) ? prefs.defaultArea : (myKeys[0] || null);
   res.json({
-    preset: state.preset,
-    keyword: currentKeyword(),
+    isAdmin: isAdminReq(req),
+    preset,
+    keyword: currentKeyword(preset),
     presets: Object.fromEntries(
-      Object.entries(BBOX_PRESETS).map(([k, v]) => [
-        k,
-        { name: v.name, bbox: v.box[0], keyword: v.keyword },
-      ])
+      myKeys
+        .filter((k) => BBOX_PRESETS[k])
+        .map((k) => [k, { name: BBOX_PRESETS[k].name, bbox: BBOX_PRESETS[k].box[0], keyword: BBOX_PRESETS[k].keyword }])
     ),
+    // ── Personal (per-user) ──
+    notificationsEnabled: prefs.notificationsEnabled,
+    notifyRevisit: prefs.notifyRevisit,
+    notifyAreaChange: prefs.notifyAreaChange,
+    notifyHighRisk: prefs.notifyHighRisk,
+    notifyBerthNew: prefs.notifyBerthNew,
+    notifyBerthChar: prefs.notifyBerthChar,
+    showOpenSeaMap: prefs.showOpenSeaMap,
+    showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
+    openSeaMapHidden: prefs.openSeaMapHidden,
+    // ── Global (admin-managed; shown read-only to non-admins) ──
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
@@ -67,18 +91,9 @@ router.get('/settings', (req, res) => {
     importGfw: state.importGfw,
     gfwConfigured,
     appLogEnabled: state.appLogEnabled,
-    notificationsEnabled: state.notificationsEnabled,
-    notifyRevisit: state.notifyRevisit,
-    notifyAreaChange: state.notifyAreaChange,
-    notifyHighRisk: state.notifyHighRisk,
-    notifyBerthNew: state.notifyBerthNew,
-    notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
-    showOpenSeaMap: state.showOpenSeaMap,
-    showOpenSeaMapMarkers: state.showOpenSeaMapMarkers,
-    openSeaMapHidden: state.openSeaMapHidden,
     cargoClasses: CARGO_CLASSES,
     cargoWeights: state.cargoWeights,
     defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
@@ -89,7 +104,7 @@ router.get('/settings', (req, res) => {
 
 // Update the per-cargo-type risk weights and drop the memoised scores so the
 // next read reflects the new weighting. Accepts a partial { class: weight } map.
-router.post('/settings/cargo-weights', (req, res) => {
+router.post('/settings/cargo-weights', requireAdmin, (req, res) => {
   const map = req.body && req.body.cargoWeights ? req.body.cargoWeights : req.body;
   const weights = setCargoWeights(map);
   // A manual edit detaches the live weights from any named preset → "custom".
@@ -107,7 +122,7 @@ router.get('/settings/cargo-presets', (req, res) => {
 });
 
 // Apply a preset: copy its weights into the live set and remember the id.
-router.post('/settings/cargo-presets/apply', (req, res) => {
+router.post('/settings/cargo-presets/apply', requireAdmin, (req, res) => {
   const id = req.body && req.body.id;
   const preset = cargoPresets.getPreset(id);
   if (!preset) return res.status(404).json({ error: 'Preset sconosciuto' });
@@ -120,7 +135,7 @@ router.post('/settings/cargo-presets/apply', (req, res) => {
 
 // Save the current live weights as a named user preset (stored in the DB, so it
 // survives a backup/restore). Returns the refreshed preset list.
-router.post('/settings/cargo-presets', (req, res) => {
+router.post('/settings/cargo-presets', requireAdmin, (req, res) => {
   try {
     const name = req.body && req.body.name;
     // Save whatever weights the caller passes, else the current live weights.
@@ -139,7 +154,7 @@ router.post('/settings/cargo-presets', (req, res) => {
 
 // Delete a user preset. If it was the active one, the live weights are kept but
 // detached (active → custom).
-router.delete('/settings/cargo-presets/:id', (req, res) => {
+router.delete('/settings/cargo-presets/:id', requireAdmin, (req, res) => {
   try {
     const id = req.params.id;
     const removed = cargoPresets.deletePreset(id);
@@ -154,7 +169,7 @@ router.delete('/settings/cargo-presets/:id', (req, res) => {
 
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
 // returns the dataset status so the UI can reflect "refreshing in progress".
-router.post('/sanctions/refresh', (req, res) => {
+router.post('/sanctions/refresh', requireAdmin, (req, res) => {
   appLog.info('SANCTIONS', appLog.t('sanctions.manual_started'));
   sanctions
     .refresh()
@@ -164,7 +179,7 @@ router.post('/sanctions/refresh', (req, res) => {
 });
 
 // Manually re-download the PSC banned list + reload bundled flag lists.
-router.post('/psc/refresh', (req, res) => {
+router.post('/psc/refresh', requireAdmin, (req, res) => {
   appLog.info('PSC', appLog.t('psc.manual_started'));
   psc
     .refresh()
@@ -175,9 +190,11 @@ router.post('/psc/refresh', (req, res) => {
 
 // The persisted, portable subset of settings (all the on/off toggles + the
 // active view preset). Shared by the export route and the full-bundle export.
+// GLOBAL (admin-managed) settings only. Per-user prefs (notifications, map
+// display, default area) live in the user_settings table and ride along with the
+// database backup, so they are NOT part of this portable settings blob.
 function exportSettings() {
   return {
-    preset: state.preset,
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
@@ -185,18 +202,9 @@ function exportSettings() {
     importPsc: state.importPsc,
     importEquasis: state.importEquasis,
     importGfw: state.importGfw,
-    notificationsEnabled: state.notificationsEnabled,
-    notifyRevisit: state.notifyRevisit,
-    notifyAreaChange: state.notifyAreaChange,
-    notifyHighRisk: state.notifyHighRisk,
-    notifyBerthNew: state.notifyBerthNew,
-    notifyBerthChar: state.notifyBerthChar,
     excludeTankers: state.excludeTankers,
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
-    showOpenSeaMap: state.showOpenSeaMap,
-    showOpenSeaMapMarkers: state.showOpenSeaMapMarkers,
-    openSeaMapHidden: state.openSeaMapHidden,
     cargoWeights: state.cargoWeights,
     cargoWeightsPreset: state.cargoWeightsPreset,
   };
@@ -210,18 +218,9 @@ function exportSettings() {
 function applyImportedSettings(s) {
   if (!s || typeof s !== 'object') throw new Error('File impostazioni non valido');
 
-  if (s.notificationsEnabled !== undefined) setNotificationsEnabled(s.notificationsEnabled);
-  if (s.notifyRevisit !== undefined) setNotifyRevisit(s.notifyRevisit);
-  if (s.notifyAreaChange !== undefined) setNotifyAreaChange(s.notifyAreaChange);
-  if (s.notifyHighRisk !== undefined) setNotifyHighRisk(s.notifyHighRisk);
-  if (s.notifyBerthNew !== undefined) setNotifyBerthNew(s.notifyBerthNew);
-  if (s.notifyBerthChar !== undefined) setNotifyBerthChar(s.notifyBerthChar);
   if (s.excludeTankers !== undefined) setExcludeTankers(s.excludeTankers);
   if (s.checkSpoofing !== undefined) setCheckSpoofing(s.checkSpoofing);
   if (s.checkDarkActivity !== undefined) setCheckDarkActivity(s.checkDarkActivity);
-  if (s.showOpenSeaMap !== undefined) setShowOpenSeaMap(s.showOpenSeaMap);
-  if (s.showOpenSeaMapMarkers !== undefined) setShowOpenSeaMapMarkers(s.showOpenSeaMapMarkers);
-  if (s.openSeaMapHidden !== undefined) setOpenSeaMapHidden(s.openSeaMapHidden);
   // Per-cargo-type risk weights. Null-safe: an older bundle (pre-feature) omits
   // this key, so the local defaults are kept; setCargoWeights drops unknown
   // classes and clamps values, so a malformed/partial map can't corrupt state.
@@ -264,14 +263,12 @@ function applyImportedSettings(s) {
   // enrichment lives in ship_scrape_cache and is restored with the DB).
   if (s.importGfw !== undefined) setImportGfw(s.importGfw);
 
-  if (s.preset && BBOX_PRESETS[s.preset]) setPreset(s.preset);
-
   clearRiskCache(); // import may have flipped sources that feed the score
   return exportSettings();
 }
 
 // Download the portable settings subset as a JSON file (re-importable).
-router.get('/settings/export', (req, res) => {
+router.get('/settings/export', requireAdmin, (req, res) => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="tracker-porti-impostazioni-${ts}.json"`);
@@ -279,7 +276,7 @@ router.get('/settings/export', (req, res) => {
 });
 
 // Apply settings from an uploaded JSON file.
-router.post('/settings/import', (req, res) => {
+router.post('/settings/import', requireAdmin, (req, res) => {
   try {
     const applied = applyImportedSettings(req.body);
     res.json({ ok: true, settings: applied });
@@ -289,40 +286,37 @@ router.post('/settings/import', (req, res) => {
 });
 
 router.post('/settings', (req, res) => {
-  const {
-    preset, importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
-    importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
-    notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
-    notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
-    excludeTankers: newExcludeTankers, checkSpoofing: newCheckSpoofing, checkDarkActivity: newCheckDarkActivity,
-    showOpenSeaMap: newShowOpenSeaMap, showOpenSeaMapMarkers: newShowOpenSeaMapMarkers, openSeaMapHidden: newOpenSeaMapHidden,
-  } = req.body;
+  const b = req.body || {};
+  const uid = req.user.id;
 
-  if (newNotif !== undefined) {
-    setNotificationsEnabled(newNotif);
-    console.log(`[NOTIF] Notifications enabled: ${state.notificationsEnabled}`);
-    appLog.info('SETTINGS', appLog.t('settings.notifications', { on: state.notificationsEnabled }));
+  // ── Personal settings (any user) ──
+  const personalKeys = [
+    'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
+    'notifyBerthNew', 'notifyBerthChar', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
+  ];
+  const personalPatch = {};
+  for (const k of personalKeys) if (b[k] !== undefined) personalPatch[k] = b[k];
+  if (Object.keys(personalPatch).length) userPrefs.set(uid, personalPatch);
+
+  // Default view area (per-user). Must be one of the user's own areas.
+  if (b.preset !== undefined && b.preset !== null && b.preset !== '') {
+    if (!db.getUserAreaKeys(uid).includes(b.preset)) {
+      return res.status(400).json({ error: 'Area non assegnata' });
+    }
+    userPrefs.set(uid, { defaultArea: b.preset });
   }
-  if (newRevisit !== undefined) {
-    setNotifyRevisit(newRevisit);
-    console.log(`[NOTIF] Revisit notifications: ${state.notifyRevisit}`);
+
+  // ── Global settings (admin only) ──
+  const {
+    importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
+    importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
+    excludeTankers: newExcludeTankers, checkSpoofing: newCheckSpoofing, checkDarkActivity: newCheckDarkActivity,
+  } = b;
+  const globalTouched = [newImportVf, newImportMt, newSanctions, newSanctionsExtra, newPsc, newEquasis, newGfw, newExcludeTankers, newCheckSpoofing, newCheckDarkActivity].some((v) => v !== undefined);
+  if (globalTouched && !isAdminReq(req)) {
+    return res.status(403).json({ error: 'Solo un amministratore può modificare le impostazioni globali (sorgenti dati, rischio).' });
   }
-  if (newAreaChange !== undefined) {
-    setNotifyAreaChange(newAreaChange);
-    console.log(`[NOTIF] Area change notifications: ${state.notifyAreaChange}`);
-  }
-  if (newHighRisk !== undefined) {
-    setNotifyHighRisk(newHighRisk);
-    console.log(`[NOTIF] High-risk notifications: ${state.notifyHighRisk}`);
-  }
-  if (newBerthNew !== undefined) {
-    setNotifyBerthNew(newBerthNew);
-    console.log(`[NOTIF] New-berth notifications: ${state.notifyBerthNew}`);
-  }
-  if (newBerthChar !== undefined) {
-    setNotifyBerthChar(newBerthChar);
-    console.log(`[NOTIF] Berth-characterised notifications: ${state.notifyBerthChar}`);
-  }
+
   if (newExcludeTankers !== undefined) {
     setExcludeTankers(newExcludeTankers);
     console.log(`[RISK] Exclude tankers from type score: ${state.excludeTankers}`);
@@ -337,18 +331,6 @@ router.post('/settings', (req, res) => {
     setCheckDarkActivity(newCheckDarkActivity);
     console.log(`[RISK] Check AIS blackout: ${state.checkDarkActivity}`);
     appLog.info('SETTINGS', appLog.t('settings.check_dark', { on: state.checkDarkActivity }));
-  }
-  if (newShowOpenSeaMap !== undefined) {
-    setShowOpenSeaMap(newShowOpenSeaMap);
-    console.log(`[MAP] OpenSeaMap tile layer: ${state.showOpenSeaMap}`);
-  }
-  if (newShowOpenSeaMapMarkers !== undefined) {
-    setShowOpenSeaMapMarkers(newShowOpenSeaMapMarkers);
-    console.log(`[MAP] OpenSeaMap markers: ${state.showOpenSeaMapMarkers}`);
-  }
-  if (newOpenSeaMapHidden !== undefined) {
-    setOpenSeaMapHidden(newOpenSeaMapHidden);
-    console.log(`[MAP] OpenSeaMap hidden categories: ${state.openSeaMapHidden.join(',') || '(none)'}`);
   }
 
   if (newImportVf !== undefined) {
@@ -418,58 +400,46 @@ router.post('/settings', (req, res) => {
     if (state.importGfw && wasDisabled && GFW_TOKEN) enrichActiveShips('gfw');
   }
 
-  // Any toggle above (VF/MT/sanctions/PSC/Equasis) can change which signals feed
-  // the risk score, so drop the memoised scores.
-  clearRiskCache();
+  // Any global toggle above (VF/MT/sanctions/PSC/Equasis/GFW) can change which
+  // signals feed the risk score, so drop the memoised scores.
+  if (globalTouched) clearRiskCache();
 
-  if (!preset) {
-    return res.json({
-      ok: true,
-      importVfData: state.importVfData,
-      importMtData: state.importMtData,
-      importSanctions: state.importSanctions,
-      importSanctionsExtra: state.importSanctionsExtra,
-      sanctions: sanctions.getStatus(),
-      importPsc: state.importPsc,
-      psc: psc.getStatus(),
-      importEquasis: state.importEquasis,
-      equasisConfigured,
-      importGfw: state.importGfw,
-      gfwConfigured,
-      notificationsEnabled: state.notificationsEnabled,
-      notifyRevisit: state.notifyRevisit,
-      notifyAreaChange: state.notifyAreaChange,
-      notifyHighRisk: state.notifyHighRisk,
-      notifyBerthNew: state.notifyBerthNew,
-      notifyBerthChar: state.notifyBerthChar,
-      excludeTankers: state.excludeTankers,
-      checkSpoofing: state.checkSpoofing,
-      checkDarkActivity: state.checkDarkActivity,
-    });
-  }
-
-  if (!BBOX_PRESETS[preset]) {
-    return res
-      .status(400)
-      .json({ error: `Preset sconosciuto. Validi: ${Object.keys(BBOX_PRESETS).join(', ')}` });
-  }
-
-  setPreset(preset);
-  console.log(`[AIS] Vista cambiata a: ${state.bboxName}`);
-  appLog.info('SETTINGS', appLog.t('settings.view_changed', { name: state.bboxName }), { preset });
+  // Echo back the resulting state (personal prefs + global flags).
+  const prefs = userPrefs.get(uid);
+  const myKeys = db.getUserAreaKeys(uid);
+  const effPreset = (prefs.defaultArea && myKeys.includes(prefs.defaultArea)) ? prefs.defaultArea : (myKeys[0] || null);
+  const effArea = effPreset && BBOX_PRESETS[effPreset] ? BBOX_PRESETS[effPreset] : null;
   res.json({
     ok: true,
-    preset,
-    name: state.bboxName,
-    bbox: state.boundingBox[0],
-    restarted: false,
+    isAdmin: isAdminReq(req),
+    preset: effPreset,
+    // name + bbox of the (possibly newly-selected) view area, so the client can
+    // recenter the map after an area change.
+    name: effArea ? effArea.name : null,
+    bbox: effArea ? effArea.box[0] : null,
+    notificationsEnabled: prefs.notificationsEnabled,
+    notifyRevisit: prefs.notifyRevisit,
+    notifyAreaChange: prefs.notifyAreaChange,
+    notifyHighRisk: prefs.notifyHighRisk,
+    notifyBerthNew: prefs.notifyBerthNew,
+    notifyBerthChar: prefs.notifyBerthChar,
+    showOpenSeaMap: prefs.showOpenSeaMap,
+    showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
+    openSeaMapHidden: prefs.openSeaMapHidden,
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
+    sanctions: sanctions.getStatus(),
     importPsc: state.importPsc,
+    psc: psc.getStatus(),
     importEquasis: state.importEquasis,
+    equasisConfigured,
     importGfw: state.importGfw,
+    gfwConfigured,
+    excludeTankers: state.excludeTankers,
+    checkSpoofing: state.checkSpoofing,
+    checkDarkActivity: state.checkDarkActivity,
   });
 });
 

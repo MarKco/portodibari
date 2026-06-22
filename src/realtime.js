@@ -5,8 +5,8 @@
 // - logClients: open SSE responses subscribed to the live API-log stream.
 // - appLogClients: open SSE responses subscribed to the live application-log
 //   stream (the human-readable operational log, separate from the API log).
-// - pendingAlerts: MMSIs of flagged ships that just arrived, drained by
-//   GET /api/alerts and surfaced as a toast in the UI.
+// - pendingAlerts: {userId, mmsi} of flagged ships that just arrived, drained
+//   per-user by GET /api/alerts and surfaced as a toast in the UI.
 
 const logClients = new Set();
 const appLogClients = new Set();
@@ -16,12 +16,24 @@ const pendingAlerts = [];
 // otherwise grow without limit. Keep only the most recent MAX_PENDING_ALERTS.
 const MAX_PENDING_ALERTS = 1000;
 
-/** Queue a flagged-ship arrival for the next GET /api/alerts, capped. */
-function pushAlert(mmsi) {
-  pendingAlerts.push(mmsi);
+/** Queue a flagged-ship arrival for a specific user's next GET /api/alerts. */
+function pushAlert(userId, mmsi) {
+  pendingAlerts.push({ userId, mmsi });
   if (pendingAlerts.length > MAX_PENDING_ALERTS) {
     pendingAlerts.splice(0, pendingAlerts.length - MAX_PENDING_ALERTS);
   }
+}
+
+/** Remove and return the MMSIs queued for `userId` (drains only that user's). */
+function drainAlertsForUser(userId) {
+  const mine = [];
+  for (let i = pendingAlerts.length - 1; i >= 0; i--) {
+    if (pendingAlerts[i].userId === userId) {
+      mine.push(pendingAlerts[i].mmsi);
+      pendingAlerts.splice(i, 1);
+    }
+  }
+  return mine.reverse();
 }
 
 /** Push an API-log entry to every connected SSE client. */
@@ -43,6 +55,7 @@ module.exports = {
   appLogClients,
   pendingAlerts,
   pushAlert,
+  drainAlertsForUser,
   broadcastLog,
   broadcastAppLog,
 };

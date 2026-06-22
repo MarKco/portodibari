@@ -108,10 +108,13 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `EQUASIS_PASSWORD` | Password account Equasis — richiesta dal lookup Equasis | *(vuota)* |
 | `IMPORT_GFW` | Abilita l'arricchimento Global Fishing Watch (identità + eventi comportamentali ricavati dall'AIS) (`true`/`false`) | `true` |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Token API (Bearer) di Global Fishing Watch, generato dal [portale API GFW](https://globalfishingwatch.org/our-apis/) — richiesto dall'arricchimento GFW. Dati GFW free **solo per uso non commerciale** (ricerca/ONG/interesse pubblico); l'uso commerciale richiede una licenza dedicata. Senza token la feature è disattivata silenziosamente | *(vuoto)* |
-| `AUTH_USER` | Username per l'autenticazione HTTP Basic (vedi [Autenticazione](#-autenticazione)) | `admin` |
-| `AUTH_PASSWORD` | Password per l'autenticazione HTTP Basic. **Vuota = auth disattivata** | *(vuota)* |
+| `ADMIN_USERNAME` | Username dell'amministratore predefinito, ri-seedato all'avvio se assente (vedi [Autenticazione](#-autenticazione-multi-utente)) | `admin` |
+| `ADMIN_EMAIL` | Email dell'amministratore predefinito | `admin@local` |
+| `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app | *(default incluso)* |
+| `COOKIE_SECURE` | Invia il cookie di sessione solo su HTTPS — impostare a `true` dietro TLS (`true`/`false`) | `false` |
+| `SESSION_TTL_DAYS` | Durata in giorni della sessione di login | `30` |
 
-`BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` sono modificabili anche dalla UI (cambio area / modal Impostazioni) e vengono ri-persistiti nel file. `PORT` (variabile d'ambiente) imposta la porta HTTP (default 3000). `AUTH_USER`/`AUTH_PASSWORD` si leggono solo all'avvio (non modificabili dalla UI).
+`BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` sono modificabili anche dalla UI (cambio area / modal Impostazioni) e vengono ri-persistiti nel file. `PORT` (variabile d'ambiente) imposta la porta HTTP (default 3000). Le chiavi `ADMIN_*`, `COOKIE_SECURE` e `SESSION_TTL_DAYS` si leggono solo all'avvio (non modificabili dalla UI).
 
 Esempio `local.properties`:
 
@@ -588,23 +591,60 @@ Il database `ais_data.db` è gitignored: un deploy che ricrea la cartella applic
 
 ---
 
-## 🔐 Autenticazione
+## 🔐 Autenticazione (multi-utente)
 
-L'app **non ha autenticazione di default**: in locale (`localhost`) non serve. Appena la esponi su una rete o su internet (vedi [Deploy](#-deploy-su-server-linux-vps)) **tutte** le rotte — incluse quelle distruttive (`POST /api/restore`, `DELETE /api/areas/:key`, `DELETE /api/readings`) — sono raggiungibili da chiunque. Per evitarlo l'app integra un gate **HTTP Basic Auth** a livello applicativo (`src/middleware/auth.js`), senza bisogno di configurare un reverse proxy.
+L'intera app è protetta da una **login a sessione**: nessuna rotta è raggiungibile senza essere autenticati. La sessione viaggia in un **cookie firmato `httpOnly`**; le password sono salvate con hash **scrypt** (nulla è recuperabile in chiaro). Non c'è più alcun bypass da `localhost`: anche in locale serve fare login.
 
-**Attivazione** — imposta una password in `local.properties` (file gitignored, mai committato — stesso schema di `AIS_API_KEY`):
+### Registrazione e approvazione
+
+Dalla pagina di login un visitatore può **registrarsi** con nome, cognome, email e password. I nuovi account nascono in stato **"in attesa"** (pending) e **non possono accedere** finché un amministratore non li approva. (La conferma via email è prevista ma al momento inerte: non è ancora configurato alcun SMTP.)
+
+### Ruoli
+
+Esistono due ruoli: **utente** (normale) e **amministratore**. Ci si registra sempre come utente normale; un amministratore può promuovere o retrocedere gli account. Oltre alle funzioni normali, un amministratore può: **vedere i log** (il log API e il log attività sono globali/condivisi e visibili solo agli admin), **approvare** le registrazioni, **abilitare/disabilitare** gli account, **cambiare ruolo**, **reimpostare le password**, **eliminare** gli utenti e **impersonare** un utente (vista in **sola lettura** delle sue aree/monitoraggi/navi seguite, con banner e uscita con un click). Tutto dalla **pagina di amministrazione** `/admin`, raggiungibile dal link **Admin** nel widget account in alto a destra.
+
+### Amministratore predefinito
+
+Un amministratore **è sempre presente** (ri-seedato all'avvio se mancante). Credenziali di default: username `admin`, password `v*ZG!S@GE2^yK^`, configurabili in `local.properties` (file gitignored, mai committato):
 
 ```properties
-AUTH_USER=admin
-AUTH_PASSWORD=una_password_robusta
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@local
+ADMIN_PASSWORD=una_password_robusta
+COOKIE_SECURE=false      # → true quando servi su HTTPS
+SESSION_TTL_DAYS=30
 ```
 
-- `AUTH_PASSWORD` **vuota o assente → auth disattivata** (comportamento di default, sviluppo locale invariato).
-- Con la password impostata, il browser mostra il **dialog di login nativo** e rimanda le credenziali automaticamente su ogni richiesta: API, file statici e stream SSE. Nessuna modifica al frontend, nessuna login page.
-- Il middleware è montato **prima** di static e API in `app.js`, quindi protegge l'intera app. Confronto credenziali a **tempo costante** (`crypto.timingSafeEqual`).
-- Le chiavi si leggono **solo all'avvio**: dopo aver cambiato `AUTH_PASSWORD` riavvia il server.
+Il login accetta indifferentemente **lo username oppure l'email**. Cambia la password di default al primo avvio in qualsiasi deployment non locale.
 
-> ⚠️ **Basic auth non cifra**: le credenziali viaggiano in base64 (≈ testo in chiaro) a ogni richiesta. Su rete fidata, VPN o **tunnel SSH** (`ssh -L 3000:localhost:3000 utente@server`) è adeguato. Per l'esposizione diretta su internet metti comunque **TLS** davanti (reverse proxy con HTTPS, Caddy, Cloudflare Tunnel…). Anche senza TLS, però, blocca scanner e accessi anonimi agli endpoint distruttivi: molto meglio di nessuna protezione.
+### Dati per-utente vs globali
+
+Ogni utente ha **i propri** dati:
+
+- le **aree** (bounding box di monitoraggio);
+- le **impostazioni** (preferenze notifiche, opzioni di visualizzazione mappa OpenSeaMap, lingua, area di default);
+- le **navi segnalate** ★ e le **navi seguite**;
+- il proprio **feed di notifiche**.
+
+La visibilità delle navi è **geografica**: un utente vede i dati AIS la cui posizione cade dentro una delle bounding box delle sue aree.
+
+Sono invece **condivise/globali** (gestite dagli amministratori, **non** per-utente):
+
+- la **API key AISstream** e le altre API key/token;
+- le **fonti di arricchimento** (VesselFinder, MarineTraffic, sanzioni OFAC/UE/UK/ONU, Port State Control, Global Fishing Watch, Equasis);
+- la **configurazione dello score di rischio** (pesi del carico, esclusione petroliere, controlli spoofing/dark-activity).
+
+C'è **un solo set di connessioni AISstream** a livello di sistema (una WebSocket per ogni bounding box distinta delle aree, più uno stream "follow" condiviso) e lo **score di rischio è un unico valore condiviso** per nave.
+
+### Password dimenticata
+
+Poiché l'email non è ancora collegata, il reset password è **avviato dall'amministratore**: nell'elenco utenti della pagina `/admin` c'è l'azione **"Reimposta password"** che genera un **link monouso** (valido **24h**) da consegnare all'utente. La pagina di login mostra comunque un link **"Password dimenticata?"** e un link di registrazione.
+
+### Migrazione dalla versione single-user
+
+Aggiornando da una versione precedente (single-user): quando un **vecchio database** (pre-multi-utente) viene ripristinato/importato, tutte le sue aree, navi segnalate, navi seguite e notifiche esistenti vengono **migrate automaticamente all'account amministratore predefinito**.
+
+> ⚠️ Il cookie di sessione di per sé **non cifra il traffico**. Per l'esposizione diretta su internet metti **TLS** davanti (reverse proxy con HTTPS, Caddy, Cloudflare Tunnel…) e imposta `COOKIE_SECURE=true`, così il cookie viaggia solo su HTTPS.
 
 ---
 
@@ -676,7 +716,7 @@ sudo ufw allow 3000
 PORT=8080 pm2 start src/server.js --name tracker-porti
 ```
 
-> ⚠️ Aprire la porta espone l'app a chiunque raggiunga il server. **Imposta `AUTH_PASSWORD`** prima (vedi [Autenticazione](#-autenticazione)), idealmente con TLS davanti.
+> ⚠️ Aprire la porta espone l'app a chiunque raggiunga il server. L'app è comunque protetta da login (vedi [Autenticazione](#-autenticazione-multi-utente)): **cambia la password dell'amministratore predefinito** (`ADMIN_PASSWORD`) prima e imposta `COOKIE_SECURE=true`, idealmente con TLS davanti.
 
 ### Nginx come reverse proxy (opzionale, consigliato)
 

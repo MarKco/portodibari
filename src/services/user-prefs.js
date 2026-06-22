@@ -1,0 +1,64 @@
+'use strict';
+
+// Per-user personal preferences, layered over db.user_settings (key/value rows).
+// These are the settings the spec made per-user: notification toggles, the
+// OpenSeaMap map-display options, the UI language and the default area. Global
+// settings (enrichment sources, risk weights, sanctions/PSC/GFW, API keys) stay
+// admin-managed in config/state — they are NOT here.
+
+const db = require('../db');
+
+// key → default value. Booleans default ON except the OpenSeaMap tile raster.
+const DEFAULTS = {
+  notificationsEnabled: true,
+  notifyRevisit: true,
+  notifyAreaChange: true,
+  notifyHighRisk: true,
+  notifyBerthNew: true,
+  notifyBerthChar: true,
+  showOpenSeaMap: false,
+  showOpenSeaMapMarkers: true,
+  openSeaMapHidden: ['light', 'beacon', 'pilot'],
+  lang: 'it',
+  defaultArea: null,
+};
+
+const BOOL_KEYS = new Set([
+  'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
+  'notifyBerthNew', 'notifyBerthChar', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
+]);
+
+/** Typed, defaulted view of a user's personal preferences. */
+function get(userId) {
+  const raw = db.getUserSettings(userId);
+  const out = { ...DEFAULTS };
+  for (const key of Object.keys(DEFAULTS)) {
+    if (!(key in raw) || raw[key] == null) continue;
+    const v = raw[key];
+    if (BOOL_KEYS.has(key)) out[key] = v === '1' || v === 'true';
+    else if (key === 'openSeaMapHidden') {
+      try { const a = JSON.parse(v); if (Array.isArray(a)) out[key] = a.filter((x) => typeof x === 'string'); } catch { /* keep default */ }
+    } else out[key] = v;
+  }
+  return out;
+}
+
+/** Apply a partial patch of personal settings; ignores unknown keys. Returns the
+ *  resulting typed view. */
+function set(userId, patch) {
+  if (patch && typeof patch === 'object') {
+    for (const key of Object.keys(DEFAULTS)) {
+      if (!(key in patch)) continue;
+      const v = patch[key];
+      if (BOOL_KEYS.has(key)) db.setUserSetting(userId, key, v ? '1' : '0');
+      else if (key === 'openSeaMapHidden') {
+        const arr = Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string'))] : [];
+        db.setUserSetting(userId, key, JSON.stringify(arr));
+      } else if (key === 'lang') db.setUserSetting(userId, key, v === 'en' ? 'en' : 'it');
+      else db.setUserSetting(userId, key, v == null ? null : String(v));
+    }
+  }
+  return get(userId);
+}
+
+module.exports = { get, set, DEFAULTS, BOOL_KEYS };

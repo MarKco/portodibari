@@ -4,8 +4,13 @@ const express = require('express');
 const db = require('../db');
 const { logClients } = require('../realtime');
 const { clampLimit, clampOffset, parseId } = require('../lib/params');
+const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
+
+// The API log is shared/global → admin only. Path-scoped: this router is mounted
+// without a prefix, so a pathless use() would gate every /api route.
+router.use('/logs', requireAdmin);
 
 // Server-Sent Events stream of live API-log entries.
 router.get('/logs/stream', (req, res) => {

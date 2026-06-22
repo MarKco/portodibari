@@ -9,6 +9,12 @@ const { state, BBOX_PRESETS, BERTH } = require('../config');
 
 const router = express.Router();
 
+// Berths/moorings are shared per-area data, but a user only sees/edits areas they
+// monitor. Ownership = membership in the area catalog.
+function owns(req, area) {
+  return !!area && db.getUserAreaKeys(req.user.id).includes(area);
+}
+
 // Shape a stored berth row for the client: parse geometry/distribution, expose
 // the *effective* label (manual override wins over the computed one) and the
 // thresholds so the UI can explain why a berth is or isn't characterised.
@@ -114,7 +120,11 @@ function parsePolygon(polygon) {
 
 // List berths for an area (defaults to the current view preset).
 router.get('/berths', (req, res) => {
-  const area = req.query.area || state.preset;
+  const myKeys = db.getUserAreaKeys(req.user.id);
+  const area = req.query.area || (myKeys.includes(state.preset) ? state.preset : myKeys[0]);
+  if (!area || !myKeys.includes(area)) {
+    return res.json({ berths: [], minMoorings: BERTH.MIN_MOORINGS, dominantPct: BERTH.DOMINANT_PCT });
+  }
   res.json(listPayload(area));
 });
 
@@ -124,13 +134,15 @@ router.post('/berths/recompute', (req, res) => {
   try {
     if (area) {
       if (!BBOX_PRESETS[area]) return res.status(404).json({ error: 'Area sconosciuta' });
+      if (!owns(req, area)) return res.status(403).json({ error: 'Area non assegnata' });
       appLog.info('BERTHS', appLog.t('berths.recompute_manual'), { area });
       berths.recomputeArea(area);
       res.json({ ok: true, ...listPayload(area) });
     } else {
+      // No area → recompute only the user's own areas (not the whole catalog).
       appLog.info('BERTHS', appLog.t('berths.recompute_manual_all'));
-      const result = berths.recomputeAll();
-      res.json({ ok: true, result });
+      for (const k of db.getUserAreaKeys(req.user.id)) berths.recomputeArea(k);
+      res.json({ ok: true });
     }
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -143,6 +155,7 @@ router.post('/berths', (req, res) => {
   const { area, name, polygon, override } = req.body || {};
   if (!area || !BBOX_PRESETS[area])
     return res.status(400).json({ error: 'Area mancante o sconosciuta' });
+  if (!owns(req, area)) return res.status(403).json({ error: 'Area non assegnata' });
   try {
     const { ring, centroid } = parsePolygon(polygon);
     const id = db.insertBerth({
@@ -169,6 +182,7 @@ router.patch('/berths/:id', (req, res) => {
   const id = Number(req.params.id);
   const berth = db.getBerth(id);
   if (!berth) return res.status(404).json({ error: 'Banchina sconosciuta' });
+  if (!owns(req, berth.area)) return res.status(403).json({ error: 'Area non assegnata' });
   const fields = {};
   const body = req.body || {};
   try {
@@ -202,6 +216,7 @@ router.post('/berths/merge', (req, res) => {
   if (targets.some((b) => b.area !== area)) {
     return res.status(400).json({ error: 'Le banchine appartengono ad aree diverse' });
   }
+  if (!owns(req, area)) return res.status(403).json({ error: 'Area non assegnata' });
   try {
     // Union of all member moorings → convex hull = the merged geometry.
     const points = db.getMoorings(area).filter((m) => ids.map(Number).includes(m.berth_id));
@@ -234,6 +249,7 @@ router.delete('/berths/:id', (req, res) => {
   const id = Number(req.params.id);
   const berth = db.getBerth(id);
   if (!berth) return res.status(404).json({ error: 'Banchina sconosciuta' });
+  if (!owns(req, berth.area)) return res.status(403).json({ error: 'Area non assegnata' });
   db.deleteBerth(id);
   appLog.info('BERTHS', appLog.t('berths.deleted', { name: berth.name || null }), { area: berth.area, id });
   res.json({ ok: true, ...listPayload(berth.area) });

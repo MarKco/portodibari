@@ -5,8 +5,13 @@ const appLog = require('../services/app-log');
 const { appLogClients } = require('../realtime');
 const { state, setAppLogEnabled } = require('../config');
 const { clampLimit } = require('../lib/params');
+const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
+
+// The operational log is shared/global → admin only. Path-scoped: this router is
+// mounted without a prefix, so a pathless use() would gate every /api route.
+router.use('/app-log', requireAdmin);
 
 // Server-Sent Events stream of live application-log entries.
 router.get('/app-log/stream', (req, res) => {

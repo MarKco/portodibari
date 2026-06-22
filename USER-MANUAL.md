@@ -11,9 +11,57 @@ No technical knowledge is required to use it.
 ## Quick start
 
 1. Open a browser and navigate to the server address (e.g. `http://localhost:3000`)
-2. In the left sidebar, select the **geographic area** to monitor from the "Area:" dropdown
-3. Press **▶ Start monitoring** to start receiving data
-4. Ships will appear automatically in the table and on the map
+2. **Log in** with your credentials (if you don't have an account, register and wait for an administrator to approve it — see [Account and access](#account-and-access))
+3. In the left sidebar, select the **geographic area** to monitor from the "Area:" dropdown
+4. Press **▶ Start monitoring** to start receiving data
+5. Ships will appear automatically in the table and on the map
+
+---
+
+## Account and access
+
+The app is protected by a **login**: you must authenticate before using it. Each user has their own data, kept separate from everyone else's.
+
+### Registering
+
+From the login page, follow the **registration** link and enter your **first name, surname, email and password**. The new account is created in the **"pending"** state: you **cannot log in yet** until an **administrator approves it**. Once approved, you can log in normally.
+
+> Email confirmation is planned but not active yet: approval is always manual, by an administrator.
+
+### Logging in
+
+On the login page, enter your password and, as the identifier, **either your username or your email** (both work). The session stays valid for several days: you normally don't need to re-enter your credentials on every visit.
+
+### Logging out
+
+Use the **account widget in the top-right corner** and choose **Log out** to end your session.
+
+### Forgot password
+
+The login page has a **"Password dimenticata?"** (forgot password) link. For now, however, email is not wired up: to reset your password **ask an administrator**, who will generate a **one-time link** for you (valid 24 hours) to set a new one.
+
+### Your data
+
+Each user has their own:
+
+- monitoring **areas**;
+- **settings** (notification preferences, map options, language, default area);
+- **flagged** ships ★ and **followed** ships;
+- **notifications**.
+
+You see the AIS data of ships located **inside your areas**. The AISstream API key, the enrichment sources (VesselFinder, MarineTraffic, sanctions, etc.) and the risk-score configuration are instead **shared** and managed by administrators.
+
+### For administrators
+
+Administrators see an **Admin** link in the top-right corner, which opens the **admin page** (`/admin`). From there an administrator can:
+
+- **approve** pending new registrations;
+- **enable or disable** an account;
+- **change a user's role** (normal user ↔ administrator);
+- **reset a user's password** (generates a one-time link to hand to them);
+- **delete** a user;
+- **impersonate** a user — view their areas, monitoring and followed ships in **read-only** mode, with a prominent banner and one-click exit;
+- consult the **logs** (API log and activity log), which are shared and visible to administrators only.
 
 ---
 
@@ -349,6 +397,11 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup |
 | `IMPORT_GFW` | `true`/`false` — enable Global Fishing Watch enrichment (identity + behavioural events); **default `true`** |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the GFW API portal (https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. Data is free for non-commercial use only |
+| `ADMIN_USERNAME` | Username of the built-in administrator (always re-created at startup if missing). Default `admin` |
+| `ADMIN_EMAIL` | Email of the built-in administrator. Default `admin@local` |
+| `ADMIN_PASSWORD` | Password of the built-in administrator. If empty, the shipped default value is used — **change it** on any server reachable by others |
+| `COOKIE_SECURE` | `true`/`false` — send the session cookie over HTTPS only; set to `true` behind TLS |
+| `SESSION_TTL_DAYS` | Session (login) lifetime in days. Default `30` |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the interface (area selector / Settings) and are rewritten to the file automatically.
 

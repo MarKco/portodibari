@@ -4,11 +4,12 @@ const WebSocket = require('ws');
 
 const db = require('../db');
 const enrichment = require('./enrichment');
+const userPrefs = require('./user-prefs');
 const berths = require('./berths');
 const { computeRiskScore, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
-const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS, state } = require('../config');
+const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS } = require('../config');
 
 // Map of areaKey → per-stream state object
 const streams = new Map();
@@ -128,14 +129,15 @@ function startStream(areaKey) {
         const { arrivedFlagged, newShip, revisit, areaChange, arrived } = db.insert(parsed, areaKey);
         // New data for this ship → its cached risk score is stale.
         invalidateRiskCache(parsed.MetaData?.MMSI);
-        if (arrivedFlagged) pushAlert(arrivedFlagged);
         if (newShip) enrichment.enrichNewShip(newShip);
         // Arrivals/departures change the mooring set for this area: mark it for
         // the next dirty-flush recompute so the berth list stays fresh.
         if (arrived) berths.markAreaDirty(areaKey);
 
-        // On any arrival: snapshot the score for the history chart, and notify
-        // when the ship is in the high-risk band (independent toggle).
+        // On any arrival: snapshot the score for the history chart, and fan a
+        // notification out to every user who monitors the arrival point and a
+        // flagged-arrival toast to those who flagged the ship. Per-user mutes are
+        // honored; the system-wide toggles gate the notification *type*.
         if (arrived) {
           const ship = db.getShip(arrived);
           if (ship) {
@@ -144,52 +146,50 @@ function startStream(areaKey) {
             bufferArrival(ship.ship_name || arrived);
             const risk = computeRiskScore(ship, 'it');
             db.recordRiskSnapshot(arrived, risk.score, risk.band);
-            if (
-              risk.band === 'high' &&
-              state.notificationsEnabled &&
-              state.notifyHighRisk &&
-              !ship.notif_muted
-            ) {
-              db.addNotification({
-                type: 'high_risk',
-                mmsi: arrived,
-                ship_name: ship.ship_name,
-                area: areaKey,
-                band: risk.band,
-                score: risk.score,
-              });
-              appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
+            const seers = db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude);
+
+            if (arrivedFlagged) {
+              const flaggers = new Set(db.getUsersFlagging(arrived));
+              for (const uid of seers) if (flaggers.has(uid)) pushAlert(uid, arrived);
+            }
+
+            // High-risk: notify each monitoring user whose PERSONAL prefs enable
+            // it and who hasn't muted the ship.
+            if (risk.band === 'high') {
+              let any = false;
+              for (const uid of seers) {
+                const p = userPrefs.get(uid);
+                if (!p.notificationsEnabled || !p.notifyHighRisk || db.isUserMuted(uid, arrived)) continue;
+                db.addNotification({ user_id: uid, type: 'high_risk', mmsi: arrived, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
+                any = true;
+              }
+              if (any) appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
             }
           }
         }
-        if (revisit && state.notificationsEnabled && state.notifyRevisit) {
+        if (revisit) {
           const ship = db.getShip(revisit);
-          if (ship && !ship.notif_muted) {
+          if (ship) {
             const risk = computeRiskScore(ship, 'it');
-            db.addNotification({
-              type: 'revisit',
-              mmsi: revisit,
-              ship_name: ship.ship_name,
-              area: areaKey,
-              band: risk.band,
-              score: risk.score,
-            });
+            for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
+              const p = userPrefs.get(uid);
+              if (!p.notificationsEnabled || !p.notifyRevisit || db.isUserMuted(uid, revisit)) continue;
+              db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
+            }
           }
         }
-        if (areaChange && state.notificationsEnabled && state.notifyAreaChange) {
+        if (areaChange) {
           const ship = db.getShip(areaChange.mmsi);
-          if (ship && !ship.notif_muted) {
+          if (ship) {
             const risk = computeRiskScore(ship, 'it');
-            db.addNotification({
-              type: 'area_change',
-              mmsi: areaChange.mmsi,
-              ship_name: ship.ship_name,
-              area: areaChange.toArea,
-              from_area: areaChange.fromArea,
-              band: risk.band,
-              score: risk.score,
-            });
-            appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
+            let any = false;
+            for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
+              const p = userPrefs.get(uid);
+              if (!p.notificationsEnabled || !p.notifyAreaChange || db.isUserMuted(uid, areaChange.mmsi)) continue;
+              db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
+              any = true;
+            }
+            if (any) appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
           }
         }
         s.totalReceived++;

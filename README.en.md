@@ -102,10 +102,13 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup | *(empty)* |
 | `IMPORT_GFW` | Enable Global Fishing Watch enrichment (identity + AIS-derived behavioural events) (`true`/`false`) | `true` |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the [GFW API portal](https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. GFW data is free **for non-commercial use only** (research/NGO/public good); commercial use requires a dedicated license. Without a token the feature silently no-ops | *(empty)* |
-| `AUTH_USER` | Username for HTTP Basic authentication (see [Authentication](#-authentication)) | `admin` |
-| `AUTH_PASSWORD` | Password for HTTP Basic authentication. **Empty = auth disabled** | *(empty)* |
+| `ADMIN_USERNAME` | Username of the built-in administrator, re-seeded at startup if missing (see [Authentication](#-authentication-multi-user)) | `admin` |
+| `ADMIN_EMAIL` | Email of the built-in administrator | `admin@local` |
+| `ADMIN_PASSWORD` | Password of the built-in administrator. If empty, the shipped default value is used | *(shipped default)* |
+| `COOKIE_SECURE` | Send the session cookie over HTTPS only — set to `true` behind TLS (`true`/`false`) | `false` |
+| `SESSION_TTL_DAYS` | Session (login) lifetime in days | `30` |
 
-`BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the UI (area selector / Settings modal) and are persisted back to the file. `PORT` (environment variable) sets the HTTP port (default 3000). `AUTH_USER`/`AUTH_PASSWORD` are read only at startup (not editable from the UI).
+`BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the UI (area selector / Settings modal) and are persisted back to the file. `PORT` (environment variable) sets the HTTP port (default 3000). The `ADMIN_*`, `COOKIE_SECURE` and `SESSION_TTL_DAYS` keys are read only at startup (not editable from the UI).
 
 Example `local.properties`:
 
@@ -563,23 +566,60 @@ The server also writes a full **auto-backup** bundle (database + areas + setting
 
 ---
 
-## 🔐 Authentication
+## 🔐 Authentication (multi-user)
 
-The app has **no authentication by default**: it is not needed locally (`localhost`). As soon as you expose it on a network or the internet (see [Deploy](#-deploy-on-a-linux-server-vps)), **every** route — including the destructive ones (`POST /api/restore`, `DELETE /api/areas/:key`, `DELETE /api/readings`) — is reachable by anyone. To prevent this, the app ships an application-level **HTTP Basic Auth** gate (`src/middleware/auth.js`), with no reverse proxy to configure.
+The whole app is gated behind a **session login**: no route is reachable without being authenticated. The session rides in a **signed `httpOnly` cookie**; passwords are stored hashed with **scrypt** (nothing is recoverable in cleartext). There is no longer any `localhost` bypass: even locally you must log in.
 
-**Enabling it** — set a password in `local.properties` (gitignored, never committed — same scheme as `AIS_API_KEY`):
+### Registration and approval
+
+From the login page a visitor can **register** with first name, surname, email and password. New accounts start in the **"pending"** state and **cannot log in** until an administrator approves them. (Email confirmation is planned but currently inert: no SMTP is wired up yet.)
+
+### Roles
+
+There are two roles: **user** (normal) and **admin**. Everyone registers as a normal user; an administrator can promote or demote accounts. In addition to the normal features, an administrator can: **view the logs** (the API log and the activity log are global/shared and admin-only), **approve** registrations, **enable/disable** accounts, **change roles**, **reset passwords**, **delete** users, and **impersonate** a user (a **read-only** view of that user's areas/monitoring/followed ships, with a banner and one-click exit). All of this from the **admin page** at `/admin`, reachable via the **Admin** link in the account widget (top-right).
+
+### Built-in administrator
+
+A built-in administrator is **always present** (re-seeded at startup if missing). Default credentials: username `admin`, password `v*ZG!S@GE2^yK^`, configurable in `local.properties` (gitignored, never committed):
 
 ```properties
-AUTH_USER=admin
-AUTH_PASSWORD=a_strong_password
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@local
+ADMIN_PASSWORD=a_strong_password
+COOKIE_SECURE=false      # → true when serving over HTTPS
+SESSION_TTL_DAYS=30
 ```
 
-- `AUTH_PASSWORD` **empty or absent → auth disabled** (default behavior, local development unchanged).
-- With the password set, the browser shows the **native login dialog** and resends credentials automatically on every request: API, static files and SSE stream. No frontend changes, no login page.
-- The middleware is mounted **before** static and API in `app.js`, so it protects the whole app. Credentials are compared in **constant time** (`crypto.timingSafeEqual`).
-- The keys are read **only at startup**: after changing `AUTH_PASSWORD`, restart the server.
+Login accepts **either the username or the email**. Change the default password on first startup in any non-local deployment.
 
-> ⚠️ **Basic auth does not encrypt**: credentials travel in base64 (≈ cleartext) on every request. On a trusted network, VPN, or **SSH tunnel** (`ssh -L 3000:localhost:3000 user@server`) this is adequate. For direct internet exposure, still put **TLS** in front (HTTPS reverse proxy, Caddy, Cloudflare Tunnel…). Even without TLS, though, it blocks scanners and anonymous access to the destructive endpoints: far better than no protection.
+### Per-user vs global data
+
+Each user has **their own** data:
+
+- their **areas** (monitoring bounding boxes);
+- their **settings** (notification preferences, OpenSeaMap map-display options, language, default area);
+- their **flagged** ships ★ and **followed** ships;
+- their own **notifications** feed.
+
+Ship visibility is **geographic**: a user sees AIS data whose position falls inside one of their areas' bounding boxes.
+
+The following are instead **shared/global** (admin-managed, **not** per-user):
+
+- the **AISstream API key** and other API keys/tokens;
+- the **enrichment sources** (VesselFinder, MarineTraffic, OFAC/EU/UK/UN sanctions, Port State Control, Global Fishing Watch, Equasis);
+- the **risk-score configuration** (cargo weights, exclude-tankers, spoofing/dark-activity checks).
+
+There is **one AISstream connection set** system-wide (one WebSocket per distinct area bounding box, plus one shared "follow" stream), and the **risk score is a single shared value** per ship.
+
+### Forgot password
+
+Since email is not wired up yet, password reset is **admin-initiated**: the user list on the `/admin` page has a **"Reset password"** action that generates a **one-time link** (valid **24h**) to hand to the user. The login page still shows a **"Password dimenticata?"** (forgot password) link and a registration link.
+
+### Migration from the single-user version
+
+When upgrading from a previous (single-user) version: when an **old database** (pre-multi-user) is restored/imported, all of its existing areas, flagged ships, followed ships and notifications are **automatically migrated to the built-in administrator account**.
+
+> ⚠️ The session cookie itself **does not encrypt traffic**. For direct internet exposure put **TLS** in front (HTTPS reverse proxy, Caddy, Cloudflare Tunnel…) and set `COOKIE_SECURE=true` so the cookie is only sent over HTTPS.
 
 ---
 
@@ -651,7 +691,7 @@ sudo ufw allow 3000
 PORT=8080 pm2 start src/server.js --name tracker-porti
 ```
 
-> ⚠️ Opening the port exposes the app to anyone who can reach the server. **Set `AUTH_PASSWORD`** first (see [Authentication](#-authentication)), ideally with TLS in front.
+> ⚠️ Opening the port exposes the app to anyone who can reach the server. The app is still gated by login (see [Authentication](#-authentication-multi-user)): **change the built-in administrator's password** (`ADMIN_PASSWORD`) first and set `COOKIE_SECURE=true`, ideally with TLS in front.
 
 ### Nginx as reverse proxy (optional, recommended)
 

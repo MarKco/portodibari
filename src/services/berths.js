@@ -17,7 +17,18 @@
 
 const db = require('../db');
 const appLog = require('./app-log');
-const { BERTH, state } = require('../config');
+const userPrefs = require('./user-prefs');
+const { BERTH } = require('../config');
+
+// Berth lifecycle alerts fan out to every user who monitors the area whose
+// personal prefs enable that alert type (prefKey = notifyBerthNew|notifyBerthChar).
+function notifyAreaOwners(area, prefKey, notif) {
+  for (const uid of db.getAreaOwners(area)) {
+    const p = userPrefs.get(uid);
+    if (!p.notificationsEnabled || !p[prefKey]) continue;
+    db.addNotification({ user_id: uid, ...notif });
+  }
+}
 const { categoryOf, isHazmat } = require('./ship-categories');
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
@@ -292,8 +303,10 @@ function recomputeArea(area, { skipSync = false } = {}) {
   // would otherwise flag every freshly seeded berth as "new"/"characterised";
   // suppress that initial burst (no prior berths of any kind = seeding).
   const initialSeed = oldAuto.length === 0 && manualBerths.length === 0;
-  const emitNew = state.notificationsEnabled && state.notifyBerthNew && !initialSeed;
-  const emitChar = state.notificationsEnabled && state.notifyBerthChar && !initialSeed;
+  // Per-user gating happens in notifyAreaOwners; here we only suppress the
+  // initial seeding burst (no prior berths of any kind).
+  const emitNew = !initialSeed;
+  const emitChar = !initialSeed;
 
   // 1) Assign points inside a manual polygon to that berth (hand-drawn wins).
   const claimed = new Set();
@@ -320,7 +333,7 @@ function recomputeArea(area, { skipSync = false } = {}) {
       hazmat_pct: ch.hazmatPct,
     });
     if (emitChar && wasUnchar && ch.label) {
-      db.addNotification({ type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label });
+      notifyAreaOwners(area, 'notifyBerthChar', { type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label });
     }
   }
 
@@ -372,10 +385,10 @@ function recomputeArea(area, { skipSync = false } = {}) {
     // berth that just crossed the characterisation threshold → "characterised".
     if (!inherit) {
       if (emitNew) {
-        db.addNotification({ type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null });
+        notifyAreaOwners(area, 'notifyBerthNew', { type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null });
       }
     } else if (emitChar && !inherit.char_label && ch.label) {
-      db.addNotification({ type: 'berth_characterized', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: inherit.name, band: ch.label });
+      notifyAreaOwners(area, 'notifyBerthChar', { type: 'berth_characterized', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: inherit.name, band: ch.label });
     }
   }
 

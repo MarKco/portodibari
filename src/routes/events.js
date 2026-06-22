@@ -3,27 +3,42 @@
 const express = require('express');
 const db = require('../db');
 const { computeRiskScoreCached } = require('../services/risk-score');
-const { pendingAlerts } = require('../realtime');
+const { drainAlertsForUser } = require('../realtime');
 const { clampLimit, clampOffset } = require('../lib/params');
 
 const router = express.Router();
 
-const { state } = require('../config');
+// Area scope for the port_events-based queries (tagged by area key, no coords).
+// A specific owned ?area wins; otherwise the user's full set of visible keys.
+function eventScope(req) {
+  const area = req.query.area;
+  const keys = db.getVisibleAreaKeys(req.user.id);
+  if (area && keys.includes(area)) return { area, areaKeys: null };
+  return { area: null, areaKeys: keys };
+}
+
+// Geographic scope (boxes) for ship queries.
+function boxScope(req) {
+  const all = db.getUserBoxes(req.user.id);
+  const area = req.query.area;
+  if (area) return all.filter((b) => b.key === area);
+  return all;
+}
 
 router.get('/events', (req, res) => {
-  const { area } = req.query;
-  res.json(db.getPortEvents(clampLimit(req.query.limit, 100), clampOffset(req.query.offset), area || state.preset));
+  const sc = eventScope(req);
+  res.json(db.getPortEvents(clampLimit(req.query.limit, 100), clampOffset(req.query.offset), sc.area, sc.areaKeys));
 });
 
 router.get('/stats', (req, res) => {
-  const area = req.query.area || state.preset;
-  res.json(db.getStats(area));
+  const sc = eventScope(req);
+  res.json(db.getStats(sc.area, sc.areaKeys));
 });
 
 router.get('/stats/scores', (req, res) => {
   const lang = req.query.lang || 'it';
-  const area = req.query.area || state.preset;
-  const ships = db.getRecentShips(area);
+  const sc = eventScope(req);
+  const ships = db.getRecentShips(null, boxScope(req));
   const byBand = { low: 0, med: 0, high: 0 };
   const factorCounts = {};
   const cargoCounts = {};
@@ -54,13 +69,13 @@ router.get('/stats/scores', (req, res) => {
     .map(([cls, count]) => ({ cls, count }))
     .sort((a, b) => b.count - a.count);
   const byLoad = ['laden', 'partial', 'ballast'].map((state) => ({ state, count: loadCounts[state] || 0 }));
-  const dailyArrivals = db.getDailyArrivals(area);
+  const dailyArrivals = db.getDailyArrivals(sc.area, sc.areaKeys);
   res.json({ byBand, topShips, byFactor, byCargo, byLoad, dailyArrivals, total: ships.length });
 });
 
 router.get('/alerts', (req, res) => {
-  if (!pendingAlerts.length) return res.json({ alerts: [] });
-  const mmsis = pendingAlerts.splice(0);
+  const mmsis = drainAlertsForUser(req.user.id);
+  if (!mmsis.length) return res.json({ alerts: [] });
   const alerts = mmsis.map((mmsi) => {
     const ship = db.getShip(mmsi);
     return { mmsi, ship_name: ship?.ship_name || null, ship_type: ship?.ship_type ?? null };

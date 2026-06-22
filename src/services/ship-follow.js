@@ -49,7 +49,7 @@ const s = {
 // position. Returns null when there is nothing to follow (AISstream rejects an
 // empty BoundingBoxes — so we disconnect instead of subscribing).
 function buildSubscription() {
-  const ships = db.getFollowedPositions();
+  const ships = db.getAllFollowedPositions();
   s.followedCount = ships.length;
   if (!ships.length) return null;
   const h = FOLLOW_BOX_HALF_DEG;
@@ -213,13 +213,13 @@ function stop() {
 // resubscribe / disconnect to match the current followed set. Called by the
 // refresh timer and immediately whenever a ship is followed/unfollowed.
 function refresh() {
-  const stale = db.autoStopStaleFollows(FOLLOW_STALE_HOURS);
+  const stale = db.autoStopStaleFollowsAll(FOLLOW_STALE_HOURS);
   if (stale.length) {
     const list = stale.map((x) => x.ship_name || x.mmsi).join(', ');
     appLog.info('AIS', `Follow auto-stop dopo ${FOLLOW_STALE_HOURS}h di silenzio: ${list}`, { area: 'follow', navi: stale.length });
   }
 
-  const positions = db.getFollowedPositions();
+  const positions = db.getAllFollowedPositions();
   s.followedCount = positions.length;
   if (!positions.length) {
     if (s.wsClient || s.active) stop();

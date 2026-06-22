@@ -18,10 +18,20 @@ const psc = require('./services/psc');
 const berths = require('./services/berths');
 const appLog = require('./services/app-log');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
-const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY } = require('./config');
+const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY,
+  DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, syncAreasWithDb } = require('./config');
 
 // Honor the persisted on/off state for the operational log before anything logs.
 appLog.setEnabled(state.appLogEnabled);
+
+// Always ensure the built-in administrator exists (idempotent), and clear out
+// any expired sessions left behind. Runs before listen so the very first request
+// can already authenticate.
+db.seedDefaultAdmin({ username: DEFAULT_ADMIN_USERNAME, email: DEFAULT_ADMIN_EMAIL, password: DEFAULT_ADMIN_PASSWORD });
+db.pruneExpiredSessions();
+setInterval(() => {
+  try { db.pruneExpiredSessions(); } catch { /* best-effort */ }
+}, 6 * 60 * 60 * 1000);
 
 const app = createApp();
 
@@ -57,6 +67,24 @@ app.listen(PORT, () => {
     } catch (e) {
       appLog.error('RESTORE', appLog.t('restore.deploy_failed', { error: e.message }));
     }
+    // A restore replaces the users table with the backup's. Re-seed so the
+    // built-in admin is guaranteed present even after restoring an older backup
+    // that predates the users schema (where the copy is skipped entirely).
+    db.seedDefaultAdmin({ username: DEFAULT_ADMIN_USERNAME, email: DEFAULT_ADMIN_EMAIL, password: DEFAULT_ADMIN_PASSWORD });
+  }
+
+  // Areas are now DB-backed: seed the catalog from the bootstrap JSON on first
+  // run, then load it back so the DB is authoritative (BBOX_PRESETS is rebuilt
+  // in place). Then re-home any legacy GLOBAL state (flagged/followed/muted
+  // ships, owner-less notifications, memberless areas) to the admin. This is the
+  // deploy path: an OLD pre-multi-user backup is restored into this version and
+  // its global data must land on the admin account. migrateMultiUser is
+  // idempotent + self-retiring, so it is safe to run on every boot.
+  const admin = db.findUserByLogin(DEFAULT_ADMIN_USERNAME);
+  syncAreasWithDb(admin ? admin.id : null);
+  if (admin) {
+    const m = db.migrateMultiUser(admin.id);
+    if (m && m.orphanAreas) appLog.info('AUTH', `Migrazione multi-utente: ${m.orphanAreas} aree assegnate all'amministratore`);
   }
 
   // Tag legacy rows (area='') by coordinates. Cheap after the first run (no rows

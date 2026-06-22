@@ -70,11 +70,19 @@ const API_KEY_SOURCE = props.AIS_API_KEY
     : null;
 if (!API_KEY) throw new Error('AIS_API_KEY missing: set in local.properties or env');
 
-// ── HTTP Basic Auth (optional) ───────────────────────────────────────────────
-// When AUTH_PASSWORD is empty, the auth middleware is a no-op (local-dev
-// default). Set a password to gate the whole app behind a browser login.
-const AUTH_USER = props.AUTH_USER || process.env.AUTH_USER || 'admin';
-const AUTH_PASSWORD = props.AUTH_PASSWORD || process.env.AUTH_PASSWORD || '';
+// ── Multi-user auth (sessions) ───────────────────────────────────────────────
+// Built-in administrator account, always (re)seeded at startup if absent. The
+// password defaults to the shipped value but can be overridden via
+// local.properties / env. Login accepts this username OR the synthetic email.
+const DEFAULT_ADMIN_USERNAME = props.ADMIN_USERNAME || process.env.ADMIN_USERNAME || 'admin';
+const DEFAULT_ADMIN_EMAIL = props.ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@local';
+const DEFAULT_ADMIN_PASSWORD = props.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'v*ZG!S@GE2^yK^';
+// Session cookie name + flags. COOKIE_SECURE should be 'true' when served over
+// HTTPS (the cookie is then withheld on plain HTTP). Default off for local dev.
+const SESSION_COOKIE = 'tp_session';
+const COOKIE_SECURE = (props.COOKIE_SECURE || process.env.COOKIE_SECURE) === 'true';
+// Session lifetime in days.
+const SESSION_TTL_DAYS = num('SESSION_TTL_DAYS', 30);
 
 // ── Equasis credentials (optional) ───────────────────────────────────────────
 // Needed only for the on-demand Equasis ownership lookup. The feature stays
@@ -536,6 +544,50 @@ function slugify(name) {
   return base || 'area';
 }
 
+// Lazily reach the db module from inside area functions. A top-level
+// `require('./db')` would form a cycle (db.js requires this config at load);
+// resolving it at call time (after both modules finish loading) breaks it.
+function dbLazy() {
+  return require('./db');
+}
+
+/**
+ * Reconcile the in-memory area presets with the DB catalog (the source of truth
+ * that replaced bounding-boxes.json). Called once at startup AFTER the db is
+ * ready: seeds the catalog from the bootstrap JSON when empty, then rebuilds
+ * BBOX_PRESETS from the catalog so the DB wins. The BBOX_PRESETS object is
+ * mutated in place (same reference held by streams/areaForPoint elsewhere).
+ */
+function syncAreasWithDb(createdBy = null) {
+  const db = dbLazy();
+  const list = Object.entries(BBOX_PRESETS).map(([key, v]) => ({
+    key, name: v.name, keyword: v.keyword || null, sw: v.box[0][0], ne: v.box[0][1],
+  }));
+  const seeded = db.seedAreaCatalogIfEmpty(list, createdBy);
+  const rows = db.getAllAreas();
+  if (rows.length) {
+    for (const k of Object.keys(BBOX_PRESETS)) delete BBOX_PRESETS[k];
+    for (const r of rows) {
+      BBOX_PRESETS[r.key] = {
+        box: [[[r.sw_lat, r.sw_lon], [r.ne_lat, r.ne_lon]]],
+        name: r.name,
+        keyword: r.keyword || null,
+      };
+    }
+    if (!BBOX_PRESETS[state.preset]) applyPreset(Object.keys(BBOX_PRESETS)[0]);
+  }
+  return { seeded, count: rows.length };
+}
+
+/** Persist one area into the DB catalog (mirror of the in-memory preset). */
+function persistAreaToDb(key) {
+  const v = BBOX_PRESETS[key];
+  if (!v) return;
+  try {
+    dbLazy().upsertArea({ key, name: v.name, keyword: v.keyword || null, sw: v.box[0][0], ne: v.box[0][1] });
+  } catch { /* db not ready (shouldn't happen post-boot) */ }
+}
+
 /** Slug not yet used as a preset key (appends _2, _3, … on collision). */
 function uniqueKey(base) {
   let key = base;
@@ -583,6 +635,7 @@ function addArea({ name, sw, ne, keyword }) {
     keyword: keyword && String(keyword).trim() ? String(keyword).trim() : null,
   };
   saveBboxPresets();
+  persistAreaToDb(key);
   return { key, name: BBOX_PRESETS[key].name, keyword: BBOX_PRESETS[key].keyword, bbox: BBOX_PRESETS[key].box[0] };
 }
 
@@ -625,6 +678,7 @@ function importAreas(raw) {
     throw new Error('Nessuna area valida nel file');
   }
   saveBboxPresets();
+  for (const key of [...added, ...updated]) persistAreaToDb(key);
   return { added, updated, skipped };
 }
 
@@ -647,16 +701,22 @@ function exportAreas() {
  */
 function removeArea(key) {
   if (!BBOX_PRESETS[key]) throw new Error(`Area sconosciuta: ${key}`);
-  if (Object.keys(BBOX_PRESETS).length <= 1) throw new Error('Deve restare almeno un\'area');
   delete BBOX_PRESETS[key];
   saveBboxPresets();
+  try { dbLazy().deleteAreaRow(key); } catch { /* db not ready */ }
+  // If the removed area was the active view preset, switch to any remaining one.
+  // Multi-user: the catalog may now be empty — leave the stale preset (no streams,
+  // areaForPoint returns null) rather than crashing.
   let switched = null;
   if (state.preset === key) {
-    switched = Object.keys(BBOX_PRESETS)[0];
-    applyPreset(switched);
-    saveProperty('BBOX_PRESET', switched);
+    const next = Object.keys(BBOX_PRESETS)[0];
+    if (next) {
+      switched = next;
+      applyPreset(next);
+      saveProperty('BBOX_PRESET', next);
+    }
   }
-  return { switched };
+  return { switched, empty: Object.keys(BBOX_PRESETS).length === 0 };
 }
 
 /**
@@ -685,8 +745,12 @@ function areaForPoint(lat, lon) {
 module.exports = {
   API_KEY,
   API_KEY_SOURCE,
-  AUTH_USER,
-  AUTH_PASSWORD,
+  DEFAULT_ADMIN_USERNAME,
+  DEFAULT_ADMIN_EMAIL,
+  DEFAULT_ADMIN_PASSWORD,
+  SESSION_COOKIE,
+  COOKIE_SECURE,
+  SESSION_TTL_DAYS,
   EQUASIS_USER,
   EQUASIS_PASSWORD,
   GFW_TOKEN,
@@ -754,4 +818,5 @@ module.exports = {
   removeArea,
   importAreas,
   exportAreas,
+  syncAreasWithDb,
 };

@@ -11,6 +11,11 @@ export async function api(path, method = 'GET', body) {
     path += (path.includes('?') ? '&' : '?') + `lang=${lang}`;
   }
   const res = await fetch(path, opts);
+  // Session expired / not logged in → bounce to the login page.
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('HTTP 401');
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

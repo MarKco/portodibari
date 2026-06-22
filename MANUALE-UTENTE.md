@@ -11,9 +11,57 @@ Non richiede conoscenze tecniche per essere utilizzato.
 ## Avvio rapido
 
 1. Apri il browser e naviga all'indirizzo del server (es. `http://localhost:3000`)
-2. Nella barra laterale sinistra, seleziona l'**area geografica** da monitorare nel menu a tendina "Area:"
-3. Premi il pulsante **▶ Avvia il monitoraggio** per iniziare a ricevere dati
-4. Le navi appariranno automaticamente nella tabella e sulla mappa
+2. **Accedi** con le tue credenziali (se non hai un account, registrati e attendi l'approvazione di un amministratore — vedi [Account e accesso](#account-e-accesso))
+3. Nella barra laterale sinistra, seleziona l'**area geografica** da monitorare nel menu a tendina "Area:"
+4. Premi il pulsante **▶ Avvia il monitoraggio** per iniziare a ricevere dati
+5. Le navi appariranno automaticamente nella tabella e sulla mappa
+
+---
+
+## Account e accesso
+
+L'applicazione è protetta da un **accesso con login**: per usarla devi prima autenticarti. Ogni utente ha i propri dati, separati da quelli degli altri.
+
+### Registrarsi
+
+Dalla pagina di accesso, segui il link di **registrazione** e inserisci **nome, cognome, email e password**. Il nuovo account viene creato in stato **"in attesa"**: **non puoi ancora accedere** finché un **amministratore non lo approva**. Una volta approvato, potrai effettuare il login normalmente.
+
+> La conferma via email è prevista ma al momento non attiva: l'approvazione è sempre manuale, da parte di un amministratore.
+
+### Accedere
+
+Nella pagina di login inserisci la password e, come identificativo, **lo username oppure l'email** (vanno bene entrambi). La sessione resta valida per diversi giorni: di norma non devi reinserire le credenziali a ogni visita.
+
+### Disconnettersi
+
+Usa il **widget account in alto a destra** e scegli **Esci** (logout) per terminare la sessione.
+
+### Password dimenticata
+
+Nella pagina di login c'è il link **"Password dimenticata?"**. Al momento, però, l'email non è collegata: per reimpostare la password **rivolgiti a un amministratore**, che genererà per te un **link monouso** (valido 24 ore) da usare per impostarne una nuova.
+
+### I tuoi dati
+
+Ogni utente ha **i propri**:
+
+- **aree** di monitoraggio;
+- **impostazioni** (preferenze notifiche, opzioni mappa, lingua, area di default);
+- **navi segnalate** ★ e **navi seguite**;
+- **notifiche**.
+
+Vedi i dati AIS delle navi che si trovano **dentro le tue aree**. La API key AISstream, le fonti di arricchimento (VesselFinder, MarineTraffic, sanzioni, ecc.) e la configurazione dello score di rischio sono invece **condivise** e gestite dagli amministratori.
+
+### Per gli amministratori
+
+Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagina di amministrazione** (`/admin`). Da qui un amministratore può:
+
+- **approvare** le nuove registrazioni in attesa;
+- **abilitare o disabilitare** un account;
+- **cambiare il ruolo** di un utente (utente normale ↔ amministratore);
+- **reimpostare la password** di un utente (genera un link monouso da consegnargli);
+- **eliminare** un utente;
+- **impersonare** un utente — visualizzarne aree, monitoraggi e navi seguite in **sola lettura**, con un banner in evidenza e l'uscita con un click;
+- consultare i **log** (log API e log attività), che sono condivisi e visibili solo agli amministratori.
 
 ---
 
@@ -349,6 +397,11 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | `EQUASIS_PASSWORD` | Password dell'account Equasis — richiesta dal lookup Equasis |
 | `IMPORT_GFW` | `true`/`false` — abilita l'arricchimento Global Fishing Watch (identità + eventi comportamentali); **default `true`** |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Token API (Bearer) di Global Fishing Watch, generato dal portale API GFW (https://globalfishingwatch.org/our-apis/) — richiesto dall'arricchimento GFW. Dati gratuiti solo per uso non commerciale |
+| `ADMIN_USERNAME` | Username dell'amministratore predefinito (sempre ricreato all'avvio se manca). Default `admin` |
+| `ADMIN_EMAIL` | Email dell'amministratore predefinito. Default `admin@local` |
+| `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app — **cambiala** su un server raggiungibile da altri |
+| `COOKIE_SECURE` | `true`/`false` — invia il cookie di sessione solo su HTTPS; impostare a `true` dietro TLS |
+| `SESSION_TTL_DAYS` | Durata in giorni della sessione di login. Default `30` |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` si cambiano anche dall'interfaccia (selettore area / Impostazioni) e vengono riscritti nel file automaticamente.
 

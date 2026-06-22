@@ -8,7 +8,7 @@ const path = require('path');
 const db = require('../db');
 const berths = require('../services/berths');
 const appLog = require('../services/app-log');
-const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB } = require('../config');
+const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb, DEFAULT_ADMIN_USERNAME } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
@@ -229,6 +229,20 @@ function rebuildBerthsAfterRestore(counts = {}) {
   }
 }
 
+// After ANY restore: reconcile the area catalog with the in-memory presets and
+// re-home legacy global state (flags/follows/mutes/orphan areas/notifications)
+// to the admin. Idempotent — handles importing an old pre-multi-user backup as
+// well as a new bundle that already carries the per-user tables.
+function rehomeAfterRestore() {
+  try {
+    const admin = db.findUserByLogin(DEFAULT_ADMIN_USERNAME);
+    syncAreasWithDb(admin ? admin.id : null);
+    if (admin) db.migrateMultiUser(admin.id);
+  } catch (e) {
+    console.error(`[RESTORE] Re-home multi-utente fallito: ${e.message}`);
+  }
+}
+
 function startAutoBackup() {
   setTimeout(() => {
     try {
@@ -348,6 +362,7 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
     db.reconcileAreasByCoords(areaForPoint);
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     rebuildBerthsAfterRestore(counts);
+    rehomeAfterRestore();
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('RESTORE', appLog.t('restore.db_from_upload'), { righe: total });
     res.json({ ok: true, counts });
@@ -434,6 +449,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
     }
 
     rebuildBerthsAfterRestore(counts);
+    rehomeAfterRestore();
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('BUNDLE', appLog.t('bundle.imported'), { righe: total });
     res.json({ ok: true, counts, areas, settings });
@@ -521,6 +537,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     }
     if (parts.includes('db')) rebuildBerthsAfterRestore(counts);
+    if (parts.includes('db') || parts.includes('areas')) rehomeAfterRestore();
 
     if (parts.includes('settings') && payload.settings) {
       try { settings = applyImportedSettings(payload.settings); } catch (e) {

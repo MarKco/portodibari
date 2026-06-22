@@ -16,6 +16,56 @@ const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DE
 
 const router = express.Router();
 
+// Geographic scope for the current user: the boxes of the areas they monitor.
+// With ?area=KEY, narrow to that single area (only if the user owns it; an
+// un-owned key yields an empty scope → no data).
+function userScope(req) {
+  const all = db.getUserBoxes(req.user.id);
+  const area = req.query.area;
+  if (area) return all.filter((b) => b.key === area);
+  return all;
+}
+
+// Overlay the per-user flag/follow/mute state onto a ship row + the usual
+// derived fields. `sets` holds the user's flagged/followed/muted MMSI sets.
+function decorate(s, sets, lang, withDirection) {
+  const mil = isMilitary(s);
+  const flagged = mil ? true : sets.flags.has(s.mmsi);
+  const base = {
+    ...s,
+    flagged,
+    followed: sets.follows.has(s.mmsi) ? 1 : 0,
+    notif_muted: sets.mutes.has(s.mmsi) ? 1 : 0,
+    risk: computeRiskScoreCached(s, lang),
+    is_military: mil,
+  };
+  if (withDirection) {
+    base.direction = computeDirection(s);
+    base.in_port = isInPort(s);
+  }
+  return base;
+}
+
+function userSets(userId) {
+  return {
+    flags: db.getUserFlaggedMmsis(userId),
+    follows: db.getUserFollowedMmsis(userId),
+    mutes: db.getUserMutedMmsis(userId),
+  };
+}
+
+// Flagged-first ordering (the SQL no longer sorts by the legacy global column).
+function flaggedFirst(a, b) {
+  return (b.flagged ? 1 : 0) - (a.flagged ? 1 : 0);
+}
+
+// May the current user open this ship's detail? Visible if it's in one of their
+// areas, or they follow/flag it (a followed ship roams outside the areas).
+function canSeeShip(req, mmsi) {
+  const uid = req.user.id;
+  return db.isShipVisible(uid, mmsi) || db.getUserFollowedMmsis(uid).has(mmsi) || db.getUserFlaggedMmsis(uid).has(mmsi);
+}
+
 // Reject a non-numeric :mmsi once for every route below, so handlers never bind
 // NaN into a query.
 router.param('mmsi', (req, res, next, val) => {
@@ -27,78 +77,86 @@ router.param('mmsi', (req, res, next, val) => {
 // Literal sub-paths must be declared before the `:mmsi` parameter route.
 router.get('/ships/active', (req, res) => {
   const lang = req.query.lang || 'it';
-  const area = req.query.area || state.preset;
+  const sets = userSets(req.user.id);
   const ships = db
-    .getActiveShips(area)
-    .map((s) => {
-      const mil = isMilitary(s);
-      return { ...s, direction: computeDirection(s), in_port: isInPort(s), risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
-    });
+    .getActiveShips(null, userScope(req))
+    .map((s) => decorate(s, sets, lang, true))
+    .sort(flaggedFirst);
   res.json({ ships });
 });
 
 router.get('/ships/past', (req, res) => {
   const lang = req.query.lang || 'it';
-  const area = req.query.area || state.preset;
-  const ships = db.getPastShips(area).map((s) => {
-    const mil = isMilitary(s);
-    return { ...s, risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
-  });
+  const sets = userSets(req.user.id);
+  const ships = db
+    .getPastShips(null, userScope(req))
+    .map((s) => decorate(s, sets, lang, false))
+    .sort(flaggedFirst);
   res.json({ ships });
 });
 
-// Followed ships ("Navi seguite"). Currently followed = "presenti"; ships that
-// were followed but no longer are = "passate" (history). Same enrichment as the
-// active/past lists so the frontend can reuse the rendering.
+// Followed ships ("Navi seguite") — now per-user. Currently followed = "presenti";
+// ships followed in the past = "passate" (history).
 router.get('/ships/followed/active', (req, res) => {
   const lang = req.query.lang || 'it';
-  const ships = db.getFollowedShips().map((s) => {
-    const mil = isMilitary(s);
-    return { ...s, direction: computeDirection(s), in_port: isInPort(s), risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
-  });
+  const sets = userSets(req.user.id);
+  const ships = db.getUserFollowedShips(req.user.id).map((s) => decorate(s, sets, lang, true)).sort(flaggedFirst);
   res.json({ ships });
 });
 
 router.get('/ships/followed/past', (req, res) => {
   const lang = req.query.lang || 'it';
-  const ships = db.getPastFollowedShips().map((s) => {
-    const mil = isMilitary(s);
-    return { ...s, risk: computeRiskScoreCached(s, lang), is_military: mil, flagged: mil ? true : s.flagged };
-  });
+  const sets = userSets(req.user.id);
+  const ships = db.getUserPastFollowedShips(req.user.id).map((s) => decorate(s, sets, lang, false)).sort(flaggedFirst);
   res.json({ ships });
 });
 
 router.get('/ships/expected', (req, res) => {
-  const area = req.query.area || state.preset;
+  // "Expected" matches by the area keyword; honor the user's selected/owned areas.
+  const area = req.query.area;
   const keyword = currentKeyword(area);
-  res.json({ ships: db.getExpectedShips(keyword), keyword });
+  res.json({ ships: db.getExpectedShips(keyword, userScope(req)), keyword });
 });
 
 router.get('/ships/:mmsi', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const lang = req.query.lang || 'it';
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const ship = db.getShip(mmsi);
   if (!ship) return res.status(404).json({ error: 'Not found' });
   const mil = isMilitary(ship);
   const risk = computeRiskScore(ship, lang);
   // Opening the detail view is a natural sampling point for the score history.
   db.recordRiskSnapshot(mmsi, risk.score, risk.band);
-  res.json({ ...ship, direction: computeDirection(ship), in_port: isInPort(ship), risk, is_military: mil, flagged: mil ? true : ship.flagged });
+  const uid = req.user.id;
+  res.json({
+    ...ship,
+    direction: computeDirection(ship),
+    in_port: isInPort(ship),
+    risk,
+    is_military: mil,
+    flagged: mil ? true : db.getUserFlaggedMmsis(uid).has(mmsi),
+    followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
+    notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
+  });
 });
 
 router.get('/ships/:mmsi/risk-history', (req, res) => {
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   res.json({ history: db.getRiskHistory(mmsi) });
 });
 
 router.get('/ships/:mmsi/readings', (req, res) => {
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const result = db.getShipReadings(mmsi, clampLimit(req.query.limit), clampOffset(req.query.offset));
   res.json(result);
 });
 
 router.get('/ships/:mmsi/track', (req, res) => {
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const limit = Math.min(Number(req.query.limit) || TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
   res.json({ points: db.getShipTrack(mmsi, limit) });
 });
@@ -106,7 +164,7 @@ router.get('/ships/:mmsi/track', (req, res) => {
 router.patch('/ships/:mmsi/flag', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { flagged } = req.body;
-  db.setFlag(mmsi, flagged);
+  db.setUserFlag(req.user.id, mmsi, !!flagged);
   appLog.info('SHIP', appLog.t('ship.flag', { on: !!flagged }), { mmsi });
   res.json({ ok: true });
 });
@@ -114,6 +172,7 @@ router.patch('/ships/:mmsi/flag', (req, res) => {
 router.patch('/ships/:mmsi/military', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { is_military } = req.body;
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   db.setMilitary(mmsi, is_military);
   invalidateRiskCache(mmsi); // military status flips the score to 100
   appLog.info('SHIP', appLog.t('ship.military', { on: !!is_military }), { mmsi });
@@ -123,9 +182,9 @@ router.patch('/ships/:mmsi/military', (req, res) => {
 router.patch('/ships/:mmsi/follow', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { followed } = req.body;
-  db.setFollow(mmsi, followed);
-  // Reconcile the follow stream immediately (rebuild boxes / connect / disconnect)
-  // instead of waiting for the next periodic refresh.
+  db.setUserFollow(req.user.id, mmsi, !!followed);
+  // Reconcile the shared follow stream immediately (rebuild boxes / connect /
+  // disconnect) instead of waiting for the next periodic refresh.
   shipFollow.refresh();
   appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });
   res.json({ ok: true });
@@ -134,6 +193,7 @@ router.patch('/ships/:mmsi/follow', (req, res) => {
 router.patch('/ships/:mmsi/seen', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { seen } = req.body;
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   db.setSeen(mmsi, seen);
   appLog.info('SHIP', appLog.t('ship.seen', { on: !!seen }), { mmsi });
   res.json({ ok: true });
@@ -142,7 +202,7 @@ router.patch('/ships/:mmsi/seen', (req, res) => {
 router.patch('/ships/:mmsi/notif-muted', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notif_muted } = req.body;
-  db.setNotifMuted(mmsi, notif_muted);
+  db.setUserMute(req.user.id, mmsi, !!notif_muted);
   appLog.info('SHIP', appLog.t('ship.notif_muted', { on: !!notif_muted }), { mmsi });
   res.json({ ok: true });
 });
@@ -150,6 +210,7 @@ router.patch('/ships/:mmsi/notif-muted', (req, res) => {
 router.patch('/ships/:mmsi/notes', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notes } = req.body;
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   db.updateNotes(mmsi, notes);
   appLog.info('SHIP', appLog.t('ship.notes', { on: !!notes }), { mmsi });
   res.json({ ok: true });
@@ -157,12 +218,14 @@ router.patch('/ships/:mmsi/notes', (req, res) => {
 
 router.get('/ships/:mmsi/events', (req, res) => {
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   res.json({ events: db.getShipEvents(mmsi) });
 });
 
 router.get('/ships/:mmsi/vfdata', async (req, res) => {
   if (!state.importVfData) return res.json({ enabled: false });
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const ship = db.getShip(mmsi);
   if (!ship) return res.status(404).json({ error: 'Ship not found' });
   const identifier = ship.imo_number || mmsi;
@@ -200,6 +263,7 @@ router.get('/ships/:mmsi/vfdata', async (req, res) => {
 router.get('/ships/:mmsi/mtdata', async (req, res) => {
   if (!state.importMtData) return res.json({ enabled: false });
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const ship = db.getShip(mmsi);
   if (!ship) return res.status(404).json({ error: 'Ship not found' });
   const cached = db.getScrapedData(mmsi, 'mt');
@@ -242,6 +306,7 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
 router.get('/ships/:mmsi/equasis', async (req, res) => {
   if (!state.importEquasis) return res.json({ enabled: false });
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const ship = db.getShip(mmsi);
   if (!ship) return res.status(404).json({ error: 'Ship not found' });
 
@@ -292,6 +357,7 @@ router.get('/ships/:mmsi/equasis', async (req, res) => {
 router.get('/ships/:mmsi/gfwdata', async (req, res) => {
   if (!state.importGfw) return res.json({ enabled: false });
   const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const ship = db.getShip(mmsi);
   if (!ship) return res.status(404).json({ error: 'Ship not found' });
   if (!GFW_TOKEN) {
