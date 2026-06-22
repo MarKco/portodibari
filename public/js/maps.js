@@ -10,9 +10,8 @@ import {
 } from './helpers.js';
 import { showView } from './views.js';
 import { t } from './i18n.js';
-
-const OSM_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+import { addBaseLayers } from './tiles.js';
+import { renderSeamarkBerths } from './seamarks.js';
 
 // Bbox the active map was last framed to, so we re-fit only when the area
 // changes — not on every poll, which would fight the user's pan/zoom.
@@ -30,7 +29,7 @@ export function primeActiveFit() {
 function initMap() {
   if (S.aisMap) return;
   S.aisMap = L.map('detail-map', { zoomControl: true }).setView([41.138, 16.843], 13);
-  L.tileLayer(OSM_TILES, { attribution: OSM_ATTR, maxZoom: 19 }).addTo(S.aisMap);
+  addBaseLayers(S.aisMap);
   S.trackLayer = L.layerGroup().addTo(S.aisMap);
 }
 
@@ -282,7 +281,7 @@ function setupTrackAnim(nodes) {
 export function initActiveMap() {
   if (S.activeMap) return;
   S.activeMap = L.map('active-map', { zoomControl: true }).setView([41.138, 16.843], 12);
-  L.tileLayer(OSM_TILES, { attribution: OSM_ATTR, maxZoom: 19 }).addTo(S.activeMap);
+  addBaseLayers(S.activeMap);
   S.activeMarkersLayer = L.layerGroup().addTo(S.activeMap);
   if (S.currentBbox) {
     const [[swLat, swLon], [neLat, neLon]] = S.currentBbox;
@@ -303,7 +302,7 @@ window.openShipDetail = function (mmsi) {
 export function initFollowedMap() {
   if (S.followedMap) return;
   S.followedMap = L.map('followed-map', { zoomControl: true }).setView([41.138, 16.843], 6);
-  L.tileLayer(OSM_TILES, { attribution: OSM_ATTR, maxZoom: 19 }).addTo(S.followedMap);
+  addBaseLayers(S.followedMap);
   S.followedMarkersLayer = L.layerGroup().addTo(S.followedMap);
 }
 
@@ -363,6 +362,10 @@ export function renderActiveMap(ships) {
   S.activeMarkersLayer.clearLayers();
   S.activeShipsCache.clear();
   ships.forEach((s) => S.activeShipsCache.set(s.mmsi, s));
+
+  // OpenSeaMap official berths/moorings for the area (cached by bbox). Drawn
+  // regardless of whether any ships are positioned, hence before the early bail.
+  renderSeamarkBerths();
 
   const positioned = ships.filter((s) => s.last_latitude != null && s.last_longitude != null);
   if (!positioned.length) return;

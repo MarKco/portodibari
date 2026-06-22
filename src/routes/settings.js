@@ -3,7 +3,7 @@
 const express = require('express');
 const {
   state, setPreset, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw, setNotificationsEnabled, setNotifyRevisit,
-  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
+  setNotifyAreaChange, setNotifyHighRisk, setNotifyBerthNew, setNotifyBerthChar, setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setShowOpenSeaMap, setShowOpenSeaMapMarkers, setOpenSeaMapHidden, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -76,6 +76,9 @@ router.get('/settings', (req, res) => {
     excludeTankers: state.excludeTankers,
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
+    showOpenSeaMap: state.showOpenSeaMap,
+    showOpenSeaMapMarkers: state.showOpenSeaMapMarkers,
+    openSeaMapHidden: state.openSeaMapHidden,
     cargoClasses: CARGO_CLASSES,
     cargoWeights: state.cargoWeights,
     defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
@@ -191,6 +194,9 @@ function exportSettings() {
     excludeTankers: state.excludeTankers,
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
+    showOpenSeaMap: state.showOpenSeaMap,
+    showOpenSeaMapMarkers: state.showOpenSeaMapMarkers,
+    openSeaMapHidden: state.openSeaMapHidden,
     cargoWeights: state.cargoWeights,
     cargoWeightsPreset: state.cargoWeightsPreset,
   };
@@ -213,6 +219,9 @@ function applyImportedSettings(s) {
   if (s.excludeTankers !== undefined) setExcludeTankers(s.excludeTankers);
   if (s.checkSpoofing !== undefined) setCheckSpoofing(s.checkSpoofing);
   if (s.checkDarkActivity !== undefined) setCheckDarkActivity(s.checkDarkActivity);
+  if (s.showOpenSeaMap !== undefined) setShowOpenSeaMap(s.showOpenSeaMap);
+  if (s.showOpenSeaMapMarkers !== undefined) setShowOpenSeaMapMarkers(s.showOpenSeaMapMarkers);
+  if (s.openSeaMapHidden !== undefined) setOpenSeaMapHidden(s.openSeaMapHidden);
   // Per-cargo-type risk weights. Null-safe: an older bundle (pre-feature) omits
   // this key, so the local defaults are kept; setCargoWeights drops unknown
   // classes and clamps values, so a malformed/partial map can't corrupt state.
@@ -286,6 +295,7 @@ router.post('/settings', (req, res) => {
     notificationsEnabled: newNotif, notifyRevisit: newRevisit, notifyAreaChange: newAreaChange,
     notifyHighRisk: newHighRisk, notifyBerthNew: newBerthNew, notifyBerthChar: newBerthChar,
     excludeTankers: newExcludeTankers, checkSpoofing: newCheckSpoofing, checkDarkActivity: newCheckDarkActivity,
+    showOpenSeaMap: newShowOpenSeaMap, showOpenSeaMapMarkers: newShowOpenSeaMapMarkers, openSeaMapHidden: newOpenSeaMapHidden,
   } = req.body;
 
   if (newNotif !== undefined) {
@@ -327,6 +337,18 @@ router.post('/settings', (req, res) => {
     setCheckDarkActivity(newCheckDarkActivity);
     console.log(`[RISK] Check AIS blackout: ${state.checkDarkActivity}`);
     appLog.info('SETTINGS', appLog.t('settings.check_dark', { on: state.checkDarkActivity }));
+  }
+  if (newShowOpenSeaMap !== undefined) {
+    setShowOpenSeaMap(newShowOpenSeaMap);
+    console.log(`[MAP] OpenSeaMap tile layer: ${state.showOpenSeaMap}`);
+  }
+  if (newShowOpenSeaMapMarkers !== undefined) {
+    setShowOpenSeaMapMarkers(newShowOpenSeaMapMarkers);
+    console.log(`[MAP] OpenSeaMap markers: ${state.showOpenSeaMapMarkers}`);
+  }
+  if (newOpenSeaMapHidden !== undefined) {
+    setOpenSeaMapHidden(newOpenSeaMapHidden);
+    console.log(`[MAP] OpenSeaMap hidden categories: ${state.openSeaMapHidden.join(',') || '(none)'}`);
   }
 
   if (newImportVf !== undefined) {

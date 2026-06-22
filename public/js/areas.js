@@ -7,15 +7,13 @@ import { api } from './api.js';
 import { escHtml } from './helpers.js';
 import { showUndoToast } from './toast.js';
 import { t } from './i18n.js';
-
-const OSM_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+import { addBaseLayers } from './tiles.js';
 
 // ── Map ───────────────────────────────────────────────────────────────────────
 function initAreasMap() {
   if (S.areasMap) return;
   S.areasMap = L.map('areas-map', { zoomControl: true }).setView([41.138, 16.843], 6);
-  L.tileLayer(OSM_TILES, { attribution: OSM_ATTR, maxZoom: 19 }).addTo(S.areasMap);
+  addBaseLayers(S.areasMap);
   S.areasLayer = L.layerGroup().addTo(S.areasMap);
   S.areaCandidateLayer = L.layerGroup().addTo(S.areasMap);
 }

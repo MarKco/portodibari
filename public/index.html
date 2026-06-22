@@ -772,6 +772,33 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.openSeaMap.name">Livello nautico OpenSeaMap (tile)</div>
+            <div class="setting-desc" data-i18n="settings.openSeaMap.desc">Mostra sulle mappe il livello nautico OpenSeaMap a tile (boe, fari, luci, segnali, separazione del traffico, fairway, ancoraggi). È un'immagine unica: mostra tutto o niente, non filtrabile per elemento. Spegnilo per nascondere questi simboli (es. luci/beacon). Nessuna chiave API. Default attivo.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-openseamap">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.openSeaMapMarkers.name">Marcatori OpenSeaMap (selezionabili)</div>
+            <div class="setting-desc" data-i18n="settings.openSeaMapMarkers.desc">Disegna sulla mappa attiva i marcatori vettoriali (porti, ormeggi, ancoraggi, ecc.) presi da OpenStreetMap via Overpass, da confrontare con le banchine calcolate dall'app. A differenza del livello a tile, questi sono filtrabili per categoria qui sotto. Default attivo.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-openseamap-markers">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-col">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.openSeaMapTypes.name">Elementi OpenSeaMap da mostrare</div>
+            <div class="setting-desc" data-i18n="settings.openSeaMapTypes.desc">Scegli quali categorie di marcatori OpenSeaMap disegnare sulla mappa attiva. Si applica ai marcatori vettoriali (da Overpass); il livello nautico a tile mostra sempre tutto. Default: tutte attive.</div>
+          </div>
+          <div id="openseamap-types" class="seamark-types"></div>
+        </div>
         <div class="setting-row setting-row-col">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.cargoWeights.name">Pesi rischio per tipo di carico</div>

@@ -73,6 +73,8 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │       ├── main.js            # Entry: status, settings, sidebar, polling, init
 │       ├── views.js           # View switching
 │       ├── ships.js, maps.js, traffico.js, logs.js, health.js, areas.js
+│       ├── tiles.js            # OSM base layer + OpenSeaMap nautical (seamark) overlay
+│       ├── seamarks.js         # OpenSeaMap markers (harbours/berths/lights…) via Overpass API
 │       ├── notifications.js   # Sidebar notification feed (badge, list, mark as read)
 │       ├── api.js, dom.js, store.js, toast.js, helpers.js
 │       ├── theme.js           # Light/dark theme toggle + localStorage persistence
@@ -213,7 +215,7 @@ The interface is organized around **ships** (MMSI), not individual readings:
 | **Traffic**        | Aggregate statistics: summary cards, arrivals by hour-of-day chart, arrivals by ship type; **risk score distribution** (green/yellow/red tiles for ships in the last 7 days), **top risk factors** (frequency), **daily arrivals** (last 30 days), **highest-score ships** (top 8, clickable); expected ships (by preset keyword), latest port events |
 | **Areas**          | Runtime area management: list with coordinates/status/stored data, map showing all areas, panel to add (GPS coordinates or map view capture) and delete areas (with related history and a 10s undo window) |
 
-Accessory modals: **Settings**, organized into tabs: **General** (VF/MT/sanctions/PSC/Equasis import toggles and notifications), **Areas** (per-area start/stop stream toggles), **Parameters** (`app.config.properties` editor), **Backup/Restore** (auto-backup, CSV export, database backup/restore), **Activity log** (operational event log, live via SSE), **API Log** (live panel of API requests via SSE) and **AIS Diagnostics** (uptime, msg/min, reconnections, last error). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
+Accessory modals: **Settings**, organized into tabs: **General** (VF/MT/sanctions/PSC/Equasis import toggles and notifications, the **OpenSeaMap tile layer** and **OpenSeaMap markers** toggles with marker-category selection), **Areas** (per-area start/stop stream toggles), **Parameters** (`app.config.properties` editor), **Backup/Restore** (auto-backup, CSV export, database backup/restore), **Activity log** (operational event log, live via SSE), **API Log** (live panel of API requests via SSE) and **AIS Diagnostics** (uptime, msg/min, reconnections, last error). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
 
 A ship "enters" the active list as soon as it receives its first reading. The window is wide (6 hours) because anchored ships transmit infrequently: a moored ship may update its position only every 3 hours (AIS Class A standard). Ships **in port** (see below) have an even wider retention (24 hours), so they remain visible after a server restart before their next transmission.
 
@@ -394,6 +396,16 @@ The system infers by itself **where** vessels moor and **what type** they are, h
 **Compute cycle** — one-shot *backfill* at startup (`berths.recomputeAll()` in `src/server.js`, idempotent) over all history, then periodic background recompute every `BERTH_RECOMPUTE_MIN` minutes.
 
 **Frontend** (`public/js/berths.js`) — `L.polygon` overlay on a dedicated pane (below the ship markers, so it never steals their clicks) plus a constant-size **centroid marker** (the ~80 m polygon is invisible at the area-wide zoom level), a **Berths** toggle in the filter bar (state in `localStorage`), a popup with the percentage distribution, and a management panel (**⚓ Berths**): rename, force category, merge, delete, recompute; **clicking a list row** centres the map on the berth and opens its popup.
+
+## 🌊 OpenSeaMap Overlay
+
+**OpenSeaMap** integration (free CC-BY-SA data, **no API key**), enabled from Settings (default **on**). Two **independent** layers, one toggle each:
+
+- **Nautical tile layer** — `showOpenSeaMap` toggle (`public/js/tiles.js`, `addBaseLayers`). Transparent raster overlay `tiles.openseamap.org/seamark/{z}/{x}/{y}.png` on **all 4 maps** (detail, active, followed, areas) above the OSM tiles. Shows buoys, lights, marks, traffic separation, fairways, anchorages. It's a single raster → **all or nothing, not filterable per element** (to hide lights/beacons etc. you turn off the whole layer). `applyOpenSeaMap()` adds/removes it live on every map.
+- **Vector markers** — `showOpenSeaMapMarkers` toggle (`public/js/seamarks.js`). On the **active map**, official harbours/berths/moorings/anchorages/marinas (plus lights, beacons, hazards, pilot points) pulled from **OpenStreetMap via the Overpass API** (`overpass-api.de`, queried directly from the browser, CORS ok), cached per bbox, drawn in a dedicated pane (z360, above the auto-computed berths z350, below the ship markers z400). They let you **compare** official moorings against the app's own computed berths. Hover → tooltip with the name, category and a short explanation of the element.
+  - **Category selection**: Settings lets you choose which marker categories to show (default all; live re-render on change). Categories live in `SEAMARK_CATEGORIES` (`seamarks.js`); the **hidden** set is persisted as `OPENSEAMAP_HIDDEN` (JSON array in `local.properties`) — the disabled set is stored, so categories added in a future version stay visible by default. Applies to the vector markers only (the tile layer always shows everything).
+
+> **No database, no migration**: the toggles live in `local.properties` (`SHOW_OPENSEAMAP`, `SHOW_OPENSEAMAP_MARKERS`, `OPENSEAMAP_HIDDEN`) and the Overpass data is fetched live, never stored. OpenSeaMap's `depth-api3` is **not** used (it would need a self-hosted Django+PostGIS backend). **Coverage**: in commercial ports the `berth`/`mooring` tags are often missing — hence the Overpass query also covers harbours/basins/anchorages/marinas, and the tile layer stays the primary visual source.
 
 ## 🔗 MarineTraffic / VesselFinder Integration
 
@@ -810,7 +822,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/app-config` | `app.config.properties` parameters grouped, with descriptions extracted from the file comments; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Write edited parameters `{values:{KEY:value}}` (only keys already present in the file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Current bbox preset, preset list, VF/MT import status |
-| POST | `/api/settings` | Change preset, import toggles and notification toggles `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?}` |
+| POST | `/api/settings` | Change preset, import toggles, notification toggles and OpenSeaMap overlay `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
 | GET | `/api/areas` | List of areas with bbox, stream status, `current` flag and data `counts`; `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Add an area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → saves to `bounding-boxes.json` and starts the stream (unless `autostart:false`) |
 | DELETE | `/api/areas/:key` | Delete an area and all its history (readings/ships/events); refuses if it's the only one left. If it was the active area, selects another |

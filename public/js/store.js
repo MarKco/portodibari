@@ -65,6 +65,10 @@ export const S = {
   activeMarkersLayer: null,
   activeShipsCache: new Map(),
   currentBbox: null, // [[swLat, swLon], [neLat, neLon]]
+  showOpenSeaMap: false, // OpenSeaMap seamark *tile* raster on all maps; default off, synced from server settings
+  showOpenSeaMapMarkers: true, // OpenSeaMap Overpass *vector* markers on the active map; default on, synced from server
+  openSeaMapHidden: [], // OpenSeaMap marker category keys the user hid (default none = show all); synced from server
+  seamarkBerthsLayer: null, // OpenSeaMap official berths/moorings overlay on the active map
   followedMap: null,
   followedMarkersLayer: null,
   followedShipsCache: new Map(),

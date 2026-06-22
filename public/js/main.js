@@ -12,6 +12,8 @@ import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
 import { openHealth, closeHealth } from './health.js';
 import { initAreas } from './areas.js';
+import { applyOpenSeaMap } from './tiles.js';
+import { renderSeamarkBerths, SEAMARK_CATEGORIES } from './seamarks.js';
 import { initNotifications, loadNotifications } from './notifications.js';
 import { initTheme } from './theme.js';
 import { escHtml, cargoClassLabel } from './helpers.js';
@@ -86,6 +88,42 @@ function setTitle(bboxName) {
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
+// Rebuild the OpenSeaMap category checkboxes from S.openSeaMapHidden. Each box
+// toggles its category in the hidden set, redraws the markers immediately and
+// persists the set (reverting on failure). Module-scoped so both loadSettings
+// (initial render) and the change handlers can call it.
+function renderSeamarkTypeToggles() {
+  const box = el.openSeaMapTypes;
+  if (!box) return;
+  const hidden = new Set(S.openSeaMapHidden || []);
+  box.innerHTML = SEAMARK_CATEGORIES.map(
+    (c) =>
+      `<label class="seamark-type-opt">` +
+      `<input type="checkbox" data-cat="${c.key}"${hidden.has(c.key) ? '' : ' checked'}>` +
+      `<span class="seamark-type-dot" style="background:${c.color}"></span>` +
+      `<span>${escHtml(t('seamark.cat.' + c.key))}</span>` +
+      `</label>`
+  ).join('');
+  box.querySelectorAll('input[data-cat]').forEach((cb) => {
+    cb.addEventListener('change', async () => {
+      const prev = S.openSeaMapHidden;
+      const set = new Set(prev || []);
+      if (cb.checked) set.delete(cb.dataset.cat);
+      else set.add(cb.dataset.cat);
+      const arr = [...set];
+      S.openSeaMapHidden = arr;
+      renderSeamarkBerths();
+      try {
+        await api('/api/settings', 'POST', { openSeaMapHidden: arr });
+      } catch {
+        S.openSeaMapHidden = prev;
+        cb.checked = !cb.checked;
+        renderSeamarkBerths();
+      }
+    });
+  });
+}
+
 async function loadSettings() {
   try {
     const s = await api('/api/settings');
@@ -140,6 +178,13 @@ async function loadSettings() {
     S.checkDarkActivity = s.checkDarkActivity !== false;
     if (el.toggleCheckSpoofing) el.toggleCheckSpoofing.checked = S.checkSpoofing;
     if (el.toggleCheckDark) el.toggleCheckDark.checked = S.checkDarkActivity;
+    S.showOpenSeaMap = s.showOpenSeaMap !== false;
+    if (el.toggleOpenSeaMap) el.toggleOpenSeaMap.checked = S.showOpenSeaMap;
+    S.showOpenSeaMapMarkers = s.showOpenSeaMapMarkers !== false;
+    if (el.toggleOpenSeaMapMarkers) el.toggleOpenSeaMapMarkers.checked = S.showOpenSeaMapMarkers;
+    S.openSeaMapHidden = Array.isArray(s.openSeaMapHidden) ? s.openSeaMapHidden : [];
+    renderSeamarkTypeToggles();
+    applyOpenSeaMap(); // sync any maps already created before settings loaded
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;
     if (s.cargoWeights) S.cargoWeights = s.cargoWeights;
@@ -597,6 +642,32 @@ function initSettingsModal() {
         S.checkSpoofing = enabled;
       } catch {
         el.toggleCheckSpoofing.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleOpenSeaMap) {
+    el.toggleOpenSeaMap.addEventListener('change', async () => {
+      const enabled = el.toggleOpenSeaMap.checked;
+      try {
+        await api('/api/settings', 'POST', { showOpenSeaMap: enabled });
+        S.showOpenSeaMap = enabled;
+        applyOpenSeaMap(); // seamark tile raster on every map (add/remove live)
+      } catch {
+        el.toggleOpenSeaMap.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.toggleOpenSeaMapMarkers) {
+    el.toggleOpenSeaMapMarkers.addEventListener('change', async () => {
+      const enabled = el.toggleOpenSeaMapMarkers.checked;
+      try {
+        await api('/api/settings', 'POST', { showOpenSeaMapMarkers: enabled });
+        S.showOpenSeaMapMarkers = enabled;
+        renderSeamarkBerths(); // Overpass vector markers on the active map (draws or clears)
+      } catch {
+        el.toggleOpenSeaMapMarkers.checked = !enabled;
       }
     });
   }

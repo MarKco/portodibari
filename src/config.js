@@ -330,7 +330,29 @@ const state = {
   //   checkDarkActivity → "AIS blackout" (coverage gaps look like deliberate dark)
   checkSpoofing: props.CHECK_SPOOFING !== 'false',
   checkDarkActivity: props.CHECK_DARK_ACTIVITY !== 'false',
+  // OpenSeaMap overlay, split into two INDEPENDENT layers (both client-side,
+  // no DB, no API key, default ON):
+  //   showOpenSeaMap        → the seamark *tile* raster on every map (lights,
+  //     beacons, marks…). All-or-nothing: a raster can't be filtered per element.
+  //   showOpenSeaMapMarkers → the Overpass *vector* markers on the overview map
+  //     (harbours/berths/… — filterable per category via openSeaMapHidden).
+  showOpenSeaMap: props.SHOW_OPENSEAMAP === 'true',
+  showOpenSeaMapMarkers: props.SHOW_OPENSEAMAP_MARKERS !== 'false',
+  // OpenSeaMap marker categories the user has HIDDEN (JSON array of category
+  // keys; the keys live in public/js/seamarks.js). Empty/absent = show all,
+  // which is the default. Stored as the disabled set, not the enabled set, so
+  // categories added in a future version default to visible.
+  openSeaMapHidden: parseOpenSeaMapHidden(),
 };
+
+function parseOpenSeaMapHidden() {
+  try {
+    const v = JSON.parse(props.OPENSEAMAP_HIDDEN || '["light","beacon","pilot"]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function applyPreset(preset) {
   const box = BBOX_PRESETS[preset].box;
@@ -442,6 +464,25 @@ function setCheckSpoofing(enabled) {
 function setCheckDarkActivity(enabled) {
   state.checkDarkActivity = !!enabled;
   saveProperty('CHECK_DARK_ACTIVITY', state.checkDarkActivity);
+}
+
+function setShowOpenSeaMap(enabled) {
+  state.showOpenSeaMap = !!enabled;
+  saveProperty('SHOW_OPENSEAMAP', state.showOpenSeaMap);
+}
+
+function setShowOpenSeaMapMarkers(enabled) {
+  state.showOpenSeaMapMarkers = !!enabled;
+  saveProperty('SHOW_OPENSEAMAP_MARKERS', state.showOpenSeaMapMarkers);
+}
+
+/** Replace the set of hidden OpenSeaMap marker categories and persist it as one
+ *  JSON line. Accepts an array of category-key strings; anything else clears it. */
+function setOpenSeaMapHidden(list) {
+  const arr = Array.isArray(list) ? [...new Set(list.filter((x) => typeof x === 'string'))] : [];
+  state.openSeaMapHidden = arr;
+  saveProperty('OPENSEAMAP_HIDDEN', JSON.stringify(arr));
+  return arr;
 }
 
 /** Update the per-cargo-type risk weights and persist them as one JSON line.
@@ -699,6 +740,9 @@ module.exports = {
   setExcludeTankers,
   setCheckSpoofing,
   setCheckDarkActivity,
+  setShowOpenSeaMap,
+  setShowOpenSeaMapMarkers,
+  setOpenSeaMapHidden,
   setCargoWeights,
   setCargoWeightsPreset,
   normalizeCargoWeights,

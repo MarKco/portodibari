@@ -108,6 +108,8 @@ On the active-ships map you can enable a **berths overlay**: the system learns b
 
 > Hand-edited berths (geometry, name, forced category) survive automatic recomputes: your corrections are never overwritten. Automatic berths are rebuilt on every recompute, but keep the name and forced category you assigned.
 
+**OpenSeaMap overlay.** Settings (→ General, on by default) has **two independent switches**: the **Nautical layer (tiles)** draws the OpenSeaMap nautical symbols (buoys, lights, marks, fairways, anchorages) over the maps — it's a single image, so it's all-or-nothing (the symbols that look like little towers with a magenta drop are **lights/beacons**, not wind turbines); the **Markers (selectable)** draw ⚓ markers on the active-ships map with the **official berths/moorings/harbours** mapped in OpenStreetMap, to compare against the berths the app computes by itself. Only the markers are filterable per category, and the map updates immediately when you change the boxes. Hover a marker to read what it is. The data comes from OpenSeaMap/OpenStreetMap (free, no API key) and may be incomplete in commercial ports.
+
 > At startup the app runs an initial analysis (*backfill*) over all the history already collected, so berths are visible right away.
 
 ---
@@ -266,6 +268,9 @@ Open with the **⚙ Settings** button in the sidebar.
 | **Exclude tankers** (toggle) | Do not assign the ship-type risk points to tanker-hull vessels. Useful when monitoring arms transport, which tankers cannot carry. |
 | **Check position jump** (toggle) | Include the "Impossible position jump" factor in the risk score. Turn off in areas with poor AIS coverage, where sparse position reports produce apparent jumps that are not real spoofing. On by default. |
 | **Check AIS blackout** (toggle) | Include the "AIS blackout" factor in the risk score. Turn off in poorly-covered areas, where reception gaps look like deliberate transponder shutdowns. On by default. |
+| **OpenSeaMap nautical layer (tiles)** (toggle) | Show the OpenSeaMap nautical tile layer (buoys, lights, marks, traffic separation, fairways, anchorages) on the maps. It's a single image: **all or nothing**, you can't hide individual symbols. Turn it off if you don't want these symbols (e.g. the lights/beacons that look like little towers with a magenta drop). Free data, **no API key**. On by default. |
+| **OpenSeaMap markers (selectable)** (toggle) | Draw ⚓ markers on the active-ships map with the official berths/moorings/harbours pulled from OpenStreetMap, to compare against the app's auto-computed berths. Unlike the tile layer, these **are filterable per category** (row below). Hover a marker to read what it is. On by default. |
+| **OpenSeaMap elements to show** (checkboxes) | Choose which marker categories to draw on the map (harbours, berths, anchorages, marinas, regulated areas, lights, beacons/buoys, hazards, pilot points). The map updates immediately when you tick/untick a category. Applies to the vector markers; the nautical tile layer always shows everything. Default: all on. |
 | **Per-cargo-type risk weights** (grid) | Risk points assigned to each merchandise class (container ship, crude oil tanker, chemical tanker, gas carrier, bulk carrier, etc.). The class is derived from the VesselFinder/MarineTraffic subtype, falling back to the AIS code. Replaces the old fixed Cargo/Hazmat points. Edit the values and press **💾 Save weights** (immediate effect, no restart); **Reset to defaults** reloads the built-in values into the grid (save to apply). The weights are included in the settings and bundle export. |
 | **⬇ Export CSV** | Download all readings as a CSV file (importable in Excel) |
 | **⬇ Download backup** | Download the database file (.db) as a backup |

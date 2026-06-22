@@ -71,6 +71,8 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │       ├── main.js            # Entry: status, settings, sidebar, polling, init
 │       ├── views.js           # Switch tra le viste
 │       ├── ships.js, maps.js, traffico.js, logs.js, health.js, areas.js
+│       ├── tiles.js            # Layer base OSM + overlay nautico OpenSeaMap (seamark)
+│       ├── seamarks.js         # Marker OpenSeaMap (porti/ormeggi/luci…) via Overpass API
 │       ├── notifications.js   # Feed notifiche in sidebar (badge, lista, segna come letta)
 │       ├── api.js, dom.js, store.js, toast.js, helpers.js
 │       ├── theme.js           # Toggle tema chiaro/scuro + persistenza localStorage
@@ -219,7 +221,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
-Modali accessori: **Impostazioni**, organizzate in tab: **Generali** (toggle import VF/MT/sanzioni/PSC/Equasis e notifiche), **Aree** (toggle start/stop stream per ogni area), **Parametri** (editor `app.config.properties`), **Backup/Ripristino** (auto-backup, esporta CSV, backup/ripristino database), **Log attività** (event log operativo live via SSE), **Log API** (pannello live delle richieste API via SSE) e **Diagnostica AIS** (uptime, msg/min, riconnessioni, ultimo errore). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
+Modali accessori: **Impostazioni**, organizzate in tab: **Generali** (toggle import VF/MT/sanzioni/PSC/Equasis e notifiche, toggle **livello nautico OpenSeaMap** e **marcatori OpenSeaMap** con selezione delle categorie), **Aree** (toggle start/stop stream per ogni area), **Parametri** (editor `app.config.properties`), **Backup/Ripristino** (auto-backup, esporta CSV, backup/ripristino database), **Log attività** (event log operativo live via SSE), **Log API** (pannello live delle richieste API via SSE) e **Diagnostica AIS** (uptime, msg/min, riconnessioni, ultimo errore). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
 
 Una nave "entra" nella lista presenti appena riceve la prima lettura. La finestra è ampia (6 ore) perché le navi in sosta trasmettono di rado: una nave ormeggiata può aggiornare la posizione anche solo ogni 3 ore (standard AIS classe A). Le navi **in porto** (vedi sotto) hanno una retention ancora più larga (24 ore), così restano visibili anche dopo un riavvio del server prima della successiva trasmissione.
 
@@ -400,6 +402,16 @@ Il sistema deduce automaticamente **dove** le navi attraccano e **di che tipo** 
 **Ciclo di calcolo** — *backfill* una tantum all'avvio (`berths.recomputeAll()` in `src/server.js`, idempotente) su tutto lo storico, poi ricalcolo periodico in background ogni `BERTH_RECOMPUTE_MIN` minuti.
 
 **Frontend** (`public/js/berths.js`) — overlay `L.polygon` su un pane dedicato (sotto i marker nave, così non ne ruba i click) più un **marker centroide** a dimensione costante (il poligono ~80 m è invisibile allo zoom dell'intera area), toggle **Banchine** nella barra filtri (stato in `localStorage`), popup con distribuzione percentuale, e pannello di gestione (**⚓ Banchine**): rinomina, forza categoria, unisci, elimina, ricalcola; **clic su una riga** centra la mappa sulla banchina e ne apre il popup.
+
+## 🌊 Overlay OpenSeaMap
+
+Integrazione **OpenSeaMap** (dati gratuiti CC-BY-SA, **nessuna API key**), attivabile dalle Impostazioni (default **attivo**). Due livelli **indipendenti**, con un toggle ciascuno:
+
+- **Livello nautico a tile** — toggle `showOpenSeaMap` (`public/js/tiles.js`, `addBaseLayers`). Overlay raster trasparente `tiles.openseamap.org/seamark/{z}/{x}/{y}.png` su **tutte e 4 le mappe** (dettaglio, attiva, navi seguite, aree) sopra le tile OSM. Mostra boe, fari, luci, segnali, separazione del traffico, fairway, ancoraggi. È un raster unico → **tutto o niente, non filtrabile per elemento** (per nascondere luci/beacon ecc. si spegne l'intero livello). `applyOpenSeaMap()` lo aggiunge/rimuove live su ogni mappa.
+- **Marker vettoriali** — toggle `showOpenSeaMapMarkers` (`public/js/seamarks.js`). Su **mappa attiva**, porti/ormeggi/banchine/ancoraggi/marine ufficiali (e luci, segnali, pericoli, punti pilota) presi da **OpenStreetMap via Overpass API** (`overpass-api.de`, query diretta dal browser, CORS ok), in cache per bbox, disegnati in un pane dedicato (z360, sopra le banchine auto-calcolate z350, sotto i marker nave z400). Servono a **confrontare** gli ormeggi ufficiali con le banchine calcolate dall'app. Hover → tooltip con nome, categoria e una breve spiegazione dell'elemento.
+  - **Selezione categorie**: da Impostazioni si scelgono quali categorie di marker mostrare (default tutte; ricalcolo live alla modifica). Categorie in `SEAMARK_CATEGORIES` (`seamarks.js`); l'insieme **nascosto** è persistito come `OPENSEAMAP_HIDDEN` (array JSON in `local.properties`) — si memorizza il set disabilitato, così categorie aggiunte in futuro restano visibili di default. Vale solo per i marker vettoriali (il livello a tile mostra sempre tutto).
+
+> **Nessun database, nessuna migrazione**: i toggle vivono in `local.properties` (`SHOW_OPENSEAMAP`, `SHOW_OPENSEAMAP_MARKERS`, `OPENSEAMAP_HIDDEN`) e i dati Overpass sono recuperati live, mai salvati. La `depth-api3` di OpenSeaMap **non** è usata (richiederebbe un backend Django+PostGIS self-hosted). **Copertura**: nei porti commerciali i tag `berth`/`mooring` sono spesso assenti — per questo la query Overpass copre anche porti/bacini/ancoraggi/marine, e il livello a tile resta la fonte visiva principale.
 
 ## 🔗 Integrazione MarineTraffic / VesselFinder
 
@@ -839,7 +851,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/app-config` | Parametri di `app.config.properties` raggruppati, con descrizioni estratte dai commenti del file; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Scrive i parametri modificati `{values:{CHIAVE:valore}}` (solo chiavi già presenti nel file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
-| POST | `/api/settings` | Cambia preset, toggle import e toggle notifiche `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?}` |
+| POST | `/api/settings` | Cambia preset, toggle import, toggle notifiche e overlay OpenSeaMap `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Aggiunge un'area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → salva in `bounding-boxes.json` e avvia lo stream (salvo `autostart:false`) |
 | DELETE | `/api/areas/:key` | Elimina un'area e tutto il suo storico (letture/navi/eventi); rifiuta se è l'unica rimasta. Se era l'area attiva, ne seleziona un'altra |
