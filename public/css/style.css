@@ -1227,6 +1227,36 @@ pre {
   padding-top: 0.75rem;
 }
 
+/* ── AIS outage banner ──────────────────────────────────────────────────────── */
+.outage-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--amber-soft);
+  border: 1px solid var(--amber-bd);
+  color: #fde68a;
+  border-radius: var(--r-md);
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.outage-banner-icon { font-size: 1.05rem; flex-shrink: 0; }
+.outage-banner-text { flex: 1; }
+.outage-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.95rem;
+  opacity: 0.65;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.outage-banner-close:hover { opacity: 1; background: rgba(0, 0, 0, 0.18); }
+
 /* ── Toast ────────────────────────────────────────────────────────────── */
 .toast {
   position: fixed;

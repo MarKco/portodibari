@@ -12,6 +12,11 @@ export const el = {
   counter: $('counter'),
   bboxSelect: $('bbox-select'),
 
+  // AIS outage banner
+  outageBanner: $('outage-banner'),
+  outageBannerText: $('outage-banner-text'),
+  outageBannerClose: $('outage-banner-close'),
+
   // Tabs / views
   tabActive: $('tab-active'),
   tabPast: $('tab-past'),

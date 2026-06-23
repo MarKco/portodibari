@@ -109,6 +109,14 @@
   </nav>
 
   <div id="app">
+    <!-- AIS service-outage banner (shown only on monitoring pages when the
+         stream is silent AND the public uptime monitor reports a disruption) -->
+    <div id="outage-banner" class="outage-banner hidden" role="status" aria-live="polite">
+      <span class="outage-banner-icon" aria-hidden="true">⚠️</span>
+      <span id="outage-banner-text" class="outage-banner-text"></span>
+      <button id="outage-banner-close" class="outage-banner-close"
+              data-i18n-title="outage.dismiss" title="Nascondi">✕</button>
+    </div>
     <header>
       <h1 id="app-title" data-i18n="app.title">Tracking porti</h1>
       <div id="status-badge" class="badge inactive" data-i18n="status.inactive">INATTIVO</div>

@@ -12,6 +12,7 @@ const dbFileExisted = fs.existsSync(DB_PATH);
 const createApp = require('./app');
 const db = require('./db');
 const stream = require('./services/ais-stream');
+const aisUptime = require('./services/ais-uptime');
 const shipFollow = require('./services/ship-follow');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
@@ -183,5 +184,7 @@ app.listen(PORT, () => {
   stream.startStream(state.preset);
   // Follow stream: connects on its own only when there are ships to follow.
   shipFollow.init();
+  // Cross-checks the public AISStream uptime monitor when our streams go silent.
+  aisUptime.init();
   startAutoBackup();
 });

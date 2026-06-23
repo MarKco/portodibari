@@ -3,6 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const stream = require('../services/ais-stream');
+const aisUptime = require('../services/ais-uptime');
 const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS } = require('../config');
 
@@ -33,7 +34,7 @@ router.post('/stream/stop', (req, res) => {
 });
 
 router.get('/stream/status', (req, res) => {
-  res.json(stream.getStatus());
+  res.json({ ...stream.getStatus(), outage: aisUptime.getOutage() });
 });
 
 router.get('/stream/health', (req, res) => {

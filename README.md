@@ -184,6 +184,9 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Raggio "stessa sosta" (in porto)| `src/config.js`                   | `STILL_RADIUS_M = 100`                | 100 m          |
 | Raggio merge traccia (de-noise) | `public/js/store.js`              | `TRACK_MERGE_RADIUS_M = 100`          | 100 m          |
 | Ritardo riconnessione WebSocket | `src/services/ais-stream.js`      | `setTimeout(startStream, 5000)`       | 5000 ms        |
+| Rilevamento disservizio AIS     | `app.config.properties`           | `AIS_OUTAGE_CHECK`                    | `true`         |
+| Minuti di silenzio prima del check disservizio | `app.config.properties` | `AIS_OUTAGE_SILENCE_MIN`            | 10 min         |
+| URL monitor uptime AISStream    | `app.config.properties`           | `AIS_UPTIME_URL`                      | `https://aisuptime.buttermilkgreen.fyi` |
 | Max record per tipo messaggio   | `src/db.js`                       | `pruneStmt.run(..., 10000)`           | 10.000         |
 | Max punti track mappa           | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` e default `500` | 500 punti      |
 | TTL cache scraping VF/MT        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 ore          |
@@ -910,6 +913,13 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 
 - **Area vuota**: un porto può non avere navi AIS nelle ore notturne o nei periodi di bassa attività. L'app funziona correttamente — la lista "presenti" è semplicemente vuota. I dati restano nella tab "passate" e nel DB.
 - **Riconnessione automatica**: se il WebSocket di un'area si chiude inaspettatamente mentre il suo stream è attivo, il backend tenta la riconnessione dopo 5 secondi (per area indipendentemente).
+- **Rilevamento disservizio AIS**: quando uno stream attivo non riceve messaggi nave per `AIS_OUTAGE_SILENCE_MIN` minuti (default 10), il backend interroga un **monitor di uptime indipendente** ([AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime), istanza pubblica `https://aisuptime.buttermilkgreen.fyi`) che mantiene una propria connessione a `stream.aisstream.io`. Solo se anche quel monitor riporta il servizio non attivo (stato ≠ *Up*) viene mostrato un **banner di disservizio** non invasivo nelle pagine di monitoraggio. Così un'area genuinamente silenziosa non genera mai un falso allarme. Si disabilita con `AIS_OUTAGE_CHECK=false`. Vedi la sezione **Crediti / Fonti terze** in fondo.
 - **Riavvio e dati**: il DB (`ais_data.db`, WAL) persiste tra i riavvii. Dopo un riavvio le navi che trasmettono di rado (ormeggiate) possono non comparire subito in "presenti" finché non ritrasmettono — vedi finestre 6h/24h.
 - **`node-libcurl`**: lo scraping MarineTraffic/Equasis usa `node-libcurl` per il bypass Cloudflare (libcurl integrata, nessun `curl` di sistema). Se il binario nativo non si installa, l'import MT/Equasis fallisce ma il resto dell'app funziona.
 - **Node.js versione**: il modulo `node:sqlite` è built-in da Node 22.5+. Non funziona su versioni precedenti.
+
+## 🙏 Crediti / Fonti terze
+
+Il rilevamento dei disservizi AIS si appoggia al progetto **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** di [buttermilkgreen](https://github.com/buttermilkgreen) — un monitor di uptime per `stream.aisstream.io`. Non ne è stato incorporato alcun codice sorgente: l'app consuma soltanto la **API REST pubblica** della sua [istanza ospitata](https://aisuptime.buttermilkgreen.fyi) (`GET /api/v1/status`) tramite un client scritto per questo progetto ([`src/services/ais-uptime.js`](src/services/ais-uptime.js)). Configurabile/disabilitabile via `AIS_UPTIME_URL` / `AIS_OUTAGE_CHECK`.
+
+Altre fonti dati di terze parti usate dall'app, ciascuna con i propri termini: [AISStream.io](https://aisstream.io) (flusso AIS), [VesselFinder](https://www.vesselfinder.com) / [MarineTraffic](https://www.marinetraffic.com) (arricchimento nave), [Equasis](https://www.equasis.org) (proprietà/gestione), [Global Fishing Watch](https://globalfishingwatch.org) (eventi comportamentali, **gratuito solo per uso non commerciale**), [OpenSeaMap](https://www.openseamap.org) / [OpenStreetMap](https://www.openstreetmap.org) (livello nautico) e le liste sanzioni/PSC (OFAC, UE, UK OFSI, ONU, Paris/Tokyo MoU).

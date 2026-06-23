@@ -155,6 +155,17 @@ const SCRAPE_CACHE_TTL = num('SCRAPE_CACHE_TTL_HOURS', 6) * 60 * 60 * 1000;
 // backfill (0 = disabled, always retry).
 const SCRAPE_NEG_CACHE_DAYS = num('SCRAPE_NEG_CACHE_DAYS', 3);
 const RECONNECT_DELAY_MS = num('RECONNECT_DELAY_MS', 5000);
+
+// ── AIS outage detection ──────────────────────────────────────────────────────
+// When an active stream stops receiving ship messages for AIS_OUTAGE_SILENCE_MIN
+// minutes, the app cross-checks the public AISStream uptime monitor
+// (github.com/buttermilkgreen/AISStream-Uptime). Only when that monitor also
+// reports the service down does the UI raise a (non-blocking) disruption banner,
+// so a genuinely quiet area never triggers a false alarm. Set AIS_OUTAGE_CHECK
+// to 'false' to disable the whole feature.
+const AIS_OUTAGE_CHECK = (appCfg.AIS_OUTAGE_CHECK ?? 'true') !== 'false';
+const AIS_OUTAGE_SILENCE_MIN = num('AIS_OUTAGE_SILENCE_MIN', 10);
+const AIS_UPTIME_URL = (appCfg.AIS_UPTIME_URL || 'https://aisuptime.buttermilkgreen.fyi').replace(/\/+$/, '');
 const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
 // API audit trail (api_log table) is capped to the most recent N requests;
 // older rows are pruned on every insert (see db.js) so the table can't grow
@@ -765,6 +776,9 @@ module.exports = {
   SCRAPE_CACHE_TTL,
   SCRAPE_NEG_CACHE_DAYS,
   RECONNECT_DELAY_MS,
+  AIS_OUTAGE_CHECK,
+  AIS_OUTAGE_SILENCE_MIN,
+  AIS_UPTIME_URL,
   MAX_READINGS_PER_TYPE,
   MAX_API_LOG_RECORDS,
   POLL_INTERVAL_MS,

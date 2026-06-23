@@ -15,6 +15,7 @@ import { initAreas } from './areas.js';
 import { applyOpenSeaMap } from './tiles.js';
 import { renderSeamarkBerths, SEAMARK_CATEGORIES } from './seamarks.js';
 import { initNotifications, loadNotifications } from './notifications.js';
+import { initOutageBanner, setOutage } from './outage.js';
 import { initTheme } from './theme.js';
 import { escHtml, cargoClassLabel } from './helpers.js';
 import { t, getLang, setLang, LANG_NAMES, applyToDOM } from './i18n.js';
@@ -33,6 +34,7 @@ async function updateStatus() {
     el.counter.textContent = t('sidebar.readings', { n: s.dbCount.toLocaleString() });
     updateAreaDropdownStatus(S.allStreamStatus);
     syncAreaMonitors();
+    setOutage(s.outage);
   } catch {
     /* ignore */
   }
@@ -1327,6 +1329,7 @@ initLogPanel();
 initAppLog();
 initAreas();
 initNotifications();
+initOutageBanner();
 initMapResizer();
 initRiskTooltip();
 initGlossaryTooltip();

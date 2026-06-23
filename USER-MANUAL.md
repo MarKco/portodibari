@@ -415,6 +415,9 @@ Holds the app's thresholds and parameters (time windows, radii, retention, risk-
 | `ACTIVE_WINDOW_HOURS` | Hours a moving ship stays among "active" ships | `6` |
 | `PORT_WINDOW_HOURS` | Hours an in-port ship stays among "active" ships | `24` |
 | `POLL_INTERVAL_MS` | Interface refresh interval (milliseconds) | `300000` |
+| `AIS_OUTAGE_CHECK` | Enable AIS outage detection (`false` to turn it off) | `true` |
+| `AIS_OUTAGE_SILENCE_MIN` | Minutes without AIS signals before querying the uptime monitor | `10` |
+| `AIS_UPTIME_URL` | URL of the AISStream uptime monitor consulted during silence | `https://aisuptime.buttermilkgreen.fyi` |
 | `MAX_READINGS_PER_TYPE` | Max readings kept per message type | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Mooring → berth clustering radius (metres) | `80` |
 | `BERTH_MIN_PTS` | Minimum nearby moorings to form a berth | `3` |
@@ -484,6 +487,14 @@ Open from **⚙ Settings → 📡 AIS Diagnostics tab**. Shows the data stream c
 - **Last error** — The most recent error recorded, if any
 
 The panel updates automatically every 5 seconds.
+
+### AIS outage banner
+
+If for a few minutes (`AIS_OUTAGE_SILENCE_MIN`, default 10) an active monitor receives **no AIS signal at all**, the app checks the service status by querying an **independent uptime monitor** ([AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime), public instance `https://aisuptime.buttermilkgreen.fyi`). Only if that monitor also confirms the AISStream service is **not active** does a yellow notice — prominent but non-intrusive — appear at the top of the monitoring pages:
+
+> ⚠️ Possible AISStream outage: no incoming signals and the public monitor reports "…". Data may not be updating.
+
+You can dismiss the notice with the **✕**; it reappears if a new outage is detected. When signals start arriving again, the notice disappears on its own. If the area is simply quiet but the service is running normally, **no** notice is shown (no false alarms). The feature can be turned off entirely with `AIS_OUTAGE_CHECK=false`. See also [Credits](#credits).
 
 ---
 
@@ -568,3 +579,9 @@ Yes. Open **⚙ Settings** → **Area monitoring** section and enable the toggle
 
 **Are military vessels always red?**
 Yes. Vessels identified as military are automatically marked with maximum score and a red row.
+
+---
+
+## Credits
+
+AIS outage detection (the [outage banner](#ais-outage-banner)) relies on the **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** project by buttermilkgreen, an uptime monitor for the AISStream service. The app does not bundle its code: it only consults the public API of its hosted instance (`https://aisuptime.buttermilkgreen.fyi`) to tell whether a stretch of data silence is caused by a service failure or simply by a low-traffic area.

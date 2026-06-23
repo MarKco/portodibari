@@ -13,6 +13,8 @@ const NODE_GLOBALS = {
   console: 'readonly',
   Buffer: 'readonly',
   URL: 'readonly',
+  fetch: 'readonly', // global since Node 18 (engines require >=22.5.0)
+  AbortController: 'readonly',
   setInterval: 'readonly',
   clearInterval: 'readonly',
   setTimeout: 'readonly',

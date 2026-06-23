@@ -415,6 +415,9 @@ Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention,
 | `ACTIVE_WINDOW_HOURS` | Ore entro cui una nave in movimento resta tra le "presenti" | `6` |
 | `PORT_WINDOW_HOURS` | Ore di permanenza tra le "presenti" per una nave in porto | `24` |
 | `POLL_INTERVAL_MS` | Intervallo di aggiornamento dell'interfaccia (millisecondi) | `300000` |
+| `AIS_OUTAGE_CHECK` | Attiva il rilevamento dei disservizi AIS (`false` per disattivarlo) | `true` |
+| `AIS_OUTAGE_SILENCE_MIN` | Minuti senza segnali AIS prima di interrogare il monitor di uptime | `10` |
+| `AIS_UPTIME_URL` | URL del monitor di uptime AISStream consultato in caso di silenzio | `https://aisuptime.buttermilkgreen.fyi` |
 | `MAX_READINGS_PER_TYPE` | Numero massimo di letture conservate per tipo di messaggio | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Raggio di clustering attracchi → banchine (metri) | `80` |
 | `BERTH_MIN_PTS` | Attracchi minimi vicini per formare una banchina | `3` |
@@ -484,6 +487,14 @@ Apri da **⚙ Impostazioni → tab 📡 Diagnostica AIS**. Mostra lo stato della
 - **Ultimo errore** — L'eventuale ultimo errore registrato
 
 Il pannello si aggiorna automaticamente ogni 5 secondi.
+
+### Banner di disservizio AIS
+
+Se per alcuni minuti (`AIS_OUTAGE_SILENCE_MIN`, predefinito 10) un monitoraggio attivo non riceve **nessun segnale AIS**, l'app verifica lo stato del servizio interrogando un **monitor di uptime indipendente** ([AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime), istanza pubblica `https://aisuptime.buttermilkgreen.fyi`). Solo se anche quel monitor conferma che il servizio AISStream **non è attivo**, in cima alle pagine di monitoraggio compare un avviso giallo, evidente ma non invasivo:
+
+> ⚠️ Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «…». I dati potrebbero non aggiornarsi.
+
+Puoi chiudere l'avviso con la **✕**; ricomparirà se viene rilevato un nuovo disservizio. Quando i segnali tornano a essere ricevuti, l'avviso scompare da solo. Se l'area è semplicemente silenziosa ma il servizio è regolarmente attivo, **non** viene mostrato alcun avviso (nessun falso allarme). La funzione si disattiva del tutto con `AIS_OUTAGE_CHECK=false`. Vedi anche [Crediti](#crediti).
 
 ---
 
@@ -568,3 +579,9 @@ Sì. Apri **⚙ Impostazioni** → sezione **Monitoraggio aree** e attiva il tog
 
 **Le navi militari sono sempre rosse?**
 Sì. Le navi identificate come militari vengono contrassegnate automaticamente con punteggio massimo e riga rossa.
+
+---
+
+## Crediti
+
+Il rilevamento dei disservizi AIS (il [banner di disservizio](#banner-di-disservizio-ais)) si appoggia al progetto **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** di buttermilkgreen, un monitor di uptime per il servizio AISStream. L'app non ne incorpora il codice: consulta soltanto la API pubblica della sua istanza ospitata (`https://aisuptime.buttermilkgreen.fyi`) per capire se l'eventuale silenzio dei dati dipende da un guasto del servizio o semplicemente da un'area poco trafficata.

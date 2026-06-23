@@ -178,6 +178,9 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | "Same stop" radius (in port)    | `src/config.js`                   | `STILL_RADIUS_M = 100`                | 100 m          |
 | Track merge radius (de-noise)   | `public/js/store.js`              | `TRACK_MERGE_RADIUS_M = 100`          | 100 m          |
 | WebSocket reconnection delay    | `src/services/ais-stream.js`      | `setTimeout(startStream, 5000)`       | 5000 ms        |
+| AIS outage detection            | `app.config.properties`           | `AIS_OUTAGE_CHECK`                   | `true`         |
+| Silence minutes before outage check | `app.config.properties`       | `AIS_OUTAGE_SILENCE_MIN`             | 10 min         |
+| AISStream uptime monitor URL    | `app.config.properties`           | `AIS_UPTIME_URL`                     | `https://aisuptime.buttermilkgreen.fyi` |
 | Max records per message type    | `src/db.js`                       | `pruneStmt.run(..., 10000)`           | 10,000         |
 | Max map track points            | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` and default `500` | 500 points   |
 | VF/MT scraping cache TTL        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 hours        |
@@ -881,6 +884,13 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 
 - **Empty area**: a port may have no AIS ships during overnight hours or low-activity periods. The app works correctly — the "active" list is simply empty. Data remains in the "past" tab and in the DB.
 - **Automatic reconnection**: if an area's WebSocket closes unexpectedly while its stream is active, the backend attempts reconnection after 5 seconds (independently per area).
+- **AIS outage detection**: when an active stream receives no ship messages for `AIS_OUTAGE_SILENCE_MIN` minutes (default 10), the backend queries an **independent uptime monitor** ([AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime), public instance `https://aisuptime.buttermilkgreen.fyi`) that keeps its own connection to `stream.aisstream.io`. Only if that monitor also reports the service as not active (state ≠ *Up*) does a non-intrusive **outage banner** appear on the monitoring pages — so a genuinely quiet area never raises a false alarm. Disable with `AIS_OUTAGE_CHECK=false`. See the **Credits / third-party sources** section at the bottom.
 - **Restart and data**: the DB (`ais_data.db`, WAL) persists across restarts. After a restart, ships that transmit infrequently (moored) may not appear immediately in "active" until they transmit again — see the 6h/24h windows.
 - **`node-libcurl`**: MarineTraffic/Equasis scraping uses `node-libcurl` for the Cloudflare bypass (bundled libcurl, no system `curl`). If the native binary fails to install, MT/Equasis import fails but the rest of the app works.
 - **Node.js version**: the `node:sqlite` module is built-in from Node 22.5+. It does not work on earlier versions.
+
+## 🙏 Credits / third-party sources
+
+AIS outage detection relies on the **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** project by [buttermilkgreen](https://github.com/buttermilkgreen) — an uptime monitor for `stream.aisstream.io`. None of its source code is bundled: the app only consumes the **public REST API** of its [hosted instance](https://aisuptime.buttermilkgreen.fyi) (`GET /api/v1/status`) through a client written for this project ([`src/services/ais-uptime.js`](src/services/ais-uptime.js)). Configurable/disableable via `AIS_UPTIME_URL` / `AIS_OUTAGE_CHECK`.
+
+Other third-party data sources used by the app, each under its own terms: [AISStream.io](https://aisstream.io) (AIS feed), [VesselFinder](https://www.vesselfinder.com) / [MarineTraffic](https://www.marinetraffic.com) (ship enrichment), [Equasis](https://www.equasis.org) (ownership/management), [Global Fishing Watch](https://globalfishingwatch.org) (behavioural events, **free for non-commercial use only**), [OpenSeaMap](https://www.openseamap.org) / [OpenStreetMap](https://www.openstreetmap.org) (nautical layer), and the sanctions/PSC lists (OFAC, EU, UK OFSI, UN, Paris/Tokyo MoU).

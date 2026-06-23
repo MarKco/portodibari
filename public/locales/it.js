@@ -316,6 +316,10 @@ export default {
   'health.msgPerMin':   '{n} msg/min',
   'health.note':        'Aggiornamento automatico ogni 5s. aisstream.io non espone API di quota — questo pannello mostra segnali locali di problemi.',
 
+  // ── Banner disservizio AIS ───────────────────────────────────────────────────
+  'outage.banner':  'Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «{state}» (controllato alle {time}). I dati potrebbero non aggiornarsi.',
+  'outage.dismiss': 'Nascondi',
+
   // ── Log panel ──────────────────────────────────────────────────────────────
   'log.title':       'Log API',
   'log.live':        'LIVE',

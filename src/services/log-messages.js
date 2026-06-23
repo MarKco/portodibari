@@ -54,6 +54,18 @@ const MESSAGES = {
   'ais.conn_closed': { it: (p) => `Connessione chiusa (code ${p.code})`, en: (p) => `Connection closed (code ${p.code})` },
   'ais.ws_error': { it: 'Errore WebSocket', en: 'WebSocket error' },
   'ais.stream_stopped': { it: 'Stream fermato', en: 'Stream stopped' },
+  'ais.outage_detected': {
+    it: (p) => `Possibile disservizio AISStream: nessun segnale da ${p.min} min, il monitor pubblico riporta «${p.state}»`,
+    en: (p) => `Possible AISStream outage: no signal for ${p.min} min, public monitor reports “${p.state}”`,
+  },
+  'ais.outage_cleared': {
+    it: 'Disservizio AISStream rientrato: segnali nuovamente ricevuti',
+    en: 'AISStream outage cleared: signals received again',
+  },
+  'ais.outage_check_failed': {
+    it: (p) => `Controllo stato AISStream non riuscito: ${p.error}`,
+    en: (p) => `AISStream status check failed: ${p.error}`,
+  },
 
   // ── Sanctions ──
   'sanctions.loaded_disk': { it: 'Liste sanzioni caricate da disco', en: 'Sanctions lists loaded from disk' },

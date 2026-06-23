@@ -14,6 +14,11 @@ const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS 
 // Map of areaKey → per-stream state object
 const streams = new Map();
 
+// Epoch ms of the most recent real AIS *ship* message received across all areas.
+// The outage monitor (services/ais-uptime.js) reads this to tell genuine silence
+// (which warrants a service-status cross-check) from a healthy busy stream.
+let lastFrameAt = null;
+
 // Arrivals are collected here and flushed as a single log line once a minute
 // (rather than one line per ship), so a busy area doesn't drown the log.
 let arrivalNames = [];
@@ -125,6 +130,7 @@ function startStream(areaKey) {
         return;
       }
       if (parsed.MessageType) {
+        lastFrameAt = Date.now(); // a real ship message: the pipe is alive
         const t0 = Date.now();
         const { arrivedFlagged, newShip, revisit, areaChange, arrived } = db.insert(parsed, areaKey);
         // New data for this ship → its cached risk score is stale.
@@ -286,6 +292,27 @@ function isActive(areaKey) {
   return streams.get(areaKey)?.streamActive || false;
 }
 
+/**
+ * Snapshot of how long the (collectively) active streams have been silent.
+ * `silentMs` is measured from the last received ship message, falling back to
+ * the earliest active connection time when none has arrived yet. Returns
+ * `{ active:false }` when no stream is running — there's nothing to be silent.
+ */
+function getSilenceInfo() {
+  let anyActive = false;
+  let earliestConnected = null;
+  for (const s of streams.values()) {
+    if (!s.streamActive) continue;
+    anyActive = true;
+    if (s.connectedAt && (earliestConnected === null || s.connectedAt < earliestConnected)) {
+      earliestConnected = s.connectedAt;
+    }
+  }
+  if (!anyActive) return { active: false, silentMs: 0, lastFrameAt };
+  const ref = lastFrameAt || earliestConnected || Date.now();
+  return { active: true, silentMs: Date.now() - ref, lastFrameAt };
+}
+
 function getStatus() {
   const result = {};
   for (const [key, s] of streams) {
@@ -314,4 +341,4 @@ function getHealth(areaKey) {
   };
 }
 
-module.exports = { startStream, stopStream, removeStream, isActive, getStatus, getHealth };
+module.exports = { startStream, stopStream, removeStream, isActive, getStatus, getHealth, getSilenceInfo };

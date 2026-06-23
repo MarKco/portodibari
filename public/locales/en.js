@@ -316,6 +316,10 @@ export default {
   'health.msgPerMin':   '{n} msg/min',
   'health.note':        'Auto-updates every 5s. aisstream.io does not expose quota APIs — this panel shows local signals of issues.',
 
+  // ── AIS outage banner ────────────────────────────────────────────────────────
+  'outage.banner':  'Possible AISStream outage: no incoming signals and the public monitor reports “{state}” (checked at {time}). Data may not be updating.',
+  'outage.dismiss': 'Hide',
+
   // ── Log panel ──────────────────────────────────────────────────────────────
   'log.title':       'API Log',
   'log.live':        'LIVE',

@@ -21,6 +21,7 @@ import { enterAreasView, commitPendingDelete } from './areas.js';
 import { closeSettingsLog } from './app-log.js';
 import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
+import { applyOutageBanner } from './outage.js';
 
 export function showView(v, mmsi, shipData) {
   // Leaving the Areas screen counts as "navigating away": commit any pending
@@ -51,6 +52,9 @@ export function showView(v, mmsi, shipData) {
   el.tabActive.classList.toggle('tab-active', v === 'active');
   el.tabPast.classList.toggle('tab-active', v === 'past');
   el.tabTraffco.classList.toggle('tab-active', v === 'traffico');
+
+  // The outage banner only belongs on monitoring pages — re-evaluate on nav.
+  applyOutageBanner();
 
   if (v === 'detail' && mmsi != null) {
     S.detailMmsi = mmsi;
