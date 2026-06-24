@@ -307,6 +307,13 @@ score = clamp( round( subtotaleAnomalie × moltiplicatore ), 0, 100 )
 
 `computeRiskScore(ship, lang)` ritorna `{ score, band, factors, sanctionMatch, sources }`, dove `band` ∈ `low|med|high`, `factors` è l'elenco ordinato `{label, points}` delle firme che hanno contribuito (label nella lingua richiesta), `sanctionMatch` è `null` oppure il dettaglio strutturato del match sanzioni (`{ source, sourceKey, program, flag, owner, aliases, listedName, matchedOn, matchedOnLabel, url }`, usato dal pannello Sanzioni nel dettaglio nave) e `sources: { vf, mt, gfw, sanctions, psc }` indica quali fonti esterne erano presenti/consultate al momento del calcolo (ognuna `none`/`available`/`used`). Il parametro `lang` (`'it'` default, `'en'` supportato) viene inoltrato automaticamente da `api.js` in base alla lingua selezionata nel frontend.
 
+### Pesi dei segnali editabili dall'interfaccia (Modello di rischio)
+
+I valori della tabella sopra sono i **default** (da `app.config.properties`, chiavi `RISK_*`), ma i **pesi in punti** dei ~24 segnali sono anche **modificabili a runtime** dalle Impostazioni → sezione **⚖ Modello di rischio**, senza riavvio — stesso meccanismo dei [pesi per tipo di carico](#-tipo-di-carico-e-stato-di-carico). Solo gli admin. Le **soglie di rilevamento** (ore di blackout, kn di spoofing, km/posizioni di loitering, Δ pescaggio, anni nave, giorni finestra rendezvous) e i **moltiplicatori geopolitici** restano boot-only in `app.config.properties`.
+
+- **Override live**: l'override è salvato come singola proprietà JSON `RISK_WEIGHTS` in `local.properties`, sovrapposta ai default `RISK`; `risk-score.js` legge sempre `state.riskWeights` (che porta l'intero set `RISK` con solo i pesi-punto sovrascrivibili). Modificare un peso invalida la cache degli score così il ricalcolo è immediato.
+- **Profili di rischio (preset)**: come le "classi di pesi" del carico — un preset **Default** integrato più profili salvabili dall'operatore, memorizzati come riga JSON nella tabella `meta` (chiave `risk_weight_presets`), inclusa nei backup. Endpoint: `POST /api/settings/risk-weights`, `GET|POST /api/settings/risk-presets`, `POST /api/settings/risk-presets/apply`, `DELETE /api/settings/risk-presets/:id` (tutti `requireAdmin`). Servizio in [`src/services/risk-presets.js`](src/services/risk-presets.js); pesi editabili elencati in `config.EDITABLE_RISK_WEIGHTS`.
+
 ### Arricchimento dello score da VF/MT
 
 Quando l'import VesselFinder e/o MarineTraffic è abilitato, lo score usa anche i **dati di registro** scaricati da quelle fonti (`loadEnrichment` in `risk-score.js`), che il modello solo-AIS non vede:
@@ -940,7 +947,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 
 **`berths`** — banchine rilevate/disegnate: `area`, `name`, `polygon_json` (`[[lat,lon],…]`), `centroid_lat`/`centroid_lon`, `manual_geom` (1 = geometria bloccata a mano), `char_label` (categoria dominante calcolata o `mixed` o `NULL`), `char_override` (categoria forzata a mano, ha la precedenza), `mooring_count`, `dist_json` (distribuzione `[{category,n,pct}]`), `hazmat_pct`, `updated_at`. Entrambe incluse nei backup (`BACKUP_TABLES`).
 
-**`proximity_events`** — contatti di [rendezvous nave-nave](#-rilevamento-rendezvous-nave-nave): un record per incontro tra una coppia canonica (`mmsi_a < mmsi_b`), con `name_a`/`name_b`, `area`, `started_at`, `last_seen_at`, `ended_at` (`NULL` = contatto ancora aperto), `min_dist_m` (distanza minima raggiunta), `lat_a`/`lon_a`/`lat_b`/`lon_b` (ultime posizioni), `alerted` (1 = soglia di permanenza raggiunta, notifica già inviata). Alimenta lo score di rischio (entrambe le navi) e la sezione "Rendezvous in mare" del dettaglio. Retention: cap a 5.000 contatti chiusi.
+**`proximity_events`** — contatti di [rendezvous nave-nave](#-rilevamento-rendezvous-nave-nave): un record per incontro tra una coppia canonica (`mmsi_a < mmsi_b`), con `name_a`/`name_b`, `area`, `started_at`, `last_seen_at`, `ended_at` (`NULL` = contatto ancora aperto), `min_dist_m` (distanza minima raggiunta), `lat_a`/`lon_a`/`lat_b`/`lon_b` (ultime posizioni), `alerted` (1 = soglia di permanenza raggiunta, notifica già inviata). Alimenta lo score di rischio (entrambe le navi) e la sezione "Rendezvous in mare" del dettaglio. Retention: cap a 5.000 contatti chiusi. Inclusa nei backup (`BACKUP_TABLES`).
 
 ## 🔌 API interne
 

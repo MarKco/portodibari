@@ -4,6 +4,7 @@ const express = require('express');
 const {
   state, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
+  setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN, REPLAY,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -13,6 +14,7 @@ const userPrefs = require('../services/user-prefs');
 const { requireAdmin } = require('../middleware/session-auth');
 const { CARGO_CLASSES } = require('../services/cargo-type');
 const cargoPresets = require('../services/cargo-presets');
+const riskPresets = require('../services/risk-presets');
 
 // True if the session owner is an admin (impersonation never grants admin).
 function isAdminReq(req) {
@@ -102,6 +104,13 @@ router.get('/settings', (req, res) => {
     defaultCargoWeights: DEFAULT_CARGO_WEIGHTS,
     cargoWeightsPreset: state.cargoWeightsPreset,
     cargoPresets: cargoPresets.listPresets(),
+    // Live-editable risk-signal weights (admin-managed). riskWeightKeys gives the
+    // editable subset in display order; riskWeights holds only those keys.
+    riskWeightKeys: EDITABLE_RISK_WEIGHTS,
+    riskWeights: Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, state.riskWeights[k]])),
+    defaultRiskWeights: DEFAULT_RISK_WEIGHTS,
+    riskWeightsPreset: state.riskWeightsPreset,
+    riskPresets: riskPresets.listPresets(),
   });
 });
 
@@ -170,6 +179,61 @@ router.delete('/settings/cargo-presets/:id', requireAdmin, (req, res) => {
   }
 });
 
+// ── Risk-signal weights (live-editable, mirrors the cargo-weights endpoints) ──
+// Update the point-contribution weights and drop memoised scores so the next
+// read reflects the new weighting. Accepts a partial { KEY: weight } map.
+router.post('/settings/risk-weights', requireAdmin, (req, res) => {
+  const map = req.body && req.body.riskWeights ? req.body.riskWeights : req.body;
+  const weights = setRiskWeights(map);
+  const preset = setRiskWeightsPreset(null); // a manual edit → "custom"
+  clearRiskCache();
+  appLog.info('SETTINGS', appLog.t('settings.risk_weights'));
+  res.json({ ok: true, riskWeights: weights, riskWeightsPreset: preset });
+});
+
+router.get('/settings/risk-presets', (req, res) => {
+  res.json({ presets: riskPresets.listPresets(), active: state.riskWeightsPreset });
+});
+
+router.post('/settings/risk-presets/apply', requireAdmin, (req, res) => {
+  const id = req.body && req.body.id;
+  const preset = riskPresets.getPreset(id);
+  if (!preset) return res.status(404).json({ error: 'Preset sconosciuto' });
+  const weights = setRiskWeights(preset.weights);
+  const active = setRiskWeightsPreset(preset.id);
+  clearRiskCache();
+  appLog.info('SETTINGS', appLog.t('settings.risk_preset_applied', { name: preset.name }));
+  res.json({ ok: true, riskWeights: weights, riskWeightsPreset: active });
+});
+
+router.post('/settings/risk-presets', requireAdmin, (req, res) => {
+  try {
+    const name = req.body && req.body.name;
+    const weights = req.body && req.body.weights ? req.body.weights : state.riskWeights;
+    const saved = riskPresets.savePreset(name, weights);
+    setRiskWeights(saved.weights);
+    const active = setRiskWeightsPreset(saved.id);
+    clearRiskCache();
+    appLog.info('SETTINGS', appLog.t('settings.risk_preset_saved', { name: saved.name }));
+    res.json({ ok: true, preset: saved, presets: riskPresets.listPresets(), riskWeights: state.riskWeights, riskWeightsPreset: active });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.delete('/settings/risk-presets/:id', requireAdmin, (req, res) => {
+  try {
+    const id = req.params.id;
+    const removed = riskPresets.deletePreset(id);
+    if (!removed) return res.status(404).json({ error: 'Preset sconosciuto' });
+    let active = state.riskWeightsPreset;
+    if (active === id) active = setRiskWeightsPreset(null);
+    res.json({ ok: true, presets: riskPresets.listPresets(), riskWeightsPreset: active });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Manually re-download the sanctions list (OFAC SDN). Fire-and-forget refresh;
 // returns the dataset status so the UI can reflect "refreshing in progress".
 router.post('/sanctions/refresh', requireAdmin, (req, res) => {
@@ -210,6 +274,8 @@ function exportSettings() {
     checkDarkActivity: state.checkDarkActivity,
     cargoWeights: state.cargoWeights,
     cargoWeightsPreset: state.cargoWeightsPreset,
+    riskWeights: Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, state.riskWeights[k]])),
+    riskWeightsPreset: state.riskWeightsPreset,
   };
 }
 

@@ -198,6 +198,13 @@ async function loadSettings() {
     S.cargoWeightsPreset = s.cargoWeightsPreset || null;
     renderCargoWeights();
     renderCargoPresets();
+    if (s.riskWeightKeys) S.riskWeightKeys = s.riskWeightKeys;
+    if (s.defaultRiskWeights) S.defaultRiskWeights = s.defaultRiskWeights;
+    if (s.riskWeights) S.riskWeights = s.riskWeights;
+    if (s.riskPresets) S.riskPresets = s.riskPresets;
+    S.riskWeightsPreset = s.riskWeightsPreset || null;
+    renderRiskWeights();
+    renderRiskPresets();
     applyNotifSettingsState();
   } catch {
     /* ignore */
@@ -339,6 +346,59 @@ function collectCargoWeights() {
   el.cargoWeightsGrid.querySelectorAll('.cargo-weight-input').forEach((inp) => {
     const v = Number(inp.value);
     if (Number.isFinite(v) && v >= 0) map[inp.dataset.class] = v;
+  });
+  return map;
+}
+
+// ── Risk-signal weights (mirrors the cargo-weights helpers) ──────────────────
+const riskWeightLabel = (key) => {
+  const k = 'risk.weight.' + key;
+  const tr = t(k);
+  return tr && tr !== k ? tr : key;
+};
+
+function renderRiskWeights(values) {
+  if (!el.riskWeightsGrid || !S.riskWeightKeys) return;
+  const w = values || S.riskWeights || {};
+  el.riskWeightsGrid.innerHTML = S.riskWeightKeys
+    .map(
+      (key) => `
+      <label class="cargo-weight-item">
+        <span class="cargo-weight-label">${escHtml(riskWeightLabel(key))}</span>
+        <input type="number" min="0" step="1" class="risk-weight-input" data-key="${key}" value="${w[key] != null ? w[key] : 0}">
+      </label>`
+    )
+    .join('');
+}
+
+function riskPresetLabel(p) {
+  if (p.builtin) {
+    const key = 'settings.riskPresets.builtin.' + p.id;
+    const tr = t(key);
+    if (tr && tr !== key) return tr;
+  }
+  return p.name;
+}
+
+function renderRiskPresets() {
+  if (!el.riskPresetSelect || !S.riskPresets) return;
+  const active = S.riskWeightsPreset;
+  const opts = S.riskPresets
+    .map((p) => `<option value="${escHtml(p.id)}"${p.id === active ? ' selected' : ''}>${escHtml(riskPresetLabel(p))}${p.builtin ? '' : ' ★'}</option>`)
+    .join('');
+  const customSel = active ? '' : ' selected';
+  el.riskPresetSelect.innerHTML =
+    `<option value=""${customSel}>${escHtml(t('settings.cargoPresets.custom'))}</option>` + opts;
+  const sel = S.riskPresets.find((p) => p.id === active);
+  if (el.btnRiskPresetDelete) el.btnRiskPresetDelete.disabled = !sel || sel.builtin;
+}
+
+// Collect the grid into a { KEY: weight } map.
+function collectRiskWeights() {
+  const map = {};
+  el.riskWeightsGrid.querySelectorAll('.risk-weight-input').forEach((inp) => {
+    const v = Number(inp.value);
+    if (Number.isFinite(v) && v >= 0) map[inp.dataset.key] = v;
   });
   return map;
 }
@@ -954,6 +1014,95 @@ function initSettingsModal() {
         if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoPresets.deleted');
       } catch {
         if (el.cargoWeightsStatus) el.cargoWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  // ── Risk-signal weights (mirrors the cargo-weights handlers) ──
+  if (el.btnRiskWeightsSave) {
+    el.btnRiskWeightsSave.addEventListener('click', async () => {
+      const riskWeights = collectRiskWeights();
+      try {
+        const r = await api('/api/settings/risk-weights', 'POST', { riskWeights });
+        S.riskWeights = r.riskWeights || riskWeights;
+        S.riskWeightsPreset = r.riskWeightsPreset || null;
+        renderRiskWeights();
+        renderRiskPresets();
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.saved');
+      } catch {
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  if (el.btnRiskWeightsReset) {
+    el.btnRiskWeightsReset.addEventListener('click', () => {
+      renderRiskWeights(S.defaultRiskWeights);
+      if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.resetHint');
+    });
+  }
+
+  if (el.riskPresetSelect) {
+    el.riskPresetSelect.addEventListener('change', () => {
+      const id = el.riskPresetSelect.value;
+      const preset = id && S.riskPresets && S.riskPresets.find((p) => p.id === id);
+      renderRiskWeights(preset ? preset.weights : S.riskWeights);
+      if (el.btnRiskPresetDelete) el.btnRiskPresetDelete.disabled = !preset || preset.builtin;
+      if (el.riskWeightsStatus) {
+        el.riskWeightsStatus.textContent = preset ? t('settings.cargoPresets.previewHint') : '';
+      }
+    });
+  }
+
+  if (el.btnRiskPresetApply) {
+    el.btnRiskPresetApply.addEventListener('click', async () => {
+      const id = el.riskPresetSelect && el.riskPresetSelect.value;
+      if (!id) return;
+      try {
+        const r = await api('/api/settings/risk-presets/apply', 'POST', { id });
+        S.riskWeights = r.riskWeights;
+        S.riskWeightsPreset = r.riskWeightsPreset || null;
+        renderRiskWeights();
+        renderRiskPresets();
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoPresets.applied');
+      } catch {
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  if (el.btnRiskPresetSave) {
+    el.btnRiskPresetSave.addEventListener('click', async () => {
+      const name = (window.prompt(t('settings.cargoPresets.namePrompt')) || '').trim();
+      if (!name) return;
+      const weights = collectRiskWeights();
+      try {
+        const r = await api('/api/settings/risk-presets', 'POST', { name, weights });
+        S.riskPresets = r.presets;
+        S.riskWeights = r.riskWeights || weights;
+        S.riskWeightsPreset = r.riskWeightsPreset || null;
+        renderRiskWeights();
+        renderRiskPresets();
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoPresets.saved');
+      } catch {
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.error');
+      }
+    });
+  }
+
+  if (el.btnRiskPresetDelete) {
+    el.btnRiskPresetDelete.addEventListener('click', async () => {
+      const id = el.riskPresetSelect && el.riskPresetSelect.value;
+      if (!id) return;
+      if (!confirm(t('settings.cargoPresets.deleteConfirm'))) return;
+      try {
+        const r = await api('/api/settings/risk-presets/' + encodeURIComponent(id), 'DELETE');
+        S.riskPresets = r.presets;
+        S.riskWeightsPreset = r.riskWeightsPreset || null;
+        renderRiskPresets();
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoPresets.deleted');
+      } catch {
+        if (el.riskWeightsStatus) el.riskWeightsStatus.textContent = t('settings.cargoWeights.error');
       }
     });
   }

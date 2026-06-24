@@ -2288,7 +2288,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'meta', 'users', 'sessions', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.

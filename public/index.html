@@ -824,6 +824,7 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="settings-section-head" data-i18n="settings.riskModel.head">⚖ Modello di rischio</div>
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.excludeTankers.name">Escludi tanker</div>
@@ -853,6 +854,25 @@
             <input type="checkbox" id="toggle-check-dark">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        <div class="setting-row setting-row-col" id="setting-risk-weights">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.riskWeights.name">Pesi dei segnali di rischio</div>
+            <div class="setting-desc" data-i18n="settings.riskWeights.desc">Punti che ogni segnale aggiunge allo score di rischio (blackout, spoofing, sosta, pescaggio, sanzioni, PSC, GFW, rendezvous, ecc.). Le modifiche hanno effetto subito, senza riavvio. Le soglie di rilevamento e i moltiplicatori restano in app.config.properties. Solo admin.</div>
+          </div>
+          <div class="cargo-presets-toolbar">
+            <label class="cargo-presets-label" data-i18n="settings.riskPresets.label" for="risk-preset-select">Profilo di rischio</label>
+            <select id="risk-preset-select"></select>
+            <button id="btn-risk-preset-apply" class="btn" data-i18n="settings.cargoPresets.apply">Applica</button>
+            <button id="btn-risk-preset-save" class="btn" data-i18n="settings.cargoPresets.saveAs">Salva come…</button>
+            <button id="btn-risk-preset-delete" class="btn" data-i18n="settings.cargoPresets.delete">Elimina</button>
+          </div>
+          <div id="risk-weights-grid" class="cargo-weights-grid"></div>
+          <div class="cargo-weights-toolbar">
+            <button id="btn-risk-weights-save" class="btn btn-clear" data-i18n="settings.cargoWeights.save">💾 Salva pesi</button>
+            <button id="btn-risk-weights-reset" class="btn" data-i18n="settings.cargoWeights.reset">Ripristina default</button>
+            <span id="risk-weights-status" class="params-dirty"></span>
+          </div>
         </div>
         <div class="setting-row">
           <div class="setting-info">

@@ -354,6 +354,49 @@ function parseCargoWeightsProp() {
   }
 }
 
+// ── Live-editable risk-signal weights ────────────────────────────────────────
+// The RISK object above holds the boot defaults (from app.config.properties).
+// These point-contribution weights are additionally editable at runtime from the
+// Settings UI (like the per-cargo weights): the override is persisted as a single
+// JSON property RISK_WEIGHTS in local.properties, layered over the RISK defaults,
+// and read by risk-score.js as state.riskWeights. Only these keys are editable —
+// detection thresholds and multipliers stay boot-only (RISK). risk-score reads
+// EVERY weight from state.riskWeights, so it always carries the full RISK set
+// with just these keys overridable.
+const EDITABLE_RISK_WEIGHTS = [
+  'DARK_MAX', 'DARK_PARTIAL_MIN', 'SPOOF_MAX', 'SPOOF_ANOM_PTS',
+  'LOITER_MAX', 'LOITER_PARTIAL', 'DRAUGHT_MAX', 'DRAUGHT_FACTOR',
+  'DEST_MAX', 'DEST_PER_CHANGE', 'NAME_HOP', 'EMBARGO_FLAG', 'FOC_FLAG',
+  'OLD_VESSEL', 'HIGH_RISK_PORT', 'SANCTION_MATCH', 'PSC_BLACK_FLAG',
+  'PSC_GREY_FLAG', 'PSC_BANNED', 'GFW_ENCOUNTER', 'GFW_GAP', 'GFW_LOITERING',
+  'GFW_PORT_HIGH', 'PROXIMITY',
+];
+
+// The editable defaults only (subset of RISK) — sent to the UI for "reset".
+const DEFAULT_RISK_WEIGHTS = Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, RISK[k]]));
+
+// Merge a partial override onto the full RISK set: non-editable keys always keep
+// their RISK default; editable keys take a finite, non-negative override.
+function normalizeRiskWeights(raw) {
+  const out = { ...RISK };
+  if (raw && typeof raw === 'object') {
+    for (const k of EDITABLE_RISK_WEIGHTS) {
+      const v = Number(raw[k]);
+      if (Number.isFinite(v) && v >= 0) out[k] = v;
+    }
+  }
+  return out;
+}
+
+function parseRiskWeightsProp() {
+  if (!props.RISK_WEIGHTS) return { ...RISK };
+  try {
+    return normalizeRiskWeights(JSON.parse(props.RISK_WEIGHTS));
+  } catch {
+    return { ...RISK };
+  }
+}
+
 // ── Mutable runtime state ────────────────────────────────────────────────────
 // Shared by reference across modules so live updates (preset / import toggles)
 // are visible everywhere without re-wiring.
@@ -405,6 +448,10 @@ const state = {
   // always state.cargoWeights. Built-in ids live in BUILTIN_CARGO_PRESETS,
   // user-defined ones in the DB `meta` table.
   cargoWeightsPreset: props.RISK_CARGO_WEIGHTS_PRESET || null,
+  // Live-editable risk-signal weights (see EDITABLE_RISK_WEIGHTS above) + the
+  // named preset they came from (null = custom).
+  riskWeights: parseRiskWeightsProp(),
+  riskWeightsPreset: props.RISK_WEIGHTS_PRESET || null,
   // Risk-factor switches for signals that are unreliable in poorly-covered areas.
   // Both default ON; turning one off removes that factor from the score entirely.
   //   checkSpoofing     → "Impossible position jump" (sparse AIS = false jumps)
@@ -582,6 +629,21 @@ function setCargoWeightsPreset(id) {
   state.cargoWeightsPreset = id ? String(id) : null;
   saveProperty('RISK_CARGO_WEIGHTS_PRESET', state.cargoWeightsPreset || '');
   return state.cargoWeightsPreset;
+}
+
+// Live-editable risk-signal weights — same shape as the cargo-weights setters.
+// Persists only the editable subset as JSON; risk-score reads state.riskWeights.
+function setRiskWeights(map) {
+  state.riskWeights = normalizeRiskWeights({ ...state.riskWeights, ...(map || {}) });
+  const subset = Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, state.riskWeights[k]]));
+  saveProperty('RISK_WEIGHTS', JSON.stringify(subset));
+  return subset;
+}
+
+function setRiskWeightsPreset(id) {
+  state.riskWeightsPreset = id ? String(id) : null;
+  saveProperty('RISK_WEIGHTS_PRESET', state.riskWeightsPreset || '');
+  return state.riskWeightsPreset;
 }
 
 /** Keyword for a preset (used to flag "expected" ships by destination). */
@@ -894,6 +956,11 @@ module.exports = {
   setCargoWeightsPreset,
   normalizeCargoWeights,
   DEFAULT_CARGO_WEIGHTS,
+  setRiskWeights,
+  setRiskWeightsPreset,
+  normalizeRiskWeights,
+  DEFAULT_RISK_WEIGHTS,
+  EDITABLE_RISK_WEIGHTS,
   currentKeyword,
   bboxSignature,
   areaForPoint,

@@ -243,6 +243,9 @@ function bandOf(score) {
  */
 function computeRiskScore(ship, lang) {
   const L = getLabels(lang);
+  // Weights: the live, UI-editable set (state.riskWeights) which always carries
+  // the full RISK default set with the editable point-weights overridable.
+  const W = state.riskWeights || R;
   const mmsi = ship.mmsi;
   const positions = db.getShipPositions(mmsi);
   const events = db.getShipEvents(mmsi);
@@ -280,11 +283,11 @@ function computeRiskScore(ship, lang) {
       const dtH = (new Date(positions[i].received_at) - new Date(prev.received_at)) / 3.6e6;
       if (dtH > maxGapH) maxGapH = dtH;
     }
-    if (maxGapH >= R.DARK_MAX_H) {
-      add(R.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
-    } else if (maxGapH >= R.DARK_MIN_H) {
-      const t = (maxGapH - R.DARK_MIN_H) / (R.DARK_MAX_H - R.DARK_MIN_H);
-      add(R.DARK_PARTIAL_MIN + t * (R.DARK_MAX - R.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
+    if (maxGapH >= W.DARK_MAX_H) {
+      add(W.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
+    } else if (maxGapH >= W.DARK_MIN_H) {
+      const t = (maxGapH - W.DARK_MIN_H) / (W.DARK_MAX_H - W.DARK_MIN_H);
+      add(W.DARK_PARTIAL_MIN + t * (W.DARK_MAX - W.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
     }
   }
 
@@ -303,8 +306,8 @@ function computeRiskScore(ship, lang) {
       const kn = dM / 1852 / dtH;
       if (kn > maxImplied) maxImplied = kn;
     }
-    if (maxImplied > R.SPOOF_IMPOSSIBLE) add(R.SPOOF_MAX, L.spoofImpossible(maxImplied.toFixed(0)));
-    else if (maxImplied > R.SPOOF_ANOMALOUS) add(R.SPOOF_ANOM_PTS, L.spoofAnom(maxImplied.toFixed(0)));
+    if (maxImplied > W.SPOOF_IMPOSSIBLE) add(W.SPOOF_MAX, L.spoofImpossible(maxImplied.toFixed(0)));
+    else if (maxImplied > W.SPOOF_ANOMALOUS) add(W.SPOOF_ANOM_PTS, L.spoofAnom(maxImplied.toFixed(0)));
   }
 
   // 3. Loitering — stationary in open water (far from the monitored port centre)
@@ -314,10 +317,10 @@ function computeRiskScore(ship, lang) {
       const slow = p.sog != null && p.sog < SOG_FERMA;
       const notMoored = p.ns !== '1' && p.ns !== '5';
       const farKm = haversineM(p.lat, p.lon, state.centerLat, state.centerLon) / 1000;
-      return slow && notMoored && farKm > R.LOITER_FAR_KM;
+      return slow && notMoored && farKm > W.LOITER_FAR_KM;
     }).length;
-    if (open >= R.LOITER_MIN_POS) add(R.LOITER_MAX, L.loiterMax);
-    else if (open >= 1) add(R.LOITER_PARTIAL, L.loiterPartial);
+    if (open >= W.LOITER_MIN_POS) add(W.LOITER_MAX, L.loiterMax);
+    else if (open >= 1) add(W.LOITER_PARTIAL, L.loiterPartial);
   }
 
   // 4. Draught load — significant increase in declared draught across a stop
@@ -332,7 +335,7 @@ function computeRiskScore(ship, lang) {
       if (deltaM > maxLoad) maxLoad = deltaM;
     }
   }
-  if (maxLoad >= R.DRAUGHT_MIN_DELTA) add(clamp(maxLoad * R.DRAUGHT_FACTOR, 0, R.DRAUGHT_MAX), L.draughtLoad(maxLoad.toFixed(1)));
+  if (maxLoad >= W.DRAUGHT_MIN_DELTA) add(clamp(maxLoad * W.DRAUGHT_FACTOR, 0, W.DRAUGHT_MAX), L.draughtLoad(maxLoad.toFixed(1)));
 
   // 5. Destination instability — frequent changes of declared destination.
   const dests = new Set(
@@ -340,7 +343,7 @@ function computeRiskScore(ship, lang) {
       .map((d) => (d || '').trim().toUpperCase())
       .filter(Boolean)
   );
-  if (dests.size >= 2) add(clamp((dests.size - 1) * R.DEST_PER_CHANGE, 0, R.DEST_MAX), L.destChange(dests.size));
+  if (dests.size >= 2) add(clamp((dests.size - 1) * W.DEST_PER_CHANGE, 0, W.DEST_MAX), L.destChange(dests.size));
 
   // 6. Cargo type — per-class weight (replaces the old flat hazmat/cargo points).
   //    The class is derived from the granular VesselFinder/MarineTraffic subtype
@@ -355,7 +358,7 @@ function computeRiskScore(ship, lang) {
   }
 
   // 7. Flag/name hopping — one MMSI broadcasting multiple hull names.
-  if (names.length >= 2) add(R.NAME_HOP, L.nameHop(names.length));
+  if (names.length >= 2) add(W.NAME_HOP, L.nameHop(names.length));
 
   // 8. External enrichment (VesselFinder / MarineTraffic) — only used when the
   //    user enabled the corresponding import and the data is already cached.
@@ -378,30 +381,30 @@ function computeRiskScore(ship, lang) {
     // (e.g. Panama is only grey, Liberia is white in the current Paris list).
     const pscFlag = state.importPsc && psc.flagsLoaded() ? psc.matchFlag(enr.flag.value) : null;
     if (EMBARGO_FLAG_NAMES.some((n) => flagUpper.includes(n))) {
-      addEnr(R.EMBARGO_FLAG, L.embargoFlag(enr.flag.value, enr.flag.src), enr.flag.src);
+      addEnr(W.EMBARGO_FLAG, L.embargoFlag(enr.flag.value, enr.flag.src), enr.flag.src);
     } else if (pscFlag) {
       const mous = pscFlag.mous.join(' + ');
       if (pscFlag.perf === 'black') {
-        addEnr(R.PSC_BLACK_FLAG, L.pscBlackFlag(enr.flag.value, mous), enr.flag.src);
+        addEnr(W.PSC_BLACK_FLAG, L.pscBlackFlag(enr.flag.value, mous), enr.flag.src);
         pscContributed = true;
       } else if (pscFlag.perf === 'grey') {
-        addEnr(R.PSC_GREY_FLAG, L.pscGreyFlag(enr.flag.value, mous), enr.flag.src);
+        addEnr(W.PSC_GREY_FLAG, L.pscGreyFlag(enr.flag.value, mous), enr.flag.src);
         pscContributed = true;
       }
       // white → quality registry: no penalty (and suppresses the FOC heuristic)
     } else if (FOC_FLAG_NAMES.some((n) => flagUpper.includes(n))) {
-      addEnr(R.FOC_FLAG, L.focFlag(enr.flag.value, enr.flag.src), enr.flag.src);
+      addEnr(W.FOC_FLAG, L.focFlag(enr.flag.value, enr.flag.src), enr.flag.src);
     }
   }
   if (enr.year) {
     const y = parseInt(String(enr.year.value).match(/\d{4}/)?.[0], 10);
     const age = Number.isFinite(y) ? new Date().getUTCFullYear() - y : 0;
-    if (age >= R.OLD_MIN_AGE) addEnr(R.OLD_VESSEL, L.oldVessel(y, age, enr.year.src), enr.year.src);
+    if (age >= W.OLD_MIN_AGE) addEnr(W.OLD_VESSEL, L.oldVessel(y, age, enr.year.src), enr.year.src);
   }
   if (enr.homePort) {
     const hpUpper = enr.homePort.value.toUpperCase();
     if (HIGH_RISK_DEST.some((k) => hpUpper.includes(k))) {
-      addEnr(R.HIGH_RISK_PORT, L.highRiskPort(enr.homePort.value, enr.homePort.src), enr.homePort.src);
+      addEnr(W.HIGH_RISK_PORT, L.highRiskPort(enr.homePort.value, enr.homePort.src), enr.homePort.src);
     }
   }
 
@@ -416,7 +419,7 @@ function computeRiskScore(ship, lang) {
     const hit = sanctions.matchShip(ship);
     if (hit) {
       const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][hit.matchedOn] || hit.matchedOn;
-      add(R.SANCTION_MATCH, L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
+      add(W.SANCTION_MATCH, L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
       sanctionStatus = 'used';
       // Structured detail for the dedicated sanctions panel in the ship detail view.
       sanctionMatch = {
@@ -449,7 +452,7 @@ function computeRiskScore(ship, lang) {
       const ban = psc.matchBanned(ship);
       if (ban) {
         const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][ban.matchedOn] || ban.matchedOn;
-        add(R.PSC_BANNED, L.pscBanned(ban.entry.reason, onLabel));
+        add(W.PSC_BANNED, L.pscBanned(ban.entry.reason, onLabel));
         pscStatus = 'used';
       }
     }
@@ -463,15 +466,15 @@ function computeRiskScore(ship, lang) {
   //     gfwContributed; here we add the event factors.
   if (gfwData && gfwData.events) {
     const ev = gfwData.events;
-    if (ev.encounters?.length) addEnr(R.GFW_ENCOUNTER, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch');
-    if (ev.gaps?.length) addEnr(R.GFW_GAP, L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
-    if (ev.loitering?.length) addEnr(R.GFW_LOITERING, L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
+    if (ev.encounters?.length) addEnr(W.GFW_ENCOUNTER, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch');
+    if (ev.gaps?.length) addEnr(W.GFW_GAP, L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
+    if (ev.loitering?.length) addEnr(W.GFW_LOITERING, L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
     const highRiskCall = (ev.portVisits || []).find((pv) => {
       const hay = `${pv.port || ''} ${pv.country || ''}`.toUpperCase();
       return HIGH_RISK_DEST.some((k) => hay.includes(k));
     });
     if (highRiskCall) {
-      addEnr(R.GFW_PORT_HIGH, L.gfwPortHigh(highRiskCall.port || highRiskCall.country), 'Global Fishing Watch');
+      addEnr(W.GFW_PORT_HIGH, L.gfwPortHigh(highRiskCall.port || highRiskCall.country), 'Global Fishing Watch');
     }
   }
 
@@ -481,10 +484,10 @@ function computeRiskScore(ship, lang) {
   //     (no external source). Counts distinct partner ships. Behaves like the
   //     other behavioural heuristics (passes through the multiplier). Weight 0
   //     disables it. See services/proximity.js for the detection itself.
-  if (R.PROXIMITY > 0) {
-    const sinceIso = new Date(Date.now() - R.PROXIMITY_WINDOW_DAYS * 86400000).toISOString();
+  if (W.PROXIMITY > 0) {
+    const sinceIso = new Date(Date.now() - W.PROXIMITY_WINDOW_DAYS * 86400000).toISOString();
     const partners = new Set(db.getProximityForShip(mmsi, sinceIso).map((r) => r.other));
-    if (partners.size) add(R.PROXIMITY, L.proximity(partners.size));
+    if (partners.size) add(W.PROXIMITY, L.proximity(partners.size));
   }
 
   // ── Geopolitical context multiplier ────────────────────────────────────────
@@ -495,8 +498,8 @@ function computeRiskScore(ship, lang) {
   const focFlag = FOC_MID.has(mid);
 
   let mult = 1;
-  if (highRiskDest || embargoFlag) mult += R.MULT_HIGH_RISK;
-  if (focFlag) mult += R.MULT_FOC;
+  if (highRiskDest || embargoFlag) mult += W.MULT_HIGH_RISK;
+  if (focFlag) mult += W.MULT_FOC;
 
   const score = clamp(Math.round(anomaly * mult), 0, 100);
 

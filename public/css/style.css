@@ -2367,10 +2367,17 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .load-ballast { background: #0369a1; }
 
 /* Per-cargo-type risk-weight editor (Settings) */
+.settings-section-head { font-weight: 700; font-size: 0.95rem; margin: 1.25rem 0 0.25rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border-strong, #374151); color: var(--text); }
 .cargo-weights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 12px; margin-top: 8px; width: 100%; }
 .cargo-weight-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; }
 .cargo-weight-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cargo-weight-input { width: 64px; flex-shrink: 0; text-align: right; }
+/* Risk-signal weights: labels are long ("Match liste sanzioni") — stack the
+   label above a full-width input and let it wrap, so nothing is truncated. */
+#risk-weights-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+#risk-weights-grid .cargo-weight-item { flex-direction: column; align-items: stretch; gap: 3px; }
+#risk-weights-grid .cargo-weight-label { white-space: normal; overflow: visible; line-height: 1.2; }
+#risk-weights-grid .cargo-weight-input { width: 100%; text-align: left; }
 .cargo-weights-toolbar { display: flex; align-items: center; gap: 0.6rem; margin-top: 10px; flex-wrap: wrap; }
 .cargo-presets-toolbar { display: flex; align-items: center; gap: 0.5rem; margin-top: 10px; flex-wrap: wrap; }
 .cargo-presets-label { font-size: 0.82rem; color: var(--text-dim, var(--text)); }

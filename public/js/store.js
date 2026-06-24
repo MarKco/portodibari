@@ -46,6 +46,12 @@ export const S = {
   defaultCargoWeights: null,
   cargoPresets: null,
   cargoWeightsPreset: null,
+  // Risk-signal weights (admin-editable, mirrors cargo weights)
+  riskWeightKeys: null,
+  riskWeights: null,
+  defaultRiskWeights: null,
+  riskPresets: null,
+  riskWeightsPreset: null,
   currentPreset: '',
 
   // List filters (client-side, applied before sort/render). `showSeen` controls
