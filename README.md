@@ -152,7 +152,9 @@ Ci sono **due modi** per gestire le aree:
    - **per coordinate GPS** in gradi decimali (campi SW lat/lon e NE lat/lon), oppure
    - **da mappa**: inquadra (zoom/pan) l'area da monitorare e premi **🎯 Cattura vista corrente** per riempire automaticamente le coordinate dal riquadro visibile.
    - Assegna un **nome** (obbligatorio) e una **parola chiave** facoltativa. La nuova area viene salvata in `bounding-boxes.json` e il suo stream parte subito.
-   - **Eliminazione**: il cestino 🗑 rimuove l'area **e tutto lo storico dei monitoraggi correlati** (letture, navi, eventi porto). La cancellazione è **ritardata di 10 secondi** con un toast **↶ Annulla**: diventa effettiva allo scadere del timer o quando si lascia la pagina; premendo Annulla non viene eliminato nulla. Deve restare **almeno un'area** (l'ultima non è eliminabile).
+   - **Eliminazione**: il cestino 🗑 rimuove l'area **e tutto lo storico dei monitoraggi correlati** (letture, navi, eventi porto, notifiche, ormeggi, banchine, storico rischio e cache di scraping). La cancellazione è **ritardata di 10 secondi** con un toast **↶ Annulla**: diventa effettiva allo scadere del timer o quando si lascia la pagina; premendo Annulla non viene eliminato nulla. Deve restare **almeno un'area** (l'ultima non è eliminabile). L'eliminazione è effettiva **solo se sei l'ultimo proprietario** dell'area (le aree condivise sopravvivono finché un altro utente le monitora).
+
+     > **Righe orfane e pulizia.** Lo schema non usa `ON DELETE CASCADE`: `deleteAll(area)` in `src/db.js` esegue le cancellazioni a mano. Poiché una nave conserva in `last_area` solo l'ultima area in cui è stata vista, una nave che si è spostata tra aree poteva lasciare righe "orfane" agganciate al suo `mmsi` in altre aree (e la `ship_scrape_cache`, priva di tag area, non veniva mai toccata). `deleteAll` ora purga anche per `mmsi` e azzera i riferimenti `from_area` pendenti. A difesa di residui da versioni precedenti, edit manuali o scritture interrotte, un job idempotente — `db.pruneOrphans()`, schedulato in `src/server.js` all'avvio e poi ogni 24h — ripulisce qualunque riga il cui genitore (area o nave) non esiste più, registrando il totale rimosso nel log applicativo (`db.orphans_pruned`).
 2. **File `bounding-boxes.json` (manuale)** — aggiungere/modificare una voce a mano e **riavviare** l'app. Utile per il provisioning iniziale o gli script.
 
 > La schermata Aree riscrive `bounding-boxes.json` (preserva la chiave `_comment` ma normalizza la formattazione). Le chiavi dei preset vengono derivate automaticamente dal nome.
@@ -206,6 +208,7 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Max byte body request/response nel log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
 | Max record log API              | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 1.000          |
 | Intervallo compattazione DB (WAL + vacuum) | `src/server.js`        | `setInterval(db.runMaintenance, …)`   | 5 min          |
+| Intervallo pulizia righe orfane | `src/server.js`                   | `setInterval(sweepOrphans, …)`        | 24h (+ avvio)  |
 
 ### Applicare le modifiche
 

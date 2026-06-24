@@ -36,6 +36,8 @@ const MESSAGES = {
   'db.maint_initial_done': { it: 'Compattazione iniziale del database completata', en: 'Initial database compaction completed' },
   'db.maint_initial_failed': { it: (p) => `Compattazione iniziale fallita: ${p.error}`, en: (p) => `Initial compaction failed: ${p.error}` },
   'db.maint_periodic_failed': { it: (p) => `Compattazione periodica fallita: ${p.error}`, en: (p) => `Periodic compaction failed: ${p.error}` },
+  'db.orphans_pruned': { it: (p) => `Righe orfane rimosse: ${p.total}`, en: (p) => `Orphan rows removed: ${p.total}` },
+  'db.orphans_failed': { it: (p) => `Pulizia righe orfane fallita: ${p.error}`, en: (p) => `Orphan cleanup failed: ${p.error}` },
 
   // ── AIS stream ──
   'ais.areas_reconciled': {

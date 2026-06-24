@@ -2105,14 +2105,35 @@ function getAreaCounts(area) {
 // Delete collected data. With `area`, only that area's rows; otherwise all.
 function deleteAll(area) {
   if (area) {
-    // Drop score history for ships belonging to this area before the ships go.
-    db.prepare('DELETE FROM risk_history WHERE mmsi IN (SELECT mmsi FROM ships WHERE last_area = ?)').run(area);
+    // Capture the ships about to go BEFORE deleting them. A ship keeps the bbox
+    // of its latest position in last_area, so a ship that drifted from area A to
+    // area B has last_area=B even though it still owns A-tagged readings — and
+    // vice-versa. Deleting purely by area would leave rows keyed by these ships'
+    // mmsi behind in other areas (orphans). So purge by mmsi too, plus the
+    // scrape cache which carries no area tag and was never covered here.
+    const mmsis = db.prepare('SELECT mmsi FROM ships WHERE last_area = ?').all(area).map((r) => r.mmsi);
     db.prepare('DELETE FROM readings WHERE area = ?').run(area);
     db.prepare('DELETE FROM ships WHERE last_area = ?').run(area);
     db.prepare('DELETE FROM port_events WHERE area = ?').run(area);
     db.prepare('DELETE FROM notifications WHERE area = ?').run(area);
     db.prepare('DELETE FROM moorings WHERE area = ?').run(area);
     db.prepare('DELETE FROM berths WHERE area = ?').run(area);
+    if (mmsis.length) {
+      const purge = db.transaction((ids) => {
+        const stmts = [
+          db.prepare('DELETE FROM readings WHERE mmsi = ?'),
+          db.prepare('DELETE FROM port_events WHERE mmsi = ?'),
+          db.prepare('DELETE FROM risk_history WHERE mmsi = ?'),
+          db.prepare('DELETE FROM moorings WHERE mmsi = ?'),
+          db.prepare('DELETE FROM ship_scrape_cache WHERE mmsi = ?'),
+        ];
+        for (const m of ids) for (const s of stmts) s.run(m);
+      });
+      purge(mmsis);
+    }
+    // Surviving notifications in other areas may reference the dead area as their
+    // origin (from_area on an area_change). De-reference rather than delete them.
+    db.prepare('UPDATE notifications SET from_area = NULL WHERE from_area = ?').run(area);
   } else {
     db.exec('DELETE FROM readings');
     db.exec('DELETE FROM ships');
@@ -2123,6 +2144,45 @@ function deleteAll(area) {
     db.exec('DELETE FROM berths');
   }
   Object.keys(insertCounters).forEach((k) => delete insertCounters[k]);
+}
+
+// Defensive sweep that removes rows orphaned by area deletion (current or from
+// older versions of deleteAll), manual edits, or interrupted writes. It is
+// idempotent and safe to run periodically: every clause deletes only rows that
+// point at a parent that no longer exists. Ordering matters — ships with a dead
+// last_area are removed first so their now-parentless children are caught by the
+// mmsi clauses in the same pass. Returns per-table counts (zero everywhere on a
+// healthy DB). Skips the legacy untagged sentinel (area = '').
+function pruneOrphans() {
+  const run = (sql) => db.prepare(sql).run().changes;
+  const counts = {};
+  const sweep = db.transaction(() => {
+    // Parents first: ships whose area is gone, berths whose area is gone.
+    counts.ships = run("DELETE FROM ships WHERE last_area != '' AND last_area NOT IN (SELECT key FROM areas)");
+    counts.berths = run('DELETE FROM berths WHERE area NOT IN (SELECT key FROM areas)');
+    // Children keyed by area and/or by a now-missing ship.
+    counts.readings = run(
+      "DELETE FROM readings WHERE (area != '' AND area NOT IN (SELECT key FROM areas)) OR mmsi NOT IN (SELECT mmsi FROM ships)"
+    );
+    counts.port_events = run(
+      "DELETE FROM port_events WHERE (area != '' AND area NOT IN (SELECT key FROM areas)) OR mmsi NOT IN (SELECT mmsi FROM ships)"
+    );
+    counts.moorings = run(
+      'DELETE FROM moorings WHERE area NOT IN (SELECT key FROM areas) OR mmsi NOT IN (SELECT mmsi FROM ships) OR (berth_id IS NOT NULL AND berth_id NOT IN (SELECT id FROM berths))'
+    );
+    counts.risk_history = run('DELETE FROM risk_history WHERE mmsi NOT IN (SELECT mmsi FROM ships)');
+    counts.ship_scrape_cache = run('DELETE FROM ship_scrape_cache WHERE mmsi NOT IN (SELECT mmsi FROM ships)');
+    counts.notifications = run(
+      "DELETE FROM notifications WHERE (mmsi IS NOT NULL AND mmsi NOT IN (SELECT mmsi FROM ships)) OR (area IS NOT NULL AND area != '' AND area NOT IN (SELECT key FROM areas))"
+    );
+    // Dangling origin reference on a notification that is otherwise valid.
+    counts.notif_from_area = run(
+      "UPDATE notifications SET from_area = NULL WHERE from_area IS NOT NULL AND from_area != '' AND from_area NOT IN (SELECT key FROM areas)"
+    );
+  });
+  sweep();
+  counts.total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return counts;
 }
 
 const insertLogStmt = db.prepare(
@@ -2264,6 +2324,7 @@ module.exports = {
   insert,
   insertFollowPosition,
   getAreaCounts,
+  pruneOrphans,
   getActiveShips,
   getPastShips,
   getFollowedShips,

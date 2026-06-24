@@ -130,6 +130,21 @@ app.listen(PORT, () => {
     }
   }, 5 * 60 * 1000);
 
+  // Orphan cleanup: deleting an area removes its rows, but a ship that drifted
+  // between areas can leave rows keyed by its mmsi behind (and the scrape cache
+  // is untagged). pruneOrphans is a cheap idempotent sweep — run once at startup
+  // (catches leftovers from older versions) and then daily.
+  const sweepOrphans = () => {
+    try {
+      const c = db.pruneOrphans();
+      if (c.total) appLog.info('DB', appLog.t('db.orphans_pruned', { total: c.total }), c);
+    } catch (e) {
+      appLog.error('DB', appLog.t('db.orphans_failed', { error: e.message }));
+    }
+  };
+  setTimeout(sweepOrphans, 15 * 1000);
+  setInterval(sweepOrphans, 24 * 60 * 60 * 1000);
+
   // Sanctions screening: load any cached OFAC list from disk (offline-safe). If
   // enabled but no cache yet, download once in the background, then refresh daily.
   if (state.importSanctions) {

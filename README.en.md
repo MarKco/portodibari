@@ -146,7 +146,9 @@ There are **two ways** to manage areas:
    - **by GPS coordinates** in decimal degrees (SW lat/lon and NE lat/lon fields), or
    - **from the map**: frame (zoom/pan) the area to monitor and press **🎯 Capture current view** to fill the coordinates automatically from the visible viewport.
    - Give it a **name** (required) and an optional **keyword**. The new area is saved to `bounding-boxes.json` and its stream starts immediately.
-   - **Deletion**: the 🗑 trash button removes the area **and all related monitoring history** (readings, ships, port events). Deletion is **deferred by 10 seconds** with an **↶ Undo** toast: it becomes effective when the timer elapses or when you leave the page; pressing Undo deletes nothing. **At least one area** must remain (the last one cannot be deleted).
+   - **Deletion**: the 🗑 trash button removes the area **and all related monitoring history** (readings, ships, port events, notifications, moorings, berths, risk history and scrape cache). Deletion is **deferred by 10 seconds** with an **↶ Undo** toast: it becomes effective when the timer elapses or when you leave the page; pressing Undo deletes nothing. **At least one area** must remain (the last one cannot be deleted). Deletion only takes effect **if you are the last owner** of the area (shared areas survive as long as another user still monitors them).
+
+     > **Orphan rows and cleanup.** The schema uses no `ON DELETE CASCADE`: `deleteAll(area)` in `src/db.js` performs the deletes by hand. Because a ship keeps only its latest area in `last_area`, a ship that drifted between areas could leave "orphan" rows keyed by its `mmsi` in other areas (and the `ship_scrape_cache`, which has no area tag, was never touched). `deleteAll` now also purges by `mmsi` and clears dangling `from_area` references. As a safety net against leftovers from older versions, manual edits or interrupted writes, an idempotent job — `db.pruneOrphans()`, scheduled in `src/server.js` at startup and then every 24h — removes any row whose parent (area or ship) no longer exists, logging the removed total to the application log (`db.orphans_pruned`).
 2. **`bounding-boxes.json` file (manual)** — add/edit an entry by hand and **restart** the app. Useful for initial provisioning or scripts.
 
 > The Areas screen rewrites `bounding-boxes.json` (it preserves the `_comment` key but normalizes formatting). Preset keys are derived automatically from the name.
@@ -198,6 +200,7 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Max request/response body bytes in log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
 | Max API log records             | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 1,000          |
 | DB compaction interval (WAL + vacuum) | `src/server.js`             | `setInterval(db.runMaintenance, …)`   | 5 min          |
+| Orphan-row cleanup interval         | `src/server.js`               | `setInterval(sweepOrphans, …)`        | 24h (+ startup) |
 
 ### Applying changes
 
