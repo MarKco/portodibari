@@ -382,6 +382,13 @@ Per smettere: premi **Scollega** (o invia `/stop` al bot). Con **Invia prova** v
 
 I toggle Telegram sono **indipendenti** da quelli delle notifiche nella barra laterale: puoi ricevere una categoria solo su Telegram, o solo in-app, o entrambi. I messaggi arrivano nella **lingua** impostata per il tuo utente.
 
+**Pulsanti Segui / Segnala** — le notifiche che riguardano una nave (**Score alto**, **Rientro nave**, **Cambio area**) mostrano due pulsanti sotto il messaggio:
+
+- **🛰️ Segui** — aggiunge la nave alle tue **Navi seguite** (se non c'è già), esattamente come il follow nel sito; se la nave non sta trasmettendo da un po' parte la ricerca della sua posizione in background.
+- **⭐ Segnala** — contrassegna la nave, come premere la **stellina** nella lista.
+
+Dopo il tap arriva una breve conferma e il pulsante si aggiorna (es. **✅ Seguita**, **⭐ Segnalata**). Le azioni sono "solo aggiunta": ripremere un pulsante già attivo non fa nulla. Per togliere il follow o la segnalazione usa la lista navi nel sito.
+
 ### Tab Parametri
 
 Permette di modificare dall'interfaccia **tutti i parametri di funzionamento** dell'app (quelli del file `app.config.properties`): soglie di stato nave, finestre temporali, retention del database, intervallo di backup, auto-ripristino, parametri delle banchine e pesi dello **score di rischio**.

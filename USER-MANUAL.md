@@ -382,6 +382,13 @@ To stop: press **Unlink** (or send `/stop` to the bot). Use **Send test** to che
 
 The Telegram toggles are **independent** of the sidebar notification toggles: you can receive a category on Telegram only, in-app only, or both. Messages arrive in the **language** set for your user.
 
+**Follow / Flag buttons** — notifications about a ship (**High-risk score**, **Ship revisit**, **Area change**) show two buttons under the message:
+
+- **🛰️ Follow** — adds the ship to your **Followed ships** (if not already there), exactly like the in-app follow; if the ship hasn't been transmitting for a while it kicks off a background search for its position.
+- **⭐ Flag** — flags the ship, just like pressing the **star** in the list.
+
+After a tap you get a short confirmation and the button updates (e.g. **✅ Following**, **⭐ Flagged**). The actions are "add only": pressing an already-active button does nothing. To un-follow or un-flag, use the ship list on the site.
+
 ### Parameters tab
 
 Lets you edit **all the app's operating parameters** (those in `app.config.properties`) from the UI: ship-state thresholds, time windows, database retention, backup interval, auto-restore, berth parameters and the **risk-score** weights.

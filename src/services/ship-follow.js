@@ -24,6 +24,7 @@ const {
   FOLLOW_BOX_HALF_DEG,
   FOLLOW_REFRESH_MS,
   FOLLOW_STALE_HOURS,
+  FOLLOW_FRESH_MS,
   SEARCH_LOOKUP_TIMEOUT_MS,
   areaForPoint,
 } = require('../config');
@@ -369,6 +370,31 @@ function cancelReacquire(userId, mmsi) {
   }
 }
 
+// Apply a follow/unfollow for a user: persist it, then reconcile the live stream.
+// Following a ship whose last position is stale (typically a re-follow from
+// "passate") can't rely on the tight follow box — the ship has likely left it —
+// so we kick off a background worldwide re-acquisition; if it finds nothing
+// within the timeout the follow is reverted and the user notified. Shared by the
+// HTTP route and the Telegram inline button. Returns { reacquiring }.
+function applyFollow(userId, mmsi, followed) {
+  mmsi = Number(mmsi);
+  db.setUserFollow(userId, mmsi, !!followed);
+  let reacquiring = false;
+  if (followed) {
+    const ship = db.getShip(mmsi);
+    const fresh = ship && ship.last_latitude != null && ship.last_longitude != null && ship.last_seen_at
+      && Date.now() - new Date(ship.last_seen_at).getTime() < FOLLOW_FRESH_MS;
+    if (!fresh) {
+      startReacquire(userId, mmsi, ship ? ship.ship_name : null);
+      reacquiring = true;
+    }
+  } else {
+    cancelReacquire(userId, mmsi);
+  }
+  refresh();
+  return { reacquiring };
+}
+
 function getStatus() {
   return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, lookupCount: lookups.size, reacquireCount: reacquires.size, totalReceived: s.totalReceived };
 }
@@ -391,4 +417,4 @@ function getHealth() {
   };
 }
 
-module.exports = { init, refresh, stop, addLookup, removeLookup, startReacquire, cancelReacquire, getStatus, getHealth };
+module.exports = { init, refresh, stop, addLookup, removeLookup, startReacquire, cancelReacquire, applyFollow, getStatus, getHealth };

@@ -14,7 +14,7 @@ const equasisLog = require('../services/equasis-log');
 const shipFollow = require('../services/ship-follow');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, FOLLOW_FRESH_MS } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS } = require('../config');
 
 const router = express.Router();
 
@@ -412,27 +412,7 @@ router.patch('/ships/:mmsi/follow', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { followed } = req.body;
   const userId = req.user.id;
-  db.setUserFollow(userId, mmsi, !!followed);
-
-  // Following a ship whose last position is stale (typically a re-follow from
-  // "passate") can't rely on the tight follow box — the ship has likely left it.
-  // Kick off a background worldwide re-acquisition; if it finds nothing within
-  // the timeout the follow is reverted and the user notified (see ship-follow).
-  let reacquiring = false;
-  if (followed) {
-    const ship = db.getShip(mmsi);
-    const fresh = ship && ship.last_latitude != null && ship.last_longitude != null && ship.last_seen_at
-      && Date.now() - new Date(ship.last_seen_at).getTime() < FOLLOW_FRESH_MS;
-    if (!fresh) {
-      shipFollow.startReacquire(userId, mmsi, ship ? ship.ship_name : null);
-      reacquiring = true;
-    }
-  } else {
-    shipFollow.cancelReacquire(userId, mmsi);
-  }
-  // Reconcile the shared follow stream immediately (rebuild boxes / connect /
-  // disconnect) instead of waiting for the next periodic refresh.
-  shipFollow.refresh();
+  const { reacquiring } = shipFollow.applyFollow(userId, mmsi, !!followed);
   appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });
   res.json({ ok: true, reacquiring });
 });

@@ -70,7 +70,7 @@ function call(method, params = {}, timeoutMs = 10000) {
 
 // ── sendPhoto (multipart/form-data, for uploading a rendered PNG buffer) ──────
 // The Bot API can't fetch a photo from our NAT'd box, so we upload the bytes.
-function sendPhoto({ chat_id, photo, caption, parse_mode }, timeoutMs = 20000) {
+function sendPhoto({ chat_id, photo, caption, parse_mode, reply_markup }, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     const boundary = '----tgp' + crypto.randomBytes(12).toString('hex');
     const head = [];
@@ -79,6 +79,7 @@ function sendPhoto({ chat_id, photo, caption, parse_mode }, timeoutMs = 20000) {
     field('chat_id', String(chat_id));
     if (caption) field('caption', caption);
     if (parse_mode) field('parse_mode', parse_mode);
+    if (reply_markup) field('reply_markup', JSON.stringify(reply_markup));
     const fileHead =
       `--${boundary}\r\nContent-Disposition: form-data; name="photo"; filename="map.png"\r\n` +
       'Content-Type: image/png\r\n\r\n';
@@ -153,13 +154,13 @@ function extractFileId(result) {
 // first time a given map is needed (and caches the file_id), reuses the file_id
 // afterwards. Returns true if a photo was delivered, false if the caller should
 // fall back to a plain text message.
-async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark) {
+async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark, reply_markup) {
   const key = fileIdKey(lat, lon, zoom, seamark);
   const existing = getFileIdEntry(key);
   if (existing) {
     const fileId = await existing.promise.catch(() => null);
     if (fileId) {
-      await sendPhoto({ chat_id: chatId, photo: fileId, caption, parse_mode: 'HTML' });
+      await sendPhoto({ chat_id: chatId, photo: fileId, caption, parse_mode: 'HTML', reply_markup });
       return true;
     }
     // Shared upload failed → fall through and try to render ourselves.
@@ -179,7 +180,7 @@ async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark) {
     return false;
   }
   try {
-    const result = await sendPhoto({ chat_id: chatId, photo: buf, caption, parse_mode: 'HTML' });
+    const result = await sendPhoto({ chat_id: chatId, photo: buf, caption, parse_mode: 'HTML', reply_markup });
     resolveFileId(extractFileId(result));
     return true;
   } catch (e) {
@@ -300,6 +301,32 @@ function render(msgKey, lang, params) {
   return typeof fn === 'function' ? fn(params || {}) : fn;
 }
 
+// ── Inline buttons on ship notifications ─────────────────────────────────────
+// Notifications about a specific ship carry two one-tap actions: «Segui» (adds it
+// to the user's followed ships, like the in-app follow) and «Segnala» (flags it,
+// like the list's star). Both are one-way (add only). callback_data encodes the
+// action + MMSI ("f:<mmsi>" / "s:<mmsi>") — compact, well under the 64-byte cap.
+// Only these event types get buttons (they reference a live, followable ship);
+// follow_lost is excluded (the ship is gone and re-acquisition already failed).
+const SHIP_BTN_TYPES = new Set(['high_risk', 'revisit', 'area_change']);
+
+const BTN = {
+  it: { follow: '🛰️ Segui', followed: '✅ Seguita', flag: '⭐ Segnala', flagged: '⭐ Segnalata' },
+  en: { follow: '🛰️ Follow', followed: '✅ Following', flag: '⭐ Flag', flagged: '⭐ Flagged' },
+};
+
+// Build the two-button inline keyboard, reflecting the user's current state so a
+// ship they already follow/flag shows the "done" label rather than the action.
+function shipKeyboard(mmsi, lang, followed, flagged) {
+  const L = BTN[lang] || BTN.it;
+  return {
+    inline_keyboard: [[
+      { text: followed ? L.followed : L.follow, callback_data: `f:${mmsi}` },
+      { text: flagged ? L.flagged : L.flag, callback_data: `s:${mmsi}` },
+    ]],
+  };
+}
+
 // ── Sending ──────────────────────────────────────────────────────────────────
 // Core gate: resolve the chat, check the master + per-category toggle, render in
 // the recipient's language, send. `type` selects the gating toggle; `msgKey`
@@ -326,17 +353,26 @@ async function sendToUser(userId, type, msgKey, params) {
   // bulky native location/venue pin (a second large map widget, redundant with
   // the attached screenshot) while keeping one-tap navigation.
   const body = hasGeo ? `${text}${mapLink(lat, lon, lang)}` : text;
+  // Ship-event messages get the «Segui»/«Segnala» inline buttons, labelled to
+  // reflect whether the user already follows/flags this ship.
+  let reply_markup;
+  const mmsi = params ? Number(params.mmsi) : NaN;
+  if (SHIP_BTN_TYPES.has(type) && Number.isFinite(mmsi)) {
+    const followed = db.getUserFollowedMmsis(userId).has(mmsi);
+    const flagged = db.getUserFlaggedMmsis(userId).has(mmsi);
+    reply_markup = shipKeyboard(mmsi, lang, followed, flagged);
+  }
   try {
     if (hasGeo && p.telegramSendMap !== false) {
       // Photo (caption = the message). Renders/uploads once per map, reuses the
       // file_id for the rest of the fan-out; falls back to text if it can't.
-      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true);
+      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true, reply_markup);
       if (!sent) {
-        await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true });
+        await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup });
       }
       return;
     }
-    await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true });
+    await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup });
   } catch (e) {
     appLog.warn('TELEGRAM', appLog.t('telegram.send_failed', { error: e.message }));
     // The user blocked the bot or deleted the chat → drop the binding so we stop
@@ -412,7 +448,67 @@ async function reply(chatId, msgKey, lang) {
   } catch { /* best-effort */ }
 }
 
+// Toast text (answerCallbackQuery) for the inline-button actions.
+const CB_TOAST = {
+  it: { followed: 'Aggiunta alle navi seguite', reacquiring: 'Seguita · ricerca posizione in corso…', already_followed: 'Già tra le navi seguite', flagged: 'Nave segnalata ⭐', already_flagged: 'Già segnalata' },
+  en: { followed: 'Added to followed ships', reacquiring: 'Following · locating the ship…', already_followed: 'Already followed', flagged: 'Ship flagged ⭐', already_flagged: 'Already flagged' },
+};
+
+// Acknowledge a callback query (stops the client's spinner; optional toast).
+function ack(callbackId, text) {
+  return call('answerCallbackQuery', { callback_query_id: callbackId, text: text || '', show_alert: false }).catch(() => {});
+}
+
+// Handle a tap on a «Segui»/«Segnala» button. Resolves the site user from the
+// chat, applies the (one-way) action, shows a toast, and refreshes the keyboard
+// so the pressed button flips to its "done" label.
+async function handleCallback(cq) {
+  const chatId = cq.message && cq.message.chat && cq.message.chat.id;
+  const messageId = cq.message && cq.message.message_id;
+  const m = /^([fs]):(\d+)$/.exec(cq.data || '');
+  if (chatId == null || !m) return ack(cq.id);
+  const action = m[1];
+  const mmsi = Number(m[2]);
+  const userId = db.findUserIdBySetting('telegramChatId', String(chatId));
+  if (!userId) return ack(cq.id);
+  const lang = userPrefs.get(userId).lang === 'en' ? 'en' : 'it';
+  const T = CB_TOAST[lang] || CB_TOAST.it;
+
+  let toast;
+  try {
+    if (action === 'f') {
+      if (db.getUserFollowedMmsis(userId).has(mmsi)) {
+        toast = T.already_followed;
+      } else {
+        // Lazy require breaks the ship-follow ⇆ telegram require cycle.
+        const { reacquiring } = require('./ship-follow').applyFollow(userId, mmsi, true);
+        toast = reacquiring ? T.reacquiring : T.followed;
+        appLog.info('SHIP', appLog.t('ship.follow', { on: true }), { mmsi });
+      }
+    } else {
+      if (db.getUserFlaggedMmsis(userId).has(mmsi)) {
+        toast = T.already_flagged;
+      } else {
+        db.setUserFlag(userId, mmsi, true);
+        toast = T.flagged;
+        appLog.info('SHIP', appLog.t('ship.flag', { on: true }), { mmsi });
+      }
+    }
+  } catch (e) {
+    appLog.warn('TELEGRAM', appLog.t('telegram.update_failed', { error: e.message }));
+  }
+  await ack(cq.id, toast);
+
+  // Refresh the inline keyboard to reflect the new state.
+  try {
+    const followed = db.getUserFollowedMmsis(userId).has(mmsi);
+    const flagged = db.getUserFlaggedMmsis(userId).has(mmsi);
+    await call('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: shipKeyboard(mmsi, lang, followed, flagged) });
+  } catch { /* markup unchanged / message too old — ignore */ }
+}
+
 async function handleUpdate(u) {
+  if (u.callback_query) return handleCallback(u.callback_query);
   const msg = u.message;
   if (!msg || typeof msg.text !== 'string') return;
   const chatId = msg.chat && msg.chat.id;
@@ -453,7 +549,7 @@ async function pollLoop() {
     try {
       const updates = await call(
         'getUpdates',
-        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ['message'] },
+        { offset, timeout: POLL_TIMEOUT_S, allowed_updates: ['message', 'callback_query'] },
         HTTP_TIMEOUT_MS
       );
       for (const u of updates) {
