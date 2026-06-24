@@ -21,6 +21,7 @@ const db = require('../db');
 const userPrefs = require('./user-prefs');
 const appLog = require('./app-log');
 const staticMap = require('./static-map');
+const { flagEmoji, shipTypeLabel } = require('./vessel-format');
 const { TELEGRAM_BOT_TOKEN } = require('../config');
 
 const POLL_TIMEOUT_S = 50; // getUpdates long-poll window
@@ -190,20 +191,46 @@ async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark) {
 
 // ── Message catalogue (per-language). Values are functions of a params object.
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const clip = (s, n) => { const v = String(s == null ? '' : s).trim(); return v.length > n ? v.slice(0, n - 1) + '…' : v; };
 const scoreLine = { it: (p) => `\nArea: <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>`, en: (p) => `\nArea: <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>` };
+
+// Ship identity line: flag emoji (from MMSI MID) + name + short type. Compact —
+// folds three fields into one line so captions stay small.
+function nameLine(p, lang) {
+  const type = shipTypeLabel(p.shipType, lang);
+  return `${flagEmoji(p.mmsi)}<b>${esc(clip(p.name, 40))}</b>${type ? ` · ${esc(type)}` : ''}`;
+}
+
+// Two optional extra lines appended to ship notifications, each emitted only when
+// its data is present (no empty rows = no bloat):
+//   ⚠️  the top risk factor (WHY the score is high)
+//   🧭  live kinematics + declared destination
+function shipExtras(p, lang) {
+  let out = '';
+  const factor = lang === 'en' ? p.factorEn : p.factorIt;
+  if (factor) out += `\n⚠️ ${esc(clip(factor, 64))}`;
+  const parts = [];
+  const sog = Number(p.sog);
+  const cog = Number(p.cog);
+  if (Number.isFinite(sog) && sog > 0) parts.push(`${sog.toFixed(1)} kn`);
+  if (Number.isFinite(cog)) parts.push(`${Math.round(cog)}°`);
+  if (p.dest) parts.push(`→ ${esc(clip(p.dest, 28))}`);
+  if (parts.length) out += `\n🧭 ${parts.join(' · ')}`;
+  return out;
+}
 
 const MSG = {
   high_risk: {
-    it: (p) => `🔴 <b>Nave ad alto rischio in arrivo</b>\n${esc(p.name)}${scoreLine.it(p)}`,
-    en: (p) => `🔴 <b>High-risk vessel arriving</b>\n${esc(p.name)}${scoreLine.en(p)}`,
+    it: (p) => `🔴 <b>Nave ad alto rischio in arrivo</b>\n${nameLine(p, 'it')}${scoreLine.it(p)}${shipExtras(p, 'it')}`,
+    en: (p) => `🔴 <b>High-risk vessel arriving</b>\n${nameLine(p, 'en')}${scoreLine.en(p)}${shipExtras(p, 'en')}`,
   },
   revisit: {
-    it: (p) => `🔁 <b>Rientro nave</b>\n${esc(p.name)} è tornata in un'area già visitata${scoreLine.it(p)}`,
-    en: (p) => `🔁 <b>Ship revisit</b>\n${esc(p.name)} returned to a previously visited area${scoreLine.en(p)}`,
+    it: (p) => `🔁 <b>Rientro nave</b>\n${nameLine(p, 'it')} · area già visitata${scoreLine.it(p)}${shipExtras(p, 'it')}`,
+    en: (p) => `🔁 <b>Ship revisit</b>\n${nameLine(p, 'en')} · previously visited area${scoreLine.en(p)}${shipExtras(p, 'en')}`,
   },
   area_change: {
-    it: (p) => `↔️ <b>Cambio area</b>\n${esc(p.name)}: da <b>${esc(p.fromArea)}</b> a <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>`,
-    en: (p) => `↔️ <b>Area change</b>\n${esc(p.name)}: from <b>${esc(p.fromArea)}</b> to <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>`,
+    it: (p) => `↔️ <b>Cambio area</b>\n${nameLine(p, 'it')}\nDa <b>${esc(p.fromArea)}</b> a <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>${shipExtras(p, 'it')}`,
+    en: (p) => `↔️ <b>Area change</b>\n${nameLine(p, 'en')}\nFrom <b>${esc(p.fromArea)}</b> to <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>${shipExtras(p, 'en')}`,
   },
   follow_lost: {
     it: (p) => `📭 <b>Nave non trovata</b>\n${esc(p.name)} non sta trasmettendo: rimossa dalle navi seguite.`,
@@ -295,19 +322,21 @@ async function sendToUser(userId, type, msgKey, params) {
   const lon = params ? Number(params.lon) : NaN;
   const hasGeo = Number.isFinite(lat) && Number.isFinite(lon);
   const MAP_ZOOM = 15;
+  // A compact, tappable "open in map" link folded into the message — replaces the
+  // bulky native location/venue pin (a second large map widget, redundant with
+  // the attached screenshot) while keeping one-tap navigation.
+  const body = hasGeo ? `${text}${mapLink(lat, lon, lang)}` : text;
   try {
     if (hasGeo && p.telegramSendMap !== false) {
       // Photo (caption = the message). Renders/uploads once per map, reuses the
       // file_id for the rest of the fan-out; falls back to text if it can't.
-      const sent = await sendMapPhoto(chatId, text, lat, lon, MAP_ZOOM, true);
+      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true);
       if (!sent) {
-        await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true });
+        await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true });
       }
-      // Option A: a native, tappable map pin (venue if we have a title/address).
-      await sendGeo(chatId, lat, lon, params.venueTitle, params.venueAddress);
       return;
     }
-    await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true });
+    await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true });
   } catch (e) {
     appLog.warn('TELEGRAM', appLog.t('telegram.send_failed', { error: e.message }));
     // The user blocked the bot or deleted the chat → drop the binding so we stop
@@ -318,16 +347,12 @@ async function sendToUser(userId, type, msgKey, params) {
   }
 }
 
-// Native map pin (Option A). A venue shows a titled marker; a bare location is
-// just a pin. Best-effort — a failure here must not break the main message.
-async function sendGeo(chatId, lat, lon, title, address) {
-  try {
-    if (title) {
-      await call('sendVenue', { chat_id: chatId, latitude: lat, longitude: lon, title, address: address || title });
-    } else {
-      await call('sendLocation', { chat_id: chatId, latitude: lat, longitude: lon });
-    }
-  } catch { /* best-effort */ }
+// Compact tappable "open in map" link (replaces the native pin). Telegram makes
+// the https URL tappable and hands off to the device's maps app; 5 decimals ≈ 1m.
+function mapLink(lat, lon, lang) {
+  const url = `https://www.google.com/maps?q=${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const label = lang === 'en' ? 'Open in map' : 'Apri in mappa';
+  return `\n📍 <a href="${url}">${label}</a>`;
 }
 
 // ── Public notify helpers (called from the event sources) ────────────────────

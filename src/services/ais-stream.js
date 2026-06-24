@@ -7,7 +7,7 @@ const enrichment = require('./enrichment');
 const userPrefs = require('./user-prefs');
 const telegram = require('./telegram');
 const berths = require('./berths');
-const { computeRiskScore, invalidateRiskCache } = require('./risk-score');
+const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
 const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS } = require('../config');
@@ -163,6 +163,11 @@ function startStream(areaKey) {
             // High-risk: notify each monitoring user whose PERSONAL prefs enable
             // it and who hasn't muted the ship.
             if (risk.band === 'high') {
+              // Top risk factor (the WHY) in both languages, so each recipient's
+              // Telegram caption shows it in their own language. Cached scorer →
+              // at most one extra (memoised) compute per language per event.
+              const fIt = risk.factors[0] ? risk.factors[0].label : null;
+              const fEn = computeRiskScoreCached(ship, 'en').factors[0]?.label || null;
               let any = false;
               for (const uid of seers) {
                 if (db.isUserMuted(uid, arrived)) continue;
@@ -173,7 +178,7 @@ function startStream(areaKey) {
                 }
                 // Telegram is gated by its own per-user toggle, independent of the
                 // in-app one (so a user can get it on Telegram only, or vice versa).
-                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(arrived), venueAddress: areaKey });
+                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, mmsi: arrived, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
               }
               if (any) appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
             }
@@ -183,13 +188,15 @@ function startStream(areaKey) {
           const ship = db.getShip(revisit);
           if (ship) {
             const risk = computeRiskScore(ship, 'it');
+            const fIt = risk.factors[0] ? risk.factors[0].label : null;
+            const fEn = computeRiskScoreCached(ship, 'en').factors[0]?.label || null;
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
               if (db.isUserMuted(uid, revisit)) continue;
               const p = userPrefs.get(uid);
               if (p.notificationsEnabled && p.notifyRevisit) {
                 db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
               }
-              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(revisit), venueAddress: areaKey });
+              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, mmsi: revisit, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
             }
           }
         }
@@ -197,6 +204,8 @@ function startStream(areaKey) {
           const ship = db.getShip(areaChange.mmsi);
           if (ship) {
             const risk = computeRiskScore(ship, 'it');
+            const fIt = risk.factors[0] ? risk.factors[0].label : null;
+            const fEn = computeRiskScoreCached(ship, 'en').factors[0]?.label || null;
             let any = false;
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
               if (db.isUserMuted(uid, areaChange.mmsi)) continue;
@@ -205,7 +214,7 @@ function startStream(areaKey) {
                 db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
                 any = true;
               }
-              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(areaChange.mmsi), venueAddress: areaChange.toArea });
+              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, mmsi: areaChange.mmsi, shipType: ship.ship_type, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
             }
             if (any) appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
           }
