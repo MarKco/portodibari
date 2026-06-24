@@ -71,6 +71,10 @@ export const S = {
   showOpenSeaMapMarkers: true, // OpenSeaMap Overpass *vector* markers on the active map; default on, synced from server
   openSeaMapHidden: [], // OpenSeaMap marker category keys the user hid (default none = show all); synced from server
   seamarkBerthsLayer: null, // OpenSeaMap official berths/moorings overlay on the active map
+  // Historical replay (time-scrubber on the active map). See replay.js.
+  replay: null,
+  replayMaxGapMin: 30, // hide a ship across fix gaps longer than this (synced from server)
+  replayTailMin: 20,   // fading-trail length in minutes (synced from server)
   followedMap: null,
   followedMarkersLayer: null,
   followedShipsCache: new Map(),

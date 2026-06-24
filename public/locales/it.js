@@ -107,6 +107,18 @@ export default {
   'rendezvous.col.dist':     'Distanza min.',
   'rendezvous.col.area':     'Area',
   'rendezvous.ongoing':      'in corso',
+  'replay.toggle':           '▶ Replay',
+  'replay.toggleTitle':      'Replay storico del traffico nell\'area',
+  'replay.title':            'Replay storico',
+  'replay.all':              'tutto',
+  'replay.apply':            'Applica',
+  'replay.close':            '✕ Esci',
+  'replay.loading':          'Caricamento…',
+  'replay.error':            'Errore nel caricamento del replay',
+  'replay.empty':            'Nessuna posizione nella finestra scelta',
+  'replay.shipsLoaded':      '{n} navi',
+  'replay.truncated':        'dati troncati (finestra troppo ampia)',
+  'replay.count':            '{n} navi visibili',
 
   // ── Event badges ───────────────────────────────────────────────────────────
   'event.arrived':  '↙ Arrivo',

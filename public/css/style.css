@@ -931,6 +931,54 @@ td.empty {
   color: var(--text-muted, #9ca3af);
   font-size: 0.85rem;
 }
+
+/* ── Historical replay bar (time-scrubber on the active map) ── */
+.replay-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin: 0.4rem 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+}
+.replay-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.replay-label { font-weight: 600; font-size: 0.85rem; }
+.replay-wins, .replay-speeds, .replay-custom { display: inline-flex; align-items: center; gap: 0.3rem; }
+.replay-win, .replay-speed {
+  cursor: pointer;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--surface-3, #1e2330);
+  border: 1px solid var(--border-strong, #374151);
+  border-radius: var(--r-md);
+}
+.replay-win.active, .replay-speed.active {
+  background: #1e40af;
+  border-color: #3b82f6;
+}
+.replay-dt {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.3rem;
+  color: var(--text);
+  background: var(--surface-3, #1e2330);
+  border: 1px solid var(--border-strong, #374151);
+  border-radius: var(--r-sm, 4px);
+  color-scheme: dark;
+}
+.replay-status, .replay-count {
+  font-size: 0.8rem;
+  color: var(--text-muted, #9ca3af);
+}
+.replay-count { flex: 0 0 auto; min-width: 5rem; text-align: right; }
+#replay-toggle.active { background: #1e40af; border-color: #3b82f6; color: #fff; }
 /* Animated ship glyph — inner element is rotated per frame by heading. */
 .track-ship {
   background: none;

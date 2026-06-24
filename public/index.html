@@ -138,6 +138,39 @@
     <!-- View: navi presenti -->
     <div id="view-active">
       <div id="active-map"></div>
+      <div id="replay-bar" class="replay-bar hidden">
+        <div class="replay-row">
+          <span class="replay-label" data-i18n="replay.title">Replay storico</span>
+          <select id="replay-area" class="list-band" aria-label="Area"></select>
+          <span class="replay-wins">
+            <button class="replay-win" data-win="1h" type="button">1h</button>
+            <button class="replay-win" data-win="6h" type="button">6h</button>
+            <button class="replay-win" data-win="24h" type="button">24h</button>
+            <button class="replay-win" data-win="all" type="button" data-i18n="replay.all">tutto</button>
+          </span>
+          <span class="replay-custom">
+            <input id="replay-from" type="datetime-local" class="replay-dt" aria-label="Da" />
+            <span>→</span>
+            <input id="replay-to" type="datetime-local" class="replay-dt" aria-label="A" />
+            <button id="replay-apply" class="btn btn-secondary btn-sm" type="button" data-i18n="replay.apply">Applica</button>
+          </span>
+          <span class="list-toolbar-spacer"></span>
+          <span id="replay-status" class="replay-status"></span>
+          <button id="replay-close" class="btn btn-secondary btn-sm" type="button" data-i18n="replay.close">✕ Esci</button>
+        </div>
+        <div class="replay-row">
+          <button id="replay-play" class="track-play" type="button" data-i18n-title="map.play" title="Play">▶</button>
+          <input id="replay-slider" class="track-slider" type="range" min="0" max="1000" value="0" step="1" aria-label="Timeline" />
+          <span id="replay-time" class="track-time">—</span>
+          <span class="replay-speeds">
+            <button class="replay-speed" data-speed="1" type="button">1×</button>
+            <button class="replay-speed" data-speed="5" type="button">5×</button>
+            <button class="replay-speed" data-speed="20" type="button">20×</button>
+            <button class="replay-speed" data-speed="60" type="button">60×</button>
+          </span>
+          <span id="replay-count" class="replay-count">—</span>
+        </div>
+      </div>
       <div id="active-map-resizer" class="map-resizer"></div>
       <div class="list-toolbar" id="active-toolbar">
         <input type="search" id="active-search" class="list-search"
@@ -153,6 +186,7 @@
         <label class="list-check"><input type="checkbox" id="active-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <label class="list-check"><input type="checkbox" id="berths-toggle"><span data-i18n="berths.show">Banchine</span></label>
         <button id="btn-berths-manage" class="btn btn-secondary btn-sm" data-i18n="berths.manage" data-i18n-title="berths.manageTitle" title="Gestisci banchine">⚓ Banchine</button>
+        <button id="replay-toggle" class="btn btn-secondary btn-sm" data-i18n="replay.toggle" data-i18n-title="replay.toggleTitle" title="Replay storico del traffico">▶ Replay</button>
         <span class="list-toolbar-spacer"></span>
         <span id="active-seen-hidden" class="list-seen-hidden"></span>
         <span id="active-filter-count" class="list-filter-count"></span>

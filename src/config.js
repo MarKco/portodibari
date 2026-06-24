@@ -265,6 +265,18 @@ const PROXIMITY = {
   FRESH_MIN: num('PROXIMITY_FRESH_MIN', 20),
 };
 
+// ── Historical replay (time-scrubber on the area map) ────────────────────────
+// MAX_POINTS caps the positions a single replay query returns; over the cap the
+// server downsamples per ship (keeps every Nth fix) and flags the response as
+// truncated. MAX_GAP_MIN: a ship is hidden at clock times that fall inside a gap
+// between two fixes longer than this (no fabricated motion across missing data).
+// TAIL_MIN: how many trailing minutes of path the fading trail shows (client).
+const REPLAY = {
+  MAX_POINTS: num('REPLAY_MAX_POINTS', 40000),
+  MAX_GAP_MIN: num('REPLAY_MAX_GAP_MIN', 30),
+  TAIL_MIN: num('REPLAY_TAIL_MIN', 20),
+};
+
 // ── Risk score weights (from app.config.properties) ──────────────────────────
 const RISK = {
   DARK_MAX:          num('RISK_DARK_MAX', 25),
@@ -852,6 +864,7 @@ module.exports = {
   saveAppProperty,
   BERTH,
   PROXIMITY,
+  REPLAY,
   RISK,
   BBOX_PRESETS,
   state,

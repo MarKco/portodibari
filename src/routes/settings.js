@@ -5,7 +5,7 @@ const {
   state, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
-  BACKUP_INTERVAL_MIN,
+  BACKUP_INTERVAL_MIN, REPLAY,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
 const db = require('../db');
@@ -50,6 +50,8 @@ router.get('/config', (req, res) => {
     trackSogStop: SOG_FERMA,
     notifDeleteUndoSeconds: NOTIF_DELETE_UNDO_SECONDS,
     backupIntervalMin: BACKUP_INTERVAL_MIN,
+    replayMaxGapMin: REPLAY.MAX_GAP_MIN,
+    replayTailMin: REPLAY.TAIL_MIN,
   });
 });
 

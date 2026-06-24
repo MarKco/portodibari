@@ -7,6 +7,7 @@ import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisDa
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
+import { initReplay } from './replay.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
@@ -1509,6 +1510,7 @@ initMapResizer();
 initRiskTooltip();
 initGlossaryTooltip();
 initBerths();
+initReplay();
 initAppConfig();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
@@ -1543,6 +1545,8 @@ api('/api/config').then((cfg) => {
   if (cfg.trackMergeRadiusM != null) S.trackMergeRadiusM = cfg.trackMergeRadiusM;
   if (cfg.trackSogStop != null) S.trackSogStop = cfg.trackSogStop;
   if (cfg.notifDeleteUndoSeconds != null) S.notifDeleteUndoSeconds = cfg.notifDeleteUndoSeconds;
+  if (cfg.replayMaxGapMin != null) S.replayMaxGapMin = cfg.replayMaxGapMin;
+  if (cfg.replayTailMin != null) S.replayTailMin = cfg.replayTailMin;
   if (cfg.backupIntervalMin != null && el.autobackupDesc) {
     el.autobackupDesc.textContent = t('settings.autobackup.desc', { interval: intervalLabel(cfg.backupIntervalMin) });
   }

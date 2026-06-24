@@ -14,7 +14,7 @@ const equasisLog = require('../services/equasis-log');
 const shipFollow = require('../services/ship-follow');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY } = require('../config');
 
 const router = express.Router();
 
@@ -396,6 +396,63 @@ router.get('/ships/:mmsi/track', (req, res) => {
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const limit = Math.min(Number(req.query.limit) || TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
   res.json({ points: db.getShipTrack(mmsi, limit) });
+});
+
+// Historical replay: all positions inside an area's bbox over a time window,
+// grouped by ship, for the time-scrubber on the area map. ?area=KEY scopes to a
+// single owned area (else all the user's areas). Window: ?from&to (ISO) or
+// ?window=1h|6h|24h|all, anchored to the latest data (not wall-clock, so the
+// scrubber always lands on data even after a quiet spell). Risk band per ship is
+// the current cached score (the replay is historical; the colour is "now").
+router.get('/replay', (req, res) => {
+  const boxes = userScope(req);
+  const empty = { ships: [], range: null, from: null, to: null, truncated: false };
+  if (!boxes.length) return res.json(empty);
+
+  const range = db.getAreaReplayRange(boxes);
+  if (!range || !range.lo) return res.json(empty);
+
+  let fromIso, toIso;
+  if (req.query.from && req.query.to) {
+    fromIso = String(req.query.from);
+    toIso = String(req.query.to);
+  } else if (req.query.window === 'all') {
+    fromIso = range.lo;
+    toIso = range.hi;
+  } else {
+    const hours = req.query.window === '6h' ? 6 : req.query.window === '24h' ? 24 : 1;
+    toIso = range.hi;
+    fromIso = new Date(new Date(range.hi).getTime() - hours * 3600000).toISOString();
+  }
+  // Clamp into the available range so we never ask for data we don't have.
+  if (fromIso < range.lo) fromIso = range.lo;
+  if (toIso > range.hi) toIso = range.hi;
+
+  const rows = db.getAreaReplayPositions(boxes, fromIso, toIso, REPLAY.MAX_POINTS);
+  const truncated = rows.length >= REPLAY.MAX_POINTS;
+
+  const lang = req.query.lang || 'it';
+  const flaggedSet = db.getUserFlaggedMmsis(req.user.id);
+  const byMmsi = new Map();
+  for (const r of rows) {
+    let g = byMmsi.get(r.mmsi);
+    if (!g) {
+      g = { mmsi: r.mmsi, name: r.ship_name, type: r.ship_type, fixes: [] };
+      byMmsi.set(r.mmsi, g);
+    }
+    g.fixes.push({ t: r.received_at, lat: r.lat, lon: r.lon, cog: r.cog, sog: r.sog });
+  }
+
+  const ships = [];
+  for (const g of byMmsi.values()) {
+    const shipRow = db.getShip(g.mmsi);
+    const mil = shipRow ? isMilitary(shipRow) : false;
+    g.band = shipRow ? computeRiskScoreCached(shipRow, lang).band : 'low';
+    g.flagged = mil || flaggedSet.has(g.mmsi);
+    ships.push(g);
+  }
+
+  res.json({ ships, range: { lo: range.lo, hi: range.hi }, from: fromIso, to: toIso, truncated });
 });
 
 router.patch('/ships/:mmsi/flag', (req, res) => {

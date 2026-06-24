@@ -72,6 +72,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │       ├── main.js            # Entry: status, settings, sidebar, polling, init
 │       ├── views.js           # Switch tra le viste
 │       ├── ships.js, maps.js, traffico.js, logs.js, health.js, areas.js
+│       ├── replay.js          # Replay storico time-scrubber sulla mappa dell'area
 │       ├── tiles.js            # Layer base OSM + overlay nautico OpenSeaMap (seamark)
 │       ├── seamarks.js         # Marker OpenSeaMap (porti/ormeggi/luci…) via Overpass API
 │       ├── notifications.js   # Feed notifiche in sidebar (badge, lista, segna come letta)
@@ -187,6 +188,9 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Soglia velocità "ferma"         | `src/config.js` (+ `src/db.js`)   | `SOG_FERMA = 0.5`                     | 0.5 kn         |
 | Raggio "stessa sosta" (in porto)| `src/config.js`                   | `STILL_RADIUS_M = 100`                | 100 m          |
 | Raggio merge traccia (de-noise) | `public/js/store.js`              | `TRACK_MERGE_RADIUS_M = 100`          | 100 m          |
+| Replay: max posizioni per query | `app.config.properties`           | `REPLAY_MAX_POINTS`                   | 40.000         |
+| Replay: buco max (nascondi nave) | `app.config.properties`          | `REPLAY_MAX_GAP_MIN`                  | 30 min         |
+| Replay: lunghezza scia          | `app.config.properties`           | `REPLAY_TAIL_MIN`                     | 20 min         |
 | Ritardo riconnessione WebSocket | `src/services/ais-stream.js`      | `setTimeout(startStream, 5000)`       | 5000 ms        |
 | Rilevamento disservizio AIS     | `app.config.properties`           | `AIS_OUTAGE_CHECK`                    | `true`         |
 | Minuti di silenzio prima del check disservizio | `app.config.properties` | `AIS_OUTAGE_SILENCE_MIN`            | 10 min         |
@@ -404,6 +408,21 @@ Una nave ormeggiata/all'ancora non è perfettamente immobile: oscilla sull'ancor
 L'isteresi evita che lo swing all'ancora faccia "lampeggiare" la nave dentro/fuori dallo stato in-porto. Le navi in porto sono marcate con badge ⚓ (lista, popup mappa, dettaglio) e beneficiano della retention di 24 ore.
 
 **De-noise traccia** (`collapseTrack` in `public/js/maps.js`) — nella mappa del dettaglio, i punti consecutivi fermi (SOG < 0.5) entro `TRACK_MERGE_RADIUS_M` (100 m) sono collassati in un unico nodo **⚓ Sosta** (popup con numero di posizioni e intervallo orario). La polilinea passa per i centroidi → traccia pulita invece di una nuvola di marker attorno alla banchina. Le letture grezze nel DB restano intatte: il merge è solo a livello di visualizzazione.
+
+## ⏯️ Replay storico (time-scrubber sulla mappa dell'area)
+
+Oltre alla riproduzione della **singola traccia** nel dettaglio nave (`setupTrackAnim`), la mappa **Navi presenti** ha un **replay storico dell'intera area**: rivedere il traffico di tutte le navi su una finestra temporale scelta. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
+
+Il pulsante **▶ Replay** nella toolbar entra in modalità replay (nasconde i marker live, mostra la barra dei controlli). Si sceglie:
+
+- **Area** — una delle aree dell'utente (default quella corrente);
+- **Finestra** — preset rapidi **1h / 6h / 24h / tutto**, oppure un intervallo **personalizzato** (da/a) con i due selettori datetime. La finestra è ancorata al **dato più recente** dell'area (non all'orologio), così lo scrubber cade sempre su dati anche dopo una pausa, ed è limitata all'intervallo disponibile nei `readings` (a rotazione, cap 10k/tipo).
+
+**Modello di riproduzione** — un **clock globale** scorre da inizio a fine finestra. A ogni istante T ciascuna nave è disegnata nella posizione **interpolata** tra i suoi due fix circostanti — *a meno che* quei fix non siano separati da un buco più lungo di `REPLAY_MAX_GAP_MIN` (default 30 min): in quel caso la nave è **nascosta** (niente moto inventato attraverso dati mancanti, es. AIS spento o uscita dall'area). Una **scia che sfuma** lunga `REPLAY_TAIL_MIN` (default 20 min) mostra il percorso recente. I marker sono **colorati per fascia di rischio** (lo score è quello corrente) e **cliccabili** per aprire il dettaglio.
+
+**Controlli** — play/pausa, **scrubber** (seek manuale) e **moltiplicatori di velocità** (1× / 5× / 20× / 60× del tempo reale). Lo stato mostra navi caricate, intervallo disponibile ed eventuale troncamento.
+
+**Dati** — `GET /api/replay?area=KEY&window=1h|6h|24h|all` (oppure `&from=ISO&to=ISO`) restituisce le posizioni dentro il bbox dell'area nella finestra, **raggruppate per nave** (`db.getAreaReplayPositions`), più l'intervallo disponibile (`db.getAreaReplayRange`) e la fascia di rischio per nave. Il totale è limitato da `REPLAY_MAX_POINTS` (default 40.000); oltre, la risposta è marcata `truncated`. Nessuna scrittura: legge solo i `readings` esistenti.
 
 ## ⚓ Banchine (caratterizzazione automatica degli attracchi)
 
@@ -936,6 +955,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/:mmsi` | Dati statici di una nave (+ campi `direction`, `in_port`, `risk`, `is_military`, `flagged`) |
 | GET | `/api/ships/:mmsi/readings` | Letture di una nave (`?limit=50&offset=0`) |
 | GET | `/api/ships/:mmsi/track` | Punti posizione per il tracciato mappa (`?limit=500`) |
+| GET | `/api/replay` | Posizioni storiche di tutte le navi in un'area per il replay (`?area=KEY&window=1h\|6h\|24h\|all` o `&from=ISO&to=ISO`), raggruppate per nave + intervallo disponibile |
 | GET | `/api/ships/search/candidates` | Cerca navi per nome/MMSI/IMO (`?q=`) su flotta locale + MarineTraffic → `{candidates, mt}` |
 | GET | `/api/ships/search/recover` | **SSE**: recupera identità (VF/MT/GFW) + screening + posizione live via lookup AISstream (`?mmsi=` o `?mtShipId=`). Chiudere lo stream annulla il lookup |
 | GET | `/api/ships/:mmsi/vfdata` | Dati scaricati da VesselFinder (con cache) |

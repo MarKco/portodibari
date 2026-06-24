@@ -1558,6 +1558,40 @@ function getShipTrack(mmsi, limit = 500) {
     .all(mmsi, limit);
 }
 
+// Positions inside an area's bbox(es) within a time window, for historical
+// replay. Joined with the ship master for name/type. Ordered by ship then time
+// so the route can group cheaply. `limit` caps the raw rows (the route
+// downsamples per ship if the cap is hit).
+function getAreaReplayPositions(boxes, fromIso, toIso, limit) {
+  const geo = boxesSql(boxes, 'r.latitude', 'r.longitude');
+  return db
+    .prepare(
+      `SELECT r.mmsi, r.received_at, r.latitude AS lat, r.longitude AS lon, r.sog, r.cog,
+              s.ship_name, s.ship_type
+       FROM readings r
+       LEFT JOIN ships s ON s.mmsi = r.mmsi
+       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+         AND r.received_at >= ? AND r.received_at <= ?
+         AND ${geo}
+       ORDER BY r.mmsi ASC, r.received_at ASC
+       LIMIT ?`
+    )
+    .all(fromIso, toIso, limit);
+}
+
+// Oldest/newest reading timestamp available inside an area's bbox(es) — bounds
+// the replay window picker. Cheap (indexed scan over received_at).
+function getAreaReplayRange(boxes) {
+  const geo = boxesSql(boxes, 'latitude', 'longitude');
+  return db
+    .prepare(
+      `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi, COUNT(*) AS n
+       FROM readings
+       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND ${geo}`
+    )
+    .get();
+}
+
 function getPortEvents(limit = 100, offset = 0, area, areaKeys = null) {
   const f = areaKeyFilter('area', area, areaKeys);
   // areaKeyFilter yields an "AND ..." clause; turn the first one into a WHERE.
@@ -2439,6 +2473,8 @@ module.exports = {
   searchShipsByName,
   getShipReadings,
   getShipTrack,
+  getAreaReplayPositions,
+  getAreaReplayRange,
   getShipPositions,
   getDistinctShipNames,
   getRecentPositions,
