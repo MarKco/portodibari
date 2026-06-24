@@ -461,6 +461,23 @@
           </table>
         </div>
       </div>
+
+      <div class="detail-section hidden" id="rendezvous-section">
+        <h3 class="detail-section-title" data-i18n="detail.rendezvousTitle">Rendezvous in mare</h3>
+        <div id="detail-rendezvous-wrap">
+          <table class="events-table">
+            <thead>
+              <tr>
+                <th data-i18n="rendezvous.col.ship">Altra nave</th>
+                <th data-i18n="rendezvous.col.datetime">Data/ora</th>
+                <th data-i18n="rendezvous.col.dist">Distanza min.</th>
+                <th data-i18n="rendezvous.col.area">Area</th>
+              </tr>
+            </thead>
+            <tbody id="detail-rendezvous-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- View: traffico -->
@@ -763,6 +780,16 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="setting-row setting-row-child" id="setting-notify-proximity">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifProximity.name">Notifica rendezvous in mare</div>
+            <div class="setting-desc" data-i18n="settings.notifProximity.desc">Avvisa quando due navi distinte sostano vicine, lente e al largo (possibile trasbordo nave-nave).</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-proximity">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.excludeTankers.name">Escludi tanker</div>
@@ -931,6 +958,16 @@
             </div>
             <label class="toggle">
               <input type="checkbox" id="toggle-telegram-berth-char">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-proximity">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramProximity.name">Telegram · rendezvous in mare</div>
+              <div class="setting-desc" data-i18n="settings.telegramProximity.desc">Invia su Telegram il rilevamento di un rendezvous nave-nave (con mappa a due punti).</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-proximity">
               <span class="toggle-slider"></span>
             </label>
           </div>

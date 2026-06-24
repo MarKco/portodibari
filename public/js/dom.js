@@ -164,6 +164,8 @@ export const el = {
   settingNotifyBerthNew: $('setting-notify-berth-new'),
   toggleNotifyBerthChar: $('toggle-notify-berth-char'),
   settingNotifyBerthChar: $('setting-notify-berth-char'),
+  toggleNotifyProximity: $('toggle-notify-proximity'),
+  settingNotifyProximity: $('setting-notify-proximity'),
   // Telegram bot
   toggleTelegram: $('toggle-telegram'),
   settingTelegramLink: $('setting-telegram-link'),
@@ -182,6 +184,8 @@ export const el = {
   settingTelegramBerthNew: $('setting-telegram-berth-new'),
   toggleTelegramBerthChar: $('toggle-telegram-berth-char'),
   settingTelegramBerthChar: $('setting-telegram-berth-char'),
+  toggleTelegramProximity: $('toggle-telegram-proximity'),
+  settingTelegramProximity: $('setting-telegram-proximity'),
   toggleTelegramOutage: $('toggle-telegram-outage'),
   settingTelegramOutage: $('setting-telegram-outage'),
   toggleTelegramAreaMonitor: $('toggle-telegram-area-monitor'),

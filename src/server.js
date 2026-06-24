@@ -18,6 +18,7 @@ const telegram = require('./services/telegram');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
+const proximity = require('./services/proximity');
 const appLog = require('./services/app-log');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
 const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY,
@@ -196,6 +197,10 @@ app.listen(PORT, () => {
 
   // Fast incremental recompute of only the areas that just saw new arrivals.
   berths.startDirtyFlush();
+
+  // Ship-to-ship proximity (rendezvous) scan: periodic per-area sweep that flags
+  // slow, offshore vessel pairs lingering close together (transshipment signature).
+  proximity.init();
 
   stream.startStream(state.preset);
   // Follow stream: connects on its own only when there are ships to follow.

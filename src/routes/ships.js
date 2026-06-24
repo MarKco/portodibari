@@ -376,6 +376,14 @@ router.get('/ships/:mmsi/risk-history', (req, res) => {
   res.json({ history: db.getRiskHistory(mmsi) });
 });
 
+// Confirmed ship-to-ship rendezvous involving this vessel (newest first). Drives
+// the rendezvous section in the detail view; each row links to the partner ship.
+router.get('/ships/:mmsi/rendezvous', (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  res.json({ rendezvous: db.getProximityForShip(mmsi, new Date(0).toISOString()) });
+});
+
 router.get('/ships/:mmsi/readings', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });

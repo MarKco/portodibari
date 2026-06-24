@@ -101,6 +101,20 @@ const MESSAGES = {
     it: (p) => `Ricalcolo incrementale fallito per ${p.area}: ${p.error}`,
     en: (p) => `Incremental recompute failed for ${p.area}: ${p.error}`,
   },
+  // ── Ship-to-ship proximity (rendezvous) ──
+  'proximity.detected': {
+    it: (p) => `Rendezvous rilevato in ${p.area}: ${p.a} ↔ ${p.b} (${p.dist} m, ${p.min} min)`,
+    en: (p) => `Rendezvous detected in ${p.area}: ${p.a} ↔ ${p.b} (${p.dist} m, ${p.min} min)`,
+  },
+  'proximity.scan_failed': {
+    it: (p) => `Scansione rendezvous fallita per ${p.area}: ${p.error}`,
+    en: (p) => `Rendezvous scan failed for ${p.area}: ${p.error}`,
+  },
+  'proximity.disabled': {
+    it: 'Rilevamento rendezvous disattivato (PROXIMITY_SCAN_MIN = 0)',
+    en: 'Rendezvous detection disabled (PROXIMITY_SCAN_MIN = 0)',
+  },
+
   'berths.recompute_manual': { it: 'Ricalcolo banchine richiesto manualmente', en: 'Berth recompute requested manually' },
   'berths.recompute_manual_all': {
     it: 'Ricalcolo banchine richiesto manualmente (tutte le aree)',

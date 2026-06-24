@@ -55,6 +55,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── sanctions.js       # Liste sanzioni OFAC SDN + UE/UK/ONU (OpenSanctions): download, indice, match per IMO/nome/call sign
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): performance bandiera + navi bandite
 │   │   ├── gfw.js             # Client API Global Fishing Watch: identità nave + eventi comportamentali (incontri, loitering, port visit, gap AIS)
+│   │   ├── proximity.js       # Rilevamento rendezvous nave-nave (scansione periodica per area, firma di trasbordo ship-to-ship)
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
@@ -203,6 +204,9 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Attracchi minimi caratterizzazione | `app.config.properties`        | `BERTH_MIN_MOORINGS`                  | 10             |
 | Soglia % categoria dominante    | `app.config.properties`           | `BERTH_DOMINANT_PCT`                  | 60 %           |
 | Intervallo ricalcolo banchine   | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
+| Intervallo scansione rendezvous | `app.config.properties`           | `PROXIMITY_SCAN_MIN` (0 = off)        | 10 min         |
+| Distanza coppia rendezvous      | `app.config.properties`           | `PROXIMITY_DIST_M`                    | 500 m          |
+| Permanenza min. rendezvous      | `app.config.properties`           | `PROXIMITY_MIN_MINUTES`               | 10 min         |
 | Auto-ripristino DB dopo deploy  | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 | Max byte body request/response nel log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
@@ -274,6 +278,7 @@ Ogni firma rilevata aggiunge punti pesati a un **subtotale anomalie**:
 | **Spoofing / cinematica anomala** | Velocità implicita tra due posizioni consecutive (distanza haversine / Δt, con Δt ≤ 1h, distanza > 500 m). > 80 kn = salto fisicamente impossibile; > 50 kn = anomalo | 20 |
 | **Aumento pescaggio (carico)** | Massimo incremento positivo del `draught` dichiarato tra eventi porto consecutivi (unità AIS = decimi di metro). Indica materiale pesante imbarcato. ≥ 0.5 m attiva il punteggio | 20 |
 | **Loitering / sosta anomala** | Posizioni ferme (SOG < `SOG_FERMA`), **non** ormeggiate/all'ancora (stato ≠ 1/5), a > 10 km dal centro del bbox monitorato → possibile trasbordo ship-to-ship in mare aperto | 15 |
+| **Rendezvous nave-nave** | Rilevamento **locale** (dal nostro feed AIS, vedi [sezione dedicata](#-rilevamento-rendezvous-nave-nave)): un rendezvous confermato — due navi distinte vicine, lente e al largo per ≥ `PROXIMITY_MIN_MINUTES` — aggiunge punti a **entrambe** le navi per i rendezvous nella finestra recente (`RISK_PROXIMITY_WINDOW_DAYS`, default 7 gg). Firma di trasbordo, indipendente da GFW. Conta le navi-partner distinte; 0 disattiva il fattore | 18 |
 | **Instabilità destinazione** | Numero di destinazioni dichiarate distinte (campo corrente + eventi). Più cambi = più punti | 10 |
 | **Tipo scafo** | Militare (35) → **score 100 automatico** (early return, nessuna analisi); Cargo/Tanker Hazmat (71–74, 81–84) → 8; Cargo/Tanker (70–89) → 5 | 100 / 8 / 5 |
 | **Rilevamento militare** | `isMilitary(ship)` in `risk-score.js`: **flag DB** `is_military = 1` **oppure** `ship_type === 35` **oppure** il nome nave contiene token militari (prefissi: `HMS`, `USS`, `FS`, `FGS`, `HNLMS`, `HMAS`, `HMCS`, `INS`, `BNS`, `HDMS`, `HTMS`, `TCG`, `ORP`, `ITS`, `ROKS`, `NRP`, `RFS`, `ESPS`, `SPS`; keyword: `WARSHIP`, `NATO`). Le navi identificate: ricevono `is_military: true` e `flagged: true` forzato nella risposta API, riga evidenziata in rosso con classe `.military-row` (ha priorità su `.flagged-row`). Il flag manuale (`is_military` in DB) permette di marcare navi militari che non hanno `ship_type 35` né prefisso/keyword riconoscibile (es. navi Marina Militare italiana trasmesse senza prefisso "ITS"). Si imposta dal pannello detail con il bottone `🪖 Segna come nave militare`. | — |
@@ -491,6 +496,25 @@ A differenza di VF/MT/Equasis/PSC, GFW è **attivo di default** (`IMPORT_GFW=tru
 
 Nel dettaglio nave compare un nuovo pannello **Global Fishing Watch** (quando abilitato), sopra la mappa accanto ai pannelli VF/MT/Equasis: mostra la tabella di identità e le tabelle eventi (incontri, loitering, port visit, AIS spento), con un'icona ⓘ al hover su ogni campo/sezione che ne spiega il significato.
 
+## 🤝 Rilevamento rendezvous nave-nave
+
+Un **rendezvous** in mare aperto — due navi distinte ferme l'una accanto all'altra al largo — è la firma classica del **trasbordo ship-to-ship** (transshipment). A differenza degli incontri segnalati da Global Fishing Watch (che arricchisce solo le navi interrogate), questo rilevamento è **locale e gratuito**: usa il nostro stesso feed AISstream, senza API esterne. Implementato in [`src/services/proximity.js`](src/services/proximity.js).
+
+**Scansione.** Un job periodico ([`proximity.init`](src/services/proximity.js), avviato da `src/server.js`) gira ogni `PROXIMITY_SCAN_MIN` minuti (default 10; `0` disattiva). Per ogni area considera le navi con un fix recente (`PROXIMITY_FRESH_MIN`) e ne tiene solo le coppie che soddisfano **tutte** queste condizioni — deliberatamente conservative per ridurre i falsi positivi:
+
+- entrambe **lente**: SOG < `PROXIMITY_MAX_SOG_KN` (default 3 kn — una nave veloce sta solo transitando);
+- entrambe **non** ormeggiate/all'ancora (stato di navigazione ≠ 1, 5);
+- entrambe **al largo**: > `PROXIMITY_FAR_KM` km dal centro del bbox dell'area (default 10 — esclude gli ormeggi in porto, dove le navi sono naturalmente vicine);
+- coppia entro `PROXIMITY_DIST_M` metri (default 500).
+
+**Macchina a stati (tabella `proximity_events`, coppia canonica `mmsi_a < mmsi_b`).** Un contatto **si apre** quando una coppia entra entro `PROXIMITY_DIST_M`; **resta aperto** finché la coppia è entro `PROXIMITY_DIST_M × PROXIMITY_CLOSE_MULT` (isteresi: un singolo fix rumoroso non lo chiude di colpo); **si chiude** quando la coppia si separa o una nave lascia l'area / diventa silente. Alla prima scansione in cui la permanenza del contatto raggiunge `PROXIMITY_MIN_MINUTES` (default 10) scatta **una sola** notifica e il contatto è marcato come confermato (`alerted`).
+
+**Notifica** (tipo `proximity`, vedi [Notifiche](#-notifiche)) — in-app + Telegram, con una **mappa statica a due pin** uniti da una linea (resa server-side, [`static-map.js`](src/services/static-map.js) estesa per più punti) centrata sul punto medio, più il link "apri in mappa". Controllata da `notifyProximity` (in-app) e `telegramNotifyProximity` (Telegram), indipendenti.
+
+**Score di rischio** — un rendezvous confermato aggiunge `RISK_PROXIMITY_POINTS` (default 18) allo score di **entrambe** le navi, per i rendezvous nella finestra `RISK_PROXIMITY_WINDOW_DAYS` (default 7 giorni); il fattore conta le navi-partner distinte. `RISK_PROXIMITY_POINTS=0` disattiva il fattore lasciando attiva la scansione (e quindi lo storico). Vedi [Score di rischio](#%EF%B8%8F-score-di-rischio-potenziale-trasporto-armi).
+
+**Dettaglio nave** — una sezione **Rendezvous in mare** elenca gli incontri confermati della nave (altra nave, data/ora, distanza minima, area); ogni riga è cliccabile e apre la scheda della nave-partner.
+
 ## 🔎 Cerca e segui una nave
 
 Nella scheda **Navi seguite** una barra di ricerca permette di cercare una nave per **nome** o **MMSI/IMO** e aggiungerla alle seguite anche se non è mai passata dalle aree monitorate. Il flusso è in due passi:
@@ -532,13 +556,14 @@ Quando segui una nave di cui **non** abbiamo una posizione live recente (tipicam
 
 **Alert navi segnalate** (`/api/alerts`) — quando una nave con flag ★ (segnalata) rientra nell'area, l'arrivo viene accodato e mostrato come toast nel frontend al polling successivo.
 
-**Notifiche** (tabella `notifications`, `/api/notifications`) — storico persistente mostrato nella barra laterale. Cinque tipi di notifica vengono generati (tutti abilitabili/disabilitabili indipendentemente dalle Impostazioni, oltre all'interruttore generale `notificationsEnabled`):
+**Notifiche** (tabella `notifications`, `/api/notifications`) — storico persistente mostrato nella barra laterale. Sei tipi di notifica vengono generati (tutti abilitabili/disabilitabili indipendentemente dalle Impostazioni, oltre all'interruttore generale `notificationsEnabled`):
 
 - `revisit` — una nave **già arrivata in passato nella stessa area** vi rientra dopo un'assenza (`db.insert` ritorna `revisit`); controllata da `notifyRevisit` / `NOTIFY_REVISIT`.
 - `area_change` — una nave vista in un'area viene poi rilevata in un'**altra** area (`db.insert` ritorna `areaChange` confrontando `last_area` della nave con l'area del messaggio prima dell'upsert); la notifica memorizza l'area di partenza in `from_area` e quella di arrivo in `area`; controllata da `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
 - `high_risk` — una nave **arriva** (nuova o dopo > 60 min di assenza, `db.insert` ritorna `arrived`) con **score di rischio in fascia rossa** (71–100); controllata da `notifyHighRisk` / `NOTIFY_HIGH_RISK`. Utile per il triage immediato dei casi critici senza aspettare la vista Traffico.
 - `berth_new` — durante il ricalcolo banchine (`berths.recomputeArea`) viene rilevata una **nuova banchina automatica** (cluster senza identità ereditata); controllata da `notifyBerthNew` / `NOTIFY_BERTH_NEW`.
 - `berth_characterized` — una banchina (automatica o manuale) viene **caratterizzata per la prima volta** (il `char_label` calcolato passa da `NULL` a una categoria); la categoria è memorizzata in `band`; controllata da `notifyBerthChar` / `NOTIFY_BERTH_CHAR`.
+- `proximity` — rilevato un **rendezvous nave-nave** confermato (due navi vicine, lente e al largo per ≥ `PROXIMITY_MIN_MINUTES`, vedi [sezione dedicata](#-rilevamento-rendezvous-nave-nave)); generato da `proximity.scanArea`, memorizza il punto medio in `berth_lat`/`berth_lon` e i due nomi in `ship_name` (`A ↔ B`); controllata da `notifyProximity` (in-app) / `telegramNotifyProximity` (Telegram).
 
 Per le notifiche nave `ais-stream` calcola lo score e chiama `db.addNotification` (le navi con `notif_muted` sono escluse); per le notifiche banchina è `berths.recomputeArea` a chiamarlo, memorizzando in `berth_id` la banchina di riferimento per la navigazione. Il primo ricalcolo su un'area senza banchine preesistenti **non** genera notifiche (per evitare una raffica di "nuova banchina" sul backfill iniziale). Ogni notifica nave conserva la fascia di rischio (`band`) e lo `score` calcolati al momento dell'evento, mostrati come bollino verde/giallo/rosso; le notifiche banchina mostrano un bollino dedicato. Un **clic** su una notifica nave apre la scheda della nave, su una notifica banchina porta alla mappa dell'area corrispondente con la banchina centrata. Endpoint: `GET /api/notifications` (lista + conteggio non lette), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (singola), `DELETE /api/notifications` (tutte). Conservate le ultime 100 (rotazione automatica a ogni inserimento).
 
@@ -888,13 +913,15 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 
 **`api_log`** — log delle richieste HTTP (max 1.000, rotazione automatica): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
-**`notifications`** — feed notifiche mostrato in sidebar (max 100, rotazione automatica): `type` (`revisit`, `area_change`, `high_risk`, `berth_new` o `berth_characterized`), `mmsi`, `ship_name` (per le banchine: il nome della banchina, se ha un nome), `area` (area di arrivo), `from_area` (area di partenza, solo per `area_change`), `band` (`low`/`med`/`high` per le notifiche nave; la categoria di banchina per `berth_characterized`) e `score` di rischio calcolati al momento dell'evento, `berth_id` (banchina di riferimento, solo per le notifiche banchina), `ts`, `read` (0/1).
+**`notifications`** — feed notifiche mostrato in sidebar (max 100, rotazione automatica): `type` (`revisit`, `area_change`, `high_risk`, `berth_new`, `berth_characterized` o `proximity`), `mmsi`, `ship_name` (per le banchine: il nome della banchina, se ha un nome), `area` (area di arrivo), `from_area` (area di partenza, solo per `area_change`), `band` (`low`/`med`/`high` per le notifiche nave; la categoria di banchina per `berth_characterized`) e `score` di rischio calcolati al momento dell'evento, `berth_id` (banchina di riferimento, solo per le notifiche banchina), `ts`, `read` (0/1).
 
 **`risk_history`** — snapshot dello score di rischio nel tempo per il grafico di andamento (vedi [Storico dello score](#-storico-dello-score-di-rischio)): `mmsi`, `ts`, `score`, `band`. Campionata sparsa (max 1/ora per nave) e limitata globalmente (rotazione a 20.000 righe).
 
 **`moorings`** — un punto di attracco per visita (vedi [Banchine](#-banchine-caratterizzazione-automatica-degli-attracchi)): `area`, `mmsi`, `ship_type`, `category` (categoria larga), `lat`, `lon`, `ts`, `berth_id` (banchina assegnata, `NULL` se non clusterizzato). Ricostruita dal servizio banchine ad ogni ricalcolo.
 
 **`berths`** — banchine rilevate/disegnate: `area`, `name`, `polygon_json` (`[[lat,lon],…]`), `centroid_lat`/`centroid_lon`, `manual_geom` (1 = geometria bloccata a mano), `char_label` (categoria dominante calcolata o `mixed` o `NULL`), `char_override` (categoria forzata a mano, ha la precedenza), `mooring_count`, `dist_json` (distribuzione `[{category,n,pct}]`), `hazmat_pct`, `updated_at`. Entrambe incluse nei backup (`BACKUP_TABLES`).
+
+**`proximity_events`** — contatti di [rendezvous nave-nave](#-rilevamento-rendezvous-nave-nave): un record per incontro tra una coppia canonica (`mmsi_a < mmsi_b`), con `name_a`/`name_b`, `area`, `started_at`, `last_seen_at`, `ended_at` (`NULL` = contatto ancora aperto), `min_dist_m` (distanza minima raggiunta), `lat_a`/`lon_a`/`lat_b`/`lon_b` (ultime posizioni), `alerted` (1 = soglia di permanenza raggiunta, notifica già inviata). Alimenta lo score di rischio (entrambe le navi) e la sezione "Rendezvous in mare" del dettaglio. Retention: cap a 5.000 contatti chiusi.
 
 ## 🔌 API interne
 
@@ -944,7 +971,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/app-config` | Parametri di `app.config.properties` raggruppati, con descrizioni estratte dai commenti del file; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Scrive i parametri modificati `{values:{CHIAVE:valore}}` (solo chiavi già presenti nel file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
-| POST | `/api/settings` | Cambia preset, toggle import, toggle notifiche e overlay OpenSeaMap `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
+| POST | `/api/settings` | Cambia preset, toggle import, toggle notifiche e overlay OpenSeaMap `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, notifyProximity?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Aggiunge un'area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → salva in `bounding-boxes.json` e avvia lo stream (salvo `autostart:false`) |
 | DELETE | `/api/areas/:key` | Elimina un'area e tutto il suo storico (letture/navi/eventi); rifiuta se è l'unica rimasta. Se era l'area attiva, ne seleziona un'altra |

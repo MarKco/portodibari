@@ -156,6 +156,30 @@ function drawMarker(png, cx, cy) {
   }
 }
 
+// Draw a thick line between two pixels (used to connect a rendezvous pair).
+function drawLine(png, x0, y0, x1, y1) {
+  const set = (x, y) => {
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        const px = x + ox, py = y + oy;
+        if (px < 0 || py < 0 || px >= png.width || py >= png.height) continue;
+        const i = (py * png.width + px) * 4;
+        png.data[i] = 220; png.data[i + 1] = 38; png.data[i + 2] = 38; png.data[i + 3] = 255;
+      }
+    }
+  };
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0;
+  for (;;) {
+    set(x, y);
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx) { err += dx; y += sy; }
+  }
+}
+
 // ── Render concurrency gate (D) ──────────────────────────────────────────────
 let active = 0;
 const waiters = [];
@@ -175,7 +199,8 @@ function release() {
 }
 
 // The heavy pipeline: fetch/decode tiles, composite, mark, encode.
-async function renderToBuffer(lat, lon, z, W, H, seamark) {
+async function renderToBuffer(lat, lon, z, W, H, opts = {}) {
+  const { seamark, points, connect } = opts;
   const cx = lon2tile(lon, z) * TILE; // centre in world px
   const cy = lat2tile(lat, z) * TILE;
   const left = cx - W / 2;
@@ -216,7 +241,18 @@ async function renderToBuffer(lat, lon, z, W, H, seamark) {
   if (!basePainted) return null; // base failed → let caller send text only
   if (seamark) await layer(seamarkUrl, true);
 
-  drawMarker(out, Math.round(W / 2), Math.round(H / 2));
+  if (points && points.length) {
+    // Multi-point mode (e.g. a rendezvous pair): project each point relative to
+    // the centred view, optionally connect them, then mark each.
+    const px = points.map((p) => ({
+      x: Math.round(lon2tile(p.lon, z) * TILE - left),
+      y: Math.round(lat2tile(p.lat, z) * TILE - top),
+    }));
+    if (connect) for (let i = 1; i < px.length; i++) drawLine(out, px[i - 1].x, px[i - 1].y, px[i].x, px[i].y);
+    px.forEach((p) => drawMarker(out, p.x, p.y));
+  } else {
+    drawMarker(out, Math.round(W / 2), Math.round(H / 2));
+  }
   return PNG.sync.write(out);
 }
 
@@ -231,9 +267,12 @@ async function render(lat, lon, opts = {}) {
   const W = opts.width || 640;
   const H = opts.height || 400;
   const seamark = opts.seamark !== false;
+  const points = Array.isArray(opts.points) && opts.points.length ? opts.points : null;
+  const connect = !!opts.connect;
 
   // C — rendered-map cache: dedupe across events at (roughly) the same spot.
-  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)},${z},${W}x${H},${seamark ? 1 : 0}`;
+  const ptsKey = points ? ':' + points.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|') + (connect ? 'L' : '') : '';
+  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)},${z},${W}x${H},${seamark ? 1 : 0}${ptsKey}`;
   const cached = mapCache.get(cacheKey);
   if (cached) return cached;
 
@@ -244,7 +283,7 @@ async function render(lat, lon, opts = {}) {
     // waited on the gate.
     const again = mapCache.get(cacheKey);
     if (again) return again;
-    const buf = await renderToBuffer(lat, lon, z, W, H, seamark);
+    const buf = await renderToBuffer(lat, lon, z, W, H, { seamark, points, connect });
     if (buf) mapCache.set(cacheKey, buf);
     return buf;
   } finally {

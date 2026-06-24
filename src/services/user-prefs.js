@@ -16,6 +16,7 @@ const DEFAULTS = {
   notifyHighRisk: true,
   notifyBerthNew: true,
   notifyBerthChar: true,
+  notifyProximity: true,
   // Telegram bot notifications. INDEPENDENT of the in-app toggles above: a user
   // can receive a category on Telegram while it's off in the sidebar, and vice
   // versa. telegramEnabled is the per-user master switch; it stays OFF until the
@@ -28,6 +29,7 @@ const DEFAULTS = {
   telegramNotifyAreaChange: true,
   telegramNotifyBerthNew: true,
   telegramNotifyBerthChar: true,
+  telegramNotifyProximity: true,
   telegramNotifyOutage: true,
   telegramNotifyAreaMonitor: true,
   // Attach a static map image + a native location pin to Telegram notifications
@@ -42,10 +44,10 @@ const DEFAULTS = {
 
 const BOOL_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
-  'notifyBerthNew', 'notifyBerthChar', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
+  'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
-  'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
+  'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
 ]);
 
 /** Typed, defaulted view of a user's personal preferences. */

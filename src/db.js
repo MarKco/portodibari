@@ -169,6 +169,31 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_berths_area ON berths(area);
+
+  -- Ship-to-ship proximity (rendezvous) contacts. One row per encounter between
+  -- a canonical pair (mmsi_a < mmsi_b). ended_at NULL = the contact is still
+  -- open (ships currently close). alerted = the dwell threshold was reached and
+  -- a notification fired (fires once per contact). Feeds the risk score (both
+  -- ships) and the ship-detail rendezvous list.
+  CREATE TABLE IF NOT EXISTS proximity_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    area TEXT NOT NULL,
+    mmsi_a INTEGER NOT NULL,
+    mmsi_b INTEGER NOT NULL,
+    name_a TEXT,
+    name_b TEXT,
+    started_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    ended_at TEXT,
+    min_dist_m REAL,
+    lat_a REAL, lon_a REAL,
+    lat_b REAL, lon_b REAL,
+    alerted INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_prox_a ON proximity_events(mmsi_a);
+  CREATE INDEX IF NOT EXISTS idx_prox_b ON proximity_events(mmsi_b);
+  CREATE INDEX IF NOT EXISTS idx_prox_open ON proximity_events(area, ended_at);
+  CREATE INDEX IF NOT EXISTS idx_prox_started ON proximity_events(started_at DESC);
 `);
 
 // Small key/value store for app-internal bookkeeping that must survive restarts
@@ -2320,8 +2345,86 @@ function restoreFrom(src) {
   }
 }
 
+// ── Ship-to-ship proximity (rendezvous) ─────────────────────────────────────
+const MAX_PROXIMITY_EVENTS = 5000;
+
+// Candidate vessels for the proximity scan: every ship currently assigned to the
+// area with a recent fix. The slow/offshore/not-moored gating is applied by the
+// proximity service (it owns the thresholds).
+function getProximityCandidates(area, freshSinceIso) {
+  return db
+    .prepare(
+      `SELECT mmsi, ship_name AS name, last_latitude AS lat, last_longitude AS lon,
+              last_sog AS sog, last_navigational_status AS ns
+       FROM ships
+       WHERE last_area = ? AND last_latitude IS NOT NULL AND last_longitude IS NOT NULL
+         AND last_seen_at >= ?`
+    )
+    .all(area, freshSinceIso);
+}
+
+function getOpenProximity(area) {
+  return db.prepare('SELECT * FROM proximity_events WHERE area = ? AND ended_at IS NULL').all(area);
+}
+
+const insertProximityStmt = db.prepare(
+  `INSERT INTO proximity_events
+     (area, mmsi_a, mmsi_b, name_a, name_b, started_at, last_seen_at, min_dist_m, lat_a, lon_a, lat_b, lon_b, alerted)
+   VALUES (@area, @mmsi_a, @mmsi_b, @name_a, @name_b, @ts, @ts, @min_dist_m, @lat_a, @lon_a, @lat_b, @lon_b, 0)`
+);
+function openProximityContact(c) {
+  const r = insertProximityStmt.run(c);
+  // Cheap, bounded retention: drop the oldest closed contacts past the cap.
+  db.prepare(
+    `DELETE FROM proximity_events
+     WHERE ended_at IS NOT NULL
+       AND id NOT IN (SELECT id FROM proximity_events ORDER BY id DESC LIMIT ?)`
+  ).run(MAX_PROXIMITY_EVENTS);
+  return Number(r.lastInsertRowid);
+}
+
+const updateProximityStmt = db.prepare(
+  `UPDATE proximity_events
+     SET last_seen_at = @last_seen_at, min_dist_m = @min_dist_m,
+         lat_a = @lat_a, lon_a = @lon_a, lat_b = @lat_b, lon_b = @lon_b
+   WHERE id = @id`
+);
+function updateProximityContact(c) {
+  updateProximityStmt.run(c);
+}
+
+function closeProximityContact(id, endedAt) {
+  db.prepare('UPDATE proximity_events SET ended_at = ? WHERE id = ?').run(endedAt, id);
+}
+
+function markProximityAlerted(id) {
+  db.prepare('UPDATE proximity_events SET alerted = 1 WHERE id = ?').run(id);
+}
+
+// Confirmed (alerted) rendezvous involving a ship within the trailing window.
+// Feeds the risk score and the ship-detail list. `other` is the partner MMSI.
+function getProximityForShip(mmsi, sinceIso) {
+  return db
+    .prepare(
+      `SELECT id, area, started_at, ended_at, min_dist_m, last_seen_at,
+              CASE WHEN mmsi_a = ? THEN mmsi_b ELSE mmsi_a END AS other,
+              CASE WHEN mmsi_a = ? THEN name_b ELSE name_a END AS other_name
+       FROM proximity_events
+       WHERE alerted = 1 AND (mmsi_a = ? OR mmsi_b = ?) AND started_at >= ?
+       ORDER BY started_at DESC`
+    )
+    .all(mmsi, mmsi, mmsi, mmsi, sinceIso);
+}
+
 module.exports = {
   insert,
+  getProximityCandidates,
+  getOpenProximity,
+  openProximityContact,
+  updateProximityContact,
+  closeProximityContact,
+  markProximityAlerted,
+  getProximityForShip,
   insertFollowPosition,
   getAreaCounts,
   pruneOrphans,

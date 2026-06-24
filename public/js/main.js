@@ -169,12 +169,14 @@ async function loadSettings() {
     S.notifyHighRisk = s.notifyHighRisk !== false;
     S.notifyBerthNew = s.notifyBerthNew !== false;
     S.notifyBerthChar = s.notifyBerthChar !== false;
+    S.notifyProximity = s.notifyProximity !== false;
     if (el.toggleNotifications) el.toggleNotifications.checked = S.notificationsEnabled;
     if (el.toggleNotifyRevisit) el.toggleNotifyRevisit.checked = S.notifyRevisit;
     if (el.toggleNotifyAreaChange) el.toggleNotifyAreaChange.checked = S.notifyAreaChange;
     if (el.toggleNotifyHighRisk) el.toggleNotifyHighRisk.checked = S.notifyHighRisk;
     if (el.toggleNotifyBerthNew) el.toggleNotifyBerthNew.checked = S.notifyBerthNew;
     if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
+    if (el.toggleNotifyProximity) el.toggleNotifyProximity.checked = S.notifyProximity;
     S.excludeTankers = !!s.excludeTankers;
     if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
     S.checkSpoofing = s.checkSpoofing !== false;
@@ -209,6 +211,7 @@ const TELEGRAM_TOGGLES = [
   ['toggleTelegramAreaChange', 'telegramNotifyAreaChange'],
   ['toggleTelegramBerthNew', 'telegramNotifyBerthNew'],
   ['toggleTelegramBerthChar', 'telegramNotifyBerthChar'],
+  ['toggleTelegramProximity', 'telegramNotifyProximity'],
   ['toggleTelegramOutage', 'telegramNotifyOutage'],
   ['toggleTelegramAreaMonitor', 'telegramNotifyAreaMonitor'],
   ['toggleTelegramSendMap', 'telegramSendMap'],
@@ -351,6 +354,8 @@ function applyNotifSettingsState() {
   if (el.settingNotifyBerthNew) el.settingNotifyBerthNew.classList.toggle('disabled', !S.notificationsEnabled);
   if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.disabled = !S.notificationsEnabled;
   if (el.settingNotifyBerthChar) el.settingNotifyBerthChar.classList.toggle('disabled', !S.notificationsEnabled);
+  if (el.toggleNotifyProximity) el.toggleNotifyProximity.disabled = !S.notificationsEnabled;
+  if (el.settingNotifyProximity) el.settingNotifyProximity.classList.toggle('disabled', !S.notificationsEnabled);
 }
 
 // Dim/disable the extra-lists sub-toggle when the master sanctions switch is off.
@@ -707,6 +712,16 @@ function initSettingsModal() {
       S.notifyBerthChar = enabled;
     } catch {
       el.toggleNotifyBerthChar.checked = !enabled;
+    }
+  });
+
+  if (el.toggleNotifyProximity) el.toggleNotifyProximity.addEventListener('change', async () => {
+    const enabled = el.toggleNotifyProximity.checked;
+    try {
+      await api('/api/settings', 'POST', { notifyProximity: enabled });
+      S.notifyProximity = enabled;
+    } catch {
+      el.toggleNotifyProximity.checked = !enabled;
     }
   });
 

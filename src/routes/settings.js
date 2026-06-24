@@ -75,6 +75,7 @@ router.get('/settings', (req, res) => {
     notifyHighRisk: prefs.notifyHighRisk,
     notifyBerthNew: prefs.notifyBerthNew,
     notifyBerthChar: prefs.notifyBerthChar,
+    notifyProximity: prefs.notifyProximity,
     showOpenSeaMap: prefs.showOpenSeaMap,
     showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
     openSeaMapHidden: prefs.openSeaMapHidden,
@@ -292,7 +293,7 @@ router.post('/settings', (req, res) => {
   // ── Personal settings (any user) ──
   const personalKeys = [
     'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
-    'notifyBerthNew', 'notifyBerthChar', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
+    'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
   ];
   const personalPatch = {};
   for (const k of personalKeys) if (b[k] !== undefined) personalPatch[k] = b[k];
@@ -423,6 +424,7 @@ router.post('/settings', (req, res) => {
     notifyHighRisk: prefs.notifyHighRisk,
     notifyBerthNew: prefs.notifyBerthNew,
     notifyBerthChar: prefs.notifyBerthChar,
+    notifyProximity: prefs.notifyProximity,
     showOpenSeaMap: prefs.showOpenSeaMap,
     showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
     openSeaMapHidden: prefs.openSeaMapHidden,

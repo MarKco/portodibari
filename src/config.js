@@ -248,6 +248,23 @@ const BERTH = {
   DIRTY_FLUSH_MIN: num('BERTH_DIRTY_FLUSH_MIN', 2),
 };
 
+// ── Ship-to-ship proximity (rendezvous) detection ────────────────────────────
+// A periodic per-area scan flags pairs of distinct vessels that linger close
+// together offshore while both are slow — the classic ship-to-ship transfer
+// signature. SCAN_MIN = 0 disables the scan entirely. Distances in metres, the
+// dwell threshold in minutes, the speed gate in knots, the offshore gate in km
+// from the area's bbox centre. CLOSE_MULT widens the separation that keeps an
+// open contact alive (hysteresis) so a single noisy fix doesn't flap it shut.
+const PROXIMITY = {
+  SCAN_MIN: num('PROXIMITY_SCAN_MIN', 10),
+  DIST_M: num('PROXIMITY_DIST_M', 500),
+  CLOSE_MULT: num('PROXIMITY_CLOSE_MULT', 1.5),
+  MIN_MINUTES: num('PROXIMITY_MIN_MINUTES', 10),
+  MAX_SOG_KN: num('PROXIMITY_MAX_SOG_KN', 3),
+  FAR_KM: num('PROXIMITY_FAR_KM', 10),
+  FRESH_MIN: num('PROXIMITY_FRESH_MIN', 20),
+};
+
 // ── Risk score weights (from app.config.properties) ──────────────────────────
 const RISK = {
   DARK_MAX:          num('RISK_DARK_MAX', 25),
@@ -284,6 +301,11 @@ const RISK = {
   GFW_GAP:           num('RISK_GFW_GAP', 15),
   GFW_LOITERING:     num('RISK_GFW_LOITERING', 12),
   GFW_PORT_HIGH:     num('RISK_GFW_PORT_VISIT_HIGH_RISK', 15),
+  // Ship-to-ship rendezvous (local detection): a confirmed close offshore
+  // encounter within the trailing window adds points to BOTH ships. Set the
+  // weight to 0 to disable the factor without stopping the detection scan.
+  PROXIMITY:         num('RISK_PROXIMITY_POINTS', 18),
+  PROXIMITY_WINDOW_DAYS: num('RISK_PROXIMITY_WINDOW_DAYS', 7),
   OLD_MIN_AGE:       num('RISK_OLD_VESSEL_MIN_AGE', 35),
   MULT_HIGH_RISK:    num('RISK_MULT_HIGH_RISK', 0.5),
   MULT_FOC:          num('RISK_MULT_FOC', 0.2),
@@ -829,6 +851,7 @@ module.exports = {
   APP_CONFIG_FILE,
   saveAppProperty,
   BERTH,
+  PROXIMITY,
   RISK,
   BBOX_PRESETS,
   state,

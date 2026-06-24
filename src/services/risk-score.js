@@ -117,6 +117,7 @@ function getLabels(lang) {
     gfwGap: (n)             => `AIS-off ("dark") event detected by Global Fishing Watch (${n})`,
     gfwLoiter: (n)          => `Loitering in open sea detected by Global Fishing Watch (${n})`,
     gfwPortHigh: (p)        => `Global Fishing Watch port call in a high-risk area: ${p}`,
+    proximity: (n)          => `At-sea rendezvous with ${n === 1 ? 'another vessel' : `${n} vessels`} (close, slow, offshore — possible ship-to-ship transfer)`,
     highRiskPort: (p, s)    => `Home port in high-risk zone: ${p} (source ${s})`,
     highRiskCtx: (ctx, m)   => `High-risk context: ${ctx} (×${m})`,
     ctxDest: 'destination under embargo/conflict zone',
@@ -148,6 +149,7 @@ function getLabels(lang) {
     gfwGap: (n)             => `Evento AIS spento ("dark") rilevato da Global Fishing Watch (${n})`,
     gfwLoiter: (n)          => `Sosta in mare aperto rilevata da Global Fishing Watch (${n})`,
     gfwPortHigh: (p)        => `Scalo Global Fishing Watch in zona ad alto rischio: ${p}`,
+    proximity: (n)          => `Rendezvous in mare con ${n === 1 ? "un'altra nave" : `${n} navi`} (vicine, lente, al largo — possibile trasbordo nave-nave)`,
     highRiskPort: (p, s)    => `Porto di armamento in zona ad alto rischio: ${p} (fonte ${s})`,
     highRiskCtx: (ctx, m)   => `Contesto ad alto rischio: ${ctx} (×${m})`,
     ctxDest: 'destinazione sotto embargo/zona di conflitto',
@@ -471,6 +473,18 @@ function computeRiskScore(ship, lang) {
     if (highRiskCall) {
       addEnr(R.GFW_PORT_HIGH, L.gfwPortHigh(highRiskCall.port || highRiskCall.country), 'Global Fishing Watch');
     }
+  }
+
+  // 12. Ship-to-ship rendezvous (local detection). A confirmed close, slow,
+  //     offshore encounter with another tracked vessel within the trailing
+  //     window — the transshipment signature, computed from our own AIS feed
+  //     (no external source). Counts distinct partner ships. Behaves like the
+  //     other behavioural heuristics (passes through the multiplier). Weight 0
+  //     disables it. See services/proximity.js for the detection itself.
+  if (R.PROXIMITY > 0) {
+    const sinceIso = new Date(Date.now() - R.PROXIMITY_WINDOW_DAYS * 86400000).toISOString();
+    const partners = new Set(db.getProximityForShip(mmsi, sinceIso).map((r) => r.other));
+    if (partners.size) add(R.PROXIMITY, L.proximity(partners.size));
   }
 
   // ── Geopolitical context multiplier ────────────────────────────────────────

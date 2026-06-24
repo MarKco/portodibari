@@ -128,8 +128,9 @@ const FILEID_TTL_MS = 60 * 60 * 1000;
 const FILEID_CACHE_MAX = 256;
 const fileIdCache = new Map(); // key → { promise: Promise<string|null>, exp }
 
-function fileIdKey(lat, lon, zoom, seamark) {
-  return `${lat.toFixed(4)},${lon.toFixed(4)},${zoom},${seamark ? 1 : 0}`;
+function fileIdKey(lat, lon, zoom, seamark, points) {
+  const pts = points && points.length ? ':' + points.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|') : '';
+  return `${lat.toFixed(4)},${lon.toFixed(4)},${zoom},${seamark ? 1 : 0}${pts}`;
 }
 function getFileIdEntry(key) {
   const e = fileIdCache.get(key);
@@ -154,8 +155,8 @@ function extractFileId(result) {
 // first time a given map is needed (and caches the file_id), reuses the file_id
 // afterwards. Returns true if a photo was delivered, false if the caller should
 // fall back to a plain text message.
-async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark, reply_markup) {
-  const key = fileIdKey(lat, lon, zoom, seamark);
+async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark, reply_markup, points) {
+  const key = fileIdKey(lat, lon, zoom, seamark, points);
   const existing = getFileIdEntry(key);
   if (existing) {
     const fileId = await existing.promise.catch(() => null);
@@ -172,7 +173,7 @@ async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark, reply_mark
   setFileIdEntry(key, promise);
   let buf = null;
   try {
-    buf = await staticMap.render(lat, lon, { zoom, seamark });
+    buf = await staticMap.render(lat, lon, { zoom, seamark, points, connect: !!(points && points.length) });
   } catch { /* render failed */ }
   if (!buf) {
     resolveFileId(null);
@@ -241,6 +242,10 @@ const MSG = {
     it: (p) => `🛳️ <b>Nuova banchina rilevata</b>\nArea: <b>${esc(p.area)}</b>`,
     en: (p) => `🛳️ <b>New berth detected</b>\nArea: <b>${esc(p.area)}</b>`,
   },
+  proximity: {
+    it: (p) => `🚨 <b>Rendezvous in mare</b>\n${flagEmoji(p.mmsiA)}<b>${esc(clip(p.nameA || p.mmsiA, 28))}</b> ↔ ${flagEmoji(p.mmsiB)}<b>${esc(clip(p.nameB || p.mmsiB, 28))}</b>\nArea: <b>${esc(p.area)}</b> · ${p.distM} m · ${p.durMin} min`,
+    en: (p) => `🚨 <b>At-sea rendezvous</b>\n${flagEmoji(p.mmsiA)}<b>${esc(clip(p.nameA || p.mmsiA, 28))}</b> ↔ ${flagEmoji(p.mmsiB)}<b>${esc(clip(p.nameB || p.mmsiB, 28))}</b>\nArea: <b>${esc(p.area)}</b> · ${p.distM} m · ${p.durMin} min`,
+  },
   berth_characterized: {
     it: (p) => `🏷️ <b>Banchina caratterizzata</b>\nArea: <b>${esc(p.area)}</b>${p.band ? ` · Categoria: <b>${esc(p.band)}</b>` : ''}`,
     en: (p) => `🏷️ <b>Berth characterised</b>\nArea: <b>${esc(p.area)}</b>${p.band ? ` · Category: <b>${esc(p.band)}</b>` : ''}`,
@@ -290,6 +295,7 @@ const PREF_KEY = {
   area_change: 'telegramNotifyAreaChange',
   berth_new: 'telegramNotifyBerthNew',
   berth_characterized: 'telegramNotifyBerthChar',
+  proximity: 'telegramNotifyProximity',
   outage: 'telegramNotifyOutage',
   area_monitor: 'telegramNotifyAreaMonitor',
 };
@@ -366,7 +372,9 @@ async function sendToUser(userId, type, msgKey, params) {
     if (hasGeo && p.telegramSendMap !== false) {
       // Photo (caption = the message). Renders/uploads once per map, reuses the
       // file_id for the rest of the fan-out; falls back to text if it can't.
-      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true, reply_markup);
+      // `mapPoints` (e.g. a rendezvous pair) draws multiple pins + a link line.
+      const mapPoints = Array.isArray(params && params.mapPoints) ? params.mapPoints : null;
+      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true, reply_markup, mapPoints);
       if (!sent) {
         await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup });
       }
@@ -397,6 +405,14 @@ function notifyShipEvent(userId, type, params) {
 }
 function notifyBerth(userId, type, params) {
   sendToUser(userId, type, type, params);
+}
+// Ship-to-ship rendezvous: two pins + a connecting line, centred on the midpoint.
+function notifyProximity(userId, params) {
+  const mapPoints = [
+    { lat: params.latA, lon: params.lonA },
+    { lat: params.latB, lon: params.lonB },
+  ];
+  sendToUser(userId, 'proximity', 'proximity', { ...params, mapPoints });
 }
 function notifyAreaMonitor(userId, action, params) {
   sendToUser(userId, 'area_monitor', action === 'stop' ? 'area_stop' : 'area_start', params);
@@ -594,6 +610,7 @@ module.exports = {
   sendTest,
   notifyShipEvent,
   notifyBerth,
+  notifyProximity,
   notifyAreaMonitor,
   broadcastOutage,
 };

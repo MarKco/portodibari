@@ -508,13 +508,15 @@ export function bindShipRows(tbody, fromView, ships) {
 export async function loadDetail() {
   if (S.detailMmsi == null) return;
   try {
-    const [data, shipData, eventsData, historyData] = await Promise.all([
+    const [data, shipData, eventsData, historyData, rdvData] = await Promise.all([
       api(`/api/ships/${S.detailMmsi}/readings?limit=${PAGE_SIZE}&offset=${S.detailPage * PAGE_SIZE}`),
       api(`/api/ships/${S.detailMmsi}`).catch(() => null),
       api(`/api/ships/${S.detailMmsi}/events`).catch(() => null),
       api(`/api/ships/${S.detailMmsi}/risk-history`).catch(() => null),
+      api(`/api/ships/${S.detailMmsi}/rendezvous`).catch(() => null),
     ]);
     renderRiskHistory(historyData?.history || []);
+    renderRendezvous(rdvData?.rendezvous || []);
     if (shipData) {
       S.detailShipData = shipData;
       if (shipData.ship_name) el.detailName.textContent = shipData.ship_name;
@@ -631,6 +633,40 @@ function renderDetailEvents(events) {
       </tr>${depRow}`;
     })
     .join('');
+}
+
+// Confirmed ship-to-ship rendezvous involving this vessel. Hidden when none.
+// Each row links to the partner ship's detail view.
+function renderRendezvous(list) {
+  const section = document.getElementById('rendezvous-section');
+  const tbody = document.getElementById('detail-rendezvous-body');
+  if (!section || !tbody) return;
+  if (!list.length) {
+    section.classList.add('hidden');
+    tbody.innerHTML = '';
+    return;
+  }
+  section.classList.remove('hidden');
+  tbody.innerHTML = list
+    .map((r) => {
+      const dist = r.min_dist_m != null ? `${Math.round(r.min_dist_m)} m` : '—';
+      const ongoing = r.ended_at ? '' : ` <span class="in-porto">(${t('rendezvous.ongoing')})</span>`;
+      const name = escHtml(r.other_name || String(r.other));
+      return `
+      <tr class="rdv-row" data-other="${r.other}" style="cursor:pointer">
+        <td>${name} <span class="detail-mmsi">${r.other}</span></td>
+        <td>${formatTime(r.started_at)}${ongoing}</td>
+        <td>${dist}</td>
+        <td>${escHtml(r.area)}</td>
+      </tr>`;
+    })
+    .join('');
+  tbody.querySelectorAll('.rdv-row').forEach((tr) => {
+    tr.addEventListener('click', () => {
+      const other = Number(tr.dataset.other);
+      if (Number.isFinite(other)) showView('detail', other);
+    });
+  });
 }
 
 export function renderDetailInfoBar(ship, latestArrival) {
