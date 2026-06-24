@@ -453,6 +453,8 @@ export default {
   'settings.telegramOutage.desc':        'Send to Telegram when an AIS feed outage begins and ends.',
   'settings.telegramAreaMonitor.name':   'Telegram · area monitoring start/stop',
   'settings.telegramAreaMonitor.desc':   'Send to Telegram when you start or stop monitoring one of your areas.',
+  'settings.telegramSendMap.name':       'Telegram · location map',
+  'settings.telegramSendMap.desc':       'Attach a map image and a tappable pin to notifications that carry a location (berths and ships).',
   'settings.excludeTankers.name':   'Exclude tankers',
   'settings.excludeTankers.desc':   'Do not assign the ship-type risk points to tanker vessels (AIS type 80–89). Useful when monitoring arms transport, which tankers cannot carry. When off, tankers get the ship-type points like other cargo vessels. Other risk signals (sanctions, dark activity, etc.) still apply.',
   'settings.checkSpoofing.name':    'Check position jump',

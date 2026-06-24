@@ -173,7 +173,7 @@ function startStream(areaKey) {
                 }
                 // Telegram is gated by its own per-user toggle, independent of the
                 // in-app one (so a user can get it on Telegram only, or vice versa).
-                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, area: areaKey, score: risk.score });
+                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(arrived), venueAddress: areaKey });
               }
               if (any) appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
             }
@@ -189,7 +189,7 @@ function startStream(areaKey) {
               if (p.notificationsEnabled && p.notifyRevisit) {
                 db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
               }
-              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, area: areaKey, score: risk.score });
+              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(revisit), venueAddress: areaKey });
             }
           }
         }
@@ -205,7 +205,7 @@ function startStream(areaKey) {
                 db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
                 any = true;
               }
-              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score });
+              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, venueTitle: ship.ship_name || String(areaChange.mmsi), venueAddress: areaChange.toArea });
             }
             if (any) appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
           }

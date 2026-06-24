@@ -17,6 +17,7 @@
     "archiver": "^7.0.1",
     "express": "^4.21.1",
     "node-libcurl": "^5.1.2",
+    "pngjs": "^7.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

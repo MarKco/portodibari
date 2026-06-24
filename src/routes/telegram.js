@@ -21,6 +21,7 @@ const TOGGLE_KEYS = [
   'telegramNotifyBerthChar',
   'telegramNotifyOutage',
   'telegramNotifyAreaMonitor',
+  'telegramSendMap',
 ];
 
 function statePayload(userId) {

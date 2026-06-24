@@ -210,6 +210,7 @@ const TELEGRAM_TOGGLES = [
   ['toggleTelegramBerthChar', 'telegramNotifyBerthChar'],
   ['toggleTelegramOutage', 'telegramNotifyOutage'],
   ['toggleTelegramAreaMonitor', 'telegramNotifyAreaMonitor'],
+  ['toggleTelegramSendMap', 'telegramSendMap'],
 ];
 let telegramLinkPoll = null;
 

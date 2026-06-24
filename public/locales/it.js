@@ -453,6 +453,8 @@ export default {
   'settings.telegramOutage.desc':        'Invia su Telegram l\'inizio e la fine di un disservizio del feed AIS.',
   'settings.telegramAreaMonitor.name':   'Telegram · avvio/stop monitoraggio area',
   'settings.telegramAreaMonitor.desc':   'Invia su Telegram quando avvii o fermi il monitoraggio di una tua area.',
+  'settings.telegramSendMap.name':       'Telegram · mappa del punto',
+  'settings.telegramSendMap.desc':       'Allega alle notifiche con posizione (banchine e navi) un\'immagine della mappa e un segnaposto toccabile.',
   'settings.excludeTankers.name':   'Escludi tanker',
   'settings.excludeTankers.desc':   'Non assegnare il punteggio di rischio di tipo nave ai tanker (tipo AIS 80–89). Utile quando si monitora il trasporto di armi, che i tanker non possono effettuare. Disattivato: i tanker ricevono il punteggio di tipo come le altre navi cargo. Gli altri segnali di rischio (sanzioni, dark activity, ecc.) restano attivi.',
   'settings.checkSpoofing.name':    'Controlla salto di posizione',

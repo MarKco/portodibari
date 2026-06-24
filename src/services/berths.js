@@ -30,7 +30,16 @@ function notifyAreaOwners(area, prefKey, notif) {
       db.addNotification({ user_id: uid, ...notif });
     }
     // Telegram has its own per-category toggle, independent of the in-app one.
-    telegram.notifyBerth(uid, notif.type, { area, band: notif.band });
+    // lat/lon drive the static map + location pin (Option A/B); the berth
+    // centroid travels in notif.berth_lat / notif.berth_lon.
+    telegram.notifyBerth(uid, notif.type, {
+      area,
+      band: notif.band,
+      lat: notif.berth_lat,
+      lon: notif.berth_lon,
+      venueTitle: area,
+      venueAddress: notif.band || undefined,
+    });
   }
 }
 const { categoryOf, isHazmat } = require('./ship-categories');

@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const db = require('../db');
 const userPrefs = require('./user-prefs');
 const appLog = require('./app-log');
+const staticMap = require('./static-map');
 const { TELEGRAM_BOT_TOKEN } = require('../config');
 
 const POLL_TIMEOUT_S = 50; // getUpdates long-poll window
@@ -64,6 +65,127 @@ function call(method, params = {}, timeoutMs = 10000) {
     req.write(body);
     req.end();
   });
+}
+
+// ── sendPhoto (multipart/form-data, for uploading a rendered PNG buffer) ──────
+// The Bot API can't fetch a photo from our NAT'd box, so we upload the bytes.
+function sendPhoto({ chat_id, photo, caption, parse_mode }, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const boundary = '----tgp' + crypto.randomBytes(12).toString('hex');
+    const head = [];
+    const field = (name, val) =>
+      head.push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${val}\r\n`);
+    field('chat_id', String(chat_id));
+    if (caption) field('caption', caption);
+    if (parse_mode) field('parse_mode', parse_mode);
+    const fileHead =
+      `--${boundary}\r\nContent-Disposition: form-data; name="photo"; filename="map.png"\r\n` +
+      'Content-Type: image/png\r\n\r\n';
+    const body = Buffer.concat([
+      Buffer.from(head.join('') + fileHead),
+      photo,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+    const req = https.request(
+      url,
+      { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length } },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          let json;
+          try {
+            json = JSON.parse(data);
+          } catch (e) {
+            return reject(new Error('Telegram sendPhoto: bad response'));
+          }
+          if (!json.ok) return reject(new Error(json.description || 'Telegram sendPhoto failed'));
+          resolve(json.result);
+        });
+      }
+    );
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── A — render once per event + reuse Telegram file_id across recipients ──────
+// Notifications fan out per-user, so the SAME map (same coords) is asked for
+// once per recipient in a tight synchronous burst. A bot's file_id is reusable
+// to send the same photo to any chat, so the first recipient uploads the bytes
+// (with their own caption) and we cache the returned file_id; every other
+// recipient sends that file_id (with their own caption) — no re-render, no
+// re-upload. The cache value is the in-flight Promise<file_id>, set
+// synchronously before the first await, so concurrent calls in the same burst
+// dedupe onto one upload. Keyed by rounded coords+zoom (caption is NOT part of
+// the key — the photo bytes don't depend on language).
+const FILEID_TTL_MS = 60 * 60 * 1000;
+const FILEID_CACHE_MAX = 256;
+const fileIdCache = new Map(); // key → { promise: Promise<string|null>, exp }
+
+function fileIdKey(lat, lon, zoom, seamark) {
+  return `${lat.toFixed(4)},${lon.toFixed(4)},${zoom},${seamark ? 1 : 0}`;
+}
+function getFileIdEntry(key) {
+  const e = fileIdCache.get(key);
+  if (!e) return null;
+  if (e.exp <= Date.now()) {
+    fileIdCache.delete(key);
+    return null;
+  }
+  return e;
+}
+function setFileIdEntry(key, promise) {
+  fileIdCache.set(key, { promise, exp: Date.now() + FILEID_TTL_MS });
+  while (fileIdCache.size > FILEID_CACHE_MAX) fileIdCache.delete(fileIdCache.keys().next().value);
+}
+function extractFileId(result) {
+  // sendPhoto returns the message; result.photo is an array of size variants.
+  const sizes = result && result.photo;
+  return Array.isArray(sizes) && sizes.length ? sizes[sizes.length - 1].file_id : null;
+}
+
+// Send the map photo to `chatId` with `caption`. Uploads the rendered bytes the
+// first time a given map is needed (and caches the file_id), reuses the file_id
+// afterwards. Returns true if a photo was delivered, false if the caller should
+// fall back to a plain text message.
+async function sendMapPhoto(chatId, caption, lat, lon, zoom, seamark) {
+  const key = fileIdKey(lat, lon, zoom, seamark);
+  const existing = getFileIdEntry(key);
+  if (existing) {
+    const fileId = await existing.promise.catch(() => null);
+    if (fileId) {
+      await sendPhoto({ chat_id: chatId, photo: fileId, caption, parse_mode: 'HTML' });
+      return true;
+    }
+    // Shared upload failed → fall through and try to render ourselves.
+  }
+  // Become the uploader: publish the in-flight promise synchronously (before any
+  // await) so siblings in the same burst dedupe onto it.
+  let resolveFileId;
+  const promise = new Promise((r) => (resolveFileId = r));
+  setFileIdEntry(key, promise);
+  let buf = null;
+  try {
+    buf = await staticMap.render(lat, lon, { zoom, seamark });
+  } catch { /* render failed */ }
+  if (!buf) {
+    resolveFileId(null);
+    fileIdCache.delete(key);
+    return false;
+  }
+  try {
+    const result = await sendPhoto({ chat_id: chatId, photo: buf, caption, parse_mode: 'HTML' });
+    resolveFileId(extractFileId(result));
+    return true;
+  } catch (e) {
+    resolveFileId(null);
+    fileIdCache.delete(key);
+    throw e; // surface to sendToUser's catch (handles blocked-chat cleanup)
+  }
 }
 
 // ── Message catalogue (per-language). Values are functions of a params object.
@@ -162,7 +284,25 @@ async function sendToUser(userId, type, msgKey, params) {
   const lang = p.lang === 'en' ? 'en' : 'it';
   const text = render(msgKey || type, lang, params);
   if (!text) return;
+  // When the event carries coordinates and the user wants maps, send a rendered
+  // static map (caption = the message) plus a native location pin, instead of a
+  // plain text message. Falls back to text if rendering fails.
+  const lat = params ? Number(params.lat) : NaN;
+  const lon = params ? Number(params.lon) : NaN;
+  const hasGeo = Number.isFinite(lat) && Number.isFinite(lon);
+  const MAP_ZOOM = 15;
   try {
+    if (hasGeo && p.telegramSendMap !== false) {
+      // Photo (caption = the message). Renders/uploads once per map, reuses the
+      // file_id for the rest of the fan-out; falls back to text if it can't.
+      const sent = await sendMapPhoto(chatId, text, lat, lon, MAP_ZOOM, true);
+      if (!sent) {
+        await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true });
+      }
+      // Option A: a native, tappable map pin (venue if we have a title/address).
+      await sendGeo(chatId, lat, lon, params.venueTitle, params.venueAddress);
+      return;
+    }
     await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true });
   } catch (e) {
     appLog.warn('TELEGRAM', appLog.t('telegram.send_failed', { error: e.message }));
@@ -172,6 +312,18 @@ async function sendToUser(userId, type, msgKey, params) {
       db.setUserSetting(userId, 'telegramChatId', null);
     }
   }
+}
+
+// Native map pin (Option A). A venue shows a titled marker; a bare location is
+// just a pin. Best-effort — a failure here must not break the main message.
+async function sendGeo(chatId, lat, lon, title, address) {
+  try {
+    if (title) {
+      await call('sendVenue', { chat_id: chatId, latitude: lat, longitude: lon, title, address: address || title });
+    } else {
+      await call('sendLocation', { chat_id: chatId, latitude: lat, longitude: lon });
+    }
+  } catch { /* best-effort */ }
 }
 
 // ── Public notify helpers (called from the event sources) ────────────────────

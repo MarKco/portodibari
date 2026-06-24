@@ -30,6 +30,9 @@ const DEFAULTS = {
   telegramNotifyBerthChar: true,
   telegramNotifyOutage: true,
   telegramNotifyAreaMonitor: true,
+  // Attach a static map image + a native location pin to Telegram notifications
+  // that carry coordinates (berth + ship events). Off → those go as text only.
+  telegramSendMap: true,
   showOpenSeaMap: false,
   showOpenSeaMapMarkers: true,
   openSeaMapHidden: ['light', 'beacon', 'pilot'],
@@ -42,7 +45,7 @@ const BOOL_KEYS = new Set([
   'notifyBerthNew', 'notifyBerthChar', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
-  'telegramNotifyOutage', 'telegramNotifyAreaMonitor',
+  'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
 ]);
 
 /** Typed, defaulted view of a user's personal preferences. */

@@ -166,6 +166,8 @@ export const el = {
   settingTelegramOutage: $('setting-telegram-outage'),
   toggleTelegramAreaMonitor: $('toggle-telegram-area-monitor'),
   settingTelegramAreaMonitor: $('setting-telegram-area-monitor'),
+  toggleTelegramSendMap: $('toggle-telegram-send-map'),
+  settingTelegramSendMap: $('setting-telegram-send-map'),
   toggleExcludeTankers: $('toggle-exclude-tankers'),
   toggleCheckSpoofing: $('toggle-check-spoofing'),
   toggleCheckDark: $('toggle-check-dark'),
