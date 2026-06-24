@@ -417,7 +417,8 @@ Holds the app's thresholds and parameters (time windows, radii, retention, risk-
 | `POLL_INTERVAL_MS` | Interface refresh interval (milliseconds) | `300000` |
 | `AIS_OUTAGE_CHECK` | Enable AIS outage detection (`false` to turn it off) | `true` |
 | `AIS_OUTAGE_SILENCE_MIN` | Minutes without AIS signals before querying the uptime monitor | `10` |
-| `AIS_UPTIME_URL` | URL of the AISStream uptime monitor consulted during silence | `https://aisuptime.buttermilkgreen.fyi` |
+| `AIS_UPTIME_SELFHOST_URL` | URL of your own self-hosted monitor instance (queried first; empty = none) | _(empty)_ |
+| `AIS_UPTIME_URL` | URL of the public AISStream uptime monitor, used as a fallback | `https://aisuptime.buttermilkgreen.fyi` |
 | `MAX_READINGS_PER_TYPE` | Max readings kept per message type | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Mooring → berth clustering radius (metres) | `80` |
 | `BERTH_MIN_PTS` | Minimum nearby moorings to form a berth | `3` |
@@ -495,6 +496,8 @@ If for a few minutes (`AIS_OUTAGE_SILENCE_MIN`, default 10) an active monitor re
 > ⚠️ Possible AISStream outage: no incoming signals and the public monitor reports "…". Data may not be updating.
 
 You can dismiss the notice with the **✕**; it reappears if a new outage is detected. When signals start arriving again, the notice disappears on its own. If the area is simply quiet but the service is running normally, **no** notice is shown (no false alarms). The feature can be turned off entirely with `AIS_OUTAGE_CHECK=false`. See also [Credits](#credits).
+
+The AISStream-Uptime project is open source (MIT-licensed) and you can **host it yourself**: set your instance's URL in `AIS_UPTIME_SELFHOST_URL` and the app will query it first, falling back to the public monitor only when yours is unreachable (also useful to tell whether the outage is global). With a healthy self-hosted instance the public service is never contacted.
 
 ---
 

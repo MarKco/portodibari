@@ -158,14 +158,23 @@ const RECONNECT_DELAY_MS = num('RECONNECT_DELAY_MS', 5000);
 
 // ── AIS outage detection ──────────────────────────────────────────────────────
 // When an active stream stops receiving ship messages for AIS_OUTAGE_SILENCE_MIN
-// minutes, the app cross-checks the public AISStream uptime monitor
-// (github.com/buttermilkgreen/AISStream-Uptime). Only when that monitor also
-// reports the service down does the UI raise a (non-blocking) disruption banner,
-// so a genuinely quiet area never triggers a false alarm. Set AIS_OUTAGE_CHECK
-// to 'false' to disable the whole feature.
+// minutes, the app cross-checks an AISStream uptime monitor
+// (github.com/buttermilkgreen/AISStream-Uptime, MIT) via its /api/v1/status API.
+// Only when that monitor also reports the service down does the UI raise a
+// (non-blocking) disruption banner, so a genuinely quiet area never triggers a
+// false alarm. Set AIS_OUTAGE_CHECK to 'false' to disable the whole feature.
+//
+// Two monitors can be consulted, in priority order (hybrid mode):
+//   AIS_UPTIME_SELFHOST_URL — a self-hosted instance of the monitor (run it
+//     yourself, MIT-licensed). Probed first, so a healthy deployment never
+//     touches the public service. Empty (default) = no self-hosted instance.
+//   AIS_UPTIME_URL — the public monitor. Used as a fallback when the self-hosted
+//     one is unreachable, and it also reflects whether the outage is global
+//     (community-wide), not just local to us.
 const AIS_OUTAGE_CHECK = (appCfg.AIS_OUTAGE_CHECK ?? 'true') !== 'false';
 const AIS_OUTAGE_SILENCE_MIN = num('AIS_OUTAGE_SILENCE_MIN', 10);
 const AIS_UPTIME_URL = (appCfg.AIS_UPTIME_URL || 'https://aisuptime.buttermilkgreen.fyi').replace(/\/+$/, '');
+const AIS_UPTIME_SELFHOST_URL = (appCfg.AIS_UPTIME_SELFHOST_URL || '').replace(/\/+$/, '');
 const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
 // API audit trail (api_log table) is capped to the most recent N requests;
 // older rows are pruned on every insert (see db.js) so the table can't grow
@@ -779,6 +788,7 @@ module.exports = {
   AIS_OUTAGE_CHECK,
   AIS_OUTAGE_SILENCE_MIN,
   AIS_UPTIME_URL,
+  AIS_UPTIME_SELFHOST_URL,
   MAX_READINGS_PER_TYPE,
   MAX_API_LOG_RECORDS,
   POLL_INTERVAL_MS,

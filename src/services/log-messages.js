@@ -55,8 +55,10 @@ const MESSAGES = {
   'ais.ws_error': { it: 'Errore WebSocket', en: 'WebSocket error' },
   'ais.stream_stopped': { it: 'Stream fermato', en: 'Stream stopped' },
   'ais.outage_detected': {
-    it: (p) => `Possibile disservizio AISStream: nessun segnale da ${p.min} min, il monitor pubblico riporta «${p.state}»`,
-    en: (p) => `Possible AISStream outage: no signal for ${p.min} min, public monitor reports “${p.state}”`,
+    it: (p) =>
+      `Possibile disservizio AISStream: nessun segnale da ${p.min} min, il monitor ${p.source === 'selfhost' ? 'self-hosted' : 'pubblico'} riporta «${p.state}»`,
+    en: (p) =>
+      `Possible AISStream outage: no signal for ${p.min} min, ${p.source === 'selfhost' ? 'self-hosted' : 'public'} monitor reports “${p.state}”`,
   },
   'ais.outage_cleared': {
     it: 'Disservizio AISStream rientrato: segnali nuovamente ricevuti',

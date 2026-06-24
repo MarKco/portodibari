@@ -417,7 +417,8 @@ Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention,
 | `POLL_INTERVAL_MS` | Intervallo di aggiornamento dell'interfaccia (millisecondi) | `300000` |
 | `AIS_OUTAGE_CHECK` | Attiva il rilevamento dei disservizi AIS (`false` per disattivarlo) | `true` |
 | `AIS_OUTAGE_SILENCE_MIN` | Minuti senza segnali AIS prima di interrogare il monitor di uptime | `10` |
-| `AIS_UPTIME_URL` | URL del monitor di uptime AISStream consultato in caso di silenzio | `https://aisuptime.buttermilkgreen.fyi` |
+| `AIS_UPTIME_SELFHOST_URL` | URL di una tua istanza self-hosted del monitor (interrogata per prima; vuota = nessuna) | _(vuoto)_ |
+| `AIS_UPTIME_URL` | URL del monitor di uptime AISStream pubblico, usato come ripiego | `https://aisuptime.buttermilkgreen.fyi` |
 | `MAX_READINGS_PER_TYPE` | Numero massimo di letture conservate per tipo di messaggio | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Raggio di clustering attracchi → banchine (metri) | `80` |
 | `BERTH_MIN_PTS` | Attracchi minimi vicini per formare una banchina | `3` |
@@ -495,6 +496,8 @@ Se per alcuni minuti (`AIS_OUTAGE_SILENCE_MIN`, predefinito 10) un monitoraggio 
 > ⚠️ Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «…». I dati potrebbero non aggiornarsi.
 
 Puoi chiudere l'avviso con la **✕**; ricomparirà se viene rilevato un nuovo disservizio. Quando i segnali tornano a essere ricevuti, l'avviso scompare da solo. Se l'area è semplicemente silenziosa ma il servizio è regolarmente attivo, **non** viene mostrato alcun avviso (nessun falso allarme). La funzione si disattiva del tutto con `AIS_OUTAGE_CHECK=false`. Vedi anche [Crediti](#crediti).
+
+Il progetto AISStream-Uptime è open source (licenza MIT) e puoi **ospitarlo tu stesso**: indica l'URL della tua istanza in `AIS_UPTIME_SELFHOST_URL` e l'app la interrogherà per prima, ricorrendo al monitor pubblico solo se la tua è irraggiungibile (utile anche a capire se il disservizio è globale). Con un'istanza self-hosted sana il servizio pubblico non viene mai contattato.
 
 ---
 
