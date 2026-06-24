@@ -741,8 +741,11 @@ export default {
   'filter.bandHigh':     '🔴 Red (71–100)',
   'filter.inPort':       'In port only',
   'filter.flagged':      'Flagged only',
+  'filter.showSeen':     'Ships marked as seen',
   'filter.exportCsv':    '⬇ Filtered CSV',
   'filter.count':        '{shown} / {total}',
+  'filter.seenHidden':   '{n} ships hidden as already seen',
+  'filter.seenHiddenInfo': 'These ships are hidden because you marked them as seen. Turn on “Ships marked as seen” to show them again. Flagged ships always stay visible.',
   'filter.noMatch':      'No ship matches the filters.',
 
   // ── Risk history (detail) ──────────────────────────────────────────────────

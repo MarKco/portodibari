@@ -741,8 +741,11 @@ export default {
   'filter.bandHigh':     '🔴 Rosso (71–100)',
   'filter.inPort':       'Solo in porto',
   'filter.flagged':      'Solo segnalate',
+  'filter.showSeen':     'Navi segnate come viste',
   'filter.exportCsv':    '⬇ CSV filtrato',
   'filter.count':        '{shown} / {total}',
+  'filter.seenHidden':   '{n} navi nascoste perché già viste',
+  'filter.seenHiddenInfo': 'Queste navi sono nascoste perché le hai segnate come viste. Attiva «Navi segnate come viste» per mostrarle di nuovo. Le navi segnalate restano comunque sempre visibili.',
   'filter.noMatch':      'Nessuna nave corrisponde ai filtri.',
 
   // ── Risk history (detail) ──────────────────────────────────────────────────

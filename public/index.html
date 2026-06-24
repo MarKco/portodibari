@@ -150,9 +150,11 @@
         </select>
         <label class="list-check"><input type="checkbox" id="active-inport"><span data-i18n="filter.inPort">Solo in porto</span></label>
         <label class="list-check"><input type="checkbox" id="active-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+        <label class="list-check"><input type="checkbox" id="active-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <label class="list-check"><input type="checkbox" id="berths-toggle"><span data-i18n="berths.show">Banchine</span></label>
         <button id="btn-berths-manage" class="btn btn-secondary btn-sm" data-i18n="berths.manage" data-i18n-title="berths.manageTitle" title="Gestisci banchine">⚓ Banchine</button>
         <span class="list-toolbar-spacer"></span>
+        <span id="active-seen-hidden" class="list-seen-hidden"></span>
         <span id="active-filter-count" class="list-filter-count"></span>
         <button id="active-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
       </div>
@@ -190,7 +192,9 @@
           <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
         </select>
         <label class="list-check"><input type="checkbox" id="past-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
+        <label class="list-check"><input type="checkbox" id="past-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <span class="list-toolbar-spacer"></span>
+        <span id="past-seen-hidden" class="list-seen-hidden"></span>
         <span id="past-filter-count" class="list-filter-count"></span>
         <button id="past-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
       </div>

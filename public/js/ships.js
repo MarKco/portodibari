@@ -1,5 +1,5 @@
 import { el } from './dom.js';
-import { S, PAGE_SIZE } from './store.js';
+import { S, PAGE_SIZE, saveShipFilters } from './store.js';
 import { api } from './api.js';
 import { showAlert } from './toast.js';
 import { renderActiveMap } from './maps.js';
@@ -18,6 +18,7 @@ import {
   riskClass,
   cargoTypeHtml,
   loadStateHtml,
+  infoIcon,
 } from './helpers.js';
 
 // ── Detail header buttons ────────────────────────────────────────────────────
@@ -160,6 +161,11 @@ export function filterShips(ships, f, opts = {}) {
   return ships.filter((s) => {
     if (f.band && s.risk?.band !== f.band) return false;
     if (f.flagged && !s.flagged) return false;
+    // Ships marked as seen are hidden unless the "viste" toggle is on; flagged
+    // ships are always kept (segnalate hanno priorità). Only filters that opt in
+    // (active/past, which carry a showSeen field) apply this — the followed lists
+    // have no such field and keep showing seen ships.
+    if ('showSeen' in f && !f.showSeen && s.seen && !s.flagged) return false;
     if (opts.inPort && f.inPort && !s.in_port) return false;
     if (q) {
       const hay = [s.ship_name, s.mmsi, s.imo_number, s.destination, s.call_sign]
@@ -175,6 +181,26 @@ export function updateFilterCount(elId, shown, total) {
   const node = document.getElementById(elId);
   if (!node) return;
   node.textContent = shown === total ? '' : t('filter.count', { shown, total });
+}
+
+// How many ships the "viste" toggle is currently hiding: the marginal difference
+// between what would show with seen ships included and what shows now (so other
+// active filters are accounted for). Zero when the toggle is on.
+export function countHiddenSeen(ships, f, opts = {}) {
+  if (f.showSeen) return 0;
+  const withSeen = filterShips(ships, { ...f, showSeen: true }, opts);
+  const without = filterShips(ships, f, opts);
+  return withSeen.length - without.length;
+}
+
+export function updateSeenHidden(elId, count) {
+  const node = document.getElementById(elId);
+  if (!node) return;
+  if (count > 0) {
+    node.innerHTML = escHtml(t('filter.seenHidden', { n: count })) + infoIcon(t('filter.showSeen'), t('filter.seenHiddenInfo'));
+  } else {
+    node.innerHTML = '';
+  }
 }
 
 // ── CSV export (client-side, current filtered + sorted view) ───────────────────
@@ -308,6 +334,7 @@ function renderActiveTable(ships) {
   const filtered = filterShips(ships, S.activeFilter, { inPort: true });
   renderActiveMap(filtered);
   updateFilterCount('active-filter-count', filtered.length, ships.length);
+  updateSeenHidden('active-seen-hidden', countHiddenSeen(ships, S.activeFilter, { inPort: true }));
   const sorted = sortShips(filtered, activeSort.col, activeSort.dir);
   if (!sorted.length) {
     el.activeBody.innerHTML =
@@ -379,12 +406,20 @@ function renderActiveTable(ships) {
     band: document.getElementById('active-band'),
     inport: document.getElementById('active-inport'),
     flagged: document.getElementById('active-flagged'),
+    seen: document.getElementById('active-seen'),
     exp: document.getElementById('active-export'),
   };
-  if (a.search) a.search.addEventListener('input', () => { S.activeFilter.q = a.search.value; renderActiveTable(activeShipsData); });
-  if (a.band) a.band.addEventListener('change', () => { S.activeFilter.band = a.band.value; renderActiveTable(activeShipsData); });
-  if (a.inport) a.inport.addEventListener('change', () => { S.activeFilter.inPort = a.inport.checked; renderActiveTable(activeShipsData); });
-  if (a.flagged) a.flagged.addEventListener('change', () => { S.activeFilter.flagged = a.flagged.checked; renderActiveTable(activeShipsData); });
+  // Reflect the persisted filter state on the controls before wiring handlers.
+  if (a.search) a.search.value = S.activeFilter.q || '';
+  if (a.band) a.band.value = S.activeFilter.band || '';
+  if (a.inport) a.inport.checked = !!S.activeFilter.inPort;
+  if (a.flagged) a.flagged.checked = !!S.activeFilter.flagged;
+  if (a.seen) a.seen.checked = !!S.activeFilter.showSeen;
+  if (a.search) a.search.addEventListener('input', () => { S.activeFilter.q = a.search.value; saveShipFilters(); renderActiveTable(activeShipsData); });
+  if (a.band) a.band.addEventListener('change', () => { S.activeFilter.band = a.band.value; saveShipFilters(); renderActiveTable(activeShipsData); });
+  if (a.inport) a.inport.addEventListener('change', () => { S.activeFilter.inPort = a.inport.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
+  if (a.flagged) a.flagged.addEventListener('change', () => { S.activeFilter.flagged = a.flagged.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
+  if (a.seen) a.seen.addEventListener('change', () => { S.activeFilter.showSeen = a.seen.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.exp) a.exp.addEventListener('click', () => {
     const sorted = sortShips(filterShips(activeShipsData, S.activeFilter, { inPort: true }), activeSort.col, activeSort.dir);
     exportShipsCsv(sorted, 'navi-presenti');
@@ -394,11 +429,17 @@ function renderActiveTable(ships) {
     search: document.getElementById('past-search'),
     band: document.getElementById('past-band'),
     flagged: document.getElementById('past-flagged'),
+    seen: document.getElementById('past-seen'),
     exp: document.getElementById('past-export'),
   };
-  if (p.search) p.search.addEventListener('input', () => { S.pastFilter.q = p.search.value; renderPastTable(pastShipsData); });
-  if (p.band) p.band.addEventListener('change', () => { S.pastFilter.band = p.band.value; renderPastTable(pastShipsData); });
-  if (p.flagged) p.flagged.addEventListener('change', () => { S.pastFilter.flagged = p.flagged.checked; renderPastTable(pastShipsData); });
+  if (p.search) p.search.value = S.pastFilter.q || '';
+  if (p.band) p.band.value = S.pastFilter.band || '';
+  if (p.flagged) p.flagged.checked = !!S.pastFilter.flagged;
+  if (p.seen) p.seen.checked = !!S.pastFilter.showSeen;
+  if (p.search) p.search.addEventListener('input', () => { S.pastFilter.q = p.search.value; saveShipFilters(); renderPastTable(pastShipsData); });
+  if (p.band) p.band.addEventListener('change', () => { S.pastFilter.band = p.band.value; saveShipFilters(); renderPastTable(pastShipsData); });
+  if (p.flagged) p.flagged.addEventListener('change', () => { S.pastFilter.flagged = p.flagged.checked; saveShipFilters(); renderPastTable(pastShipsData); });
+  if (p.seen) p.seen.addEventListener('change', () => { S.pastFilter.showSeen = p.seen.checked; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.exp) p.exp.addEventListener('click', () => {
     const sorted = sortShips(filterShips(pastShipsData, S.pastFilter), pastSort.col, pastSort.dir);
     exportShipsCsv(sorted, 'navi-passate');
@@ -422,6 +463,7 @@ function renderPastTable(ships) {
   pastShipsData = ships;
   const filtered = filterShips(ships, S.pastFilter);
   updateFilterCount('past-filter-count', filtered.length, ships.length);
+  updateSeenHidden('past-seen-hidden', countHiddenSeen(ships, S.pastFilter));
   const sorted = sortShips(filtered, pastSort.col, pastSort.dir);
   if (!sorted.length) {
     el.pastBody.innerHTML = `<tr><td colspan="8" class="empty">${ships.length ? t('filter.noMatch') : t('empty.past')}</td></tr>`;

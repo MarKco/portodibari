@@ -48,9 +48,11 @@ export const S = {
   cargoWeightsPreset: null,
   currentPreset: '',
 
-  // List filters (client-side, applied before sort/render)
-  activeFilter: { q: '', band: '', inPort: false, flagged: false },
-  pastFilter: { q: '', band: '', flagged: false },
+  // List filters (client-side, applied before sort/render). `showSeen` controls
+  // whether ships marked as seen are listed; default off (they are hidden, with
+  // flagged ships always kept visible). Persisted in localStorage — see below.
+  activeFilter: { q: '', band: '', inPort: false, flagged: false, showSeen: false },
+  pastFilter: { q: '', band: '', flagged: false, showSeen: false },
   followedFilter: { q: '', band: '', inPort: false, flagged: false },
   followedPastFilter: { q: '', band: '', flagged: false },
   followedSubview: 'active', // 'active' | 'past' within the Navi seguite section
@@ -88,3 +90,29 @@ export const S = {
   areasList: [], // last-fetched area descriptors
   pendingDelete: null, // { key, timer, toast } — deletion deferred during undo window
 };
+
+// ── List-filter persistence ───────────────────────────────────────────────────
+// The "navi presenti" / "navi passate" toolbar filters (search, band, in-port,
+// flagged, show-seen) survive reloads via a single localStorage key. Saved as a
+// whole object on every change; restored here at module load by merging onto the
+// defaults so a future new field still gets its default when absent in storage.
+const FILTERS_KEY = 'shipFilters';
+
+export function saveShipFilters() {
+  try {
+    localStorage.setItem(FILTERS_KEY, JSON.stringify({ active: S.activeFilter, past: S.pastFilter }));
+  } catch {
+    /* storage unavailable / quota — non-fatal */
+  }
+}
+
+try {
+  const raw = localStorage.getItem(FILTERS_KEY);
+  if (raw) {
+    const saved = JSON.parse(raw);
+    if (saved.active) Object.assign(S.activeFilter, saved.active);
+    if (saved.past) Object.assign(S.pastFilter, saved.past);
+  }
+} catch {
+  /* malformed JSON — ignore, keep defaults */
+}

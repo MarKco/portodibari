@@ -2161,6 +2161,14 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   font-variant-numeric: tabular-nums;
 }
 
+.list-seen-hidden {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin-right: 8px;
+  opacity: 0.85;
+}
+
 /* ── Risk-score history chart (ship detail) ────────────────────────────────── */
 .risk-history-chart { padding: 4px 0; }
 .rh-bars {
