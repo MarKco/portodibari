@@ -19,6 +19,7 @@ import { initOutageBanner, setOutage } from './outage.js';
 import { initTheme } from './theme.js';
 import { escHtml, cargoClassLabel } from './helpers.js';
 import { t, getLang, setLang, LANG_NAMES, applyToDOM } from './i18n.js';
+import './search.js'; // self-wiring: ship search ("Cerca e segui una nave")
 
 // ── Stream status ────────────────────────────────────────────────────────────
 async function updateStatus() {

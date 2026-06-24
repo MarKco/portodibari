@@ -212,6 +212,14 @@ const FOLLOW_REFRESH_MS = num('FOLLOW_REFRESH_MIN', 5) * 60 * 1000;
 // A followed ship with no position for this many hours is auto-unfollowed and
 // moves to the "passate" history.
 const FOLLOW_STALE_HOURS = num('FOLLOW_STALE_HOURS', 48);
+// How long a ship-search position lookup waits for a live AIS fix before giving
+// up (the worldwide-box subscription is dropped and the UI offers "Riprova").
+// Re-following a ship (background re-acquisition) reuses the same timeout.
+const SEARCH_LOOKUP_TIMEOUT_MS = num('SEARCH_LOOKUP_TIMEOUT_SEC', 90) * 1000;
+// A followed ship whose last position is newer than this is "fresh": its tight
+// follow box still covers it, so re-following needs no worldwide re-acquisition.
+// Older (or missing) → trigger a background worldwide re-acquire.
+const FOLLOW_FRESH_MS = num('FOLLOW_FRESH_MIN', 60) * 60 * 1000;
 
 // Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer
 // express.raw() allocates, so a single request can't exhaust memory. Generous
@@ -814,6 +822,8 @@ module.exports = {
   FOLLOW_BOX_HALF_DEG,
   FOLLOW_REFRESH_MS,
   FOLLOW_STALE_HOURS,
+  SEARCH_LOOKUP_TIMEOUT_MS,
+  FOLLOW_FRESH_MS,
   BACKUP_INTERVAL_MIN,
   AUTO_RESTORE_ON_DEPLOY,
   APP_CONFIG_FILE,

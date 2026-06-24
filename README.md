@@ -192,6 +192,8 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Max record per tipo messaggio   | `src/db.js`                       | `pruneStmt.run(..., 10000)`           | 10.000         |
 | Max punti track mappa           | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` e default `500` | 500 punti      |
 | TTL cache scraping VF/MT        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 ore          |
+| Timeout recupero posizione (cerca/ri-segui nave) | `app.config.properties`  | `SEARCH_LOOKUP_TIMEOUT_SEC`  | 90 s           |
+| Freschezza posizione (no ri-acquisizione) | `app.config.properties` | `FOLLOW_FRESH_MIN`                    | 60 min         |
 | Negative cache scraping VF/MT   | `app.config.properties`           | `SCRAPE_NEG_CACHE_DAYS`               | 3 giorni       |
 | Bounce annullamento eliminazione notifiche | `app.config.properties` | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
 | Raggio clustering banchine      | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
@@ -486,6 +488,33 @@ A differenza di VF/MT/Equasis/PSC, GFW è **attivo di default** (`IMPORT_GFW=tru
 
 Nel dettaglio nave compare un nuovo pannello **Global Fishing Watch** (quando abilitato), sopra la mappa accanto ai pannelli VF/MT/Equasis: mostra la tabella di identità e le tabelle eventi (incontri, loitering, port visit, AIS spento), con un'icona ⓘ al hover su ogni campo/sezione che ne spiega il significato.
 
+## 🔎 Cerca e segui una nave
+
+Nella scheda **Navi seguite** una barra di ricerca permette di cercare una nave per **nome** o **MMSI/IMO** e aggiungerla alle seguite anche se non è mai passata dalle aree monitorate. Il flusso è in due passi:
+
+1. **Candidati** (`GET /api/ships/search/candidates?q=`) — ricerca veloce in JSON sulla flotta **locale** (`db.searchShipsByName`: MMSI/IMO esatto, oppure nome LIKE) **+ MarineTraffic** (`searchMt` → endpoint `global_search`, [`src/services/scrapers/marinetraffic.js`](src/services/scrapers/marinetraffic.js)). Se il nome corrisponde a più navi, l'utente sceglie da una lista; con un MMSI a 9 cifre si va dritti al recupero. La risoluzione nome→MMSI per navi **non** locali dipende da MarineTraffic attivo (VF/GFW interrogano solo per IMO/MMSI).
+
+2. **Recupero** (`GET /api/ships/search/recover?mmsi=…` — **SSE**) — uno stream Server-Sent Events che apre la finestra dei risultati con un **loading** e la riempie **man mano** che ogni fonte risponde: eventi `identity` (DB locale + score di rischio se nota), `source` (VF/MT/GFW, con badge trovato/assente/errore), `screening` (sanzioni OpenSanctions/OFAC, banditi PSC, performance bandiera), `position` e `timeout`. Le scansioni delle fonti girano in parallelo e ognuna emette il suo evento appena pronta.
+
+**Recupero della posizione live.** Né VF né MT espongono coordinate: la posizione live arriva da **AISstream**. Lo stream `follow` condiviso ([`src/services/ship-follow.js`](src/services/ship-follow.js)) viene esteso con un **lookup transitorio**: l'MMSI cercato viene iniettato nella sottoscrizione con un **bounding box mondiale** `[[-90,-180],[90,180]]` + `FiltersShipMMSI`. Poiché AISstream applica il filtro MMSI **lato server**, il box mondiale costa solo i frame di quella nave — si recupera così la posizione di qualsiasi nave che stia trasmettendo, ovunque si trovi, senza sapere prima dov'è. Al primo fix la posizione compare su una mini-mappa e si abilita **🗺 Segui nave**. Se la nave è già stata vista localmente, l'ultima posizione nota viene mostrata subito (e il lookup la aggiorna con un frame live).
+
+- **Cancel = stop.** La finestra resta aperta durante il recupero; chiuderla (X, **Annulla**, click fuori, Esc) **chiude la connessione SSE**, e il `req.on('close')` lato server **rimuove il lookup** e ri-sottoscrive lo stream senza quel box mondiale. Nessuna sottoscrizione worldwide resta appesa.
+- **Timeout.** Senza fix entro `SEARCH_LOOKUP_TIMEOUT_SEC` (default 90 s) il lookup viene rimosso e la UI mostra "la nave non sta trasmettendo o è fuori copertura" con un pulsante **Riprova**.
+- **Segui.** Cliccando 🗺 si fa `PATCH /api/ships/:mmsi/follow`: poiché ora la nave ha una posizione, la normale macchina di follow la riprende con il box stretto da 0.5°.
+
+Lato client è tutto in [`public/js/search.js`](public/js/search.js) (modale dedicata `#search-modal`, `EventSource`, mini-mappa Leaflet).
+
+### Ri-seguire una nave dalle "passate" (ri-acquisizione in background)
+
+Quando segui una nave di cui **non** abbiamo una posizione live recente (tipicamente un **ri-follow** dalla lista "Seguite in passato": è finita lì perché silente da oltre 48 h), il box di follow stretto da 0.5° non basta — la nave ha quasi certamente lasciato quella zona. Il `PATCH /api/ships/:mmsi/follow` imposta subito il follow (icona 🗺 selezionata, nave nelle "attualmente seguite") e avvia una **ri-acquisizione in background** ([`shipFollow.startReacquire`](src/services/ship-follow.js)): la stessa ricerca worldwide del box di ricerca, ma server-side e senza UI.
+
+- Una nave è considerata "fresca" (nessuna ri-acquisizione) se la sua ultima posizione è più recente di `FOLLOW_FRESH_MIN` (default 60 min); altrimenti parte la ri-acquisizione.
+- Al **primo fix** la ri-acquisizione termina in silenzio e il follow prosegue normalmente (box stretto attorno alla posizione fresca).
+- Se entro `SEARCH_LOOKUP_TIMEOUT_SEC` (default 90 s) **non** arriva alcun segnale, il follow viene **annullato** (la nave torna tra le "passate") e l'utente riceve una **notifica in-app** `follow_lost` (+ Telegram se collegato). Il successo è silenzioso.
+- Perché il follow ottimistico non venga annullato all'istante dallo sweep di auto-stop a 48 h, ri-seguire **ripristina `follow_started_at`** e l'auto-stop richiede ora che *sia* la posizione *sia* l'inizio del follow siano più vecchi della soglia (finestra di grazia). Questo correggeva anche un bug per cui ri-seguire una nave "passata" la faceva rimbalzare subito indietro.
+
+**Nessuna connessione worldwide resta appesa**: ogni lookup worldwide (ricerca o ri-acquisizione) ha un **timer di teardown garantito** entro `SEARCH_LOOKUP_TIMEOUT_SEC` che lo rimuove anche se è già arrivato un fix o se il client resta aperto; il `refresh()` periodico (5 min) riconcilia comunque la sottoscrizione dalle sole navi seguite + lookup attivi, e quando non resta nulla la WebSocket viene chiusa.
+
 ## 📋 Eventi porto, statistiche e alert
 
 **Eventi porto** (tabella `port_events`) — il backend rileva automaticamente:
@@ -651,7 +680,7 @@ Sono invece **condivise/globali** (gestite dagli amministratori, **non** per-ute
 - le **fonti di arricchimento** (VesselFinder, MarineTraffic, sanzioni OFAC/UE/UK/ONU, Port State Control, Global Fishing Watch, Equasis);
 - la **configurazione dello score di rischio** (pesi del carico, esclusione petroliere, controlli spoofing/dark-activity).
 
-C'è **un solo set di connessioni AISstream** a livello di sistema (una WebSocket per ogni bounding box distinta delle aree, più uno stream "follow" condiviso) e lo **score di rischio è un unico valore condiviso** per nave.
+C'è **un solo set di connessioni AISstream** a livello di sistema (una WebSocket per ogni bounding box distinta delle aree, più uno stream "follow" condiviso — che ospita anche i [lookup transitori della ricerca nave](#-cerca-e-segui-una-nave) con box mondiale + filtro MMSI) e lo **score di rischio è un unico valore condiviso** per nave.
 
 ### Password dimenticata
 
@@ -875,6 +904,8 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/:mmsi` | Dati statici di una nave (+ campi `direction`, `in_port`, `risk`, `is_military`, `flagged`) |
 | GET | `/api/ships/:mmsi/readings` | Letture di una nave (`?limit=50&offset=0`) |
 | GET | `/api/ships/:mmsi/track` | Punti posizione per il tracciato mappa (`?limit=500`) |
+| GET | `/api/ships/search/candidates` | Cerca navi per nome/MMSI/IMO (`?q=`) su flotta locale + MarineTraffic → `{candidates, mt}` |
+| GET | `/api/ships/search/recover` | **SSE**: recupera identità (VF/MT/GFW) + screening + posizione live via lookup AISstream (`?mmsi=` o `?mtShipId=`). Chiudere lo stream annulla il lookup |
 | GET | `/api/ships/:mmsi/vfdata` | Dati scaricati da VesselFinder (con cache) |
 | GET | `/api/ships/:mmsi/mtdata` | Dati scaricati da MarineTraffic (con cache); risolve e salva `mt_ship_id` |
 | GET | `/api/ships/:mmsi/equasis` | Dati Equasis (proprietà/gestione) dalla cache; scrapa solo con `?fetch=1` (pulsante dettaglio). Mai automatico, nessuna scadenza |

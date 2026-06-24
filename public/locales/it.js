@@ -28,6 +28,7 @@ export default {
   'notif.revisit':  '<strong>{ship}</strong> rientrata in {area}',
   'notif.areaChange': '<strong>{ship}</strong> spostata da {from} a {to}',
   'notif.highRisk': '<strong>{ship}</strong> arrivata in {area} — score rischio {score}/100',
+  'notif.followLost': '📭 <strong>{ship}</strong> non trovata: non sta trasmettendo, rimossa dalle navi seguite.',
   'notif.berthNew': 'Nuova banchina rilevata in {area}',
   'notif.berthChar': 'Banchina <strong>{berth}</strong> caratterizzata come {cat} in {area}',
 
@@ -606,6 +607,32 @@ export default {
   // ── Chart tooltips ─────────────────────────────────────────────────────────
   'chart.hourly': '{hour}:00 — {n} arrivi',
   'chart.daily':  '{date} — {n} arrivi',
+
+  // ── Ricerca nave ("Cerca e segui una nave") ─────────────────────────────────
+  'search.placeholder':  'Cerca una nave per nome o MMSI da seguire…',
+  'search.btn':          '🔍 Cerca',
+  'search.title':        'Cerca e segui una nave',
+  'search.searching':    'Ricerca in corso…',
+  'search.error':        'Errore durante la ricerca.',
+  'search.noResults':    'Nessuna nave trovata.',
+  'search.pick':         'Più navi trovate: scegline una.',
+  'search.unknownName':  'Nome sconosciuto',
+  'search.srcLocal':     'Locale',
+  'search.hasPos':       'posizione nota',
+  'search.recovering':   'Recupero posizione live da AISstream…',
+  'search.posFound':     'Posizione recuperata',
+  'search.noSignal':     'La nave non sta trasmettendo o è fuori copertura. Riprova.',
+  'search.risk':         'Rischio',
+  'search.sanctioned':   'Sanzionata',
+  'search.banned':       'Bandita (PSC)',
+  'search.flagPerf':     'Bandiera',
+  'search.lastKnown':    'ultima posizione nota',
+  'search.nowFollowing': 'Nave aggiunta alle seguite',
+  'search.reacquiring':     'Recupero posizione in corso…',
+  'search.reacquiringHint': 'Cerco la nave via AISstream (fino a ~90s). Se non trasmette tornerà tra le seguite in passato.',
+  'search.retry':        '↻ Riprova posizione',
+  'search.cancel':       'Annulla',
+  'search.follow':       '🗺 Segui nave',
 
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     "Nessuna nave nell'area. Avvia il monitoraggio.",

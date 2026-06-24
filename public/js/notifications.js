@@ -48,6 +48,10 @@ function notifMessage(n) {
       score: n.score != null ? n.score : '?',
     });
   }
+  if (n.type === 'follow_lost') {
+    const ship = n.ship_name || `MMSI ${n.mmsi}`;
+    return t('notif.followLost', { ship: escHtml(ship) });
+  }
   if (n.type === 'berth_new') {
     return t('notif.berthNew', { area: escHtml(areaName(n.area)) });
   }

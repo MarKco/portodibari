@@ -205,6 +205,10 @@ const MSG = {
     it: (p) => `↔️ <b>Cambio area</b>\n${esc(p.name)}: da <b>${esc(p.fromArea)}</b> a <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>`,
     en: (p) => `↔️ <b>Area change</b>\n${esc(p.name)}: from <b>${esc(p.fromArea)}</b> to <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>`,
   },
+  follow_lost: {
+    it: (p) => `📭 <b>Nave non trovata</b>\n${esc(p.name)} non sta trasmettendo: rimossa dalle navi seguite.`,
+    en: (p) => `📭 <b>Ship not found</b>\n${esc(p.name)} is not transmitting: removed from followed ships.`,
+  },
   berth_new: {
     it: (p) => `🛳️ <b>Nuova banchina rilevata</b>\nArea: <b>${esc(p.area)}</b>`,
     en: (p) => `🛳️ <b>New berth detected</b>\nArea: <b>${esc(p.area)}</b>`,

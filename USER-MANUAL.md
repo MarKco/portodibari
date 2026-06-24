@@ -200,6 +200,30 @@ Statistics panel with charts and aggregated indicators.
 
 ---
 
+## Followed ships
+
+The **🗺 Followed ships** sidebar section tracks vessels wherever they go, even outside the monitored areas, via a dedicated AIS stream. Two sub-tabs: **Followed** (currently tracked) and **Followed in the past** (history; a ship silent for more than 48 hours is moved here automatically).
+
+### Search and follow a ship
+
+A **search bar** at the top of the section lets you look up a ship by **name** or **MMSI** and press **🔍 Search**.
+
+1. A results window opens and stays open while we gather the data. If a name matches several ships, pick the right one from the list.
+2. The card fills in **progressively**: identity and data from VesselFinder / MarineTraffic / Global Fishing Watch (with an icon showing where it was found), any **sanctions** or **PSC** warnings, and — as soon as available — the **live position** on a mini-map.
+3. The position is recovered in real time from AISstream and may take a few seconds (up to ~90 s). If the ship is not transmitting or is out of coverage, a notice with **↻ Retry** appears.
+4. Once a position is found, **🗺 Follow ship** is enabled: click it to add the ship to your followed list.
+
+Closing the window (**Cancel**, the **✕**, clicking outside, or **Esc**) stops the search and the position recovery without following anything.
+
+### Re-following a ship from "Followed in the past"
+
+When you re-follow a ship that was in **Followed in the past** (open its detail and press **🗺 Follow ship**), the app moves it **immediately** to currently-followed and automatically starts the same AISstream position search in the background. You don't need to do anything else:
+
+- if the ship is found (it's transmitting), it stays followed and its position updates;
+- if it does **not** transmit within ~90 seconds, the ship **returns to "Followed in the past"** and you get a **notification** that it could not be found.
+
+---
+
 ## Vessel detail
 
 Clicking any row in a table opens the full vessel detail page.

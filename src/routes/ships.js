@@ -5,14 +5,16 @@ const db = require('../db');
 const { computeDirection, isInPort } = require('../services/ship-analysis');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache, isMilitary } = require('../services/risk-score');
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
-const { crawlMarineTraffic } = require('../services/scrapers/marinetraffic');
+const { crawlMarineTraffic, searchMt, mtVesselInfo, mtDataFromInfo } = require('../services/scrapers/marinetraffic');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const { crawlGfw } = require('../services/gfw');
+const sanctions = require('../services/sanctions');
+const psc = require('../services/psc');
 const equasisLog = require('../services/equasis-log');
 const shipFollow = require('../services/ship-follow');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, FOLLOW_FRESH_MS } = require('../config');
 
 const router = express.Router();
 
@@ -118,6 +120,233 @@ router.get('/ships/expected', (req, res) => {
   res.json({ ships: db.getExpectedShips(keyword, userScope(req)), keyword });
 });
 
+// ── Ship search ───────────────────────────────────────────────────────────────
+// Search a ship by name or MMSI/IMO across the local fleet + MarineTraffic, then
+// recover its live position from AISstream and let the user follow it. Two steps:
+//   1. /search/candidates — fast JSON list (local DB + MT global_search) to pick
+//      from when a name matches several ships.
+//   2. /search/recover    — SSE stream that progressively emits identity from each
+//      source (VF/MT/GFW) + sanctions/PSC screening, registers an AISstream
+//      worldwide-box lookup for the MMSI, and pushes the position the moment a
+//      live fix arrives. Closing the stream (Cancel / window close) aborts the
+//      lookup; no fix within SEARCH_LOOKUP_TIMEOUT_MS emits a `timeout` event.
+
+router.get('/ships/search/candidates', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ candidates: [], mt: false });
+  const map = new Map(); // dedupe key (mmsi | 'mt:'+shipId) → candidate
+
+  for (const r of db.searchShipsByName(q, 25)) {
+    map.set(String(r.mmsi), {
+      mmsi: r.mmsi,
+      name: r.ship_name || null,
+      imo: r.imo_number || null,
+      ship_type: r.ship_type ?? null,
+      flag: null,
+      hasLocalPos: r.last_latitude != null && r.last_longitude != null,
+      last_seen_at: r.last_seen_at || null,
+      sources: ['local'],
+    });
+  }
+  // A bare 9-digit MMSI the local fleet has never seen: still offer it so the
+  // user can recover its position via AISstream.
+  if (/^\d{9}$/.test(q) && !map.has(q)) {
+    map.set(q, { mmsi: Number(q), name: null, imo: null, ship_type: null, flag: null, hasLocalPos: false, sources: ['mmsi'] });
+  }
+
+  let mtUsed = false;
+  if (state.importMtData) {
+    mtUsed = true;
+    try {
+      for (const c of await searchMt(q)) {
+        const key = c.mmsi ? String(c.mmsi) : `mt:${c.shipId}`;
+        const existing = map.get(key);
+        if (existing) {
+          if (!existing.sources.includes('mt')) existing.sources.push('mt');
+          existing.name = existing.name || c.name;
+          existing.flag = existing.flag || c.flag;
+          continue;
+        }
+        map.set(key, {
+          mmsi: c.mmsi || null,
+          mtShipId: c.mmsi ? null : c.shipId,
+          name: c.name,
+          imo: c.imo || null,
+          ship_type: null,
+          flag: c.flag || null,
+          hasLocalPos: false,
+          sources: ['mt'],
+        });
+      }
+    } catch (e) {
+      appLog.warn('SEARCH', `MarineTraffic search "${q}" fallita: ${e.message}`);
+    }
+  }
+  res.json({ candidates: [...map.values()].slice(0, 30), mt: mtUsed });
+});
+
+router.get('/ships/search/recover', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (event, data) => {
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data || {})}\n\n`); } catch { /* client gone */ }
+  };
+  const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* gone */ } }, 25000);
+
+  let mmsi = Number(req.query.mmsi) || null;
+  const mtShipId = req.query.mtShipId || null;
+  let imo = Number(req.query.imo) || null;
+  let name = req.query.name || null;
+
+  let lookupCb = null;
+  let timeout = null;
+  let positionFound = false;
+  let closed = false;
+  let mtFetched = false;
+
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    clearInterval(hb);
+    clearTimeout(timeout);
+    if (lookupCb && mmsi) shipFollow.removeLookup(mmsi, lookupCb);
+  }
+  // The whole point of the SSE lifecycle: closing the connection (Cancel button,
+  // window close, navigation) aborts the worldwide AISstream lookup.
+  req.on('close', cleanup);
+
+  // Resolve the MMSI from an MT-only candidate (global_search gave us a shipId
+  // but no MMSI): vesselInfo carries it. This doubles as the MT identity fetch.
+  if (!mmsi && mtShipId) {
+    try {
+      const info = await mtVesselInfo(mtShipId);
+      mmsi = Number(info.mmsi) || null;
+      imo = imo || Number(info.imo) || null;
+      name = name || info.name || null;
+      if (mmsi) {
+        const data = mtDataFromInfo(info);
+        db.setScrapedData(mmsi, 'mt', data);
+        mtFetched = true;
+        send('source', { source: 'mt', ok: true, data });
+      }
+    } catch (e) {
+      send('source', { source: 'mt', ok: false, error: e.message });
+    }
+  }
+  if (!mmsi) {
+    send('error', { message: 'MMSI non risolvibile per questa nave' });
+    send('done', {});
+    cleanup();
+    return res.end();
+  }
+  appLog.info('SEARCH', `Ricerca posizione nave ${name || mmsi}`, { mmsi });
+
+  const local = db.getShip(mmsi);
+  const ship = local || { mmsi, imo_number: imo, ship_name: name, call_sign: null, ship_type: null };
+  if (!ship.imo_number && imo) ship.imo_number = imo;
+
+  send('identity', {
+    mmsi,
+    name: ship.ship_name || name || null,
+    imo: ship.imo_number || null,
+    ship_type: ship.ship_type ?? null,
+    local: !!local,
+    risk: local ? computeRiskScore(local, req.query.lang || 'it') : null,
+  });
+
+  // A recent local fix means we already know where it is — show it at once and
+  // enable Follow. The lookup still runs to refresh it with a live frame.
+  if (local && local.last_latitude != null && local.last_longitude != null) {
+    positionFound = true;
+    send('position', {
+      lat: local.last_latitude,
+      lon: local.last_longitude,
+      name: local.ship_name || null,
+      sog: local.last_sog ?? null,
+      cog: local.last_cog ?? null,
+      time: local.last_seen_at || null,
+      cached: true,
+    });
+  }
+
+  // Screening on the identity we have so far (IMO / name / call sign).
+  try {
+    const sanc = sanctions.matchShip(ship);
+    const banned = psc.matchBanned(ship);
+    send('screening', {
+      sanctioned: sanc ? { matchedOn: sanc.matchedOn, name: sanc.entry?.name || null, url: sanctions.entityUrl(sanc.entry) } : null,
+      banned: banned ? { matchedOn: banned.matchedOn } : null,
+    });
+  } catch { /* screening is best-effort */ }
+
+  // Live identity enrichment from each enabled source, streamed as it lands.
+  const flagFromData = (data) => data && (data['Bandiera'] || data['Flag'] || data['Country'] || null);
+  const tasks = [];
+  if (state.importVfData) {
+    tasks.push((async () => {
+      try {
+        const data = await crawlVesselFinder(ship.imo_number || mmsi);
+        db.setScrapedData(mmsi, 'vf', data);
+        const flagHit = psc.matchFlag(flagFromData(data));
+        send('source', { source: 'vf', ok: true, data, flagPerf: flagHit ? flagHit.perf : null });
+      } catch (e) {
+        send('source', { source: 'vf', ok: false, error: e.message });
+      }
+    })());
+  }
+  if (state.importMtData && !mtFetched) {
+    tasks.push((async () => {
+      try {
+        const { data, shipId } = await crawlMarineTraffic(ship);
+        if (shipId) db.setMtShipId(mmsi, shipId);
+        db.setScrapedData(mmsi, 'mt', data);
+        const flagHit = psc.matchFlag(flagFromData(data));
+        send('source', { source: 'mt', ok: true, data, flagPerf: flagHit ? flagHit.perf : null });
+      } catch (e) {
+        send('source', { source: 'mt', ok: false, error: e.message });
+      }
+    })());
+  }
+  if (state.importGfw && GFW_TOKEN) {
+    tasks.push((async () => {
+      try {
+        const data = await crawlGfw(ship);
+        if (data && data.found) {
+          db.setScrapedData(mmsi, 'gfw', data);
+          send('source', { source: 'gfw', ok: true, data });
+        } else {
+          send('source', { source: 'gfw', ok: true, notFound: true });
+        }
+      } catch (e) {
+        send('source', { source: 'gfw', ok: false, error: e.message });
+      }
+    })());
+  }
+  Promise.allSettled(tasks).then(() => { if (!closed) send('sources-done', {}); });
+
+  // Register the AISstream worldwide-box lookup for the live position. We do NOT
+  // clear the timeout on a fix: the timer is the guaranteed teardown of the
+  // worldwide subscription, so it must always fire even after a position arrives
+  // (otherwise an idle open SSE would keep the worldwide box alive indefinitely).
+  lookupCb = shipFollow.addLookup(mmsi, (fix) => {
+    if (closed) return;
+    positionFound = true;
+    send('position', { ...fix, cached: false });
+  });
+
+  // Hard cap on the worldwide subscription: drop it after the timeout whether or
+  // not a fix arrived. If none did, the UI offers a retry; a position (live or
+  // cached) already enabled Follow and the marker simply stops live-updating.
+  timeout = setTimeout(() => {
+    if (closed) return;
+    if (lookupCb && mmsi) { shipFollow.removeLookup(mmsi, lookupCb); lookupCb = null; }
+    send('timeout', { hadPosition: positionFound });
+  }, SEARCH_LOOKUP_TIMEOUT_MS);
+});
+
 router.get('/ships/:mmsi', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const lang = req.query.lang || 'it';
@@ -182,12 +411,30 @@ router.patch('/ships/:mmsi/military', (req, res) => {
 router.patch('/ships/:mmsi/follow', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { followed } = req.body;
-  db.setUserFollow(req.user.id, mmsi, !!followed);
+  const userId = req.user.id;
+  db.setUserFollow(userId, mmsi, !!followed);
+
+  // Following a ship whose last position is stale (typically a re-follow from
+  // "passate") can't rely on the tight follow box — the ship has likely left it.
+  // Kick off a background worldwide re-acquisition; if it finds nothing within
+  // the timeout the follow is reverted and the user notified (see ship-follow).
+  let reacquiring = false;
+  if (followed) {
+    const ship = db.getShip(mmsi);
+    const fresh = ship && ship.last_latitude != null && ship.last_longitude != null && ship.last_seen_at
+      && Date.now() - new Date(ship.last_seen_at).getTime() < FOLLOW_FRESH_MS;
+    if (!fresh) {
+      shipFollow.startReacquire(userId, mmsi, ship ? ship.ship_name : null);
+      reacquiring = true;
+    }
+  } else {
+    shipFollow.cancelReacquire(userId, mmsi);
+  }
   // Reconcile the shared follow stream immediately (rebuild boxes / connect /
   // disconnect) instead of waiting for the next periodic refresh.
   shipFollow.refresh();
   appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });
-  res.json({ ok: true });
+  res.json({ ok: true, reacquiring });
 });
 
 router.patch('/ships/:mmsi/seen', (req, res) => {

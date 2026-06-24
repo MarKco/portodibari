@@ -44,6 +44,26 @@ export const el = {
   follActiveBody: $('foll-active-body'),
   follPastBody: $('foll-past-body'),
 
+  // Ship search (cerca + segui una nave)
+  shipSearchBar: $('ship-search-bar'),
+  shipSearchInput: $('ship-search-input'),
+  shipSearchBtn: $('ship-search-btn'),
+  searchModal: $('search-modal'),
+  searchModalClose: $('search-modal-close'),
+  searchMessage: $('search-message'),
+  searchCandidates: $('search-candidates'),
+  searchDetail: $('search-detail'),
+  searchDetailName: $('search-detail-name'),
+  searchDetailMmsi: $('search-detail-mmsi'),
+  searchSources: $('search-sources'),
+  searchScreening: $('search-screening'),
+  searchFields: $('search-fields'),
+  searchPosStatus: $('search-pos-status'),
+  searchMap: $('search-map'),
+  searchRetry: $('search-retry'),
+  searchCancel: $('search-cancel'),
+  searchFollow: $('search-follow'),
+
   // Berths overlay (overview map)
   berthsToggle: $('berths-toggle'),
   btnBerthsManage: $('btn-berths-manage'),

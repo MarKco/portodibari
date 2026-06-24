@@ -909,12 +909,19 @@ function setUserMute(userId, mmsi, on) {
 }
 
 // Toggle a per-user follow. Mirrors the old global setFollow semantics:
-// follow_started_at is stamped once (kept forever), follow_ended_at marks when
-// following stopped (→ "passate" history).
+// follow_ended_at marks when following stopped (→ "passate" history).
+// follow_started_at is (re)stamped each time a *stopped* follow is re-enabled, so
+// re-following a ship from "passate" restarts its inactivity grace window (see
+// autoStopStaleFollowsAll) — otherwise a ship that went silent >48h ago would be
+// auto-stopped again the instant it's re-followed. An already-active follow keeps
+// its original start time.
 const upsertUserFollowOnStmt = db.prepare(
   `INSERT INTO user_follows (user_id, mmsi, followed, follow_started_at, follow_ended_at)
    VALUES (?, ?, 1, ?, NULL)
-   ON CONFLICT(user_id, mmsi) DO UPDATE SET followed = 1, follow_started_at = COALESCE(user_follows.follow_started_at, excluded.follow_started_at), follow_ended_at = NULL`
+   ON CONFLICT(user_id, mmsi) DO UPDATE SET
+     followed = 1,
+     follow_started_at = CASE WHEN user_follows.followed = 0 THEN excluded.follow_started_at ELSE user_follows.follow_started_at END,
+     follow_ended_at = NULL`
 );
 const followOffStmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ? WHERE user_id = ? AND mmsi = ?');
 function setUserFollow(userId, mmsi, on) {
@@ -1032,12 +1039,19 @@ function getTelegramLinkedUserIds() {
 /** Auto-stop follows whose ship has been silent for `hours`, across ALL users.
  *  Returns the distinct ships affected (for logging). */
 function autoStopStaleFollowsAll(hours) {
+  // Stop a follow only once it's been silent for `hours` AND has *been a follow*
+  // for at least that long. The follow_started_at grace prevents a just-(re)started
+  // follow — e.g. re-following a ship from "passate", whose last position is by
+  // definition old — from being auto-stopped the instant it's re-enabled (it gets
+  // a window to be re-acquired; see ship-follow.startReacquire).
   const stale = db
     .prepare(
       `SELECT DISTINCT f.mmsi, s.ship_name FROM user_follows f JOIN ships s ON s.mmsi = f.mmsi
-       WHERE f.followed = 1 AND s.last_seen_at < datetime('now', ?)`
+       WHERE f.followed = 1
+         AND s.last_seen_at < datetime('now', ?)
+         AND f.follow_started_at < datetime('now', ?)`
     )
-    .all(`-${hours} hours`);
+    .all(`-${hours} hours`, `-${hours} hours`);
   if (stale.length) {
     const now = new Date().toISOString();
     const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ? WHERE mmsi = ? AND followed = 1');
@@ -1417,6 +1431,34 @@ function getPastShips(area, boxes = null) {
 
 function getShip(mmsi) {
   return db.prepare('SELECT * FROM ships WHERE mmsi = ?').get(mmsi) || null;
+}
+
+// Free-text search over the local fleet for the ship-search feature: matches a
+// numeric term against MMSI / IMO exactly, and a text term against the ship name
+// (case-insensitive substring). Most-recently-seen first.
+function searchShipsByName(q, limit = 25) {
+  const term = String(q || '').trim();
+  if (!term) return [];
+  const digits = /^\d+$/.test(term);
+  if (digits) {
+    const n = Number(term);
+    return db
+      .prepare(
+        `SELECT mmsi, ship_name, ship_type, call_sign, imo_number,
+                last_latitude, last_longitude, last_seen_at
+         FROM ships WHERE mmsi = ? OR imo_number = ?
+         ORDER BY last_seen_at DESC LIMIT ?`
+      )
+      .all(n, n, limit);
+  }
+  return db
+    .prepare(
+      `SELECT mmsi, ship_name, ship_type, call_sign, imo_number,
+              last_latitude, last_longitude, last_seen_at
+       FROM ships WHERE ship_name LIKE ? COLLATE NOCASE
+       ORDER BY last_seen_at DESC LIMIT ?`
+    )
+    .all(`%${term}%`, limit);
 }
 
 function getShipReadings(mmsi, limit = 50, offset = 0) {
@@ -2230,6 +2272,7 @@ module.exports = {
   autoStopStaleFollows,
   setFollow,
   getShip,
+  searchShipsByName,
   getShipReadings,
   getShipTrack,
   getShipPositions,

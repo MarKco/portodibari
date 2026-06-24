@@ -28,6 +28,7 @@ export default {
   'notif.revisit':  '<strong>{ship}</strong> back in {area}',
   'notif.areaChange': '<strong>{ship}</strong> moved from {from} to {to}',
   'notif.highRisk': '<strong>{ship}</strong> arrived in {area} — risk score {score}/100',
+  'notif.followLost': '📭 <strong>{ship}</strong> not found: not transmitting, removed from followed ships.',
   'notif.berthNew': 'New berth detected in {area}',
   'notif.berthChar': 'Berth <strong>{berth}</strong> characterised as {cat} in {area}',
 
@@ -606,6 +607,32 @@ export default {
   // ── Chart tooltips ─────────────────────────────────────────────────────────
   'chart.hourly': '{hour}:00 — {n} arrivals',
   'chart.daily':  '{date} — {n} arrivals',
+
+  // ── Ship search ("Search and follow a ship") ────────────────────────────────
+  'search.placeholder':  'Search a ship by name or MMSI to follow…',
+  'search.btn':          '🔍 Search',
+  'search.title':        'Search and follow a ship',
+  'search.searching':    'Searching…',
+  'search.error':        'Search failed.',
+  'search.noResults':    'No ship found.',
+  'search.pick':         'Several ships found: pick one.',
+  'search.unknownName':  'Unknown name',
+  'search.srcLocal':     'Local',
+  'search.hasPos':       'position known',
+  'search.recovering':   'Recovering live position from AISstream…',
+  'search.posFound':     'Position recovered',
+  'search.noSignal':     'The ship is not transmitting or is out of coverage. Try again.',
+  'search.risk':         'Risk',
+  'search.sanctioned':   'Sanctioned',
+  'search.banned':       'Banned (PSC)',
+  'search.flagPerf':     'Flag',
+  'search.lastKnown':    'last known position',
+  'search.nowFollowing': 'Ship added to followed',
+  'search.reacquiring':     'Recovering position…',
+  'search.reacquiringHint': 'Searching the ship via AISstream (up to ~90s). If it is not transmitting it will go back to followed-in-the-past.',
+  'search.retry':        '↻ Retry position',
+  'search.cancel':       'Cancel',
+  'search.follow':       '🗺 Follow ship',
 
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     'No ships in area. Start monitoring.',

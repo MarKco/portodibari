@@ -84,9 +84,14 @@ if (el.btnFollowDetail) {
   el.btnFollowDetail.addEventListener('click', async () => {
     if (S.detailMmsi == null) return;
     const newFollow = el.btnFollowDetail.dataset.followed === '1' ? 0 : 1;
-    await api(`/api/ships/${S.detailMmsi}/follow`, 'PATCH', { followed: newFollow });
+    const res = await api(`/api/ships/${S.detailMmsi}/follow`, 'PATCH', { followed: newFollow });
     updateDetailFollowBtn(newFollow);
     if (S.detailShipData) S.detailShipData.followed = newFollow;
+    // Re-follow of a ship with a stale position runs a background worldwide
+    // re-acquisition (up to ~90s). Tell the user it's underway and may revert.
+    if (newFollow && res && res.reacquiring) {
+      showAlert(t('search.reacquiring'), t('search.reacquiringHint'));
+    }
   });
 }
 

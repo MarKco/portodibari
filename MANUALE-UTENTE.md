@@ -200,6 +200,30 @@ Pannello statistico con grafici e indicatori aggregati.
 
 ---
 
+## Navi seguite
+
+La sezione **🗺 Navi seguite** (barra laterale) raccoglie le navi che segui ovunque vadano, anche fuori dalle aree monitorate, tramite uno stream AIS dedicato. Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (storico; una nave silenziosa per più di 48 ore viene spostata qui automaticamente).
+
+### Cerca e segui una nave
+
+In cima alla sezione c'è una **barra di ricerca**: digita il **nome** o l'**MMSI** di una nave e premi **🔍 Cerca**.
+
+1. Si apre una finestra dei risultati che resta aperta mentre raccogliamo i dati. Se il nome corrisponde a più navi, scegli quella giusta dalla lista.
+2. La scheda si riempie **man mano**: identità e dati da VesselFinder / MarineTraffic / Global Fishing Watch (con un'icona che indica dove è stata trovata), eventuali avvisi di **sanzioni** o **PSC**, e — appena disponibile — la **posizione live** su una mini-mappa.
+3. La posizione viene recuperata in tempo reale da AISstream: può richiedere qualche secondo (fino a ~90 s). Se la nave non sta trasmettendo o è fuori copertura compare un avviso con **↻ Riprova**.
+4. Quando la posizione è stata trovata si abilita **🗺 Segui nave**: cliccalo per aggiungerla alle navi seguite.
+
+Chiudere la finestra (**Annulla**, la **✕**, clic fuori o **Esc**) interrompe la ricerca e il recupero della posizione, senza seguire nulla.
+
+### Ri-seguire una nave dalle "Seguite in passato"
+
+Quando ri-segui una nave che era tra le **Seguite in passato** (apri il suo dettaglio e premi **🗺 Segui nave**), l'app la rimette **subito** tra le navi attualmente seguite e avvia in automatico, in background, la stessa ricerca della posizione via AISstream. Non devi fare altro:
+
+- se la nave viene trovata (sta trasmettendo), resta tra le seguite e la posizione si aggiorna;
+- se entro ~90 secondi **non** trasmette, la nave **torna tra le "Seguite in passato"** e ricevi una **notifica** che avvisa che non è stata trovata.
+
+---
+
 ## Dettaglio nave
 
 Cliccando su qualsiasi riga della tabella si apre la scheda completa della nave.

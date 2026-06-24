@@ -217,6 +217,13 @@
 
     <!-- View: navi seguite -->
     <div id="view-followed" class="hidden">
+      <form id="ship-search-bar" class="ship-search-bar" autocomplete="off">
+        <input type="search" id="ship-search-input" class="list-search"
+               data-i18n-placeholder="search.placeholder"
+               placeholder="Cerca una nave per nome o MMSI da seguire…">
+        <button type="submit" id="ship-search-btn" class="btn btn-primary btn-sm" data-i18n="search.btn">🔍 Cerca</button>
+      </form>
+
       <div class="tabs" id="followed-tabs">
         <button id="tab-foll-active" class="tab tab-active">
           <span data-i18n="tab.followActive">Seguite</span>
@@ -1118,6 +1125,49 @@
     <div id="log-ov-body" class="log-ov-body"></div>
   </div>
 
+
+  <!-- Modal ricerca nave (resta aperto mentre recuperiamo i dati; chiudere = annulla) -->
+  <div id="search-modal" class="hidden">
+    <div id="search-dialog">
+      <div class="modal-header">
+        <h2 id="search-modal-title" data-i18n="search.title">Cerca e segui una nave</h2>
+        <button id="search-modal-close" title="Annulla">&times;</button>
+      </div>
+      <div id="search-modal-body">
+        <!-- Stato globale (loading / messaggi) -->
+        <div id="search-message" class="search-message"></div>
+
+        <!-- Step 1: lista candidati (più navi trovate per nome) -->
+        <div id="search-candidates" class="search-candidates hidden"></div>
+
+        <!-- Step 2: scheda nave scelta, riempita man mano -->
+        <div id="search-detail" class="search-detail hidden">
+          <div class="search-detail-head">
+            <span id="search-detail-name" class="search-detail-name">—</span>
+            <span id="search-detail-mmsi" class="search-detail-mmsi mono"></span>
+          </div>
+          <div id="search-sources" class="search-sources"></div>
+          <div id="search-screening" class="search-screening"></div>
+          <div id="search-fields" class="search-fields"></div>
+
+          <div class="search-pos">
+            <div id="search-pos-status" class="search-pos-status">
+              <span class="search-spinner" aria-hidden="true"></span>
+              <span data-i18n="search.recovering">Recupero posizione live da AISstream…</span>
+            </div>
+            <div id="search-map" class="search-map hidden"></div>
+          </div>
+
+          <div class="search-actions">
+            <button id="search-retry" class="btn btn-secondary btn-sm hidden" data-i18n="search.retry">↻ Riprova posizione</button>
+            <span class="list-toolbar-spacer"></span>
+            <button id="search-cancel" class="btn btn-secondary btn-sm" data-i18n="search.cancel">Annulla</button>
+            <button id="search-follow" class="btn btn-primary btn-sm" disabled data-i18n="search.follow">🗺 Segui nave</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal lettura singola -->
   <div id="modal-overlay" class="hidden">

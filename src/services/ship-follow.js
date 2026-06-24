@@ -13,6 +13,7 @@ const WebSocket = require('ws');
 const db = require('../db');
 const { invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
+const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const {
   API_KEY,
@@ -23,10 +24,33 @@ const {
   FOLLOW_BOX_HALF_DEG,
   FOLLOW_REFRESH_MS,
   FOLLOW_STALE_HOURS,
+  SEARCH_LOOKUP_TIMEOUT_MS,
   areaForPoint,
 } = require('../config');
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Whole-globe bounding box. Used for "search lookups" (see addLookup): a ship the
+// user searched for whose position we don't know yet. AISstream applies
+// FiltersShipMMSI server-side, so a worldwide box filtered to a single MMSI costs
+// only that vessel's frames — it lets us recover the live position of any
+// transmitting ship anywhere, without knowing where it is first.
+const WORLD_BOX = [[-90, -180], [90, 180]];
+
+// Transient position lookups keyed by MMSI → Set of onFix callbacks. Unlike a
+// real follow (persisted in user_follows), a lookup lives only as long as a
+// search session is open: it injects the MMSI into the subscription with a
+// worldwide box, fires its callbacks on the first position fix, and is removed
+// when the search is cancelled / times out (see routes/ships.js search/recover).
+const lookups = new Map();
+
+// Background position re-acquisitions, keyed by MMSI. Triggered when a ship is
+// (re)followed without a recent live fix (e.g. re-followed from "passate"): the
+// follow is set optimistically, then we run a worldwide lookup for it. On the
+// first fix the re-acquire succeeds silently; if none arrives within
+// SEARCH_LOOKUP_TIMEOUT_MS the follow is reverted (back to "passate") and the
+// user is notified. Value: { users:Set<userId>, name, cb, timer }.
+const reacquires = new Map();
 
 const s = {
   wsClient: null,
@@ -51,17 +75,25 @@ const s = {
 function buildSubscription() {
   const ships = db.getAllFollowedPositions();
   s.followedCount = ships.length;
-  if (!ships.length) return null;
   const h = FOLLOW_BOX_HALF_DEG;
+  // Tight box per followed ship around its last known position.
   const boxes = ships.map((sh) => [
     [clamp(sh.lat - h, -90, 90), clamp(sh.lon - h, -180, 180)],
     [clamp(sh.lat + h, -90, 90), clamp(sh.lon + h, -180, 180)],
   ]);
+  const mmsis = new Set(ships.map((sh) => String(sh.mmsi)));
+  // Pending search lookups: one shared worldwide box catches them anywhere; the
+  // server-side MMSI filter keeps the traffic to just those vessels.
+  if (lookups.size) {
+    boxes.push(WORLD_BOX);
+    for (const m of lookups.keys()) mmsis.add(String(m));
+  }
+  if (!boxes.length) return null; // nothing to follow and nothing to look up
   return {
     APIKey: API_KEY,
     BoundingBoxes: boxes,
     FilterMessageTypes: MSG_TYPES,
-    FiltersShipMMSI: ships.map((sh) => String(sh.mmsi)),
+    FiltersShipMMSI: [...mmsis],
   };
 }
 
@@ -138,6 +170,22 @@ function connect() {
       const lon = parsed.MetaData?.longitude ?? null;
       const area = lat != null && lon != null ? areaForPoint(lat, lon) || '' : '';
       const mmsi = db.insertFollowPosition(parsed, area);
+      // A search lookup is waiting for this MMSI's first position: hand the fix
+      // to its callbacks (the SSE search/recover handler streams it to the UI).
+      if (mmsi && lat != null && lon != null && lookups.has(mmsi)) {
+        const fix = {
+          mmsi,
+          lat,
+          lon,
+          name: (parsed.MetaData?.ShipName || '').trim() || null,
+          sog: parsed.Message?.[parsed.MessageType]?.Sog ?? null,
+          cog: parsed.Message?.[parsed.MessageType]?.Cog ?? null,
+          time: parsed.MetaData?.time_utc || null,
+        };
+        for (const cb of lookups.get(mmsi)) {
+          try { cb(fix); } catch { /* a dead SSE client must not break the stream */ }
+        }
+      }
       if (mmsi) {
         invalidateRiskCache(mmsi);
         s.totalReceived++;
@@ -221,7 +269,7 @@ function refresh() {
 
   const positions = db.getAllFollowedPositions();
   s.followedCount = positions.length;
-  if (!positions.length) {
+  if (!positions.length && !lookups.size) {
     if (s.wsClient || s.active) stop();
     return;
   }
@@ -239,8 +287,90 @@ function init() {
   refresh();
 }
 
+// Register a transient position lookup for `mmsi`. `onFix(fix)` is invoked on the
+// first (and every subsequent) position frame for that ship until removeLookup is
+// called. Multiple concurrent searches for the same MMSI share one subscription.
+// Returns the callback so the caller can pass it back to removeLookup.
+function addLookup(mmsi, onFix) {
+  mmsi = Number(mmsi);
+  let set = lookups.get(mmsi);
+  if (!set) {
+    set = new Set();
+    lookups.set(mmsi, set);
+  }
+  set.add(onFix);
+  // (Re)connect or resubscribe so the worldwide box + MMSI take effect now.
+  if (!s.wsClient && !s.reconnectTimer) connect();
+  else sendSubscription();
+  return onFix;
+}
+
+// Drop a lookup callback. When the last callback for an MMSI is gone the worldwide
+// box is rebuilt without it; if nothing is followed or looked up the connection
+// is torn down. Idempotent.
+function removeLookup(mmsi, onFix) {
+  mmsi = Number(mmsi);
+  const set = lookups.get(mmsi);
+  if (!set) return;
+  set.delete(onFix);
+  if (!set.size) lookups.delete(mmsi);
+  refresh();
+}
+
+// Begin a background re-acquisition for a just-(re)followed ship. Idempotent per
+// MMSI: concurrent followers share one worldwide lookup + one timer.
+function startReacquire(userId, mmsi, name) {
+  mmsi = Number(mmsi);
+  const existing = reacquires.get(mmsi);
+  if (existing) { existing.users.add(userId); return; }
+  const r = { users: new Set([userId]), name: name || null, cb: null, timer: null };
+  reacquires.set(mmsi, r);
+  r.cb = addLookup(mmsi, () => finishReacquire(mmsi, true));
+  r.timer = setTimeout(() => finishReacquire(mmsi, false), SEARCH_LOOKUP_TIMEOUT_MS);
+  appLog.info('AIS', `Ri-acquisizione posizione avviata per ${name || mmsi}`, { area: 'follow', mmsi });
+}
+
+// Resolve a re-acquisition. `found=true` (a fix arrived) just tears the lookup
+// down and rebuilds the tight box around the fresh position. `found=false` (the
+// timer fired) reverts every still-pending follower to "passate" and notifies.
+function finishReacquire(mmsi, found) {
+  mmsi = Number(mmsi);
+  const r = reacquires.get(mmsi);
+  if (!r) return; // already resolved (first fix wins / cancelled)
+  reacquires.delete(mmsi);
+  clearTimeout(r.timer);
+  if (r.cb) removeLookup(mmsi, r.cb);
+  if (found) {
+    appLog.info('AIS', `Ri-acquisizione riuscita per ${r.name || mmsi}`, { area: 'follow', mmsi });
+    refresh();
+    return;
+  }
+  appLog.warn('AIS', `Ri-acquisizione fallita per ${r.name || mmsi}: nessun segnale entro il timeout`, { area: 'follow', mmsi });
+  for (const userId of r.users) {
+    if (!db.getUserFollowedMmsis(userId).has(mmsi)) continue; // user unfollowed meanwhile
+    db.setUserFollow(userId, mmsi, false);
+    db.addNotification({ user_id: userId, type: 'follow_lost', mmsi, ship_name: r.name });
+    try { telegram.notifyShipEvent(userId, 'follow_lost', { name: r.name || `MMSI ${mmsi}` }); } catch { /* best-effort */ }
+  }
+  refresh();
+}
+
+// Cancel a pending re-acquisition for one user (e.g. they unfollowed before it
+// resolved). Drops the shared lookup/timer when the last follower leaves.
+function cancelReacquire(userId, mmsi) {
+  mmsi = Number(mmsi);
+  const r = reacquires.get(mmsi);
+  if (!r) return;
+  r.users.delete(userId);
+  if (!r.users.size) {
+    clearTimeout(r.timer);
+    if (r.cb) removeLookup(mmsi, r.cb);
+    reacquires.delete(mmsi);
+  }
+}
+
 function getStatus() {
-  return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, totalReceived: s.totalReceived };
+  return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, lookupCount: lookups.size, reacquireCount: reacquires.size, totalReceived: s.totalReceived };
 }
 
 function getHealth() {
@@ -261,4 +391,4 @@ function getHealth() {
   };
 }
 
-module.exports = { init, refresh, stop, getStatus, getHealth };
+module.exports = { init, refresh, stop, addLookup, removeLookup, startReacquire, cancelReacquire, getStatus, getHealth };
