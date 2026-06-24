@@ -354,6 +354,7 @@ Per smettere: premi **Scollega** (o invia `/stop` al bot). Con **Invia prova** v
 | **Caratterizzazione banchina** | una banchina viene caratterizzata per la prima volta. |
 | **Disservizio AIS** | il feed AIS risulta non disponibile (inizio) e quando rientra (fine). |
 | **Avvio/stop monitoraggio area** | avvii o fermi il monitoraggio di una tua area. |
+| **Mappa del punto** | non è una categoria di evento: quando attivo, alle notifiche che hanno una posizione (banchine e navi) viene allegata un'**immagine della mappa** del punto (stesse mappe del sito: OpenStreetMap + livello nautico OpenSeaMap) più un **segnaposto toccabile** che apri nell'app mappe del telefono. Disattivalo per ricevere quelle notifiche come solo testo. |
 
 I toggle Telegram sono **indipendenti** da quelli delle notifiche nella barra laterale: puoi ricevere una categoria solo su Telegram, o solo in-app, o entrambi. I messaggi arrivano nella **lingua** impostata per il tuo utente.
 

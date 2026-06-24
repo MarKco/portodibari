@@ -354,6 +354,7 @@ To stop: press **Unlink** (or send `/stop` to the bot). Use **Send test** to che
 | **Berth characterisation** | a berth is characterised for the first time. |
 | **AIS outage** | the AIS feed becomes unavailable (start) and when it recovers (end). |
 | **Area monitoring start/stop** | you start or stop monitoring one of your areas. |
+| **Location map** | not an event category: when on, notifications that carry a position (berths and ships) get a **map image** of the point attached (same maps as the site: OpenStreetMap + the OpenSeaMap nautical layer) plus a **tappable pin** you can open in your phone's maps app. Turn it off to receive those notifications as text only. |
 
 The Telegram toggles are **independent** of the sidebar notification toggles: you can receive a category on Telegram only, in-app only, or both. Messages arrive in the **language** set for your user.
 
