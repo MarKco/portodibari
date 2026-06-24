@@ -329,7 +329,33 @@ Open with the **⚙ Settings** button in the sidebar.
 
 > **Auto-restore after a deploy:** the database is wiped when you update the application (deploy). If at startup the database **does not exist** and saved **auto-backups** are present (folder `data/backups/`), the app automatically restores the most recent backup (database only). This requires the backups folder to survive the deploy. It does not trigger if the database exists but was merely emptied via "Clear data". Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
-Settings are organized into **tabs**: **General** (the table above), **Areas**, **Developer options**, **Parameters** and **Backup / Restore**.
+Settings are organized into **tabs**: **General** (the table above), **Areas**, **Telegram** (Telegram bot notifications, see below), **Parameters** and **Backup / Restore**.
+
+### Telegram tab
+
+Lets you receive your user's notifications on **Telegram**, via a bot. It only works if the administrator configured the bot token on the server (`TELEGRAM_BOT_TOKEN`); otherwise the tab shows "Telegram bot not configured".
+
+**Linking your account:**
+
+1. Press **Link**. A link (and a code) appear.
+2. Open the link in Telegram (or send the bot the message `/start <code>`) and start the bot.
+3. The bot replies "Account linked" and the tab updates by itself: you now receive notifications on Telegram.
+
+To stop: press **Unlink** (or send `/stop` to the bot). Use **Send test** to check the link works.
+
+**Which notifications to receive** — the master **Telegram notifications** switch turns everything on/off; below it, one toggle per category:
+
+| Toggle | Alerts when… |
+|---|---|
+| **High-risk score** | a ship arrives with a risk score in the red band (71–100). |
+| **Ship revisit** | a ship returns to a previously visited area. |
+| **Area change** | a ship moves from one monitored area to another. |
+| **New berth** | a new berth is detected in an area. |
+| **Berth characterisation** | a berth is characterised for the first time. |
+| **AIS outage** | the AIS feed becomes unavailable (start) and when it recovers (end). |
+| **Area monitoring start/stop** | you start or stop monitoring one of your areas. |
+
+The Telegram toggles are **independent** of the sidebar notification toggles: you can receive a category on Telegram only, in-app only, or both. Messages arrive in the **language** set for your user.
 
 ### Parameters tab
 

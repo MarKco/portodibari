@@ -23,10 +23,14 @@ const { BERTH } = require('../config');
 // Berth lifecycle alerts fan out to every user who monitors the area whose
 // personal prefs enable that alert type (prefKey = notifyBerthNew|notifyBerthChar).
 function notifyAreaOwners(area, prefKey, notif) {
+  const telegram = require('./telegram'); // lazy: avoids a load-time cycle
   for (const uid of db.getAreaOwners(area)) {
     const p = userPrefs.get(uid);
-    if (!p.notificationsEnabled || !p[prefKey]) continue;
-    db.addNotification({ user_id: uid, ...notif });
+    if (p.notificationsEnabled && p[prefKey]) {
+      db.addNotification({ user_id: uid, ...notif });
+    }
+    // Telegram has its own per-category toggle, independent of the in-app one.
+    telegram.notifyBerth(uid, notif.type, { area, band: notif.band });
   }
 }
 const { categoryOf, isHazmat } = require('./ship-categories');

@@ -14,6 +14,7 @@ const db = require('./db');
 const stream = require('./services/ais-stream');
 const aisUptime = require('./services/ais-uptime');
 const shipFollow = require('./services/ship-follow');
+const telegram = require('./services/telegram');
 const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
@@ -186,5 +187,7 @@ app.listen(PORT, () => {
   shipFollow.init();
   // Cross-checks the public AISStream uptime monitor when our streams go silent.
   aisUptime.init();
+  // Telegram bot: long-polls for /start link codes and sends per-user alerts.
+  telegram.init();
   startAutoBackup();
 });

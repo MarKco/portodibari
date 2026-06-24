@@ -13,6 +13,7 @@ router.use(require('./notifications'));
 router.use(require('./logs'));
 router.use(require('./app-log'));
 router.use(require('./settings'));
+router.use(require('./telegram'));
 router.use(require('./app-config'));
 router.use(require('./areas'));
 router.use(require('./berths'));

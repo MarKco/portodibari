@@ -84,6 +84,17 @@ const COOKIE_SECURE = (props.COOKIE_SECURE || process.env.COOKIE_SECURE) === 'tr
 // Session lifetime in days.
 const SESSION_TTL_DAYS = num('SESSION_TTL_DAYS', 30);
 
+// ── Telegram bot token (optional) ────────────────────────────────────────────
+// One bot serves all users; each user links their chat via a /start <code> flow
+// (see services/telegram.js). The bot stays inert until the token is set. The
+// token is a SECRET — keep it in local.properties (gitignored), never committed.
+const TELEGRAM_BOT_TOKEN = props.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_BOT_TOKEN_SOURCE = props.TELEGRAM_BOT_TOKEN
+  ? 'local.properties'
+  : process.env.TELEGRAM_BOT_TOKEN
+    ? 'env'
+    : null;
+
 // ── Equasis credentials (optional) ───────────────────────────────────────────
 // Needed only for the on-demand Equasis ownership lookup. The feature stays
 // hidden/unusable until both are set.
@@ -775,6 +786,8 @@ module.exports = {
   EQUASIS_PASSWORD,
   GFW_TOKEN,
   GFW_TOKEN_SOURCE,
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_BOT_TOKEN_SOURCE,
   PORT,
   AIS_URL,
   MSG_TYPES,

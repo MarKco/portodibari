@@ -1008,6 +1008,27 @@ function setUserSetting(userId, key, value) {
   setUserSettingStmt.run(userId, key, value == null ? null : String(value));
 }
 
+// ── Telegram link helpers ────────────────────────────────────────────────────
+const findUserBySettingStmt = db.prepare(
+  'SELECT user_id FROM user_settings WHERE key = ? AND value = ? LIMIT 1'
+);
+/** User id whose setting `key` equals `value` (e.g. find the user owning a
+ *  one-time Telegram link code, or the user bound to a chat id). null if none. */
+function findUserIdBySetting(key, value) {
+  if (value == null || value === '') return null;
+  const row = findUserBySettingStmt.get(key, String(value));
+  return row ? row.user_id : null;
+}
+
+const telegramLinkedStmt = db.prepare(
+  "SELECT user_id FROM user_settings WHERE key = 'telegramChatId' AND value IS NOT NULL AND value != ''"
+);
+/** User ids that have linked a Telegram chat (recipients of a broadcast such as
+ *  an AIS outage). Per-user toggles are still checked before sending. */
+function getTelegramLinkedUserIds() {
+  return telegramLinkedStmt.all().map((r) => r.user_id);
+}
+
 /** Auto-stop follows whose ship has been silent for `hours`, across ALL users.
  *  Returns the distinct ships affected (for logging). */
 function autoStopStaleFollowsAll(hours) {
@@ -2318,6 +2339,8 @@ module.exports = {
   getAreaOwners,
   getUserSettings,
   setUserSetting,
+  findUserIdBySetting,
+  getTelegramLinkedUserIds,
   autoStopStaleFollowsAll,
   getScrapedData,
   setScrapedData,

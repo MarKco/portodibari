@@ -200,6 +200,88 @@ async function loadSettings() {
   }
 }
 
+// ── Telegram bot settings ────────────────────────────────────────────────────
+// Per-category toggle wiring: DOM element key → API field name.
+const TELEGRAM_TOGGLES = [
+  ['toggleTelegramHighRisk', 'telegramNotifyHighRisk'],
+  ['toggleTelegramRevisit', 'telegramNotifyRevisit'],
+  ['toggleTelegramAreaChange', 'telegramNotifyAreaChange'],
+  ['toggleTelegramBerthNew', 'telegramNotifyBerthNew'],
+  ['toggleTelegramBerthChar', 'telegramNotifyBerthChar'],
+  ['toggleTelegramOutage', 'telegramNotifyOutage'],
+  ['toggleTelegramAreaMonitor', 'telegramNotifyAreaMonitor'],
+];
+let telegramLinkPoll = null;
+
+// Reflect S.telegram in the UI: configured/linked status, button visibility,
+// and the enabled/disabled state of the per-category toggles (gated by master).
+function applyTelegramState() {
+  const tg = S.telegram || {};
+  const configured = !!tg.configured;
+  const linked = !!tg.linked;
+  const master = !!tg.telegramEnabled;
+  if (el.toggleTelegram) {
+    el.toggleTelegram.checked = master;
+    el.toggleTelegram.disabled = !configured;
+  }
+  // Show the link sub-row only when the bot is configured server-side.
+  if (el.settingTelegramLink) el.settingTelegramLink.style.display = configured ? '' : 'none';
+  // Status text.
+  if (el.telegramStatus) {
+    const key = !configured ? 'settings.telegram.status.notConfigured'
+      : linked ? 'settings.telegram.status.linked'
+        : 'settings.telegram.status.unlinked';
+    el.telegramStatus.textContent = t(key);
+  }
+  if (el.btnTelegramLink) el.btnTelegramLink.hidden = !configured || linked;
+  if (el.btnTelegramUnlink) el.btnTelegramUnlink.hidden = !configured || !linked;
+  if (el.btnTelegramTest) el.btnTelegramTest.hidden = !configured || !linked;
+  if (el.telegramCodeBox && (!configured || linked)) { el.telegramCodeBox.hidden = true; }
+  // Per-category toggles: visible when configured, enabled only when master on.
+  for (const [elKey, apiKey] of TELEGRAM_TOGGLES) {
+    const input = el[elKey];
+    const rowKey = 'setting' + elKey.slice('toggle'.length); // toggleTelegramX → settingTelegramX
+    const row = el[rowKey];
+    if (row) row.style.display = configured ? '' : 'none';
+    if (input) {
+      input.checked = tg[apiKey] !== false;
+      input.disabled = !configured || !master;
+    }
+  }
+}
+
+async function loadTelegram() {
+  if (!el.toggleTelegram) return;
+  try {
+    const s = await api('/api/telegram');
+    S.telegram = s;
+    applyTelegramState();
+  } catch {
+    /* ignore */
+  }
+}
+
+// After the user generates a link code we don't get a push when they hit
+// /start, so poll the link state a few times to flip the UI to "linked".
+function startTelegramLinkPoll() {
+  stopTelegramLinkPoll();
+  let tries = 0;
+  telegramLinkPoll = setInterval(async () => {
+    tries++;
+    try {
+      const s = await api('/api/telegram');
+      S.telegram = s;
+      if (s.linked || tries > 40) { // ~2 min at 3s
+        stopTelegramLinkPoll();
+        applyTelegramState();
+      }
+    } catch { /* keep trying */ }
+  }, 3000);
+}
+function stopTelegramLinkPoll() {
+  if (telegramLinkPoll) { clearInterval(telegramLinkPoll); telegramLinkPoll = null; }
+}
+
 // Build the per-cargo-type weight editor: one number input per class, ordered
 // as the server lists them. Non-cargo / unknown classes are shown too (weight
 // usually 0) so the operator sees the full set. `values` overrides the stored
@@ -376,6 +458,7 @@ function activateSettingsPanel(panel) {
   el.settingsPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
   if (panel === 'backup') loadAutoBackups();
   if (panel === 'params') loadAppConfig();
+  if (panel === 'telegram') loadTelegram(); else stopTelegramLinkPoll();
   if (panel === 'log') openSettingsLog(); else closeSettingsLog();
   if (panel === 'logs') openLogs(); else closeLogs();
   if (panel === 'health') openHealth(); else closeHealth();
@@ -386,6 +469,7 @@ function stopSettingsFeeds() {
   closeSettingsLog();
   closeLogs();
   closeHealth();
+  stopTelegramLinkPoll();
 }
 
 function initSettingsModal() {
@@ -623,6 +707,80 @@ function initSettingsModal() {
       el.toggleNotifyBerthChar.checked = !enabled;
     }
   });
+
+  // ── Telegram bot ──
+  if (el.toggleTelegram) {
+    el.toggleTelegram.addEventListener('change', async () => {
+      const enabled = el.toggleTelegram.checked;
+      try {
+        const s = await api('/api/telegram/settings', 'POST', { telegramEnabled: enabled });
+        S.telegram = s;
+        applyTelegramState();
+      } catch {
+        el.toggleTelegram.checked = !enabled;
+      }
+    });
+  }
+  for (const [elKey, apiKey] of TELEGRAM_TOGGLES) {
+    const input = el[elKey];
+    if (!input) continue;
+    input.addEventListener('change', async () => {
+      const enabled = input.checked;
+      try {
+        const s = await api('/api/telegram/settings', 'POST', { [apiKey]: enabled });
+        S.telegram = s;
+      } catch {
+        input.checked = !enabled;
+      }
+    });
+  }
+  if (el.btnTelegramLink) {
+    el.btnTelegramLink.addEventListener('click', async () => {
+      el.btnTelegramLink.disabled = true;
+      try {
+        const r = await api('/api/telegram/link', 'POST');
+        if (el.telegramCodeBox) {
+          const link = r.deepLink
+            ? `<a href="${r.deepLink}" target="_blank" rel="noopener">${r.deepLink}</a>`
+            : `<code>/start ${r.code}</code>`;
+          el.telegramCodeBox.innerHTML = `${t('settings.telegram.code.intro')}<br>${link}<br><span class="muted">${t('settings.telegram.code.hint')}</span>`;
+          el.telegramCodeBox.hidden = false;
+        }
+        startTelegramLinkPoll();
+      } catch (e) {
+        alert((e && e.message) || 'Errore');
+      } finally {
+        el.btnTelegramLink.disabled = false;
+      }
+    });
+  }
+  if (el.btnTelegramUnlink) {
+    el.btnTelegramUnlink.addEventListener('click', async () => {
+      if (!confirm(t('settings.telegram.unlink.confirm'))) return;
+      try {
+        const s = await api('/api/telegram/unlink', 'POST');
+        S.telegram = s;
+        stopTelegramLinkPoll();
+        if (el.telegramCodeBox) el.telegramCodeBox.hidden = true;
+        applyTelegramState();
+      } catch (e) {
+        alert((e && e.message) || 'Errore');
+      }
+    });
+  }
+  if (el.btnTelegramTest) {
+    el.btnTelegramTest.addEventListener('click', async () => {
+      el.btnTelegramTest.disabled = true;
+      try {
+        await api('/api/telegram/test', 'POST');
+        alert(t('settings.telegram.test.sent'));
+      } catch (e) {
+        alert((e && e.message) || 'Errore');
+      } finally {
+        el.btnTelegramTest.disabled = false;
+      }
+    });
+  }
 
   if (el.toggleExcludeTankers) {
     el.toggleExcludeTankers.addEventListener('change', async () => {

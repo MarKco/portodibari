@@ -124,6 +124,15 @@ const MESSAGES = {
   'port.high_risk': { it: (p) => `Nave ad alto rischio in arrivo: ${p.name}`, en: (p) => `High-risk vessel arriving: ${p.name}` },
   'port.area_change': { it: (p) => `Nave spostata tra aree: ${p.name}`, en: (p) => `Vessel moved between areas: ${p.name}` },
 
+  // ── Telegram bot ──
+  'telegram.disabled': { it: 'Bot Telegram disabilitato: TELEGRAM_BOT_TOKEN non impostato', en: 'Telegram bot disabled: TELEGRAM_BOT_TOKEN not set' },
+  'telegram.started': { it: (p) => `Bot Telegram avviato (@${p.username}), polling attivo`, en: (p) => `Telegram bot started (@${p.username}), polling active` },
+  'telegram.getme_failed': { it: (p) => `Bot Telegram: getMe fallito: ${p.error}`, en: (p) => `Telegram bot: getMe failed: ${p.error}` },
+  'telegram.send_failed': { it: (p) => `Invio messaggio Telegram fallito: ${p.error}`, en: (p) => `Telegram message send failed: ${p.error}` },
+  'telegram.update_failed': { it: (p) => `Gestione update Telegram fallita: ${p.error}`, en: (p) => `Telegram update handling failed: ${p.error}` },
+  'telegram.linked': { it: (p) => `Account Telegram collegato all'utente ${p.user}`, en: (p) => `Telegram account linked to user ${p.user}` },
+  'telegram.unlinked': { it: (p) => `Account Telegram scollegato dall'utente ${p.user}`, en: (p) => `Telegram account unlinked from user ${p.user}` },
+
   // ── Areas ──
   'areas.imported': { it: 'Aree importate', en: 'Areas imported' },
   'areas.autostart_failed': {

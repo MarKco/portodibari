@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 const db = require('../db');
 const enrichment = require('./enrichment');
 const userPrefs = require('./user-prefs');
+const telegram = require('./telegram');
 const berths = require('./berths');
 const { computeRiskScore, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
@@ -164,10 +165,15 @@ function startStream(areaKey) {
             if (risk.band === 'high') {
               let any = false;
               for (const uid of seers) {
+                if (db.isUserMuted(uid, arrived)) continue;
                 const p = userPrefs.get(uid);
-                if (!p.notificationsEnabled || !p.notifyHighRisk || db.isUserMuted(uid, arrived)) continue;
-                db.addNotification({ user_id: uid, type: 'high_risk', mmsi: arrived, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
-                any = true;
+                if (p.notificationsEnabled && p.notifyHighRisk) {
+                  db.addNotification({ user_id: uid, type: 'high_risk', mmsi: arrived, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
+                  any = true;
+                }
+                // Telegram is gated by its own per-user toggle, independent of the
+                // in-app one (so a user can get it on Telegram only, or vice versa).
+                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, area: areaKey, score: risk.score });
               }
               if (any) appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
             }
@@ -178,9 +184,12 @@ function startStream(areaKey) {
           if (ship) {
             const risk = computeRiskScore(ship, 'it');
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
+              if (db.isUserMuted(uid, revisit)) continue;
               const p = userPrefs.get(uid);
-              if (!p.notificationsEnabled || !p.notifyRevisit || db.isUserMuted(uid, revisit)) continue;
-              db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
+              if (p.notificationsEnabled && p.notifyRevisit) {
+                db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
+              }
+              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, area: areaKey, score: risk.score });
             }
           }
         }
@@ -190,10 +199,13 @@ function startStream(areaKey) {
             const risk = computeRiskScore(ship, 'it');
             let any = false;
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
+              if (db.isUserMuted(uid, areaChange.mmsi)) continue;
               const p = userPrefs.get(uid);
-              if (!p.notificationsEnabled || !p.notifyAreaChange || db.isUserMuted(uid, areaChange.mmsi)) continue;
-              db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
-              any = true;
+              if (p.notificationsEnabled && p.notifyAreaChange) {
+                db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
+                any = true;
+              }
+              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score });
             }
             if (any) appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
           }

@@ -329,7 +329,33 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 
 > **Auto-ripristino dopo un deploy:** il database viene cancellato quando si aggiorna l'applicazione (deploy). Se all'avvio il database **non esiste** e sono presenti degli **auto-backup** salvati (cartella `data/backups/`), l'app ripristina automaticamente l'ultimo backup (solo il database). Questo richiede che la cartella dei backup sopravviva al deploy. Non scatta se il database esiste ma è stato semplicemente svuotato con "Cancella dati". Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
-Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Developer options**, **Parametri** e **Backup / Ripristino**.
+Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Telegram** (notifiche sul bot Telegram, vedi sotto), **Parametri** e **Backup / Ripristino**.
+
+### Tab Telegram
+
+Permette di ricevere le notifiche del tuo utente su **Telegram**, tramite un bot. Funziona solo se l'amministratore ha configurato il token del bot sul server (`TELEGRAM_BOT_TOKEN`); altrimenti il tab mostra "Bot Telegram non configurato".
+
+**Collegare il tuo account:**
+
+1. Premi **Collega**. Compare un link (e un codice).
+2. Apri il link su Telegram (o invia al bot il messaggio `/start <codice>`) e avvia il bot.
+3. Il bot risponde "Account collegato" e il tab si aggiorna da solo: ora ricevi le notifiche su Telegram.
+
+Per smettere: premi **Scollega** (o invia `/stop` al bot). Con **Invia prova** verifichi che il collegamento funzioni.
+
+**Quali notifiche ricevere** — l'interruttore generale **Notifiche Telegram** accende/spegne tutto; sotto, un toggle per ciascuna categoria:
+
+| Toggle | Avvisa quando… |
+|---|---|
+| **Score alto** | una nave arriva con score di rischio in fascia rossa (71–100). |
+| **Rientro nave** | una nave rientra in un'area già visitata. |
+| **Cambio area** | una nave passa da un'area monitorata a un'altra. |
+| **Nuova banchina** | viene rilevata una nuova banchina in un'area. |
+| **Caratterizzazione banchina** | una banchina viene caratterizzata per la prima volta. |
+| **Disservizio AIS** | il feed AIS risulta non disponibile (inizio) e quando rientra (fine). |
+| **Avvio/stop monitoraggio area** | avvii o fermi il monitoraggio di una tua area. |
+
+I toggle Telegram sono **indipendenti** da quelli delle notifiche nella barra laterale: puoi ricevere una categoria solo su Telegram, o solo in-app, o entrambi. I messaggi arrivano nella **lingua** impostata per il tuo utente.
 
 ### Tab Parametri
 

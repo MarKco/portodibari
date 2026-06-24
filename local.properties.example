@@ -44,6 +44,14 @@ IMPORT_PSC=false
 IMPORT_GFW=true
 GLOBAL_FISHING_WATCH_TOKEN=
 
+# Telegram bot notifications (optional). A single bot serves all users; each
+# user links their chat from the app Settings → Telegram tab (a /start <code>
+# flow). Create a bot with @BotFather on Telegram and paste its token below.
+# Empty = the bot stays off. The token is a SECRET — never commit it. No public
+# URL / webhook needed: the app long-polls Telegram. Notifications are sent in
+# each user's own language; per-category toggles live in the Settings UI.
+TELEGRAM_BOT_TOKEN=
+
 # ── Authentication (multi-user) ──────────────────────────────────────────────
 # The app is gated by a session login. Users register (name, surname, email,
 # password) and must be approved by an administrator before they can sign in.

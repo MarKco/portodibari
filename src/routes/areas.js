@@ -4,6 +4,7 @@ const express = require('express');
 const db = require('../db');
 const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
+const telegram = require('../services/telegram');
 const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas } = require('../config');
 
 const router = express.Router();
@@ -83,6 +84,7 @@ router.post('/areas', (req, res) => {
     db.addUserArea(req.user.id, area.key);
     appLog.info('AREE', appLog.t('areas.added', { name: area.name }), { area: area.key, autostart: autostart !== false });
     if (autostart !== false) stream.startStream(area.key);
+    telegram.notifyAreaMonitor(req.user.id, 'start', { area: area.name });
     res.json({ ok: true, area });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -100,6 +102,7 @@ router.delete('/areas/:key', (req, res) => {
   try {
     const areaName = BBOX_PRESETS[key].name;
     db.removeUserArea(req.user.id, key);
+    telegram.notifyAreaMonitor(req.user.id, 'stop', { area: areaName });
     let purged = false;
     if (db.areaOwnerCount(key) === 0) {
       // Last owner gone → tear down the stream, wipe the data and drop the catalog.

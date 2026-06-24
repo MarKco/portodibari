@@ -380,9 +380,12 @@ body {
   gap: 0.25rem;
   font-size: 0.8rem;
   color: var(--text-muted);
+  /* Take all the room left of the icon so the select can fill it. */
+  flex: 1;
+  min-width: 0;
 }
 .sb-area-label select {
-  max-width: 130px;
+  max-width: 100%;
   width: 100%;
   padding: 0.3rem 0.5rem;
   font-size: 0.78rem;
@@ -2472,3 +2475,19 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   background: var(--surface-1);
   user-select: text;
 }
+
+/* ── Telegram bot settings ── */
+.telegram-link-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: flex-start; }
+.telegram-code-box {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border, #2a3346);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  word-break: break-all;
+  user-select: text;
+}
+.telegram-code-box .muted { color: var(--text-muted); font-size: 0.8rem; }
+.telegram-code-box code { user-select: all; }

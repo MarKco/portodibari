@@ -602,6 +602,8 @@
                   data-i18n="settings.tab.general">Generali</button>
           <button id="settings-tab-areas" class="tab" data-panel="areas"
                   data-i18n="settings.tab.areas">Aree</button>
+          <button id="settings-tab-telegram" class="tab" data-panel="telegram"
+                  data-i18n="settings.tab.telegram">Telegram</button>
           <button id="settings-tab-params" class="tab" data-panel="params"
                   data-i18n="settings.tab.params">Parametri</button>
           <button id="settings-tab-backup" class="tab" data-panel="backup"
@@ -846,6 +848,103 @@
             <div id="area-monitors" class="area-monitors"></div>
           </div>
         </div>
+
+        <!-- ── Telegram bot ─────────────────────────────────────────────── -->
+        <div id="settings-panel-telegram" class="settings-panel hidden">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegram.name">Notifiche Telegram</div>
+              <div class="setting-desc" data-i18n="settings.telegram.desc">Ricevi le notifiche del tuo utente su Telegram tramite il bot. Collega il tuo account, poi scegli quali notifiche ricevere. Indipendenti dalle notifiche nella barra laterale.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-link">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegram.link.name">Collegamento account</div>
+              <div class="setting-desc" id="telegram-status" data-i18n="settings.telegram.status.unlinked">Account non collegato.</div>
+              <div id="telegram-code-box" class="telegram-code-box" hidden></div>
+            </div>
+            <div class="telegram-link-actions">
+              <button class="btn btn-sm" id="btn-telegram-link" data-i18n="settings.telegram.link.btn">Collega</button>
+              <button class="btn btn-sm" id="btn-telegram-test" data-i18n="settings.telegram.test.btn" hidden>Invia prova</button>
+              <button class="btn btn-sm btn-danger" id="btn-telegram-unlink" data-i18n="settings.telegram.unlink.btn" hidden>Scollega</button>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-high-risk">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramHighRisk.name">Telegram · score alto</div>
+              <div class="setting-desc" data-i18n="settings.telegramHighRisk.desc">Invia su Telegram l'arrivo di una nave con score di rischio in fascia rossa (71–100).</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-high-risk">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-revisit">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramRevisit.name">Telegram · rientro nave</div>
+              <div class="setting-desc" data-i18n="settings.telegramRevisit.desc">Invia su Telegram il rientro di una nave in un'area già visitata.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-revisit">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-area-change">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramAreaChange.name">Telegram · cambio area</div>
+              <div class="setting-desc" data-i18n="settings.telegramAreaChange.desc">Invia su Telegram lo spostamento di una nave tra due aree monitorate.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-area-change">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-berth-new">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramBerthNew.name">Telegram · nuova banchina</div>
+              <div class="setting-desc" data-i18n="settings.telegramBerthNew.desc">Invia su Telegram il rilevamento di una nuova banchina in un'area.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-berth-new">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-berth-char">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramBerthChar.name">Telegram · caratterizzazione banchina</div>
+              <div class="setting-desc" data-i18n="settings.telegramBerthChar.desc">Invia su Telegram la prima caratterizzazione di una banchina.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-berth-char">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-outage">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramOutage.name">Telegram · disservizio AIS</div>
+              <div class="setting-desc" data-i18n="settings.telegramOutage.desc">Invia su Telegram l'inizio e la fine di un disservizio del feed AIS.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-outage">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row setting-row-child" id="setting-telegram-area-monitor">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.telegramAreaMonitor.name">Telegram · avvio/stop monitoraggio area</div>
+              <div class="setting-desc" data-i18n="settings.telegramAreaMonitor.desc">Invia su Telegram quando avvii o fermi il monitoraggio di una tua area.</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-telegram-area-monitor">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div id="settings-panel-params" class="settings-panel hidden">
           <div class="params-banner" data-i18n-html="params.restartBanner">
             ⚠️ Le modifiche a questi parametri vengono scritte in <code>app.config.properties</code> e richiedono il <strong>riavvio del server</strong> per avere effetto (non basta ricaricare il browser).

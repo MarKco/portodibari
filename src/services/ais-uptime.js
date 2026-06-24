@@ -95,7 +95,10 @@ async function evaluate() {
 
   // No active stream, or the pipe is healthy → clear any standing outage.
   if (!info.active || info.silentMs < AIS_OUTAGE_SILENCE_MIN * 60 * 1000) {
-    if (outage.serviceDown) appLog.info('AIS', appLog.t('ais.outage_cleared'));
+    if (outage.serviceDown) {
+      appLog.info('AIS', appLog.t('ais.outage_cleared'));
+      require('./telegram').broadcastOutage('end');
+    }
     outage = { serviceDown: false, monitorState: null, monitorSource: null, checkedAt: nowIso, since: null, silentMin: 0 };
     return;
   }
@@ -123,6 +126,7 @@ async function evaluate() {
   if (down) {
     if (!outage.serviceDown) {
       appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
+      require('./telegram').broadcastOutage('start', { min: silentMin });
     }
     outage = {
       serviceDown: true,
@@ -133,7 +137,10 @@ async function evaluate() {
       silentMin,
     };
   } else {
-    if (outage.serviceDown) appLog.info('AIS', appLog.t('ais.outage_cleared'));
+    if (outage.serviceDown) {
+      appLog.info('AIS', appLog.t('ais.outage_cleared'));
+      require('./telegram').broadcastOutage('end');
+    }
     outage = { serviceDown: false, monitorState, monitorSource, checkedAt: nowIso, since: null, silentMin };
   }
 }
