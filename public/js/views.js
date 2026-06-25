@@ -24,6 +24,10 @@ import { closeHealth } from './health.js';
 import { applyOutageBanner } from './outage.js';
 
 export function showView(v, mmsi, shipData) {
+  // Scroll back to top on every view change (navigating away from a long detail
+  // page would otherwise leave the new view scrolled midway down).
+  if (el.app) el.app.scrollTop = 0;
+
   // Leaving the Areas screen counts as "navigating away": commit any pending
   // (undo-window) area deletion before the screen disappears.
   if (S.view === 'areas' && v !== 'areas') commitPendingDelete();

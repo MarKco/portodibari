@@ -5,10 +5,13 @@ export const el = {
   // Header / toolbar
   appTitle: $('app-title'),
   badge: $('status-badge'),
+  syncTime: $('sync-time'),
+  app: $('app'),
   btnStart: $('btn-start'),
   btnStop: $('btn-stop'),
   btnExport: $('btn-export'),
   btnClear: $('btn-clear'),
+  btnClearPast: $('btn-clear-past'),
   counter: $('counter'),
   bboxSelect: $('bbox-select'),
 

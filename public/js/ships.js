@@ -966,6 +966,7 @@ export async function loadEquasisData(mmsi, doFetch = false) {
     // Already have data: hide the button (lookup is "once").
     el.btnEquasisFetch.classList.add('hidden');
     renderEquasisData(el.equasisDataBody, result.data);
+    el.equasisDataSection.classList.remove('collapsed');
   } catch {
     el.equasisDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
     el.btnEquasisFetch.classList.remove('hidden');

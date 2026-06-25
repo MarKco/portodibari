@@ -443,6 +443,15 @@ header h1 {
   -webkit-text-fill-color: transparent;
 }
 
+.sync-time {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .badge {
   padding: 0.28rem 0.7rem;
   border-radius: var(--r-pill);
@@ -636,6 +645,9 @@ tbody tr {
   transition: background var(--t-fast);
 }
 tbody tr:last-child { border-bottom: none; }
+tbody tr:nth-child(even):not(.flagged-row):not(.risk-row):not(.military-row) {
+  background: rgba(255, 255, 255, 0.022);
+}
 tbody tr:hover { background: var(--surface-3); }
 
 tbody td {
@@ -643,6 +655,7 @@ tbody td {
   vertical-align: middle;
   white-space: nowrap;
   color: var(--text);
+  line-height: 1.55;
 }
 
 td.empty {
@@ -1610,6 +1623,29 @@ pre {
   letter-spacing: 0.06em;
   margin: 0 0 0.85rem;
 }
+
+/* Collapsible sections — only in the ship detail view */
+#view-detail .detail-section > h3.detail-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--t-fast);
+}
+#view-detail .detail-section > h3.detail-section-title:hover { color: var(--text); }
+#view-detail .detail-section.collapsed > h3.detail-section-title { margin-bottom: 0; }
+.detail-section-chevron {
+  margin-left: auto;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  transition: transform var(--t-base) var(--ease), color var(--t-fast);
+}
+#view-detail .detail-section > h3.detail-section-title:hover .detail-section-chevron { color: var(--text-muted); }
+#view-detail .detail-section.collapsed .detail-section-chevron { transform: rotate(-90deg); }
+.detail-section-body { /* no extra style needed — JS wraps content here */ }
+#view-detail .detail-section.collapsed .detail-section-body { display: none; }
 /* Sanctions match panel — red accent to signal a hard hit. */
 .detail-section--sanction {
   border-color: #ff2d2d;

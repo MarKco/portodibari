@@ -72,12 +72,6 @@
         <span class="sb-label" data-i18n="sidebar.stop">Ferma</span>
       </button>
       <div class="sb-divider"></div>
-      <button id="btn-clear" class="btn btn-clear sb-btn"
-              data-i18n-title="sidebar.clear" title="Cancella dati">
-        <span class="sb-icon">🗑</span>
-        <span class="sb-label" data-i18n="sidebar.clear">Cancella dati</span>
-      </button>
-      <div class="sb-divider"></div>
       <button id="btn-areas" class="btn btn-secondary sb-btn"
               data-i18n-title="sidebar.areas" title="Aree">
         <span class="sb-icon">🗺</span>
@@ -136,6 +130,7 @@
     <header>
       <h1 id="app-title" data-i18n="app.title">Tracking porti</h1>
       <div id="status-badge" class="badge inactive" data-i18n="status.inactive">INATTIVO</div>
+      <span id="sync-time" class="sync-time"></span>
     </header>
 
     <!-- Tab navigation -->
@@ -223,6 +218,8 @@
           <option value="geojson">GeoJSON</option>
           <option value="kml">KML</option>
         </select>
+        <button id="btn-clear" class="btn btn-clear btn-sm"
+                data-i18n-title="sidebar.clear" title="Cancella dati">🗑 <span data-i18n="sidebar.clear">Cancella dati</span></button>
       </div>
       <div id="table-wrap-active">
         <table>
@@ -268,6 +265,8 @@
           <option value="geojson">GeoJSON</option>
           <option value="kml">KML</option>
         </select>
+        <button id="btn-clear-past" class="btn btn-clear btn-sm"
+                data-i18n-title="sidebar.clear" title="Cancella dati">🗑 <span data-i18n="sidebar.clear">Cancella dati</span></button>
       </div>
       <div id="table-wrap-past">
         <table>

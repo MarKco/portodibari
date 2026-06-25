@@ -1371,10 +1371,38 @@ function initBboxSelect() {
   });
 }
 
+// ── Collapsible detail sections ───────────────────────────────────────────────
+function initCollapsibleSections() {
+  document.querySelectorAll('#view-detail .detail-section').forEach(section => {
+    const title = section.querySelector(':scope > h3.detail-section-title');
+    if (!title) return;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'detail-section-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.textContent = '▼';
+    title.appendChild(chevron);
+
+    const body = document.createElement('div');
+    body.className = 'detail-section-body';
+    const toMove = [];
+    let sibling = title.nextElementSibling;
+    while (sibling) { toMove.push(sibling); sibling = sibling.nextElementSibling; }
+    toMove.forEach(child => body.appendChild(child));
+    section.appendChild(body);
+
+    title.addEventListener('click', () => section.classList.toggle('collapsed'));
+  });
+}
+
 // ── Polling ──────────────────────────────────────────────────────────────────
 function tick() {
   updateStatus();
   loadNotifications();
+  if (el.syncTime) {
+    const now = new Date();
+    el.syncTime.textContent = `↻ ${now.toLocaleTimeString('it-IT')}`;
+  }
   if (S.view === 'active') {
     loadActive();
     if (S.showBerths) loadBerths(S.currentPreset);
@@ -1415,7 +1443,7 @@ function initToolbar() {
     window.location = '/api/export';
   });
 
-  el.btnClear.addEventListener('click', async () => {
+  const onClearClick = async () => {
     const areaName = S.presets[S.currentPreset]?.name || S.currentPreset;
     if (!confirm(t('confirm.clear', { area: areaName }))) return;
     const area = encodeURIComponent(S.currentPreset || '');
@@ -1424,7 +1452,9 @@ function initToolbar() {
     el.pastCount.textContent = '0';
     S.activeShipsCache.clear();
     tick();
-  });
+  };
+  el.btnClear.addEventListener('click', onClearClick);
+  el.btnClearPast.addEventListener('click', onClearClick);
 
   el.tabActive.addEventListener('click', () => showView('active'));
   el.tabPast.addEventListener('click', () => showView('past'));
@@ -1663,6 +1693,7 @@ initBerths();
 initReplay();
 initWebhooks();
 initAppConfig();
+initCollapsibleSections();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.
