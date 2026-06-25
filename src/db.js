@@ -245,6 +245,7 @@ db.exec(`
     impersonating_user_id INTEGER,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
+    last_seen_at TEXT,
     ip TEXT,
     user_agent TEXT
   );
@@ -259,6 +260,13 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// `sessions.last_seen_at`: timestamp of the session's most recent request,
+// bumped (throttled) by the auth middleware. Drives the admin "online now"
+// indicator. Nullable so older backups restore cleanly (treated as never-seen).
+for (const col of ['last_seen_at TEXT']) {
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
 
 // `users.group_id`: optional membership into a `groups` row. Members of a group
 // share (UNION) their areas/follows/flags/mutes and a subset of settings, kept
@@ -715,15 +723,32 @@ function groupMemberCount(groupId) {
 // Sessions ────────────────────────────────────────────────────────────────────
 
 const insertSessionStmt = db.prepare(`
-  INSERT INTO sessions (id, user_id, impersonating_user_id, created_at, expires_at, ip, user_agent)
-  VALUES (?, ?, NULL, ?, ?, ?, ?)
+  INSERT INTO sessions (id, user_id, impersonating_user_id, created_at, expires_at, last_seen_at, ip, user_agent)
+  VALUES (?, ?, NULL, ?, ?, ?, ?, ?)
 `);
 /** Create a session for `userId`. Returns the opaque session id (cookie value). */
 function createSession(userId, { ttlMs = 30 * 24 * 60 * 60 * 1000, ip = null, userAgent = null } = {}) {
   const id = auth.randomToken(32);
   const now = Date.now();
-  insertSessionStmt.run(id, userId, new Date(now).toISOString(), new Date(now + ttlMs).toISOString(), ip, userAgent ? String(userAgent).slice(0, 255) : null);
+  const nowIso = new Date(now).toISOString();
+  insertSessionStmt.run(id, userId, nowIso, new Date(now + ttlMs).toISOString(), nowIso, ip, userAgent ? String(userAgent).slice(0, 255) : null);
   return id;
+}
+
+const touchSessionStmt = db.prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?');
+/** Record that a session made a request just now (drives the "online" flag). */
+function touchSession(id, nowIso = new Date().toISOString()) {
+  touchSessionStmt.run(nowIso, id);
+}
+
+const onlineUserIdsStmt = db.prepare(
+  'SELECT DISTINCT user_id FROM sessions WHERE last_seen_at >= ? AND expires_at > ?'
+);
+/** User ids with at least one non-expired session seen since `cutoffIso`. The
+ *  session OWNER counts as online (an admin impersonating someone is themselves
+ *  online, not the target). */
+function getOnlineUserIds(cutoffIso, nowIso = new Date().toISOString()) {
+  return onlineUserIdsStmt.all(cutoffIso, nowIso).map((r) => r.user_id);
 }
 
 const getSessionStmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
@@ -2639,6 +2664,8 @@ module.exports = {
   deleteUser,
   createSession,
   getSession,
+  touchSession,
+  getOnlineUserIds,
   deleteSession,
   deleteUserSessions,
   setSessionImpersonation,

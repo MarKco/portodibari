@@ -16,6 +16,11 @@ const { SESSION_COOKIE, COOKIE_SECURE, SESSION_TTL_DAYS } = require('../config')
 
 const TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
+// How stale a session's last_seen_at must be before we rewrite it. Throttles the
+// per-request UPDATE (every request would otherwise write on each poll) while
+// keeping the admin "online" indicator fresh enough.
+const TOUCH_THROTTLE_MS = 60 * 1000;
+
 /** Parse a Cookie header into a plain object. */
 function parseCookies(header) {
   const out = {};
@@ -83,6 +88,12 @@ function attachUser(req, res, next) {
   req.session = session;
   req.realUser = owner;
   req.user = owner;
+
+  // Mark the session as seen now (throttled) so the admin online indicator works.
+  const now = Date.now();
+  if (!session.last_seen_at || now - Date.parse(session.last_seen_at) >= TOUCH_THROTTLE_MS) {
+    db.touchSession(sessionId, new Date(now).toISOString());
+  }
 
   // Read-only impersonation: an admin viewing another user's world.
   if (session.impersonating_user_id && owner.role === 'admin') {

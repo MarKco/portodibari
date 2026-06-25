@@ -39,10 +39,16 @@ function requireAdminPage(req, res, next) {
 // Everything under /api/admin requires admin.
 router.use('/api/admin', requireAdmin);
 
+// A user is "online" if one of their sessions made a request within this window.
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
 router.get('/api/admin/users', (req, res) => {
+  const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString();
+  const online = new Set(db.getOnlineUserIds(cutoff));
   const users = db.listUsers().map((u) => ({
     ...publicUser(u),
     areas: db.getUserAreaKeys(u.id).length,
+    online: online.has(u.id),
   }));
   res.json({ users, me: req.realUser.id, impersonating: req.isImpersonating ? req.user.id : null });
 });
