@@ -2686,3 +2686,58 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .search-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ── PWA mobile refinements ─────────────────────────────────────────────── */
+
+/* Safe area: bottom-fixed elements clear the iOS home-indicator zone.
+   On desktop env() resolves to 0, so max() returns the original value. */
+#theme-toggle {
+  bottom: max(1.5rem, calc(0.5rem + env(safe-area-inset-bottom)));
+  right:  max(1.5rem, env(safe-area-inset-right));
+}
+.toast {
+  bottom: max(1.75rem, calc(0.75rem + env(safe-area-inset-bottom)));
+}
+
+/* Safe area: modals respect all four edges (overrides shorthand padding). */
+#modal-overlay,
+#search-modal {
+  padding-top:    max(1.5rem, env(safe-area-inset-top));
+  padding-right:  max(1.5rem, env(safe-area-inset-right));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-left:   max(1.5rem, env(safe-area-inset-left));
+}
+
+/* Standalone PWA: status bar uses black-translucent (overlays content).
+   The top-bar sidebar needs padding to clear it; bottom content clears
+   the home-indicator zone too. Only applies when installed as PWA. */
+@media (display-mode: standalone) and (max-width: 640px) {
+  #sidebar { padding-top: env(safe-area-inset-top); }
+  #app     { padding-bottom: max(2rem, calc(0.75rem + env(safe-area-inset-bottom))); }
+}
+
+@media (max-width: 640px) {
+  /* Prevent iOS auto-zoom on input focus: font-size must be ≥ 16px on any
+     interactive field. Overrides component-level rem values. */
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="url"],
+  input[type="datetime-local"],
+  textarea,
+  select { font-size: 16px; }
+
+  /* Minimum 44×44px touch targets for small icon-only buttons. */
+  .flag-btn,
+  .seen-btn,
+  .follow-btn,
+  .notif-mute-btn {
+    min-height: 44px;
+    min-width:  44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .notif-check,
+  .notif-delete { width: 34px; height: 34px; }
+}
