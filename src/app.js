@@ -36,6 +36,20 @@ function createApp() {
   // BEFORE the gate — the only routes reachable without a session.
   app.use(authRoutes);
 
+  // PWA assets must be reachable WITHOUT a session: the browser fetches the
+  // manifest/icons on the login page and registers the service worker at the
+  // root scope. Served before the gate; they expose no user data.
+  const publicDir = path.join(__dirname, '..', 'public');
+  app.get('/sw.js', (req, res) => {
+    res.set('Cache-Control', 'no-cache'); // always revalidate the SW itself
+    res.type('text/javascript').sendFile(path.join(publicDir, 'sw.js'));
+  });
+  app.get('/manifest.webmanifest', (req, res) => {
+    res.type('application/manifest+json').sendFile(path.join(publicDir, 'manifest.webmanifest'));
+  });
+  app.get('/offline.html', (req, res) => res.sendFile(path.join(publicDir, 'offline.html')));
+  app.use('/icons', express.static(path.join(publicDir, 'icons')));
+
   // Global gate: everything past here requires an active session.
   app.use(sessionAuth.gate);
 

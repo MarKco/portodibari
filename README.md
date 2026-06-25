@@ -1,14 +1,8 @@
 # 🚢 Tracker Porti
 
-```
-          /\
-         /  \
-     ___/    \___
-    |  TRACKER   |
-    |  PORTI     |
-     \__________/
-    ~~~~~~~~~~~~~~
-```
+<p align="center">
+  <img src="public/icons/icon-512.png" alt="Tracker Porti" width="160">
+</p>
 
 App per tracciare navi via [AISStream.io](https://aisstream.io). L'area di monitoraggio è selezionabile a runtime tra più preset (Bari, Taranto, Nord Adriatico, Puglia — vedi [Bounding box](#bounding-box)) e configurabile con bounding box arbitrarie, quindi utilizzabile per qualsiasi porto. Le aree si **aggiungono e rimuovono a runtime** dalla schermata **🗺 Aree** (senza riavviare l'app). È possibile monitorare **più aree contemporaneamente**: ogni area ha il proprio stream AIS indipendente.
 
@@ -750,6 +744,19 @@ Aggiornando da una versione precedente (single-user): quando un **vecchio databa
 
 ---
 
+## 📱 App installabile (PWA)
+
+L'app è una **Progressive Web App**: si installa sulla home screen (Android/iOS) o come app desktop (Chrome/Edge) e si apre **standalone** (senza barra del browser). Niente store, nessun build step — sono file statici serviti da `public/`.
+
+- **Manifest** ([`public/manifest.webmanifest`](public/manifest.webmanifest)) — nome, icone, `display: standalone`, colore tema/sfondo `#0a0d13`.
+- **Icone** ([`public/icons/`](public/icons/)) — derivate dal logo brand [`public/icons/source.png`](public/icons/source.png) (tile blu, àncora bianca su mappa): [`scripts/gen-icons.js`](scripts/gen-icons.js) rileva il riquadro blu, lo ritaglia a tutto campo (niente angoli bianchi) e lo ridimensiona con `sips` (macOS) in 192/512, 512 *maskable*, `apple-touch-icon` 180, favicon 32. Per rigenerare dopo aver sostituito `source.png`: `node scripts/gen-icons.js` (richiede macOS; i PNG sono committati, la produzione non lo esegue).
+- **Service worker** ([`public/sw.js`](public/sw.js)) — registrato da `index.html`. Strategia pensata per un tracker **live**: `/api/*` e le origini esterne (CDN Leaflet, tile OSM/OpenSeaMap) **non** vengono mai intercettate né messe in cache (nessun dato autenticato o live finisce nella cache del browser); lo **shell** (HTML/CSS/JS, locali, icone) è *stale-while-revalidate* così l'app si apre veloce e anche offline; le navigazioni sono *network-first* con fallback alla shell in cache o a [`offline.html`](public/offline.html). Bump di `CACHE` in `sw.js` per invalidare tutto.
+- **Accesso senza sessione** — `manifest.webmanifest`, `/sw.js`, `/icons/*` e `/offline.html` sono serviti **prima del gate di autenticazione** ([`src/app.js`](src/app.js)): il browser li carica anche sulla pagina di login e registra il SW a scope `/`. L'app e i dati (`/index.html`, `/api/*`) restano protetti.
+
+Per installarla: aprire il sito → menu del browser → "Installa app" / "Aggiungi a Home".
+
+---
+
 ## 🐧 Deploy su server Linux (VPS)
 
 ### Requisiti server
@@ -901,6 +908,8 @@ pm2 save
 | `public/index.html`           | SPA: sidebar collassabile, tab nav, 4 view + modali (impostazioni/diagnostica/log) |
 | `public/js/`                  | Moduli ES: state machine SPA, polling, mappe Leaflet, de-noise track, grafici, export |
 | `public/css/style.css`        | Design system con token CSS; tema scuro (default) e chiaro (selezionabile) |
+| `public/manifest.webmanifest` / `public/sw.js` / `public/icons/` / `public/offline.html` | [PWA](#-app-installabile-pwa): manifest, service worker (shell cache, `/api` mai in cache), icone, pagina offline |
+| `scripts/gen-icons.js`        | Rigenera le icone PWA dal logo `public/icons/source.png` (auto-crop del tile + resize via `sips`, macOS) |
 | `local.properties`            | Configurazione + API key (gitignored, non committare)             |
 | `ais_data.db`                 | Database SQLite (creato al primo avvio, gitignored)               |
 

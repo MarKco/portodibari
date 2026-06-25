@@ -1,5 +1,9 @@
 # User Manual — Tracker Porti
 
+<p align="center">
+  <img src="public/icons/icon-512.png" alt="Tracker Porti" width="128">
+</p>
+
 ## What this software does
 
 **Tracker Porti** monitors AIS maritime traffic in real time within a defined geographic area. It collects position data broadcast by vessels, analyzes it, calculates a risk score for each ship, and presents the information in visual and tabular form.
@@ -160,6 +164,14 @@ On the active-ships map you can enable a **berths overlay**: the system learns b
 
 > At startup the app runs an initial analysis (*backfill*) over all the history already collected, so berths are visible right away.
 
+**Historical replay (review past traffic).** At the top of the toolbar there is a **▶ Replay** button: press it to review how the area's traffic moved over a past time window. Entering replay mode hides the "live" markers and shows a control bar:
+
+- **Area** — pick which of your areas to review (the current one by default).
+- **Window** — quick buttons **1h / 6h / 24h / all**, or set a **custom** range with the two date/time pickers. The range is anchored to the **most recent data** available (so you always find something to review) and can't go beyond the data actually recorded.
+- **▶ / ⏸** play/pause, the **scrubber** (jump to a precise instant) and the **speed** buttons (1× / 5× / 20× / 60× of real time).
+
+Each ship moves interpolated between its real positions, leaves a **fading trail** behind it, and is coloured by risk band; click it to open its detail. If a ship has a long **signal gap** (AIS off or it left the area) it is **hidden** during that stretch instead of "teleporting" in a straight line. At the bottom you see the current replay time and how many ships are visible. Press **✕ Exit** to return to the live view.
+
 ---
 
 ### 2. Navi passate (Past ships)
@@ -296,6 +308,12 @@ When a ship matches a sanctions list (screening enabled, see settings), the deta
 - **Listed name**, **flag**, **owner**, and **aliases** of the designated entity, when present in the source.
 
 A box explains the matching regime (OFAC / EU / UK / UN) and a **warning** reminds you to always verify on the official source: in particular, a **name-only** match may be a false positive (homonym). When the entity id is available, the **Open official profile** button opens the vessel's public page (OpenSanctions for EU/UK/UN, OFAC Sanctions Search for OFAC). The panel appears **only** for ships actually on a list; it is hidden for all others.
+
+### At-sea rendezvous
+
+If this ship had a confirmed **rendezvous** with another ship (the two stayed close, slow and offshore long enough — the classic signature of a ship-to-ship transfer), the detail view shows a **Rendezvous** section: the list of encounters (other ship, date/time, closest distance reached, area). Each row is **clickable** and opens the detail of the ship involved.
+
+A confirmed rendezvous also fires a **notification** (see [Notifications](#notifications)) and **adds points to the risk score of both ships**. Detection is automatic and uses only the app's own AIS data (no external source required).
 
 ### Position map
 
@@ -529,6 +547,8 @@ Hover over the badge to see factor details and sources.
 
 **Per-cargo-type weight:** one of the score factors depends on the vessel's merchandise class (see [Cargo type](#information-bar)). Each class has a weight configurable from **⚙ Settings → "Per-cargo-type risk weights"** (e.g. crude oil / chemical / gas carriers weigh more than container ships). Changes take effect immediately, no restart. With **"Exclude tankers"** on, tanker-hull classes contribute no points.
 
+**Signal weights (Risk model):** how many points **each** risk signal is worth (AIS blackout, spoofing, loitering, draught increase, sanctions, PSC, GFW events, rendezvous, etc.) is adjustable from **⚙ Settings → the "⚖ Risk model" section** (admins only). You get a grid with one field per signal: change the values and press **💾 Save weights** — immediate effect, no restart. **Reset to defaults** restores the factory values. You can also save whole configurations as **risk profiles** (the *Risk profile* menu → *Save as…*) and recall them with *Apply* — handy for switching between setups on the fly (e.g. a more aggressive profile, or one tuned for areas with poor AIS coverage). Setting a weight to **0** disables that signal. *(Detection thresholds and multipliers stay in the config file, see [`app.config.properties`](#appconfigproperties--operating-parameters).)*
+
 **Military vessels:** automatically classified at maximum risk.
 
 ---
@@ -593,6 +613,9 @@ Berth events (see [Berths](#berths-automatic-mooring-characterization)):
 - **New berth** — during the automatic recompute a new berth is detected in an area.
 - **Berth characterisation** — a berth is characterised for the first time (it reaches its dominant ship category). The initial analysis (*backfill*) on an area with no berths does not generate notifications.
 
+Other events:
+- **At-sea rendezvous** — two distinct ships linger close, slow and offshore long enough (possible ship-to-ship transfer, see [At-sea rendezvous](#at-sea-rendezvous)). The notification includes a map with the **two** points joined by a line. Can be toggled separately, both in-app and on Telegram.
+
 **Reading a notification**
 
 | Element | Meaning |
@@ -618,6 +641,17 @@ In the vessel detail view (open by clicking any table row or a notification) a b
 When a vessel is muted it generates no revisit or area-change notifications, regardless of the global settings.
 
 **Unread** notifications are shown in **bold** and counted in the red badge on the 🔔 button. Read notifications stay visible in the list (no longer bold). The history retains the **last 100 notifications**; older ones are pruned automatically. Clearing an area's data also removes its notifications.
+
+---
+
+## Installing the app (PWA)
+
+Tracker Porti is an **installable app** (PWA): you can add it to your phone's home screen or install it as a desktop app, and it opens **full-screen**, without the browser chrome.
+
+- **On a phone** — open the site in your browser → menu → **"Add to Home Screen"** (iPhone/Safari) or **"Install app"** (Android/Chrome). An anchor icon appears like a normal app.
+- **On desktop** — in Chrome/Edge an install icon appears in the address bar, or menu → **"Install Tracker Porti"**.
+
+The installed app **also works offline** as far as opening goes: with no connection it shows a **"You are offline"** screen with a *Retry* button, because AIS data is real-time and needs the network. As soon as you're back online, reload and it resumes normally. Access stays protected: login is always required.
 
 ---
 

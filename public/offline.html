@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0d13">
+  <title>Tracker Porti — offline</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 1rem; background: #0a0d13; color: #e9eef5;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align: center; padding: 1.5rem;
+    }
+    img { width: 96px; height: 96px; opacity: 0.9; }
+    h1 { font-size: 1.25rem; margin: 0; }
+    p { color: #9ca3af; max-width: 28rem; line-height: 1.5; margin: 0; }
+    button {
+      margin-top: 0.5rem; padding: 0.6rem 1.2rem; font-size: 0.95rem; cursor: pointer;
+      color: #fff; background: #1e40af; border: 1px solid #3b82f6; border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <img src="/icons/icon-192.png" alt="Tracker Porti">
+  <h1>Sei offline</h1>
+  <p>Tracker Porti mostra dati AIS in tempo reale e ha bisogno di una connessione. Riconnettiti e riprova.</p>
+  <button onclick="location.reload()">Riprova</button>
+</body>
+</html>

@@ -1,5 +1,9 @@
 # Manuale Utente — Tracker Porti
 
+<p align="center">
+  <img src="public/icons/icon-512.png" alt="Tracker Porti" width="128">
+</p>
+
 ## Cos'è questo software
 
 **Tracker Porti** monitora in tempo reale il traffico navale AIS in un'area geografica definita. Raccoglie i dati trasmessi dalle navi, li analizza, calcola un punteggio di rischio per ogni imbarcazione e li presenta in forma visiva e tabellare.
@@ -160,6 +164,14 @@ Sulla mappa delle navi presenti puoi attivare un **overlay delle banchine**: il 
 
 > All'avvio l'app esegue un'analisi iniziale (*backfill*) di tutto lo storico già raccolto, così le banchine sono visibili da subito.
 
+**Replay storico (rivedere il traffico passato).** In alto nella barra strumenti c'è il pulsante **▶ Replay**: premilo per rivedere come si è mosso il traffico dell'area in un intervallo di tempo passato. Entrando in modalità replay i marker "live" vengono nascosti e compare una barra di controllo:
+
+- **Area** — scegli quale delle tue aree rivedere (di default quella corrente).
+- **Finestra** — pulsanti rapidi **1h / 6h / 24h / tutto**, oppure imposta un intervallo **personalizzato** con i due selettori data/ora. L'intervallo si aggancia automaticamente al **dato più recente** disponibile (così trovi sempre qualcosa da rivedere) e non può andare oltre i dati realmente registrati.
+- **▶ / ⏸** play/pausa, la **barra di scorrimento** (per saltare a un istante preciso) e i pulsanti di **velocità** (1× / 5× / 20× / 60× del tempo reale).
+
+Ogni nave si muove interpolata tra le sue posizioni reali, lascia una **scia che sfuma** dietro di sé, ed è colorata per fascia di rischio; cliccala per aprire il suo dettaglio. Se una nave ha un **buco di segnale** lungo (AIS spento o uscita dall'area) viene **nascosta** in quel tratto, invece di "teletrasportarsi" in linea retta. In basso vedi l'ora corrente del replay e quante navi sono visibili. Premi **✕ Esci** per tornare alla vista live.
+
 ---
 
 ### 2. Navi passate
@@ -296,6 +308,12 @@ Quando una nave corrisponde a una lista sanzioni (screening attivo, vedi imposta
 - **Nome in lista**, **bandiera**, **proprietario** e **alias** dell'entità designata, quando presenti nella fonte.
 
 Un riquadro spiega il regime corrispondente (OFAC / UE / UK / ONU) e un **avviso** ricorda di verificare sempre sulla fonte ufficiale: in particolare un match **solo per nome** può essere un falso positivo (omonimia). Quando l'identificativo dell'entità è disponibile, il pulsante **Apri scheda ufficiale** apre la pagina pubblica della nave (OpenSanctions per UE/UK/ONU, OFAC Sanctions Search per OFAC). Il pannello compare **solo** per le navi effettivamente in lista; per tutte le altre non viene mostrato.
+
+### Rendezvous in mare
+
+Se questa nave ha avuto un **rendezvous** confermato con un'altra nave (le due sono rimaste vicine, lente e al largo abbastanza a lungo — la firma classica di un trasbordo nave-nave), nel dettaglio compare la sezione **Rendezvous in mare**: l'elenco degli incontri (altra nave, data/ora, distanza minima raggiunta, area). Ogni riga è **cliccabile** e apre la scheda della nave coinvolta.
+
+Un rendezvous confermato fa anche scattare una **notifica** (vedi [Notifiche](#notifiche)) e **aggiunge punti al rischio di entrambe le navi**. Il rilevamento è automatico e usa solo i dati AIS dell'app (non richiede fonti esterne).
 
 ### Mappa posizione
 
@@ -529,6 +547,8 @@ Passa il cursore sul badge per vedere i dettagli dei fattori e le fonti.
 
 **Peso per tipo di carico:** uno dei fattori del punteggio dipende dalla classe merceologica della nave (vedi [Tipo carico](#barra-informazioni)). Ogni classe ha un peso configurabile da **⚙ Impostazioni → "Pesi rischio per tipo di carico"** (es. petroliere/chimichiere/gasiere pesano più delle portacontainer). Le modifiche hanno effetto immediato, senza riavvio. Con **"Escludi tanker"** attivo le classi su scafo tanker non assegnano punti.
 
+**Pesi dei segnali (Modello di rischio):** quanti punti vale **ogni** segnale di rischio (blackout AIS, spoofing, sosta, aumento pescaggio, sanzioni, PSC, eventi GFW, rendezvous, ecc.) è regolabile da **⚙ Impostazioni → sezione "⚖ Modello di rischio"** (solo amministratori). Trovi una griglia con un campo per segnale: cambia i valori e premi **💾 Salva pesi** — effetto immediato, senza riavvio. **Ripristina default** riporta i valori di fabbrica. Puoi anche salvare configurazioni complete come **profili di rischio** (menu *Profilo di rischio* → *Salva come…*) e richiamarle con *Applica* — utile per passare al volo tra impostazioni diverse (es. un profilo più aggressivo, o uno tarato per aree con copertura AIS scarsa). Mettere un peso a **0** disattiva quel segnale. *(Le soglie di rilevamento e i moltiplicatori restano nel file di configurazione, vedi [`app.config.properties`](#appconfigproperties--parametri-di-funzionamento).)*
+
 **Navi militari:** sono automaticamente classificate a rischio massimo.
 
 ---
@@ -593,6 +613,9 @@ Eventi banchina (vedi [Banchine](#banchine-caratterizzazione-automatica-degli-at
 - **Nuova banchina** — durante il ricalcolo automatico viene rilevata una nuova banchina in un'area.
 - **Caratterizzazione banchina** — una banchina viene caratterizzata per la prima volta (raggiunge la categoria di navi prevalente). Il primo calcolo iniziale (*backfill*) su un'area senza banchine non genera notifiche.
 
+Altri eventi:
+- **Rendezvous in mare** — due navi distinte sostano vicine, lente e al largo abbastanza a lungo (possibile trasbordo nave-nave, vedi [Rendezvous in mare](#rendezvous-in-mare)). La notifica include una mappa con i **due** punti uniti da una linea. Attivabile a parte sia in-app sia su Telegram.
+
 **Lettura di una notifica**
 
 | Elemento | Significato |
@@ -618,6 +641,17 @@ Nel dettaglio nave (apri cliccando su una riga della tabella o su una notifica) 
 Quando una nave è silenziata, non genera notifiche di rientro né di cambio area, indipendentemente dalle impostazioni globali.
 
 Le notifiche **da leggere** sono mostrate in **grassetto** e contano nel badge rosso del pulsante 🔔. Le notifiche lette rimangono comunque visibili nella lista (non in grassetto). Viene conservato lo storico delle **ultime 100 notifiche**; le più vecchie vengono eliminate automaticamente. La cancellazione dei dati di un'area rimuove anche le sue notifiche.
+
+---
+
+## Installare l'app (PWA)
+
+Tracker Porti è una **app installabile** (PWA): puoi aggiungerla alla schermata home del telefono o installarla come app sul desktop, e si apre **a tutto schermo**, senza la barra del browser.
+
+- **Su telefono** — apri il sito nel browser → menu → **"Aggiungi a Home"** (iPhone/Safari) o **"Installa app"** (Android/Chrome). Comparirà un'icona con l'àncora come una normale app.
+- **Su desktop** — in Chrome/Edge appare un'icona di installazione nella barra degli indirizzi, oppure menu → **"Installa Tracker Porti"**.
+
+L'app installata **funziona anche offline** per quanto riguarda l'apertura: se manca la connessione mostra una schermata **"Sei offline"** con un pulsante *Riprova*, perché i dati AIS sono in tempo reale e richiedono la rete. Appena torni online ricarica e riprende normalmente. L'accesso resta protetto: serve sempre il login.
 
 ---
 
