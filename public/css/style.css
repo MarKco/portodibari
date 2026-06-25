@@ -2412,11 +2412,11 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .berth-manager-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .berth-manager-table .berth-count-cell { text-align: right; color: var(--text-muted); }
 .berth-name-input {
-  width: 100%; min-width: 110px; background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; font-size: 0.85rem;
+  width: 100%; min-width: 110px; background: var(--surface-1); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: 5px; padding: 3px 6px; font-size: 0.85rem;
 }
 .berth-override-select {
-  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text); border: 1px solid var(--border-strong);
   border-radius: 5px; padding: 3px 6px; font-size: 0.82rem;
 }
 .berth-manual-tag { color: var(--accent-text); cursor: help; }

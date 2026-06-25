@@ -186,8 +186,11 @@
           </span>
           <span id="replay-count" class="replay-count">—</span>
           <span class="list-toolbar-spacer"></span>
-          <button id="replay-geojson" class="btn btn-secondary btn-sm" type="button" data-i18n="export.geojson" data-i18n-title="export.replayTitle" title="Esporta replay in GeoJSON">⬇ GeoJSON</button>
-          <button id="replay-kml" class="btn btn-secondary btn-sm" type="button" data-i18n="export.kml" data-i18n-title="export.replayTitle" title="Esporta replay in KML">⬇ KML</button>
+          <select id="replay-export-sel" class="list-band" title="Esporta replay">
+            <option value="">⬇ Esporta…</option>
+            <option value="geojson">GeoJSON</option>
+            <option value="kml">KML</option>
+          </select>
         </div>
       </div>
       <div id="active-map-resizer" class="map-resizer"></div>
@@ -205,15 +208,21 @@
         <label class="list-check"><input type="checkbox" id="active-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <label class="list-check"><input type="checkbox" id="berths-toggle"><span data-i18n="berths.show">Banchine</span></label>
         <button id="btn-berths-manage" class="btn btn-secondary btn-sm" data-i18n="berths.manage" data-i18n-title="berths.manageTitle" title="Gestisci banchine">⚓ Banchine</button>
-        <button id="berths-geojson" class="btn btn-secondary btn-sm" data-i18n="export.berthsGeojson" data-i18n-title="export.berthsTitle" title="Esporta banchine in GeoJSON">⬇ Banchine GeoJSON</button>
-        <button id="berths-kml" class="btn btn-secondary btn-sm" data-i18n="export.berthsKml" data-i18n-title="export.berthsTitle" title="Esporta banchine in KML">⬇ Banchine KML</button>
+        <select id="berths-export-sel" class="list-band" title="Esporta banchine">
+          <option value="">⬇ Banchine…</option>
+          <option value="geojson">GeoJSON</option>
+          <option value="kml">KML</option>
+        </select>
         <button id="replay-toggle" class="btn btn-secondary btn-sm" data-i18n="replay.toggle" data-i18n-title="replay.toggleTitle" title="Replay storico del traffico">▶ Replay</button>
         <span class="list-toolbar-spacer"></span>
         <span id="active-seen-hidden" class="list-seen-hidden"></span>
         <span id="active-filter-count" class="list-filter-count"></span>
-        <button id="active-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
-        <button id="active-geojson" class="btn btn-secondary btn-sm" data-i18n="export.geojson" data-i18n-title="export.geojsonTitle" title="Esporta vista in GeoJSON">⬇ GeoJSON</button>
-        <button id="active-kml" class="btn btn-secondary btn-sm" data-i18n="export.kml" data-i18n-title="export.kmlTitle" title="Esporta vista in KML">⬇ KML</button>
+        <select id="active-export-sel" class="list-band" title="Esporta navi presenti">
+          <option value="">⬇ Esporta…</option>
+          <option value="csv">CSV filtrato</option>
+          <option value="geojson">GeoJSON</option>
+          <option value="kml">KML</option>
+        </select>
       </div>
       <div id="table-wrap-active">
         <table>
@@ -253,9 +262,12 @@
         <span class="list-toolbar-spacer"></span>
         <span id="past-seen-hidden" class="list-seen-hidden"></span>
         <span id="past-filter-count" class="list-filter-count"></span>
-        <button id="past-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
-        <button id="past-geojson" class="btn btn-secondary btn-sm" data-i18n="export.geojson" data-i18n-title="export.geojsonTitle" title="Esporta vista in GeoJSON">⬇ GeoJSON</button>
-        <button id="past-kml" class="btn btn-secondary btn-sm" data-i18n="export.kml" data-i18n-title="export.kmlTitle" title="Esporta vista in KML">⬇ KML</button>
+        <select id="past-export-sel" class="list-band" title="Esporta navi passate">
+          <option value="">⬇ Esporta…</option>
+          <option value="csv">CSV filtrato</option>
+          <option value="geojson">GeoJSON</option>
+          <option value="kml">KML</option>
+        </select>
       </div>
       <div id="table-wrap-past">
         <table>
@@ -428,8 +440,11 @@
           </div>
           <div id="track-export" class="track-export">
             <span class="track-export-label" data-i18n="export.trackLabel">Esporta traccia:</span>
-            <button id="track-geojson" class="btn btn-secondary btn-sm" type="button" data-i18n="export.geojson" data-i18n-title="export.trackTitle" title="Esporta traccia in GeoJSON">⬇ GeoJSON</button>
-            <button id="track-kml" class="btn btn-secondary btn-sm" type="button" data-i18n="export.kml" data-i18n-title="export.trackTitle" title="Esporta traccia in KML">⬇ KML</button>
+            <select id="track-export-sel" class="list-band" title="Esporta traccia">
+              <option value="">⬇ Esporta…</option>
+              <option value="geojson">GeoJSON</option>
+              <option value="kml">KML</option>
+            </select>
           </div>
         </div>
       </div>

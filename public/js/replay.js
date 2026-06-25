@@ -75,13 +75,15 @@ export function initReplay() {
   e.area.addEventListener('change', () => load({ window: currentWin() }));
 
   // Export the currently-loaded replay window as one LineString per ship.
-  const replayGeo = (fmt) => () => {
+  const replayExpSel = document.getElementById('replay-export-sel');
+  if (replayExpSel) replayExpSel.addEventListener('change', (ev) => {
+    const fmt = ev.target.value;
+    if (!fmt) return;
+    ev.target.value = '';
     const R = S.replay;
     if (!R || !R.ships.length) { showAlert(t('export.empty')); return; }
     if (!exportReplay({ ships: R.ships }, fmt, e.area.value || 'area')) showAlert(t('export.empty'));
-  };
-  document.getElementById('replay-geojson')?.addEventListener('click', replayGeo('geojson'));
-  document.getElementById('replay-kml')?.addEventListener('click', replayGeo('kml'));
+  });
 }
 
 function setActiveBtn(group, btn) {

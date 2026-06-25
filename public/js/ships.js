@@ -122,8 +122,13 @@ const trackGeo = (fmt) => async () => {
     showAlert(t('export.emptyTrack'));
   }
 };
-document.getElementById('track-geojson')?.addEventListener('click', trackGeo('geojson'));
-document.getElementById('track-kml')?.addEventListener('click', trackGeo('kml'));
+const trackExpSel = document.getElementById('track-export-sel');
+if (trackExpSel) trackExpSel.addEventListener('change', async (e) => {
+  const fmt = e.target.value;
+  if (!fmt) return;
+  e.target.value = '';
+  await trackGeo(fmt)();
+});
 
 el.btnSaveNotes.addEventListener('click', async () => {
   if (S.detailMmsi == null) return;
@@ -422,7 +427,6 @@ function renderActiveTable(ships) {
     inport: document.getElementById('active-inport'),
     flagged: document.getElementById('active-flagged'),
     seen: document.getElementById('active-seen'),
-    exp: document.getElementById('active-export'),
   };
   // Reflect the persisted filter state on the controls before wiring handlers.
   if (a.search) a.search.value = S.activeFilter.q || '';
@@ -435,28 +439,28 @@ function renderActiveTable(ships) {
   if (a.inport) a.inport.addEventListener('change', () => { S.activeFilter.inPort = a.inport.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.flagged) a.flagged.addEventListener('change', () => { S.activeFilter.flagged = a.flagged.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.seen) a.seen.addEventListener('change', () => { S.activeFilter.showSeen = a.seen.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
-  if (a.exp) a.exp.addEventListener('click', () => {
+  const activeExpSel = document.getElementById('active-export-sel');
+  if (activeExpSel) activeExpSel.addEventListener('change', (e) => {
+    const fmt = e.target.value;
+    if (!fmt) return;
+    e.target.value = '';
     const sorted = sortShips(filterShips(activeShipsData, S.activeFilter, { inPort: true }), activeSort.col, activeSort.dir);
-    exportShipsCsv(sorted, 'navi-presenti');
+    if (fmt === 'csv') exportShipsCsv(sorted, 'navi-presenti');
+    else if (!exportShips(sorted, fmt, 'navi-presenti')) showAlert(t('export.empty'));
   });
-  const activeGeo = (fmt) => () => {
-    const sorted = sortShips(filterShips(activeShipsData, S.activeFilter, { inPort: true }), activeSort.col, activeSort.dir);
-    if (!exportShips(sorted, fmt, 'navi-presenti')) showAlert(t('export.empty'));
-  };
-  document.getElementById('active-geojson')?.addEventListener('click', activeGeo('geojson'));
-  document.getElementById('active-kml')?.addEventListener('click', activeGeo('kml'));
-  const berthsGeo = (fmt) => () => {
+  const berthsExpSel = document.getElementById('berths-export-sel');
+  if (berthsExpSel) berthsExpSel.addEventListener('change', (e) => {
+    const fmt = e.target.value;
+    if (!fmt) return;
+    e.target.value = '';
     if (!exportBerths(S.berthsList, fmt, S.currentPreset || 'area')) showAlert(t('export.emptyBerths'));
-  };
-  document.getElementById('berths-geojson')?.addEventListener('click', berthsGeo('geojson'));
-  document.getElementById('berths-kml')?.addEventListener('click', berthsGeo('kml'));
+  });
 
   const p = {
     search: document.getElementById('past-search'),
     band: document.getElementById('past-band'),
     flagged: document.getElementById('past-flagged'),
     seen: document.getElementById('past-seen'),
-    exp: document.getElementById('past-export'),
   };
   if (p.search) p.search.value = S.pastFilter.q || '';
   if (p.band) p.band.value = S.pastFilter.band || '';
@@ -466,16 +470,15 @@ function renderActiveTable(ships) {
   if (p.band) p.band.addEventListener('change', () => { S.pastFilter.band = p.band.value; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.flagged) p.flagged.addEventListener('change', () => { S.pastFilter.flagged = p.flagged.checked; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.seen) p.seen.addEventListener('change', () => { S.pastFilter.showSeen = p.seen.checked; saveShipFilters(); renderPastTable(pastShipsData); });
-  if (p.exp) p.exp.addEventListener('click', () => {
+  const pastExpSel = document.getElementById('past-export-sel');
+  if (pastExpSel) pastExpSel.addEventListener('change', (e) => {
+    const fmt = e.target.value;
+    if (!fmt) return;
+    e.target.value = '';
     const sorted = sortShips(filterShips(pastShipsData, S.pastFilter), pastSort.col, pastSort.dir);
-    exportShipsCsv(sorted, 'navi-passate');
+    if (fmt === 'csv') exportShipsCsv(sorted, 'navi-passate');
+    else if (!exportShips(sorted, fmt, 'navi-passate')) showAlert(t('export.empty'));
   });
-  const pastGeo = (fmt) => () => {
-    const sorted = sortShips(filterShips(pastShipsData, S.pastFilter), pastSort.col, pastSort.dir);
-    if (!exportShips(sorted, fmt, 'navi-passate')) showAlert(t('export.empty'));
-  };
-  document.getElementById('past-geojson')?.addEventListener('click', pastGeo('geojson'));
-  document.getElementById('past-kml')?.addEventListener('click', pastGeo('kml'));
 }
 
 // ── Past ships ───────────────────────────────────────────────────────────────
@@ -879,6 +882,7 @@ export async function loadVfData(mmsi) {
       el.vfCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.vfDataBody, result.data);
+    invalidateDetailMap();
   } catch {
     el.vfDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
   }
@@ -910,6 +914,7 @@ export async function loadMtData(mmsi) {
       el.mtCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.mtDataBody, result.data);
+    invalidateDetailMap();
   } catch {
     el.mtDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
   }

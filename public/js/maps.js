@@ -31,6 +31,9 @@ function initMap() {
   S.aisMap = L.map('detail-map', { zoomControl: true }).setView([41.138, 16.843], 13);
   addBaseLayers(S.aisMap);
   S.trackLayer = L.layerGroup().addTo(S.aisMap);
+  // Re-render tiles when container resizes (e.g. VF data loads and grows the flex row)
+  const ro = new ResizeObserver(() => S.aisMap && S.aisMap.invalidateSize());
+  ro.observe(document.getElementById('detail-map'));
 }
 
 // Collapse consecutive stationary points (SOG≈0) that stay within the merge

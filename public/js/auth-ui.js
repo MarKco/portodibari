@@ -15,10 +15,11 @@ async function init() {
   const css = document.createElement('style');
   css.textContent = `
     #acct { position:fixed; top:8px; right:10px; z-index:1200; display:flex; align-items:center; gap:.5rem;
-            background:rgba(20,26,36,.92); border:1px solid #2a3441; border-radius:9px; padding:.3rem .55rem;
-            font:12px/1.2 system-ui,sans-serif; color:#e6edf5; box-shadow:0 4px 16px rgba(0,0,0,.3); }
-    #acct .who { color:#9aa7b5; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #acct a, #acct button { color:#93c5fd; background:none; border:0; cursor:pointer; font:inherit; padding:.15rem .25rem; }
+            background:var(--surface-2,rgba(20,26,36,.92)); border:1px solid var(--border-strong,#2a3441);
+            border-radius:9px; padding:.3rem .55rem;
+            font:12px/1.2 system-ui,sans-serif; color:var(--text,#e6edf5); box-shadow:var(--shadow-md,0 4px 16px rgba(0,0,0,.3)); }
+    #acct .who { color:var(--text-muted,#9aa7b5); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #acct a, #acct button { color:var(--accent-text,#93c5fd); background:none; border:0; cursor:pointer; font:inherit; padding:.15rem .25rem; }
     #acct a:hover, #acct button:hover { text-decoration:underline; }
     #imp-banner { position:fixed; top:0; left:0; right:0; z-index:1300; background:#b45309; color:#fff;
                   text-align:center; padding:.35rem .5rem; font:600 12px/1.3 system-ui,sans-serif; }
