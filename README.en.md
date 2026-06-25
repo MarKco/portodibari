@@ -425,7 +425,7 @@ Hysteresis prevents anchor swing from causing the ship to "flicker" in and out o
 
 ## ⏯️ Historical replay (time-scrubber on the area map)
 
-Besides replaying a **single ship's track** in the detail view (`setupTrackAnim`), the **active-ships** map has an **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
+The **single ship track** in the detail view (`setupTrackAnim`) now also has time filters (**6h / 24h / 7d / all**, or a custom from/to range) and **speed multipliers** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` or `?from=ISO&to=ISO`. The **active-ships** map has a separate **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
 
 The **▶ Replay** button in the toolbar enters replay mode (hides the live markers, shows the controls bar). You pick:
 

@@ -108,6 +108,12 @@ const SHIP_ICON = L.divIcon({
 
 const TRACK_DURATION_MS = 12000;
 
+const isoToLocal = (iso) => {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+const localToIso = (v) => (v ? new Date(v).toISOString() : null);
+
 // Stop and tear down any running track playback (called on reload / leaving
 // the detail view). Leaves the static layer intact.
 export function stopTrackAnim() {
@@ -119,7 +125,46 @@ export function stopTrackAnim() {
   S.trackAnim = null;
 }
 
-export async function loadTrack(mmsi) {
+let _trackCtrlsInited = false;
+function initTrackControls() {
+  if (_trackCtrlsInited) return;
+  _trackCtrlsInited = true;
+
+  const winBtns = document.querySelectorAll('.track-win');
+  winBtns.forEach((b) =>
+    b.addEventListener('click', () => {
+      winBtns.forEach((x) => x.classList.toggle('active', x === b));
+      loadTrack(S.detailMmsi, { window: b.dataset.win });
+    })
+  );
+
+  const applyBtn = document.getElementById('track-apply');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      const from = localToIso(document.getElementById('track-from').value);
+      const to   = localToIso(document.getElementById('track-to').value);
+      if (from && to && from < to) {
+        winBtns.forEach((x) => x.classList.remove('active'));
+        loadTrack(S.detailMmsi, { from, to });
+      }
+    });
+  }
+
+  const speedBtns = document.querySelectorAll('.track-speed');
+  speedBtns.forEach((b) =>
+    b.addEventListener('click', () => {
+      speedBtns.forEach((x) => x.classList.toggle('active', x === b));
+      const newSpeed = Number(b.dataset.speed);
+      const A = S.trackAnim;
+      if (A) {
+        A.startTs = performance.now() - (A.p * TRACK_DURATION_MS) / newSpeed;
+        A.speed = newSpeed;
+      }
+    })
+  );
+}
+
+export async function loadTrack(mmsi, opts = {}) {
   initMap();
   stopTrackAnim();
   S.aisMap.invalidateSize();
@@ -127,9 +172,25 @@ export async function loadTrack(mmsi) {
   const ctrls = document.getElementById('track-anim');
   if (ctrls) ctrls.classList.add('hidden');
 
+  initTrackControls();
+
+  const q = new URLSearchParams();
+  if (opts.from && opts.to) { q.set('from', opts.from); q.set('to', opts.to); }
+  else if (opts.window)     { q.set('window', opts.window); }
+  const qs = q.toString() ? `?${q}` : '';
+
   try {
-    const data = await api(`/api/ships/${mmsi}/track`);
+    const data = await api(`/api/ships/${mmsi}/track${qs}`);
     const pts = data.points || [];
+
+    // Pre-fill date inputs with the ship's full data range on first open.
+    if (!opts.from && !opts.window && data.range && data.range.lo) {
+      const fromEl = document.getElementById('track-from');
+      const toEl   = document.getElementById('track-to');
+      if (fromEl && !fromEl.value) fromEl.value = isoToLocal(data.range.lo);
+      if (toEl   && !toEl.value)   toEl.value   = isoToLocal(data.range.hi);
+    }
+
     if (!pts.length) return;
 
     const nodes = collapseTrack(pts);
@@ -159,7 +220,9 @@ export async function loadTrack(mmsi) {
     const bounds = L.latLngBounds(latlngs);
     if (bounds.isValid()) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
 
-    setupTrackAnim(nodes);
+    // Read current speed from active button (or default 20×).
+    const activeSpeed = document.querySelector('.track-speed.active');
+    setupTrackAnim(nodes, activeSpeed ? Number(activeSpeed.dataset.speed) : 20);
   } catch {
     /* track unavailable */
   }
@@ -168,8 +231,9 @@ export async function loadTrack(mmsi) {
 // Build playback over the collapsed nodes: a ship marker (rotated by COG, or
 // segment bearing when COG is missing) sliding along the path at a fixed total
 // duration, with a trail that grows behind it. Autoplays; play/pause + a
-// timeline scrubber let the user replay or seek.
-function setupTrackAnim(nodes) {
+// timeline scrubber let the user replay or seek. Speed multiplier scales how
+// fast p advances — 20× default means 12 s total / 20 = 0.6 s real time.
+function setupTrackAnim(nodes, speed = 20) {
   const ctrls = document.getElementById('track-anim');
   if (!ctrls || nodes.length < 2) return;
 
@@ -198,7 +262,7 @@ function setupTrackAnim(nodes) {
     S.trackLayer
   );
 
-  const A = { rafId: null, playing: false, p: 0, startTs: null, play, slider, ship, trail };
+  const A = { rafId: null, playing: false, p: 0, startTs: null, speed, play, slider, ship, trail };
   S.trackAnim = A;
 
   function latOf(i) {
@@ -244,8 +308,8 @@ function setupTrackAnim(nodes) {
 
   function step(ts) {
     if (!A.playing) return;
-    if (A.startTs == null) A.startTs = ts - A.p * TRACK_DURATION_MS;
-    A.p = Math.min(1, (ts - A.startTs) / TRACK_DURATION_MS);
+    if (A.startTs == null) A.startTs = ts - (A.p * TRACK_DURATION_MS) / A.speed;
+    A.p = Math.min(1, ((ts - A.startTs) * A.speed) / TRACK_DURATION_MS);
     render(A.p);
     if (A.p >= 1) {
       setPlaying(false);

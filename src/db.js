@@ -1655,18 +1655,30 @@ function getDistinctShipNames(mmsi) {
     .map((r) => r.ship_name);
 }
 
-function getShipTrack(mmsi, limit = 500) {
+function getShipTrackRange(mmsi) {
   return db
     .prepare(
-      `
-    SELECT id, received_at, latitude, longitude, sog, cog
-    FROM readings
-    WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
-    ORDER BY received_at ASC
-    LIMIT ?
-  `
+      `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi
+       FROM readings WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL`
     )
-    .all(mmsi, limit);
+    .get(mmsi);
+}
+
+function getShipTrack(mmsi, limit = 500, from = null, to = null) {
+  const where = ['mmsi = ?', 'latitude IS NOT NULL', 'longitude IS NOT NULL'];
+  const params = [mmsi];
+  if (from) { where.push('received_at >= ?'); params.push(from); }
+  if (to)   { where.push('received_at <= ?'); params.push(to); }
+  params.push(limit);
+  return db
+    .prepare(
+      `SELECT id, received_at, latitude, longitude, sog, cog
+       FROM readings
+       WHERE ${where.join(' AND ')}
+       ORDER BY received_at ASC
+       LIMIT ?`
+    )
+    .all(...params);
 }
 
 // Positions inside an area's bbox(es) within a time window, for historical
@@ -2590,6 +2602,7 @@ module.exports = {
   getShip,
   searchShipsByName,
   getShipReadings,
+  getShipTrackRange,
   getShipTrack,
   getAreaReplayPositions,
   getAreaReplayRange,

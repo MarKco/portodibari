@@ -428,7 +428,7 @@ L'isteresi evita che lo swing all'ancora faccia "lampeggiare" la nave dentro/fuo
 
 ## ⏯️ Replay storico (time-scrubber sulla mappa dell'area)
 
-Oltre alla riproduzione della **singola traccia** nel dettaglio nave (`setupTrackAnim`), la mappa **Navi presenti** ha un **replay storico dell'intera area**: rivedere il traffico di tutte le navi su una finestra temporale scelta. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
+La **singola traccia** nel dettaglio nave (`setupTrackAnim`) ha anch'essa filtri temporali (**6h / 24h / 7gg / tutto**, oppure range personalizzato da/a) e **moltiplicatori di velocità** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` oppure `?from=ISO&to=ISO`. La mappa **Navi presenti** ha invece un **replay storico dell'intera area**: rivedere il traffico di tutte le navi su una finestra temporale scelta. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
 
 Il pulsante **▶ Replay** nella toolbar entra in modalità replay (nasconde i marker live, mostra la barra dei controlli). Si sceglie:
 

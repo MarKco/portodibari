@@ -431,11 +431,33 @@
         <div id="detail-map-wrap">
           <div id="detail-map"></div>
           <div id="track-anim" class="track-anim hidden">
-            <button id="track-play" class="track-play" type="button"
-                    data-i18n-title="map.pause" title="Pausa">⏸</button>
-            <input id="track-slider" class="track-slider" type="range"
-                   min="0" max="1000" value="0" step="1" aria-label="Timeline" />
-            <span id="track-time" class="track-time">—</span>
+            <div class="track-row">
+              <span class="replay-wins">
+                <button class="track-win" data-win="6h" type="button">6h</button>
+                <button class="track-win" data-win="24h" type="button">24h</button>
+                <button class="track-win" data-win="7d" type="button">7gg</button>
+                <button class="track-win active" data-win="all" type="button" data-i18n="replay.all">tutto</button>
+              </span>
+              <span class="replay-custom">
+                <input id="track-from" type="datetime-local" class="replay-dt" aria-label="Da" />
+                <span>→</span>
+                <input id="track-to" type="datetime-local" class="replay-dt" aria-label="A" />
+                <button id="track-apply" class="btn btn-secondary btn-sm" type="button" data-i18n="replay.apply">Applica</button>
+              </span>
+            </div>
+            <div class="track-row">
+              <button id="track-play" class="track-play" type="button"
+                      data-i18n-title="map.pause" title="Pausa">⏸</button>
+              <input id="track-slider" class="track-slider" type="range"
+                     min="0" max="1000" value="0" step="1" aria-label="Timeline" />
+              <span id="track-time" class="track-time">—</span>
+              <span class="replay-speeds">
+                <button class="track-speed" data-speed="1" type="button">1×</button>
+                <button class="track-speed" data-speed="5" type="button">5×</button>
+                <button class="track-speed active" data-speed="20" type="button">20×</button>
+                <button class="track-speed" data-speed="60" type="button">60×</button>
+              </span>
+            </div>
           </div>
           <div id="track-export" class="track-export">
             <span class="track-export-label" data-i18n="export.trackLabel">Esporta traccia:</span>

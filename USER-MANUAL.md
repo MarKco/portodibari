@@ -332,7 +332,12 @@ A confirmed rendezvous also fires a **notification** (see [Notifications](#notif
 
 ### Position map
 
-Map showing the vessel's last known position.
+Map showing the vessel's track with animated playback controls.
+
+- **Time window** — quick presets **6h / 24h / 7d / all** to filter the track to the most recent period. Or set a **custom range** with the two date/time pickers (From → To) and press **Apply**. When you first open the detail view the pickers are pre-filled with the full date range available in the archive.
+- **▶ / ⏸** — play or pause the track animation (the ship marker moves along the route leaving a growing trail).
+- **Scrubber** — drag it to jump to any point along the track.
+- **Speed multipliers** — **1× / 5× / 20× / 60×** relative to the standard playback duration. Default is 20×. Can be changed mid-playback without interruption.
 
 ### AIS readings
 

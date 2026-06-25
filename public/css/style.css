@@ -911,13 +911,19 @@ td.empty {
 /* Track playback controls (ship-detail map) */
 .track-anim {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.4rem;
   margin: -0.75rem 0 1.25rem;
   padding: 0.5rem 0.75rem;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
+}
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 .track-play {
   flex: 0 0 auto;

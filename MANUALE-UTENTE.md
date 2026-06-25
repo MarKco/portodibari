@@ -332,7 +332,12 @@ Un rendezvous confermato fa anche scattare una **notifica** (vedi [Notifiche](#n
 
 ### Mappa posizione
 
-Mappa con la traccia dell'ultima posizione nota della nave.
+Mappa con la traccia della nave e controlli di riproduzione animata.
+
+- **Finestra temporale** — preset rapidi **6h / 24h / 7gg / tutto** per filtrare la traccia sull'ultimo periodo. Oppure imposta un **intervallo personalizzato** con i due selettori data/ora (Da → A) e premi **Applica**. All'apertura del dettaglio i selettori sono pre-compilati con l'intero periodo disponibile in archivio.
+- **▶ / ⏸** — riproduce o mette in pausa l'animazione della traccia (la nave si muove lungo il percorso lasciando una scia).
+- **Scrubber** — trascinalo per saltare a un qualsiasi punto della traccia.
+- **Moltiplicatori di velocità** — **1× / 5× / 20× / 60×** rispetto alla durata di riproduzione standard. Di default 20×. Cambiabili durante la riproduzione senza interruzioni.
 
 ### Letture AIS
 

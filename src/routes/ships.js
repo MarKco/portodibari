@@ -396,7 +396,22 @@ router.get('/ships/:mmsi/track', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const limit = Math.min(Number(req.query.limit) || TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
-  res.json({ points: db.getShipTrack(mmsi, limit) });
+
+  let fromIso = null, toIso = null;
+  if (req.query.from && req.query.to) {
+    fromIso = String(req.query.from);
+    toIso   = String(req.query.to);
+  } else if (req.query.window && req.query.window !== 'all') {
+    const range = db.getShipTrackRange(mmsi);
+    if (range && range.hi) {
+      const hours = req.query.window === '7d' ? 168 : req.query.window === '24h' ? 24 : 6;
+      toIso   = range.hi;
+      fromIso = new Date(new Date(range.hi).getTime() - hours * 3600000).toISOString();
+    }
+  }
+
+  const range = db.getShipTrackRange(mmsi);
+  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso), range });
 });
 
 // Historical replay: all positions inside an area's bbox over a time window,
