@@ -12,8 +12,13 @@ const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MA
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
+const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
+
+// Whole-DB export/backup/restore exposes every user's data and can overwrite the
+// entire database — admin only.
+router.use(requireAdmin);
 
 const BUNDLE_FORMAT = 'tracker-porti-bundle';
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'data', 'backups');

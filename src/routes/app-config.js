@@ -13,8 +13,12 @@ const express = require('express');
 const fs = require('fs');
 const appLog = require('../services/app-log');
 const { APP_CONFIG_FILE, saveAppProperty } = require('../config');
+const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
+
+// Global server operating parameters — admin only.
+router.use(requireAdmin);
 
 const KEY_RE = /^[A-Z0-9_]+$/;
 
