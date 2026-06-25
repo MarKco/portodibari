@@ -123,7 +123,7 @@ Mostra le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo
 | Nome nave | Nome dell'imbarcazione |
 | MMSI | Codice identificativo univoco della nave |
 | Tipo nave | Categoria (cargo, tanker, passeggeri, ecc.) |
-| Destinazione | Porto di destinazione dichiarato |
+| Destinazione | Porto di destinazione dichiarato. Se il valore è un codice UN/LOCODE (es. `ITTAR`, `IT TAR`) viene tradotto automaticamente nel nome del porto (es. "Taranto"); i valori già leggibili (es. "NAPOLI") sono mostrati invariati |
 | SOG | Velocità sul fondo in nodi |
 | Direzione | ↙ In entrata / ↗ In uscita / ⚓ Ferma |
 | Score rischio | Punteggio 0–100 (verde/giallo/rosso) |
@@ -351,7 +351,7 @@ Area di testo libero. Scrivi qualsiasi annotazione sulla nave e premi **Salva no
 
 ### Storico visite in porto
 
-Registro di tutti gli eventi di arrivo (↙) e partenza (↗) rilevati per questa nave, con destinazione, pescaggio e durata della sosta.
+Registro di tutti gli eventi di arrivo (↙) e partenza (↗) rilevati per questa nave, con destinazione, pescaggio e durata della sosta. I codici UN/LOCODE nella colonna Destinazione sono risolti automaticamente nel nome del porto (es. `ITNAP` → "Napoli").
 
 ---
 

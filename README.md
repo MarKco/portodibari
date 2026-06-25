@@ -53,6 +53,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── webhooks.js        # Webhook in uscita per-utente (Slack/Discord/SIEM/custom; formati, firma HMAC, SSRF guard)
 │   │   ├── group-sync.js      # Gruppi di utenti: unione + sincronizzazione write-through di aree/follow/flag/mute + preferenze condivise
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
+│   │   ├── locode.js          # Lookup UN/LOCODE → nome porto leggibile (carica data/locode.json a richiesta)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
 │   │       ├── vesselfinder.js
@@ -84,7 +85,11 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   ├── uk-sanctions.csv      # Lista sanzioni UK OFSI (cache su disco)
 │   ├── un-sanctions.csv      # Lista sanzioni ONU navi designate (cache su disco)
 │   ├── paris-mou-*.json/csv  # Liste Paris MoU (flag + banned)
-│   └── tokyo-mou-flags.json  # Liste Tokyo MoU
+│   ├── tokyo-mou-flags.json  # Liste Tokyo MoU
+│   └── locode.json           # Lookup compatto UN/LOCODE → nome porto (104 k voci, ~2.2 MB; generato da scripts/build-locode.js)
+├── scripts/
+│   ├── gen-icons.js          # Rigenera le icone PWA da public/icons/source.png (sips, macOS)
+│   └── build-locode.js       # Genera data/locode.json dal pacchetto npm un-locode (una-tantum)
 ├── local.properties          # Config + API key (gitignored)
 ├── local.properties.example  # Template di configurazione
 └── ais_data.db               # Database SQLite (creato al primo avvio, gitignored)

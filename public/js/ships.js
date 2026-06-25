@@ -371,7 +371,7 @@ function renderActiveTable(ships) {
       <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}</td>
       <td class="mono">${s.mmsi}</td>
       <td>${shipTypeBadge(s.ship_type)}</td>
-      <td class="destination">${escHtml(s.destination) || '—'}</td>
+      <td class="destination">${escHtml(s.destination_label || s.destination) || '—'}</td>
       <td>${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}</td>
       <td>${directionBadge(s.direction)}</td>
       <td class="col-risk">${riskBadge(s.risk)}</td>
@@ -653,7 +653,7 @@ function renderDetailEvents(events) {
       <tr>
         <td><span class="event-badge departed">${t('event.departed')}</span></td>
         <td>${formatTime(departure.ts)}</td>
-        <td>${escHtml(departure.destination) || '—'}</td>
+        <td>${escHtml(departure.destination_label || departure.destination) || '—'}</td>
         <td>${departure.draught != null ? departure.draught.toFixed(1) + ' m' : '—'} ${draughtStr}</td>
         <td>—</td>
       </tr>`
@@ -662,7 +662,7 @@ function renderDetailEvents(events) {
       <tr>
         <td><span class="event-badge arrived">${t('event.arrived')}</span></td>
         <td>${formatTime(arrival.ts)}</td>
-        <td>${escHtml(arrival.destination) || '—'}</td>
+        <td>${escHtml(arrival.destination_label || arrival.destination) || '—'}</td>
         <td>${arrival.draught != null ? arrival.draught.toFixed(1) + ' m' : '—'}</td>
         <td>${departure ? formatDuration(ms) : `<span class="in-porto">${t('event.inPort')}</span>`}</td>
       </tr>${depRow}`;
@@ -728,7 +728,7 @@ export function renderDetailInfoBar(ship, latestArrival) {
     [t('info.loadState') + eqInfoIcon(t('info.loadState'), t('info.loadStateHelp')),  loadStateHtml(ship.risk?.cargo?.loadState)],
     [t('info.callSign'),   escHtml(ship.call_sign) || '—'],
     [t('info.imo'),        ship.imo_number || '—'],
-    [t('info.dest'),       escHtml(ship.destination) || '—'],
+    [t('info.dest'),       escHtml(ship.destination_label || ship.destination) || '—'],
     [t('info.eta'),        escHtml(ship.eta) || '—'],
     [t('info.maxDraught'), ship.max_draught != null ? ship.max_draught.toFixed(1) + ' m' : '—'],
     [t('info.length'),     dimLen],
@@ -1368,7 +1368,7 @@ async function generateReport(mmsi) {
       row(t('info.shipType'), shipTypeLabel(ship.ship_type)),
       row(t('info.callSign'), ship.call_sign),
       row(t('info.imo'), ship.imo_number),
-      row(t('info.dest'), ship.destination),
+      row(t('info.dest'), ship.destination_label || ship.destination),
       row(t('info.eta'), ship.eta),
       row(t('info.maxDraught'), ship.max_draught != null ? ship.max_draught.toFixed(1) + ' m' : '—'),
       row(t('info.length'), dimLen),

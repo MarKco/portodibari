@@ -80,7 +80,7 @@ function renderFollowedActiveTable(ships) {
       <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}</td>
       <td class="mono">${s.mmsi}</td>
       <td>${shipTypeBadge(s.ship_type)}</td>
-      <td class="destination">${escHtml(s.destination) || '—'}</td>
+      <td class="destination">${escHtml(s.destination_label || s.destination) || '—'}</td>
       <td>${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}</td>
       <td>${directionBadge(s.direction)}</td>
       <td class="col-risk">${riskBadge(s.risk)}</td>

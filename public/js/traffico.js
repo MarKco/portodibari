@@ -279,7 +279,7 @@ function renderExpectedTable(ships, keyword) {
     <tr class="ship-row" data-mmsi="${s.mmsi}">
       <td class="ship-name">${escHtml(s.ship_name) || '—'}</td>
       <td class="mono">${s.mmsi}</td>
-      <td class="destination">${escHtml(s.destination) || '—'}</td>
+      <td class="destination">${escHtml(s.destination_label || s.destination) || '—'}</td>
       <td>${formatTime(s.last_seen_at)}</td>
     </tr>`
     )

@@ -16,6 +16,7 @@ const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY } = require('../config');
+const { destinationLabel } = require('../services/locode');
 
 const router = express.Router();
 
@@ -41,6 +42,7 @@ function decorate(s, sets, lang, withDirection) {
     notif_muted: sets.mutes.has(s.mmsi) ? 1 : 0,
     risk: computeRiskScoreCached(s, lang),
     is_military: mil,
+    destination_label: destinationLabel(s.destination),
   };
   if (withDirection) {
     base.direction = computeDirection(s);
@@ -368,6 +370,7 @@ router.get('/ships/:mmsi', (req, res) => {
     flagged: mil ? true : db.getUserFlaggedMmsis(uid).has(mmsi),
     followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
+    destination_label: destinationLabel(ship.destination),
   });
 });
 
@@ -530,7 +533,8 @@ router.patch('/ships/:mmsi/notes', (req, res) => {
 router.get('/ships/:mmsi/events', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
-  res.json({ events: db.getShipEvents(mmsi) });
+  const events = db.getShipEvents(mmsi).map((e) => ({ ...e, destination_label: destinationLabel(e.destination) }));
+  res.json({ events });
 });
 
 router.get('/ships/:mmsi/vfdata', async (req, res) => {

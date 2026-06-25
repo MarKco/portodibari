@@ -123,7 +123,7 @@ Shows ships detected in the area over the past few hours, with a live map and ta
 | Ship name | Vessel name |
 | MMSI | Unique vessel identification code |
 | Ship type | Category (cargo, tanker, passenger, etc.) |
-| Destination | Declared destination port |
+| Destination | Declared destination port. UN/LOCODE values (e.g. `ITTAR`, `IT TAR`) are automatically resolved to the port name (e.g. "Taranto"); already-readable values (e.g. "NAPOLI") are shown as-is |
 | SOG | Speed over ground in knots |
 | Direction | ↙ Inbound / ↗ Outbound / ⚓ Stationary |
 | Risk score | Score 0–100 (green/yellow/red) |
@@ -275,7 +275,7 @@ Grid with all available vessel data:
 | Load state | Estimated laden / partial / in-ballast from the declared draught compared with the min/max observed for that vessel (marked "estimated") |
 | Call sign | Radio call sign |
 | IMO | IMO registration number |
-| Destination | Declared port |
+| Destination | Declared port; UN/LOCODE codes resolved automatically |
 | ETA | Estimated time of arrival |
 | Max draught | Hull depth in water (meters) |
 | Length / Beam | Physical dimensions |
@@ -351,7 +351,7 @@ Free-text area. Write any annotation about the vessel and press **Save notes**. 
 
 ### Port visit history
 
-Log of all arrival (↙) and departure (↗) events recorded for this vessel, with destination, draught, and stay duration.
+Log of all arrival (↙) and departure (↗) events recorded for this vessel, with destination, draught, and stay duration. UN/LOCODE values in the Destination column are automatically resolved (e.g. `ITNAP` → "Napoli").
 
 ---
 

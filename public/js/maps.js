@@ -407,7 +407,7 @@ export function renderFollowedMap(ships) {
           `<span style="color:#9ca3af;font-size:0.8rem">MMSI: ${s.mmsi}</span><br><br>` +
           `🚢 ${shipTypeLabel(s.ship_type)}<br>` +
           `${t('map.risk')} ${riskBadge(s.risk)}<br>` +
-          `📍 ${s.destination ? escHtml(s.destination) : '—'}<br>` +
+          `📍 ${(s.destination_label || s.destination) ? escHtml(s.destination_label || s.destination) : '—'}<br>` +
           `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
           `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
           `🕐 ${formatTime(s.last_seen_at)}<br>` +
@@ -457,7 +457,7 @@ export function renderActiveMap(ships) {
           `<span style="color:#9ca3af;font-size:0.8rem">MMSI: ${s.mmsi}</span><br><br>` +
           `🚢 ${shipTypeLabel(s.ship_type)}<br>` +
           `${t('map.risk')} ${riskBadge(s.risk)}<br>` +
-          `📍 ${s.destination ? escHtml(s.destination) : '—'}<br>` +
+          `📍 ${(s.destination_label || s.destination) ? escHtml(s.destination_label || s.destination) : '—'}<br>` +
           `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
           `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
           `${directionBadge(s.direction)}${s.in_port ? ` ${t('port.badge')}` : ''}<br>` +
