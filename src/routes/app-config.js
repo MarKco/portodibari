@@ -17,8 +17,10 @@ const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
 
-// Global server operating parameters — admin only.
-router.use(requireAdmin);
+// Global server operating parameters — admin only. Scope the guard to this
+// router's own path: a path-less router.use() would gate EVERY /api request that
+// flows through this path-less-mounted router (areas/berths/export included).
+router.use('/app-config', requireAdmin);
 
 const KEY_RE = /^[A-Z0-9_]+$/;
 
