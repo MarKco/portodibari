@@ -373,8 +373,10 @@ async function sendToUser(userId, type, msgKey, params) {
       // Photo (caption = the message). Renders/uploads once per map, reuses the
       // file_id for the rest of the fan-out; falls back to text if it can't.
       // `mapPoints` (e.g. a rendezvous pair) draws multiple pins + a link line.
+      // OpenSeaMap seamark overlay is OFF in the screenshots: its symbols clutter
+      // a small notification map (the live UI map can still show it per user pref).
       const mapPoints = Array.isArray(params && params.mapPoints) ? params.mapPoints : null;
-      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, true, reply_markup, mapPoints);
+      const sent = await sendMapPhoto(chatId, body, lat, lon, MAP_ZOOM, false, reply_markup, mapPoints);
       if (!sent) {
         await call('sendMessage', { chat_id: chatId, text: body, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup });
       }
