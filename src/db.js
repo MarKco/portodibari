@@ -790,7 +790,13 @@ function pruneExpiredSessions() {
 function seedDefaultAdmin({ username = 'admin', email = 'admin@local', password } = {}) {
   if (!password) return null;
   const existing = findUserByLogin(username);
-  if (existing) return existing;
+  if (existing) {
+    if (!auth.verifyPassword(password, existing.pw_hash, existing.pw_salt)) {
+      appLog.info('AUTH', `Reset password amministratore di default "${username}"`);
+      setUserPassword(existing.id, password);
+    }
+    return existing;
+  }
   // Also avoid colliding with a user who already claimed the synthetic email.
   if (findUserByLogin(email)) return null;
   appLog.info('AUTH', `Creazione utente amministratore di default "${username}"`);
