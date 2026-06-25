@@ -1293,6 +1293,18 @@ const insertCounters = {};
 // toArea } when a ship moves from one monitored area to a different one, arrived =
 // mmsi on any arrival (new MMSI or after >60min absence, for high-risk notifications
 // and score snapshots). All null otherwise.
+
+// AISstream sends Eta as {Month, Day, Hour, Minute} object, not a string.
+function formatEta(e) {
+  if (!e) return null;
+  if (typeof e === 'object') {
+    const { Month: mo = 0, Day: d = 0, Hour: h = 0, Minute: mi = 0 } = e;
+    if (!mo && !d) return null;
+    return `${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+  }
+  return String(e).trim() || null;
+}
+
 function insert(parsed, areaKey = '') {
   const { MessageType, MetaData, Message } = parsed;
   const meta = MetaData || {};
@@ -1329,7 +1341,7 @@ function insert(parsed, areaKey = '') {
     dim_stern: msgData.DimensionToStern || null,
     dim_port: msgData.DimensionToPort || null,
     dim_starboard: msgData.DimensionToStarboard || null,
-    eta: msgData.Eta ? String(msgData.Eta).trim() || null : null,
+    eta: formatEta(msgData.Eta),
   };
 
   insertReading.run(
