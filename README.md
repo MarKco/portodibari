@@ -207,6 +207,7 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Intervallo ricalcolo banchine   | `app.config.properties`           | `BERTH_RECOMPUTE_MIN`                 | 30 min         |
 | Intervallo scansione rendezvous | `app.config.properties`           | `PROXIMITY_SCAN_MIN` (0 = off)        | 10 min         |
 | Distanza coppia rendezvous      | `app.config.properties`           | `PROXIMITY_DIST_M`                    | 500 m          |
+| Esclusione rendezvous in porto  | `app.config.properties`           | `PROXIMITY_BERTH_M`                   | 600 m          |
 | Permanenza min. rendezvous      | `app.config.properties`           | `PROXIMITY_MIN_MINUTES`               | 10 min         |
 | Auto-ripristino DB dopo deploy  | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
@@ -538,7 +539,7 @@ Un **rendezvous** in mare aperto — due navi distinte ferme l'una accanto all'a
 
 - entrambe **lente**: SOG < `PROXIMITY_MAX_SOG_KN` (default 3 kn — una nave veloce sta solo transitando);
 - entrambe **non** ormeggiate/all'ancora (stato di navigazione ≠ 1, 5);
-- entrambe **al largo**: > `PROXIMITY_FAR_KM` km dal centro del bbox dell'area (default 10 — esclude gli ormeggi in porto, dove le navi sono naturalmente vicine);
+- entrambe **fuori da un porto noto**: oltre `PROXIMITY_BERTH_M` metri (default 600) da ogni centroide di berth calcolato per l'area — i berth sono cluster di navi ormeggiate, cioè i porti reali, quindi è il segnale corretto per escludere i rendezvous in banchina (dove le navi sono naturalmente vicine), indipendentemente da dove cade il porto dentro il bbox. Per le aree senza berth ancora calcolati si usa come ripiego la vecchia soglia `PROXIMITY_FAR_KM` km dal centro del bbox (default 10);
 - coppia entro `PROXIMITY_DIST_M` metri (default 500).
 
 **Macchina a stati (tabella `proximity_events`, coppia canonica `mmsi_a < mmsi_b`).** Un contatto **si apre** quando una coppia entra entro `PROXIMITY_DIST_M`; **resta aperto** finché la coppia è entro `PROXIMITY_DIST_M × PROXIMITY_CLOSE_MULT` (isteresi: un singolo fix rumoroso non lo chiude di colpo); **si chiude** quando la coppia si separa o una nave lascia l'area / diventa silente. Alla prima scansione in cui la permanenza del contatto raggiunge `PROXIMITY_MIN_MINUTES` (default 10) scatta **una sola** notifica e il contatto è marcato come confermato (`alerted`).

@@ -7,7 +7,9 @@
 //
 //   • both ships slow            (SOG < PROXIMITY.MAX_SOG_KN)
 //   • both NOT moored/anchored   (nav status ≠ 1, 5)
-//   • both offshore              (> PROXIMITY.FAR_KM from the area bbox centre)
+//   • neither in a known port    (> PROXIMITY.BERTH_M from every berth centroid;
+//                                 fallback to > PROXIMITY.FAR_KM from the bbox
+//                                 centre when the area has no computed berths)
 //   • pair within PROXIMITY.DIST_M
 //   • sustained ≥ PROXIMITY.MIN_MINUTES before it alerts
 //
@@ -75,12 +77,22 @@ function scanArea(area) {
   const nowIso = now.toISOString();
   const freshIso = new Date(now - PROXIMITY.FRESH_MIN * 60 * 1000).toISOString();
 
-  // Gate candidates: recent fix, slow, not moored/anchored, offshore.
+  // "In port" test: near any computed berth centroid. Berths are clusters of
+  // moored ships, i.e. the actual ports — the right signal to exclude in-port
+  // rendezvous regardless of where in a large bbox the port sits. When the area
+  // has no berths yet (never recomputed), fall back to the coarse bbox-centre
+  // distance so a fresh area still gets some offshore gating.
+  const berths = db.getBerths(area);
+  const inPort = (lat, lon) => (berths.length
+    ? berths.some((bt) => haversineM(lat, lon, bt.centroid_lat, bt.centroid_lon) <= PROXIMITY.BERTH_M)
+    : haversineM(lat, lon, center.lat, center.lon) / 1000 <= PROXIMITY.FAR_KM);
+
+  // Gate candidates: recent fix, slow, not moored/anchored, not in a known port.
   const cand = db.getProximityCandidates(area, freshIso).filter((s) => {
     if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) return false;
     if (s.sog == null || s.sog >= PROXIMITY.MAX_SOG_KN) return false;
     if (s.ns === '1' || s.ns === '5') return false; // anchored / moored
-    return haversineM(s.lat, s.lon, center.lat, center.lon) / 1000 > PROXIMITY.FAR_KM;
+    return !inPort(s.lat, s.lon);
   });
 
   const open = new Map(); // key → open row

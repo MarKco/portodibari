@@ -252,15 +252,19 @@ const BERTH = {
 // A periodic per-area scan flags pairs of distinct vessels that linger close
 // together offshore while both are slow — the classic ship-to-ship transfer
 // signature. SCAN_MIN = 0 disables the scan entirely. Distances in metres, the
-// dwell threshold in minutes, the speed gate in knots, the offshore gate in km
-// from the area's bbox centre. CLOSE_MULT widens the separation that keeps an
-// open contact alive (hysteresis) so a single noisy fix doesn't flap it shut.
+// dwell threshold in minutes, the speed gate in knots. BERTH_M excludes ships
+// sitting in a known port (within BERTH_M of any computed berth centroid) — the
+// real "in port vs offshore" signal. FAR_KM is only a fallback for areas with
+// no computed berths yet: distance from the bbox centre beyond which a pair
+// counts as offshore. CLOSE_MULT widens the separation that keeps an open
+// contact alive (hysteresis) so a single noisy fix doesn't flap it shut.
 const PROXIMITY = {
   SCAN_MIN: num('PROXIMITY_SCAN_MIN', 10),
   DIST_M: num('PROXIMITY_DIST_M', 500),
   CLOSE_MULT: num('PROXIMITY_CLOSE_MULT', 1.5),
   MIN_MINUTES: num('PROXIMITY_MIN_MINUTES', 10),
   MAX_SOG_KN: num('PROXIMITY_MAX_SOG_KN', 3),
+  BERTH_M: num('PROXIMITY_BERTH_M', 600),
   FAR_KM: num('PROXIMITY_FAR_KM', 10),
   FRESH_MIN: num('PROXIMITY_FRESH_MIN', 20),
 };
