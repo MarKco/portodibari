@@ -51,6 +51,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── gfw.js             # Client API Global Fishing Watch: identità nave + eventi comportamentali (incontri, loitering, port visit, gap AIS)
 │   │   ├── proximity.js       # Rilevamento rendezvous nave-nave (scansione periodica per area, firma di trasbordo ship-to-ship)
 │   │   ├── webhooks.js        # Webhook in uscita per-utente (Slack/Discord/SIEM/custom; formati, firma HMAC, SSRF guard)
+│   │   ├── group-sync.js      # Gruppi di utenti: unione + sincronizzazione write-through di aree/follow/flag/mute + preferenze condivise
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
@@ -757,6 +758,26 @@ Sono invece **condivise/globali** (gestite dagli amministratori, **non** per-ute
 - la **configurazione dello score di rischio** (pesi del carico, esclusione petroliere, controlli spoofing/dark-activity).
 
 C'è **un solo set di connessioni AISstream** a livello di sistema (una WebSocket per ogni bounding box distinta delle aree, più uno stream "follow" condiviso — che ospita anche i [lookup transitori della ricerca nave](#-cerca-e-segui-una-nave) con box mondiale + filtro MMSI) e lo **score di rischio è un unico valore condiviso** per nave.
+
+### 👥 Gruppi di utenti
+
+Un amministratore può raggruppare gli utenti in **gruppi** (dalla pagina `/admin`). Ogni utente appartiene **al massimo a un gruppo**; un gruppo deve avere **almeno 2 membri**. I membri di un gruppo **condividono** — come **unione** — quattro insiemi di risorse e un sottoinsieme di impostazioni:
+
+- le **aree** di monitoraggio;
+- le **navi seguite** (attive);
+- le **navi segnalate** ★;
+- le **navi silenziate** 🔕;
+- le **preferenze di notifica** (in-app e Telegram per-categoria + invio mappa) e di **visualizzazione mappa** (OpenSeaMap) + l'**area di default**.
+
+Restano **personali** (mai sincronizzati): la **connessione Telegram** del singolo (chat collegata e codice di link), la **lingua** dell'interfaccia, e — ovviamente — credenziali e sessione. Le impostazioni **globali gestite dall'amministratore** (fonti di arricchimento, pesi di rischio, ecc.) restano globali e valgono per tutti, come prima: **non** fanno parte del gruppo.
+
+**Come funziona la sincronizzazione (write-through):**
+
+- **Alla creazione / all'ingresso** di un membro, aree/follow/segnalazioni/mute diventano l'**unione** di quelle di tutti i membri e vengono applicate a ciascuno. Le impostazioni iniziali del gruppo sono quelle di un **utente "modello"** scelto dall'amministratore alla creazione; un nuovo membro che entra in seguito **adotta** le impostazioni correnti del gruppo.
+- **Durante l'uso**, ogni modifica di un membro si propaga agli altri: sia le **aggiunte** sia le **rimozioni** (aree/navi), e ogni cambio di una preferenza condivisa. Gli altri membri la vedono **al successivo accesso/aggiornamento**. Il **feed di notifiche** converge naturalmente (stesse aree ⇒ stessi eventi), ma lo **stato letto/non-letto resta personale**.
+- **Disassociando** un membro, questo **mantiene** tutto ciò che ha accumulato (aree, navi, ultime impostazioni) e semplicemente **smette di sincronizzare**.
+
+**Vincolo dei 2 membri:** una rimozione che porterebbe il gruppo a 1 è **bloccata** — per smontare un gruppo di 2 si usa **"Sciogli gruppo"** (tutti tornano singoli mantenendo i dati). Unica eccezione: **eliminare** un utente è un'azione distruttiva esplicita, quindi se l'eliminazione lascia il gruppo a un solo membro il gruppo viene **sciolto automaticamente**.
 
 ### Password dimenticata
 

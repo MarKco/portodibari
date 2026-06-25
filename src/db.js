@@ -250,7 +250,23 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+  CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+  );
 `);
+
+// `users.group_id`: optional membership into a `groups` row. Members of a group
+// share (UNION) their areas/follows/flags/mutes and a subset of settings, kept
+// in sync write-through by src/services/group-sync.js. Nullable = no group.
+for (const col of ['group_id INTEGER']) {
+  try { db.exec(`ALTER TABLE users ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_users_group ON users(group_id)');
 
 // ── Per-user data model ──────────────────────────────────────────────────────
 // `areas`: the global catalog of monitoring areas (the source of truth that
@@ -494,7 +510,7 @@ function setMeta(key, value) {
 // ── Users & sessions ─────────────────────────────────────────────────────────
 
 const PUBLIC_USER_COLS =
-  'id, email, username, first_name, last_name, role, status, email_verified, created_at, approved_at, approved_by';
+  'id, email, username, first_name, last_name, role, status, email_verified, created_at, approved_at, approved_by, group_id';
 
 /** Lazily create + cache the HMAC secret used to sign session cookies. Persisted
  *  in `meta` so it survives restarts/deploys and every instance agrees. */
@@ -633,6 +649,67 @@ function deleteUser(id) {
     db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(id);
   }
   deleteUserStmt.run(id);
+}
+
+// Groups ────────────────────────────────────────────────────────────────────
+//
+// A group binds ≥2 users who SHARE (union) their areas/follows/flags/mutes and a
+// subset of settings. The sharing itself is write-through (src/services/
+// group-sync.js): per-user rows stay the source of truth, so the notification /
+// visibility layer is untouched. These functions only manage membership.
+
+const createGroupStmt = db.prepare('INSERT INTO groups (name, description, created_by, created_at) VALUES (?, ?, ?, ?)');
+function createGroup(name, description, createdBy) {
+  const info = createGroupStmt.run(String(name).trim(), description ? String(description).trim() : null, createdBy || null, new Date().toISOString());
+  return Number(info.lastInsertRowid);
+}
+
+/** All groups with their current member count. */
+function getGroups() {
+  return db.prepare(
+    `SELECT g.*, (SELECT COUNT(*) FROM users u WHERE u.group_id = g.id) AS member_count
+     FROM groups g ORDER BY g.created_at ASC`
+  ).all();
+}
+
+function getGroup(id) {
+  return db.prepare('SELECT * FROM groups WHERE id = ?').get(id) || null;
+}
+
+const renameGroupStmt = db.prepare('UPDATE groups SET name = ?, description = ? WHERE id = ?');
+function updateGroup(id, { name, description }) {
+  const g = getGroup(id);
+  if (!g) return;
+  renameGroupStmt.run(
+    name != null ? String(name).trim() : g.name,
+    description !== undefined ? (description ? String(description).trim() : null) : g.description,
+    id
+  );
+}
+
+const setUserGroupStmt = db.prepare('UPDATE users SET group_id = ? WHERE id = ?');
+function setUserGroup(userId, groupId) {
+  setUserGroupStmt.run(groupId == null ? null : groupId, userId);
+}
+
+/** Dissolve a group: detach all members (they keep their accumulated data), drop the row. */
+function deleteGroup(id) {
+  db.prepare('UPDATE users SET group_id = NULL WHERE group_id = ?').run(id);
+  db.prepare('DELETE FROM groups WHERE id = ?').run(id);
+}
+
+/** Member user ids of a group (ordered by join age = user creation). */
+function getGroupMembers(groupId) {
+  return db.prepare('SELECT id FROM users WHERE group_id = ? ORDER BY created_at ASC').all(groupId).map((r) => r.id);
+}
+
+function getUserGroupId(userId) {
+  const r = db.prepare('SELECT group_id FROM users WHERE id = ?').get(userId);
+  return r ? r.group_id : null;
+}
+
+function groupMemberCount(groupId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM users WHERE group_id = ?').get(groupId).n;
 }
 
 // Sessions ────────────────────────────────────────────────────────────────────
@@ -2297,7 +2374,7 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -2379,6 +2456,13 @@ function restoreFrom(src) {
     // no risk_history table, so the copy loop skips it and the pre-restore rows
     // would otherwise survive pointing at MMSIs no longer present in `ships`.
     db.prepare('DELETE FROM risk_history WHERE mmsi NOT IN (SELECT mmsi FROM ships)').run();
+
+    // Drop groups left with no members. A pre-groups backup has no `groups` table
+    // (loop skips it) and its `users` carry no group_id (restored as NULL), so any
+    // groups defined before the restore would otherwise dangle memberless. Groups
+    // always have ≥2 members by construction, so a 0-member group is only ever a
+    // restore artifact — safe to prune unconditionally.
+    db.prepare('DELETE FROM groups WHERE id NOT IN (SELECT group_id FROM users WHERE group_id IS NOT NULL)').run();
 
     // Reset prune counters so they re-derive from the restored data.
     Object.keys(insertCounters).forEach((k) => delete insertCounters[k]);
@@ -2560,6 +2644,16 @@ module.exports = {
   setSessionImpersonation,
   pruneExpiredSessions,
   seedDefaultAdmin,
+  // Groups
+  createGroup,
+  getGroups,
+  getGroup,
+  updateGroup,
+  deleteGroup,
+  setUserGroup,
+  getGroupMembers,
+  getUserGroupId,
+  groupMemberCount,
   // Area catalog & per-user ownership
   getAllAreas,
   upsertArea,

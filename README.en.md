@@ -53,6 +53,7 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │   │   ├── gfw.js             # Global Fishing Watch API client: vessel identity + behavioural events (encounters, loitering, port visits, AIS gaps)
 │   │   ├── proximity.js       # Ship-to-ship rendezvous detection (periodic per-area scan, ship-to-ship transshipment signature)
 │   │   ├── webhooks.js        # Per-user outbound webhooks (Slack/Discord/SIEM/custom; formats, HMAC signature, SSRF guard)
+│   │   ├── group-sync.js      # User groups: union + write-through sync of areas/follows/flags/mutes + shared preferences
 │   │   ├── equasis-log.js     # Append-only audit log of Equasis lookups (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # HTTP/node-libcurl helper + HTML parsing
@@ -708,6 +709,26 @@ The following are instead **shared/global** (admin-managed, **not** per-user):
 - the **risk-score configuration** (cargo weights, exclude-tankers, spoofing/dark-activity checks).
 
 There is **one AISstream connection set** system-wide (one WebSocket per distinct area bounding box, plus one shared "follow" stream), and the **risk score is a single shared value** per ship.
+
+### 👥 User groups
+
+An administrator can bundle users into **groups** (from the `/admin` page). Each user belongs to **at most one group**; a group must have **at least 2 members**. Group members **share** — as a **union** — four resource sets plus a subset of settings:
+
+- monitoring **areas**;
+- **followed** ships (active);
+- **flagged** ships ★;
+- **muted** ships 🔕;
+- **notification preferences** (in-app and per-category Telegram + send-map) and **map-display** (OpenSeaMap) options + the **default area**.
+
+These stay **personal** (never synced): each user's **Telegram connection** (linked chat + link code), the UI **language**, and of course credentials and session. **Admin-managed global** settings (enrichment sources, risk weights, etc.) stay global and apply to everyone, as before — they are **not** part of the group.
+
+**How sync works (write-through):**
+
+- **On creation / when a member joins**, areas/follows/flags/mutes become the **union** across all members and are written back to each. The group's initial settings are taken from a **"model" user** picked by the admin at creation; a member who joins later **adopts** the group's current settings.
+- **During use**, every change a member makes propagates to the others — both **additions** and **removals** (areas/ships), and every change to a shared preference. The others see it **on their next access/refresh**. The **notification feed** converges naturally (same areas ⇒ same events), but **read/unread state stays personal**.
+- **Disassociating** a member: it **keeps** everything it accumulated (areas, ships, latest settings) and simply **stops syncing**.
+
+**The 2-member rule:** a removal that would drop a group to 1 is **blocked** — to break up a 2-member group use **"Dissolve group"** (everyone reverts to solo, keeping their data). The only exception: **deleting** a user is an explicit destructive action, so if the deletion leaves the group with a single member the group is **dissolved automatically**.
 
 ### Forgot password
 

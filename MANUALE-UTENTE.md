@@ -55,6 +55,20 @@ Ogni utente ha **i propri**:
 
 Vedi i dati AIS delle navi che si trovano **dentro le tue aree**. La API key AISstream, le fonti di arricchimento (VesselFinder, MarineTraffic, sanzioni, ecc.) e la configurazione dello score di rischio sono invece **condivise** e gestite dagli amministratori.
 
+Se fai parte di un **gruppo di utenti** (vedi sotto), alcune di queste cose sono **condivise con gli altri membri del gruppo**.
+
+### Gruppi di utenti
+
+Un amministratore può inserirti in un **gruppo** insieme ad altri utenti. Quando fai parte di un gruppo, **condividi con gli altri membri** (come **unione** di ciò che ognuno aveva):
+
+- le **aree** di monitoraggio;
+- le **navi seguite**, le **navi segnalate** ★ e le **navi silenziate** 🔕;
+- le **preferenze di notifica** (app e Telegram) e di **visualizzazione mappa**, oltre all'**area di default**.
+
+In pratica: se aggiungi un'area, segui una nave o abiliti una notifica, **gli altri membri se la ritrovano** al loro prossimo accesso — e viceversa. Restano invece **tuoi personali**: il **collegamento Telegram** (la tua chat) e la **lingua** dell'interfaccia. Le impostazioni gestite dagli amministratori (sorgenti dati, pesi di rischio) restano globali per tutti.
+
+Se l'amministratore ti **toglie dal gruppo**, **mantieni** tutto quello che nel frattempo era stato condiviso (aree, navi, impostazioni): semplicemente smetti di sincronizzarti con gli altri.
+
 ### Per gli amministratori
 
 Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagina di amministrazione** (`/admin`). Da qui un amministratore può:
@@ -64,6 +78,7 @@ Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagi
 - **cambiare il ruolo** di un utente (utente normale ↔ amministratore);
 - **reimpostare la password** di un utente (genera un link monouso da consegnargli);
 - **eliminare** un utente;
+- **creare e gestire i gruppi di utenti** — un gruppo ha un **nome**, una **descrizione** e **almeno 2 membri**; alla creazione si sceglie l'**utente modello** da cui prendere le impostazioni iniziali. Si possono **aggiungere/rimuovere** membri o **sciogliere** il gruppo (una rimozione che lascerebbe 1 solo membro è bloccata: si scioglie il gruppo);
 - **impersonare** un utente — visualizzarne aree, monitoraggi e navi seguite in **sola lettura**, con un banner in evidenza e l'uscita con un click;
 - consultare i **log** (log API e log attività), che sono condivisi e visibili solo agli amministratori.
 

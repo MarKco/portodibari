@@ -11,6 +11,7 @@ const {
 } = require('../config');
 const db = require('../db');
 const userPrefs = require('../services/user-prefs');
+const groupSync = require('../services/group-sync');
 const { requireAdmin } = require('../middleware/session-auth');
 const { CARGO_CLASSES } = require('../services/cargo-type');
 const cargoPresets = require('../services/cargo-presets');
@@ -374,6 +375,12 @@ router.post('/settings', (req, res) => {
     }
     userPrefs.set(uid, { defaultArea: b.preset });
   }
+
+  // Mirror the shared personal prefs (notif/map toggles + default area) onto the
+  // user's group co-members, so the whole group stays in sync.
+  const sharedPatch = { ...personalPatch };
+  if (b.preset !== undefined && b.preset !== null && b.preset !== '') sharedPatch.defaultArea = b.preset;
+  groupSync.syncSettings(uid, sharedPatch);
 
   // ── Global settings (admin only) ──
   const {

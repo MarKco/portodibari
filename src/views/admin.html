@@ -36,6 +36,24 @@
   .msg { margin:.8rem 0; min-height:1.2em; font-size:.85rem; }
   .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
   .me { color:var(--text-muted); font-size:.85rem; }
+  h2 { font-size:.95rem; margin:2rem 0 .8rem; }
+  .pill.group { background:rgba(59,130,246,.14); color:#93c5fd; }
+  .grp-desc { color:var(--text-muted); font-size:.8rem; white-space:normal; }
+  .members { display:flex; gap:.35rem; flex-wrap:wrap; white-space:normal; }
+  .member { display:inline-flex; align-items:center; gap:.3rem; background:var(--surface-2);
+            border:1px solid var(--border); border-radius:999px; padding:.1rem .2rem .1rem .55rem; font-size:.78rem; }
+  .member .x { border:0; background:transparent; color:var(--text-muted); padding:0 .25rem; line-height:1; cursor:pointer; font-size:.95rem; }
+  .member .x:hover { color:#fca5a5; }
+  .panel { border:1px solid var(--border); border-radius:10px; padding:1rem; margin-top:.8rem; background:var(--surface); }
+  .panel.hidden { display:none; }
+  .panel label { display:block; margin:.5rem 0 .2rem; color:var(--text-muted); font-size:.8rem; }
+  .panel input[type=text], .panel select { width:100%; max-width:420px; padding:.4rem .5rem; border-radius:7px;
+            border:1px solid var(--border); background:var(--surface-2); color:var(--text); font:inherit; }
+  .checks { display:flex; flex-direction:column; gap:.25rem; max-height:220px; overflow:auto;
+            border:1px solid var(--border); border-radius:7px; padding:.5rem; max-width:420px; }
+  .checks label { display:flex; align-items:center; gap:.5rem; margin:0; color:var(--text); }
+  .row-actions { margin-top:.9rem; display:flex; gap:.5rem; }
+  .toolbar { margin:.4rem 0 .8rem; }
 </style>
 </head>
 <body>
@@ -51,14 +69,43 @@
     <div class="msg" id="msg"></div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Nome</th><th>Email / Username</th><th>Ruolo</th><th>Stato</th><th>Aree</th><th>Azioni</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Email / Username</th><th>Ruolo</th><th>Stato</th><th>Gruppo</th><th>Aree</th><th>Azioni</th></tr></thead>
         <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <h2>Gruppi di utenti</h2>
+    <p class="me">I membri di un gruppo condividono (unione) aree di monitoraggio, navi seguite, navi flaggate, navi silenziate e le preferenze di notifica/mappa. Le impostazioni gestite dall'amministratore (sorgenti dati, pesi di rischio) restano globali. Un gruppo richiede almeno 2 utenti.</p>
+    <div class="toolbar"><button id="btn-new-group">+ Nuovo gruppo</button></div>
+
+    <div class="panel hidden" id="new-group-panel">
+      <label for="ng-name">Nome del gruppo</label>
+      <input type="text" id="ng-name" placeholder="es. Monitoraggio Lecce" />
+      <label for="ng-desc">Descrizione (opzionale)</label>
+      <input type="text" id="ng-desc" placeholder="Descrizione del gruppo" />
+      <label>Membri (almeno 2 — solo utenti non già in un gruppo)</label>
+      <div class="checks" id="ng-members"></div>
+      <label for="ng-baseline">Utente modello (fornisce le impostazioni iniziali)</label>
+      <select id="ng-baseline"></select>
+      <div class="row-actions">
+        <button id="ng-create">Crea gruppo</button>
+        <button id="ng-cancel">Annulla</button>
+      </div>
+    </div>
+
+    <div class="tablewrap" style="margin-top:.8rem">
+      <table>
+        <thead><tr><th>Nome</th><th>Descrizione</th><th>Membri</th><th>Azioni</th></tr></thead>
+        <tbody id="group-rows"></tbody>
       </table>
     </div>
   </div>
 <script>
   const msg = document.getElementById('msg');
   let ME = null;
+  let USERS = [];
+  let GROUPS = [];
+  function groupName(id) { const g = GROUPS.find((x) => x.id === id); return g ? g.name : null; }
   function show(t, ok) { msg.className = 'msg ' + (ok ? 'ok' : 'err'); msg.textContent = t; }
 
   async function api(method, url, body) {
@@ -88,22 +135,143 @@
       acts.push(`<button data-act="reset" data-id="${u.id}">Reset password</button>`);
       if (u.id !== ME && u.status === 'active') acts.push(`<button data-act="impersonate" data-id="${u.id}">Impersona</button>`);
       if (u.id !== ME) acts.push(`<button class="danger" data-act="delete" data-id="${u.id}">Elimina</button>`);
+      const gName = u.group_id != null ? groupName(u.group_id) : null;
       tr.innerHTML =
         `<td>${name}${u.id === ME ? ' <span class="me">(tu)</span>' : ''}</td>` +
         `<td>${esc(u.email)}<br><span class="me">${esc(u.username || '')}</span></td>` +
         `<td><span class="pill ${u.role}">${u.role}</span></td>` +
         `<td><span class="pill ${u.status}">${u.status}</span></td>` +
+        `<td>${gName ? `<span class="pill group">${esc(gName)}</span>` : '<span class="me">—</span>'}</td>` +
         `<td>${u.areas}</td>` +
         `<td><div class="acts">${acts.join('')}</div></td>`;
       tb.appendChild(tr);
     }
   }
 
+  // Active users not currently bound to any group — the candidates for joining.
+  function ungroupedUsers() {
+    return USERS.filter((u) => u.status === 'active' && u.group_id == null);
+  }
+
+  function renderGroups() {
+    const tb = document.getElementById('group-rows');
+    tb.innerHTML = '';
+    if (!GROUPS.length) {
+      tb.innerHTML = '<tr><td colspan="4" class="me">Nessun gruppo.</td></tr>';
+      return;
+    }
+    const candidates = ungroupedUsers();
+    for (const g of GROUPS) {
+      const tr = document.createElement('tr');
+      const canRemove = g.members.length > 2; // removing below 2 is blocked → dissolve instead
+      const chips = g.members.map((m) => {
+        const nm = `${esc(m.first_name || '')} ${esc(m.last_name || '')}`.trim() || esc(m.username || m.email);
+        const x = canRemove ? `<button class="x" data-act="grp-remove" data-id="${g.id}" data-uid="${m.id}" title="Rimuovi dal gruppo">×</button>` : '';
+        return `<span class="member">${nm}${x}</span>`;
+      }).join('');
+      const addSel = candidates.length
+        ? `<select data-add-for="${g.id}"><option value="">+ aggiungi membro…</option>` +
+          candidates.map((u) => `<option value="${u.id}">${esc(`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email)}</option>`).join('') +
+          `</select>`
+        : '';
+      tr.innerHTML =
+        `<td><span class="pill group">${esc(g.name)}</span></td>` +
+        `<td class="grp-desc">${esc(g.description || '—')}</td>` +
+        `<td><div class="members">${chips}</div><div style="margin-top:.4rem">${addSel}</div></td>` +
+        `<td><div class="acts">` +
+          `<button data-act="grp-rename" data-id="${g.id}">Rinomina</button>` +
+          `<button class="danger" data-act="grp-dissolve" data-id="${g.id}">Sciogli</button>` +
+        `</div></td>`;
+      tb.appendChild(tr);
+    }
+  }
+
+  // ── New-group panel ───────────────────────────────────────────────────────
+  const ngPanel = document.getElementById('new-group-panel');
+  function syncBaselineOptions() {
+    const checked = [...document.querySelectorAll('#ng-members input:checked')];
+    const sel = document.getElementById('ng-baseline');
+    const prev = sel.value;
+    sel.innerHTML = checked.map((c) => `<option value="${c.value}">${esc(c.dataset.label)}</option>`).join('');
+    if (checked.some((c) => c.value === prev)) sel.value = prev;
+  }
+  function openNewGroup() {
+    const cand = ungroupedUsers();
+    const box = document.getElementById('ng-members');
+    if (!cand.length) { show('Nessun utente disponibile: servono almeno 2 utenti attivi non già in un gruppo.', false); return; }
+    document.getElementById('ng-name').value = '';
+    document.getElementById('ng-desc').value = '';
+    box.innerHTML = cand.map((u) => {
+      const label = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email;
+      return `<label><input type="checkbox" value="${u.id}" data-label="${esc(label)}" /> ${esc(label)} <span class="me">${esc(u.email)}</span></label>`;
+    }).join('');
+    syncBaselineOptions();
+    ngPanel.classList.remove('hidden');
+  }
+  document.getElementById('btn-new-group').addEventListener('click', openNewGroup);
+  document.getElementById('ng-cancel').addEventListener('click', () => ngPanel.classList.add('hidden'));
+  document.getElementById('ng-members').addEventListener('change', syncBaselineOptions);
+  document.getElementById('ng-create').addEventListener('click', async () => {
+    const name = document.getElementById('ng-name').value.trim();
+    const description = document.getElementById('ng-desc').value.trim();
+    const memberIds = [...document.querySelectorAll('#ng-members input:checked')].map((c) => Number(c.value));
+    const baselineId = Number(document.getElementById('ng-baseline').value);
+    if (!name) return show('Inserisci un nome per il gruppo.', false);
+    if (memberIds.length < 2) return show('Seleziona almeno 2 membri.', false);
+    try {
+      await api('POST', '/api/admin/groups', { name, description, memberIds, baselineId });
+      ngPanel.classList.add('hidden');
+      show('Gruppo creato', true);
+      load();
+    } catch (e) { show(e.message, false); }
+  });
+
+  // ── Group table actions ─────────────────────────────────────────────────────
+  document.getElementById('group-rows').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    try {
+      if (act === 'grp-remove') {
+        if (!confirm('Rimuovere questo utente dal gruppo? Mantiene i dati accumulati ma smette di sincronizzare.')) return;
+        await api('DELETE', `/api/admin/groups/${id}/members/${btn.dataset.uid}`); show('Membro rimosso', true);
+      } else if (act === 'grp-dissolve') {
+        if (!confirm('Sciogliere il gruppo? I membri mantengono i dati accumulati ma smettono di sincronizzare.')) return;
+        await api('DELETE', `/api/admin/groups/${id}`); show('Gruppo sciolto', true);
+      } else if (act === 'grp-rename') {
+        const g = GROUPS.find((x) => x.id === Number(id));
+        const name = prompt('Nuovo nome del gruppo:', g ? g.name : '');
+        if (name === null) return;
+        const description = prompt('Descrizione (vuoto = nessuna):', g ? (g.description || '') : '');
+        await api('PATCH', `/api/admin/groups/${id}`, { name: name.trim(), description: description == null ? '' : description.trim() });
+        show('Gruppo aggiornato', true);
+      }
+      load();
+    } catch (err) { show(err.message, false); }
+  });
+
+  document.getElementById('group-rows').addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-add-for]');
+    if (!sel || !sel.value) return;
+    try {
+      await api('POST', `/api/admin/groups/${sel.dataset.addFor}/members`, { userId: Number(sel.value) });
+      show('Membro aggiunto', true);
+      load();
+    } catch (err) { show(err.message, false); }
+  });
+
   async function load() {
     try {
-      const data = await api('GET', '/api/admin/users');
+      const [data, gdata] = await Promise.all([
+        api('GET', '/api/admin/users'),
+        api('GET', '/api/admin/groups'),
+      ]);
       ME = data.me;
-      render(data.users);
+      USERS = data.users;
+      GROUPS = gdata.groups || [];
+      render(USERS);
+      renderGroups();
     } catch (e) { show(e.message, false); }
   }
 

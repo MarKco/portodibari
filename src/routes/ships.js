@@ -12,6 +12,7 @@ const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
 const equasisLog = require('../services/equasis-log');
 const shipFollow = require('../services/ship-follow');
+const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY } = require('../config');
@@ -459,6 +460,7 @@ router.patch('/ships/:mmsi/flag', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { flagged } = req.body;
   db.setUserFlag(req.user.id, mmsi, !!flagged);
+  groupSync.syncFlag(req.user.id, mmsi, !!flagged); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.flag', { on: !!flagged }), { mmsi });
   res.json({ ok: true });
 });
@@ -478,6 +480,7 @@ router.patch('/ships/:mmsi/follow', (req, res) => {
   const { followed } = req.body;
   const userId = req.user.id;
   const { reacquiring } = shipFollow.applyFollow(userId, mmsi, !!followed);
+  groupSync.syncFollow(userId, mmsi, !!followed); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });
   res.json({ ok: true, reacquiring });
 });
@@ -495,6 +498,7 @@ router.patch('/ships/:mmsi/notif-muted', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notif_muted } = req.body;
   db.setUserMute(req.user.id, mmsi, !!notif_muted);
+  groupSync.syncMute(req.user.id, mmsi, !!notif_muted); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.notif_muted', { on: !!notif_muted }), { mmsi });
   res.json({ ok: true });
 });

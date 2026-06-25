@@ -5,6 +5,7 @@ const db = require('../db');
 const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
 const telegram = require('../services/telegram');
+const groupSync = require('../services/group-sync');
 const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas } = require('../config');
 
 const router = express.Router();
@@ -16,7 +17,10 @@ function importAreasAndStart(raw, userId = null) {
   const result = importAreas(raw);
   appLog.info('AREE', appLog.t('areas.imported'), { aggiunte: result.added.length, aggiornate: (result.updated || []).length });
   for (const key of [...result.added, ...(result.updated || [])]) {
-    if (userId) db.addUserArea(userId, key);
+    if (userId) {
+      db.addUserArea(userId, key);
+      groupSync.syncAreaAdd(userId, key); // mirror membership to group co-members
+    }
   }
   for (const key of result.added) {
     try {
@@ -82,6 +86,7 @@ router.post('/areas', (req, res) => {
     const { name, sw, ne, keyword, autostart } = req.body || {};
     const area = addArea({ name, sw, ne, keyword });
     db.addUserArea(req.user.id, area.key);
+    groupSync.syncAreaAdd(req.user.id, area.key); // mirror membership to group co-members
     appLog.info('AREE', appLog.t('areas.added', { name: area.name }), { area: area.key, autostart: autostart !== false });
     if (autostart !== false) stream.startStream(area.key);
     telegram.notifyAreaMonitor(req.user.id, 'start', { area: area.name });
@@ -102,6 +107,7 @@ router.delete('/areas/:key', (req, res) => {
   try {
     const areaName = BBOX_PRESETS[key].name;
     db.removeUserArea(req.user.id, key);
+    groupSync.syncAreaRemove(req.user.id, key); // drop membership for group co-members too
     telegram.notifyAreaMonitor(req.user.id, 'stop', { area: areaName });
     let purged = false;
     if (db.areaOwnerCount(key) === 0) {

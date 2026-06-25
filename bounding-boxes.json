@@ -12,6 +12,18 @@
       17.1
     ]
   },
+  "israele": {
+    "name": "Israele",
+    "keyword": "Israele",
+    "sw": [
+      29.18014,
+      33.67317
+    ],
+    "ne": [
+      33.65045,
+      35.81551
+    ]
+  },
   "nord_adriatico": {
     "name": "Nord Adriatico",
     "keyword": null,
@@ -22,18 +34,6 @@
     "ne": [
       45.73,
       12.68
-    ]
-  },
-  "taranto": {
-    "name": "Porto di Taranto",
-    "keyword": "TARANTO",
-    "sw": [
-      40.42,
-      17.12
-    ],
-    "ne": [
-      40.52,
-      17.3
     ]
   },
   "roma": {
@@ -48,16 +48,28 @@
       13.60931
     ]
   },
-  "israele": {
-    "name": "Israele",
-    "keyword": "Israele",
+  "taranto": {
+    "name": "Porto di Taranto",
+    "keyword": "TARANTO",
     "sw": [
-      29.18014,
-      33.67317
+      40.42,
+      17.12
     ],
     "ne": [
-      33.65045,
-      35.81551
+      40.52,
+      17.3
+    ]
+  },
+  "livorno": {
+    "name": "Livorno",
+    "keyword": "LIVORNO",
+    "sw": [
+      43.47989,
+      10.03562
+    ],
+    "ne": [
+      43.59861,
+      10.40195
     ]
   }
 }

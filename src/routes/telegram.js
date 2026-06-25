@@ -7,6 +7,7 @@
 const express = require('express');
 const telegram = require('../services/telegram');
 const userPrefs = require('../services/user-prefs');
+const groupSync = require('../services/group-sync');
 
 const router = express.Router();
 
@@ -57,6 +58,10 @@ router.post('/telegram/settings', (req, res) => {
   const patch = {};
   for (const k of TOGGLE_KEYS) if (b[k] !== undefined) patch[k] = !!b[k];
   if (Object.keys(patch).length) userPrefs.set(req.user.id, patch);
+  // Mirror the shared toggles (telegramNotify* + telegramSendMap) to group
+  // co-members. telegramEnabled stays personal (it's tied to each user's own
+  // chat link), so syncSettings filters it out.
+  groupSync.syncSettings(req.user.id, patch);
   res.json({ ok: true, ...statePayload(req.user.id) });
 });
 

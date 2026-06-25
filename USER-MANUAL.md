@@ -55,6 +55,20 @@ Each user has their own:
 
 You see the AIS data of ships located **inside your areas**. The AISstream API key, the enrichment sources (VesselFinder, MarineTraffic, sanctions, etc.) and the risk-score configuration are instead **shared** and managed by administrators.
 
+If you belong to a **user group** (see below), some of these things are **shared with the other group members**.
+
+### User groups
+
+An administrator can place you in a **group** together with other users. When you are in a group you **share with the other members** (as a **union** of what each one had):
+
+- monitoring **areas**;
+- **followed** ships, **flagged** ships ★ and **muted** ships 🔕;
+- **notification preferences** (in-app and Telegram) and **map-display** options, plus the **default area**.
+
+In practice: if you add an area, follow a ship or enable a notification, **the other members will find it too** on their next access — and vice versa. The following stay **personal to you**: your **Telegram link** (your chat) and the UI **language**. Admin-managed settings (data sources, risk weights) remain global for everyone.
+
+If the administrator **removes you from the group**, you **keep** everything that had been shared in the meantime (areas, ships, settings): you simply stop syncing with the others.
+
 ### For administrators
 
 Administrators see an **Admin** link in the top-right corner, which opens the **admin page** (`/admin`). From there an administrator can:
@@ -64,6 +78,7 @@ Administrators see an **Admin** link in the top-right corner, which opens the **
 - **change a user's role** (normal user ↔ administrator);
 - **reset a user's password** (generates a one-time link to hand to them);
 - **delete** a user;
+- **create and manage user groups** — a group has a **name**, a **description** and **at least 2 members**; at creation you pick the **model user** whose settings seed the group. Members can be **added/removed** or the group **dissolved** (a removal that would leave a single member is blocked: dissolve the group instead);
 - **impersonate** a user — view their areas, monitoring and followed ships in **read-only** mode, with a prominent banner and one-click exit;
 - consult the **logs** (API log and activity log), which are shared and visible to administrators only.
 
