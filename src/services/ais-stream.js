@@ -6,6 +6,7 @@ const db = require('../db');
 const enrichment = require('./enrichment');
 const userPrefs = require('./user-prefs');
 const telegram = require('./telegram');
+const webhooks = require('./webhooks');
 const berths = require('./berths');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
@@ -178,7 +179,9 @@ function startStream(areaKey) {
                 }
                 // Telegram is gated by its own per-user toggle, independent of the
                 // in-app one (so a user can get it on Telegram only, or vice versa).
-                telegram.notifyShipEvent(uid, 'high_risk', { name: ship.ship_name || arrived, mmsi: arrived, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
+                const evp = { name: ship.ship_name || arrived, mmsi: arrived, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn };
+                telegram.notifyShipEvent(uid, 'high_risk', evp);
+                webhooks.dispatch(uid, 'high_risk', evp);
               }
               if (any) appLog.warn('PORTO', appLog.t('port.high_risk', { name: ship.ship_name || arrived }), { mmsi: arrived, area: areaKey, score: risk.score });
             }
@@ -196,7 +199,9 @@ function startStream(areaKey) {
               if (p.notificationsEnabled && p.notifyRevisit) {
                 db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
               }
-              telegram.notifyShipEvent(uid, 'revisit', { name: ship.ship_name || revisit, mmsi: revisit, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
+              const evp = { name: ship.ship_name || revisit, mmsi: revisit, shipType: ship.ship_type, area: areaKey, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn };
+              telegram.notifyShipEvent(uid, 'revisit', evp);
+              webhooks.dispatch(uid, 'revisit', evp);
             }
           }
         }
@@ -214,7 +219,9 @@ function startStream(areaKey) {
                 db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
                 any = true;
               }
-              telegram.notifyShipEvent(uid, 'area_change', { name: ship.ship_name || areaChange.mmsi, mmsi: areaChange.mmsi, shipType: ship.ship_type, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn });
+              const evp = { name: ship.ship_name || areaChange.mmsi, mmsi: areaChange.mmsi, shipType: ship.ship_type, area: areaChange.toArea, fromArea: areaChange.fromArea, score: risk.score, lat: ship.last_latitude, lon: ship.last_longitude, sog: ship.last_sog, cog: ship.last_cog, dest: ship.destination, factorIt: fIt, factorEn: fEn };
+              telegram.notifyShipEvent(uid, 'area_change', evp);
+              webhooks.dispatch(uid, 'area_change', evp);
             }
             if (any) appLog.info('PORTO', appLog.t('port.area_change', { name: ship.ship_name || areaChange.mmsi }), { mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea });
           }

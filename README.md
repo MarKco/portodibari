@@ -50,6 +50,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): performance bandiera + navi bandite
 │   │   ├── gfw.js             # Client API Global Fishing Watch: identità nave + eventi comportamentali (incontri, loitering, port visit, gap AIS)
 │   │   ├── proximity.js       # Rilevamento rendezvous nave-nave (scansione periodica per area, firma di trasbordo ship-to-ship)
+│   │   ├── webhooks.js        # Webhook in uscita per-utente (Slack/Discord/SIEM/custom; formati, firma HMAC, SSRF guard)
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
@@ -67,6 +68,8 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │       ├── views.js           # Switch tra le viste
 │       ├── ships.js, maps.js, traffico.js, logs.js, health.js, areas.js
 │       ├── replay.js          # Replay storico time-scrubber sulla mappa dell'area
+│       ├── geoexport.js       # Export client-side GeoJSON/KML (navi, traccia, replay, banchine)
+│       ├── webhooks.js        # Gestione webhook in uscita per-utente (Impostazioni → Integrazioni esterne)
 │       ├── tiles.js            # Layer base OSM + overlay nautico OpenSeaMap (seamark)
 │       ├── seamarks.js         # Marker OpenSeaMap (porti/ormeggi/luci…) via Overpass API
 │       ├── notifications.js   # Feed notifiche in sidebar (badge, lista, segna come letta)
@@ -104,7 +107,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `EQUASIS_PASSWORD` | Password account Equasis — richiesta dal lookup Equasis | *(vuota)* |
 | `IMPORT_GFW` | Abilita l'arricchimento Global Fishing Watch (identità + eventi comportamentali ricavati dall'AIS) (`true`/`false`) | `true` |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Token API (Bearer) di Global Fishing Watch, generato dal [portale API GFW](https://globalfishingwatch.org/our-apis/) — richiesto dall'arricchimento GFW. Dati GFW free **solo per uso non commerciale** (ricerca/ONG/interesse pubblico); l'uso commerciale richiede una licenza dedicata. Senza token la feature è disattivata silenziosamente | *(vuoto)* |
-| `TELEGRAM_BOT_TOKEN` | Token del bot Telegram (da [@BotFather](https://t.me/BotFather)) per le notifiche su Telegram. Un solo bot serve tutti gli utenti; ognuno collega la propria chat dalle Impostazioni → tab **Telegram**. Vuoto = bot disattivato. **Segreto, non committare.** Nessun URL pubblico/webhook: l'app fa long-polling | *(vuoto)* |
+| `TELEGRAM_BOT_TOKEN` | Token del bot Telegram (da [@BotFather](https://t.me/BotFather)) per le notifiche su Telegram. Un solo bot serve tutti gli utenti; ognuno collega la propria chat dalle Impostazioni → tab **Integrazioni esterne**. Vuoto = bot disattivato. **Segreto, non committare.** Nessun URL pubblico/webhook: l'app fa long-polling | *(vuoto)* |
 | `ADMIN_USERNAME` | Username dell'amministratore predefinito, ri-seedato all'avvio se assente (vedi [Autenticazione](#-autenticazione-multi-utente)) | `admin` |
 | `ADMIN_EMAIL` | Email dell'amministratore predefinito | `admin@local` |
 | `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app | *(default incluso)* |
@@ -236,7 +239,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
-Modali accessori: **Impostazioni**, organizzate in tab: **Generali** (toggle import VF/MT/sanzioni/PSC/Equasis e notifiche, toggle **livello nautico OpenSeaMap** e **marcatori OpenSeaMap** con selezione delle categorie), **Aree** (toggle start/stop stream per ogni area), **Telegram** (collegamento del bot + toggle per categoria delle notifiche Telegram), **Parametri** (editor `app.config.properties`), **Backup/Ripristino** (auto-backup, esporta CSV, backup/ripristino database), **Log attività** (event log operativo live via SSE), **Log API** (pannello live delle richieste API via SSE) e **Diagnostica AIS** (uptime, msg/min, riconnessioni, ultimo errore). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
+Modali accessori: **Impostazioni**, organizzate in tab: **Generali** (toggle import VF/MT/sanzioni/PSC/Equasis e notifiche, toggle **livello nautico OpenSeaMap** e **marcatori OpenSeaMap** con selezione delle categorie), **Aree** (toggle start/stop stream per ogni area), **Integrazioni esterne** (collegamento del bot Telegram + toggle per categoria + webhook in uscita), **Parametri** (editor `app.config.properties`), **Backup/Ripristino** (auto-backup, esporta CSV, backup/ripristino database), **Log attività** (event log operativo live via SSE), **Log API** (pannello live delle richieste API via SSE) e **Diagnostica AIS** (uptime, msg/min, riconnessioni, ultimo errore). Bottoni di navigazione sidebar: **🏠 Monitoraggi** (home) e **🗺 Aree**. La sidebar include anche il **🔔 feed notifiche** (lista con badge non-lette, vedi [Eventi porto, statistiche e alert](#-eventi-porto-statistiche-e-alert)).
 
 Una nave "entra" nella lista presenti appena riceve la prima lettura. La finestra è ampia (6 ore) perché le navi in sosta trasmettono di rado: una nave ormeggiata può aggiornare la posizione anche solo ogni 3 ore (standard AIS classe A). Le navi **in porto** (vedi sotto) hanno una retention ancora più larga (24 ore), così restano visibili anche dopo un riavvio del server prima della successiva trasmissione.
 
@@ -381,6 +384,17 @@ Le viste **Navi presenti** e **Navi passate** hanno una toolbar sopra la tabella
 - **Solo in porto** (solo "presenti") e **Solo segnalate** (★).
 
 Il contatore `mostrate / totali` appare quando un filtro è attivo. La mappa overview riflette gli stessi filtri. Il pulsante **⬇ CSV filtrato** esporta la vista **corrente** (filtrata e ordinata) come CSV (un file per lista, generato nel browser via `Blob`, con BOM UTF-8 per Excel): colonne MMSI, nome, tipo, destinazione, SOG, COG, in porto, score/fascia, segnalata, militare, primo/ultimo contatto, callsign, IMO, lat/lon. È complementare all'[export ZIP completo](#-api-interne) (`/api/export`), che resta l'export grezzo di tutte le letture per tipo messaggio.
+
+### Export geospaziale (GeoJSON / KML)
+
+Per portare i dati in **QGIS** o **Google Earth**, accanto al CSV ci sono i pulsanti **⬇ GeoJSON** e **⬇ KML**, tutti **client-side** (generati nel browser da dati già caricati, come il CSV). Le coordinate sono emesse in ordine `[lon, lat]`. Implementati in [`public/js/geoexport.js`](public/js/geoexport.js). Quattro sorgenti:
+
+- **Lista navi filtrata** (toolbar Navi presenti/passate) → un **Point** per nave posizionata, con proprietà MMSI/nome/tipo/destinazione/SOG/COG/score/fascia/segnalata/militare/IMO/call sign.
+- **Traccia singola nave** (dettaglio nave, sotto la mappa) → una **LineString** lungo i fix + un **Point** per fix (con timestamp), da `/api/ships/:mmsi/track`.
+- **Replay finestra** (barra Replay) → una **LineString per nave** sulla finestra temporale caricata (proprietà MMSI/nome/fascia/intervallo).
+- **Banchine** (pulsanti "Banchine GeoJSON/KML" nella toolbar) → un **Polygon** per banchina (categoria, n. attracchi, % hazmat), dal `polygon_json`.
+
+Il KML usa `Placemark` con `ExtendedData` per le proprietà; il GeoJSON è una `FeatureCollection`. Export vuoto → un avviso (toast).
 
 ## 📈 Storico dello score di rischio
 
@@ -602,6 +616,17 @@ Oltre al feed in sidebar, ogni utente può ricevere le proprie notifiche su **Te
 - **API** — `GET /api/telegram` (stato + toggle), `POST /api/telegram/link` (genera codice), `POST /api/telegram/unlink`, `POST /api/telegram/settings` (toggle), `POST /api/telegram/test` (messaggio di prova).
 
 Il token sta solo in `local.properties` (gitignored, **non** nei backup, resta per-deployment); il `chat_id` e i toggle sono in `user_settings` e quindi inclusi nei backup.
+
+### 🔗 Webhook in uscita
+
+Oltre a Telegram, ogni utente può inoltrare gli eventi delle **proprie aree** a un **URL arbitrario** (Slack, Discord, un SIEM o un endpoint custom). Per-utente come il collegamento Telegram: un webhook scatta solo per gli eventi visibili a quell'utente. Backend in [`src/services/webhooks.js`](src/services/webhooks.js), route in [`src/routes/webhooks.js`](src/routes/webhooks.js), UI nella tab **Integrazioni esterne** delle Impostazioni ([`public/js/webhooks.js`](public/js/webhooks.js)).
+
+- **Per-webhook**: URL, **formato** (`generic` = JSON grezzo dell'evento per SIEM/custom · `slack` = `{text}` · `discord` = `{content}`), **eventi sottoscritti** (qualsiasi sottoinsieme di `high_risk`, `revisit`, `area_change`, `berth_new`, `berth_characterized`, `proximity`, `outage`), **abilitato** on/off, e un **secret** opzionale.
+- **Firma HMAC**: se il webhook ha un secret, il POST include `X-Tracker-Signature: sha256=<HMAC-SHA256(body)>` così il receiver verifica l'autenticità.
+- **Consegna**: POST fire-and-forget con timeout (8s), nessun retry; gli errori finiscono nel log attività. L'evento `outage` (disservizio AIS) è globale: viene inoltrato a tutti gli utenti che hanno un webhook iscritto.
+- **Sicurezza**: gli URL verso host **interni/privati** (localhost, 127/10/192.168/169.254/172.16–31, IPv6 loopback/link-local/ULA) sono **rifiutati** per limitare l'SSRF; solo `http`/`https`. Max 10 webhook per utente.
+- **Archiviazione**: lista JSON in `user_settings` (chiave `webhooks`), quindi inclusa nei backup; i secret sono mascherati nelle risposte API (`hasSecret`).
+- **API** (per-utente): `GET /api/webhooks` (lista + tipi evento + formati), `POST /api/webhooks` (aggiungi), `PATCH /api/webhooks/:id` (modifica/abilita), `DELETE /api/webhooks/:id`, `POST /api/webhooks/:id/test` (evento di prova). Un pulsante **Prova** invia un evento sintetico di alto rischio.
 
 ---
 

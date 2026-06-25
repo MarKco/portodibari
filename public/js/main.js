@@ -8,6 +8,7 @@ import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay } from './replay.js';
+import { initWebhooks } from './webhooks.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
@@ -1660,6 +1661,7 @@ initRiskTooltip();
 initGlossaryTooltip();
 initBerths();
 initReplay();
+initWebhooks();
 initAppConfig();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and

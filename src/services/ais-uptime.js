@@ -98,6 +98,7 @@ async function evaluate() {
     if (outage.serviceDown) {
       appLog.info('AIS', appLog.t('ais.outage_cleared'));
       require('./telegram').broadcastOutage('end');
+      require('./webhooks').broadcast('outage', { phase: 'end' });
     }
     outage = { serviceDown: false, monitorState: null, monitorSource: null, checkedAt: nowIso, since: null, silentMin: 0 };
     return;
@@ -127,6 +128,7 @@ async function evaluate() {
     if (!outage.serviceDown) {
       appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
       require('./telegram').broadcastOutage('start', { min: silentMin });
+      require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
     }
     outage = {
       serviceDown: true,
@@ -140,6 +142,7 @@ async function evaluate() {
     if (outage.serviceDown) {
       appLog.info('AIS', appLog.t('ais.outage_cleared'));
       require('./telegram').broadcastOutage('end');
+      require('./webhooks').broadcast('outage', { phase: 'end' });
     }
     outage = { serviceDown: false, monitorState, monitorSource, checkedAt: nowIso, since: null, silentMin };
   }

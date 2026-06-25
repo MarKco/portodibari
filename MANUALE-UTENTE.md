@@ -371,9 +371,11 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 
 > **Auto-ripristino dopo un deploy:** il database viene cancellato quando si aggiorna l'applicazione (deploy). Se all'avvio il database **non esiste** e sono presenti degli **auto-backup** salvati (cartella `data/backups/`), l'app ripristina automaticamente l'ultimo backup (solo il database). Questo richiede che la cartella dei backup sopravviva al deploy. Non scatta se il database esiste ma è stato semplicemente svuotato con "Cancella dati". Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
-Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Telegram** (notifiche sul bot Telegram, vedi sotto), **Parametri** e **Backup / Ripristino**.
+Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Integrazioni esterne** (notifiche Telegram + webhook in uscita, vedi sotto), **Parametri** e **Backup / Ripristino**.
 
-### Tab Telegram
+### Tab Integrazioni esterne
+
+In questo tab colleghi i canali esterni a cui inviare le notifiche: **Telegram** (in alto) e i **webhook in uscita** (in fondo).
 
 Permette di ricevere le notifiche del tuo utente su **Telegram**, tramite un bot. Funziona solo se l'amministratore ha configurato il token del bot sul server (`TELEGRAM_BOT_TOKEN`); altrimenti il tab mostra "Bot Telegram non configurato".
 
@@ -406,6 +408,16 @@ I toggle Telegram sono **indipendenti** da quelli delle notifiche nella barra la
 - **⭐ Segnala** — contrassegna la nave, come premere la **stellina** nella lista.
 
 Dopo il tap arriva una breve conferma e il pulsante si aggiorna (es. **✅ Seguita**, **⭐ Segnalata**). Le azioni sono "solo aggiunta": ripremere un pulsante già attivo non fa nulla. Per togliere il follow o la segnalazione usa la lista navi nel sito.
+
+**🔗 Webhook in uscita** — sotto i toggle Telegram puoi inoltrare gli eventi delle tue aree anche a un **indirizzo web** (un *webhook*), per portarli in **Slack**, **Discord**, un sistema di sicurezza (SIEM) o un tuo servizio. Per aggiungerne uno:
+
+1. Incolla l'**URL** del webhook (quello che ti dà Slack/Discord, o il tuo endpoint).
+2. Scegli il **formato**: *Generic* (JSON grezzo dell'evento, per SIEM/integrazioni custom), *Slack* o *Discord* (messaggio di testo pronto per quei servizi).
+3. Spunta **quali eventi** inviare (alto rischio, rendezvous, cambio area, rientro, banchine, disservizio AIS).
+4. (Facoltativo) imposta un **secret**: se presente, ogni invio include una firma `X-Tracker-Signature` con cui il destinatario verifica che arrivi davvero da qui.
+5. **Aggiungi webhook**. Usa **Prova** per inviare un evento di test, l'interruttore per attivarlo/disattivarlo, **Elimina** per rimuoverlo.
+
+I webhook sono **personali** (valgono solo per le tue aree) e indipendenti da Telegram. Per sicurezza non sono ammessi indirizzi interni/privati (localhost, reti locali). Massimo 10 per utente.
 
 ### Tab Parametri
 
@@ -664,7 +676,9 @@ Verifica che il monitoraggio per quest'area sia avviato (badge ATTIVO in alto) e
 Usa il pulsante **✓ Vista** su ogni riga: la nave diventa trasparente e la puoi distinguere subito da quelle non ancora esaminate.
 
 **Posso esportare i dati?**
-Sì. Vai in **⚙ Impostazioni** → **Esporta CSV**. Il file si scarica direttamente dal browser.
+Sì, in più modi, tutti scaricati direttamente dal browser:
+- **CSV** — il pulsante **⬇ CSV filtrato** nella toolbar Navi presenti/passate esporta la vista corrente (filtrata e ordinata); in **⚙ Impostazioni → Esporta CSV** c'è invece l'export grezzo di tutte le letture.
+- **GeoJSON / KML** (per **QGIS** o **Google Earth**) — accanto al CSV trovi **⬇ GeoJSON** e **⬇ KML**. Quattro sorgenti: la **lista navi** filtrata (punti), la **traccia** di una nave (dal dettaglio, sotto la mappa), il **replay** di un'area (una linea per nave, dalla barra Replay) e le **banchine** come poligoni (pulsanti "Banchine GeoJSON/KML"). Se non c'è nulla da esportare compare un avviso.
 
 **Ho cambiato area e le navi sono scomparse — è normale?**
 Sì. Ogni area ha il proprio set di dati indipendente e il proprio stream indipendente. Cambiare l'area nel menu a tendina è solo un cambio di vista: mostra i dati dell'area selezionata ma non avvia né ferma nessuno stream. Le navi della precedente area rimangono nel database; se torni a quell'area le rivedrai. Per ricevere dati su più aree contemporaneamente usa il pannello "Monitoraggio aree" nelle Impostazioni.

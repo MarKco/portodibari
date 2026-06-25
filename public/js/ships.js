@@ -5,6 +5,7 @@ import { showAlert } from './toast.js';
 import { renderActiveMap } from './maps.js';
 import { showView } from './views.js';
 import { t, getLang } from './i18n.js';
+import { exportShips, exportTrack, exportBerths } from './geoexport.js';
 import {
   escHtml,
   formatTime,
@@ -109,6 +110,20 @@ if (el.btnReportDetail) {
     if (S.detailMmsi != null) generateReport(S.detailMmsi);
   });
 }
+
+// Track export (GeoJSON/KML): fetch the full track and emit a LineString + per-fix points.
+const trackGeo = (fmt) => async () => {
+  if (S.detailMmsi == null) return;
+  try {
+    const r = await api(`/api/ships/${S.detailMmsi}/track`);
+    const name = S.detailShipData?.ship_name || el.detailName?.textContent || '';
+    if (!exportTrack(r.points || [], { mmsi: S.detailMmsi, name }, fmt)) showAlert(t('export.emptyTrack'));
+  } catch {
+    showAlert(t('export.emptyTrack'));
+  }
+};
+document.getElementById('track-geojson')?.addEventListener('click', trackGeo('geojson'));
+document.getElementById('track-kml')?.addEventListener('click', trackGeo('kml'));
 
 el.btnSaveNotes.addEventListener('click', async () => {
   if (S.detailMmsi == null) return;
@@ -424,6 +439,17 @@ function renderActiveTable(ships) {
     const sorted = sortShips(filterShips(activeShipsData, S.activeFilter, { inPort: true }), activeSort.col, activeSort.dir);
     exportShipsCsv(sorted, 'navi-presenti');
   });
+  const activeGeo = (fmt) => () => {
+    const sorted = sortShips(filterShips(activeShipsData, S.activeFilter, { inPort: true }), activeSort.col, activeSort.dir);
+    if (!exportShips(sorted, fmt, 'navi-presenti')) showAlert(t('export.empty'));
+  };
+  document.getElementById('active-geojson')?.addEventListener('click', activeGeo('geojson'));
+  document.getElementById('active-kml')?.addEventListener('click', activeGeo('kml'));
+  const berthsGeo = (fmt) => () => {
+    if (!exportBerths(S.berthsList, fmt, S.currentPreset || 'area')) showAlert(t('export.emptyBerths'));
+  };
+  document.getElementById('berths-geojson')?.addEventListener('click', berthsGeo('geojson'));
+  document.getElementById('berths-kml')?.addEventListener('click', berthsGeo('kml'));
 
   const p = {
     search: document.getElementById('past-search'),
@@ -444,6 +470,12 @@ function renderActiveTable(ships) {
     const sorted = sortShips(filterShips(pastShipsData, S.pastFilter), pastSort.col, pastSort.dir);
     exportShipsCsv(sorted, 'navi-passate');
   });
+  const pastGeo = (fmt) => () => {
+    const sorted = sortShips(filterShips(pastShipsData, S.pastFilter), pastSort.col, pastSort.dir);
+    if (!exportShips(sorted, fmt, 'navi-passate')) showAlert(t('export.empty'));
+  };
+  document.getElementById('past-geojson')?.addEventListener('click', pastGeo('geojson'));
+  document.getElementById('past-kml')?.addEventListener('click', pastGeo('kml'));
 }
 
 // ── Past ships ───────────────────────────────────────────────────────────────

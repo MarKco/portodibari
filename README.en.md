@@ -52,6 +52,7 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │   │   ├── psc.js             # Port State Control (Paris/Tokyo MoU): flag performance + banned vessels
 │   │   ├── gfw.js             # Global Fishing Watch API client: vessel identity + behavioural events (encounters, loitering, port visits, AIS gaps)
 │   │   ├── proximity.js       # Ship-to-ship rendezvous detection (periodic per-area scan, ship-to-ship transshipment signature)
+│   │   ├── webhooks.js        # Per-user outbound webhooks (Slack/Discord/SIEM/custom; formats, HMAC signature, SSRF guard)
 │   │   ├── equasis-log.js     # Append-only audit log of Equasis lookups (equasis.log)
 │   │   └── scrapers/
 │   │       ├── http.js        # HTTP/node-libcurl helper + HTML parsing
@@ -69,6 +70,8 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │       ├── views.js           # View switching
 │       ├── ships.js, maps.js, traffico.js, logs.js, health.js, areas.js
 │       ├── replay.js          # Area-wide historical replay (time-scrubber) on the area map
+│       ├── geoexport.js       # Client-side GeoJSON/KML export (ships, track, replay, berths)
+│       ├── webhooks.js        # Per-user outbound-webhook management (Settings → External integrations)
 │       ├── tiles.js            # OSM base layer + OpenSeaMap nautical (seamark) overlay
 │       ├── seamarks.js         # OpenSeaMap markers (harbours/berths/lights…) via Overpass API
 │       ├── notifications.js   # Sidebar notification feed (badge, list, mark as read)
@@ -104,7 +107,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup | *(empty)* |
 | `IMPORT_GFW` | Enable Global Fishing Watch enrichment (identity + AIS-derived behavioural events) (`true`/`false`) | `true` |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the [GFW API portal](https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. GFW data is free **for non-commercial use only** (research/NGO/public good); commercial use requires a dedicated license. Without a token the feature silently no-ops | *(empty)* |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (from [@BotFather](https://t.me/BotFather)) for Telegram notifications. A single bot serves all users; each links their own chat from Settings → **Telegram** tab. Empty = bot off. **Secret, do not commit.** No public URL/webhook needed: the app long-polls | *(empty)* |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (from [@BotFather](https://t.me/BotFather)) for Telegram notifications. A single bot serves all users; each links their own chat from Settings → **External integrations** tab. Empty = bot off. **Secret, do not commit.** No public URL/webhook needed: the app long-polls | *(empty)* |
 | `ADMIN_USERNAME` | Username of the built-in administrator, re-seeded at startup if missing (see [Authentication](#-authentication-multi-user)) | `admin` |
 | `ADMIN_EMAIL` | Email of the built-in administrator | `admin@local` |
 | `ADMIN_PASSWORD` | Password of the built-in administrator. If empty, the shipped default value is used | *(shipped default)* |
@@ -234,7 +237,7 @@ The interface is organized around **ships** (MMSI), not individual readings:
 | **Traffic**        | Aggregate statistics: summary cards, arrivals by hour-of-day chart, arrivals by ship type; **risk score distribution** (green/yellow/red tiles for ships in the last 7 days), **top risk factors** (frequency), **daily arrivals** (last 30 days), **highest-score ships** (top 8, clickable); expected ships (by preset keyword), latest port events |
 | **Areas**          | Runtime area management: list with coordinates/status/stored data, map showing all areas, panel to add (GPS coordinates or map view capture) and delete areas (with related history and a 10s undo window) |
 
-Accessory modals: **Settings**, organized into tabs: **General** (VF/MT/sanctions/PSC/Equasis import toggles and notifications, the **OpenSeaMap tile layer** and **OpenSeaMap markers** toggles with marker-category selection), **Areas** (per-area start/stop stream toggles), **Telegram** (bot account linking + per-category Telegram notification toggles), **Parameters** (`app.config.properties` editor), **Backup/Restore** (auto-backup, CSV export, database backup/restore), **Activity log** (operational event log, live via SSE), **API Log** (live panel of API requests via SSE) and **AIS Diagnostics** (uptime, msg/min, reconnections, last error). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
+Accessory modals: **Settings**, organized into tabs: **General** (VF/MT/sanctions/PSC/Equasis import toggles and notifications, the **OpenSeaMap tile layer** and **OpenSeaMap markers** toggles with marker-category selection), **Areas** (per-area start/stop stream toggles), **External integrations** (Telegram bot linking + per-category toggles + outbound webhooks), **Parameters** (`app.config.properties` editor), **Backup/Restore** (auto-backup, CSV export, database backup/restore), **Activity log** (operational event log, live via SSE), **API Log** (live panel of API requests via SSE) and **AIS Diagnostics** (uptime, msg/min, reconnections, last error). Sidebar navigation buttons: **🏠 Monitoring** (home) and **🗺 Areas**. The sidebar also includes the **🔔 notification feed** (list with an unread badge, see [Port events, statistics and alerts](#-port-events-statistics-and-alerts)).
 
 A ship "enters" the active list as soon as it receives its first reading. The window is wide (6 hours) because anchored ships transmit infrequently: a moored ship may update its position only every 3 hours (AIS Class A standard). Ships **in port** (see below) have an even wider retention (24 hours), so they remain visible after a server restart before their next transmission.
 
@@ -379,6 +382,17 @@ The **Active ships** and **Past ships** views have a toolbar above the table to 
 - **In port only** (Active only) and **Flagged only** (★).
 
 A `shown / total` counter appears when a filter is active. The overview map reflects the same filters. The **⬇ Filtered CSV** button exports the **current** (filtered and sorted) view as CSV (one file per list, generated in the browser via `Blob`, with a UTF-8 BOM for Excel): columns MMSI, name, type, destination, SOG, COG, in-port, score/band, flagged, military, first/last seen, callsign, IMO, lat/lon. It complements the [full ZIP export](#-internal-api) (`/api/export`), which remains the raw export of all readings per message type.
+
+### Geospatial export (GeoJSON / KML)
+
+To take the data into **QGIS** or **Google Earth**, next to the CSV there are **⬇ GeoJSON** and **⬇ KML** buttons, all **client-side** (built in the browser from data already loaded, like the CSV). Coordinates are emitted in `[lon, lat]` order. Implemented in [`public/js/geoexport.js`](public/js/geoexport.js). Four sources:
+
+- **Filtered ship list** (active/past toolbar) → one **Point** per positioned ship, with MMSI/name/type/destination/SOG/COG/score/band/flagged/military/IMO/call-sign properties.
+- **Single ship track** (ship detail, under the map) → a **LineString** along the fixes + one **Point** per fix (with timestamp), from `/api/ships/:mmsi/track`.
+- **Replay window** (Replay bar) → one **LineString per ship** over the loaded time window (MMSI/name/band/range properties).
+- **Berths** ("Berths GeoJSON/KML" buttons in the toolbar) → one **Polygon** per berth (category, mooring count, hazmat %), from the `polygon_json`.
+
+KML uses `Placemark` with `ExtendedData` for the properties; GeoJSON is a `FeatureCollection`. An empty export shows a toast warning.
 
 ## 📈 Risk score history
 
@@ -564,7 +578,7 @@ For ship notifications `ais-stream` computes the score and calls `db.addNotifica
 
 Beyond the sidebar feed, each user can receive their own notifications on **Telegram** via a bot. A single bot (token `TELEGRAM_BOT_TOKEN` in `local.properties`, created with [@BotFather](https://t.me/BotFather)) serves all users; without a token the feature is inert. The backend receives messages by **long-polling** (`getUpdates`) — no public URL or webhook, works behind NAT alongside the AIS streams (`src/services/telegram.js`, started in `server.js`).
 
-- **Linking** — from **Settings → Telegram tab** the user clicks "Link": the backend generates a one-time code (`user_settings.telegramLinkCode`) and a deep link `https://t.me/<bot>?start=<code>`. The user starts the bot; the backend maps code → user and stores the `chat_id` in `user_settings.telegramChatId`. `/stop` (or the "Unlink" button) clears the binding. If the user blocks the bot, a 403 send auto-unlinks them.
+- **Linking** — from **Settings → External integrations tab** the user clicks "Link": the backend generates a one-time code (`user_settings.telegramLinkCode`) and a deep link `https://t.me/<bot>?start=<code>`. The user starts the bot; the backend maps code → user and stores the `chat_id` in `user_settings.telegramChatId`. `/stop` (or the "Unlink" button) clears the binding. If the user blocks the bot, a 403 send auto-unlinks them.
 - **Per-category toggles** — independent of the in-sidebar notifications (a user may get a category on Telegram while it's off in-app, and vice versa). Per-user master `telegramEnabled` + seven categories: high-risk score, ship revisit, area change, new berth, berth characterisation, **AIS outage** (a global event sent to every linked user with the toggle on) and **area monitoring start/stop** (when the user adds/removes one of their own areas). Persisted as per-user prefs (`telegramNotify*`).
 - **Language** — every message is rendered in the user's language (`it`/`en`).
 - **Location map** (`telegramSendMap`, default on) — notifications that carry coordinates (berths and ships) get a **static map image** centred on the point. The map is rendered server-side by `src/services/static-map.js`: it stitches the OpenStreetMap base raster tiles (the same as the client, see `public/js/tiles.js`) into a PNG with `pngjs`. The **OpenSeaMap nautical overlay is disabled** in these screenshots (its symbols clutter a small notification map; the renderer still supports it via the `seamark` option, used elsewhere) (pure JS — no native build, no headless browser, no API key), draws the marker and uploads it via `sendPhoto` (multipart). A failed render falls back automatically to text only. Notifications fan out per-user, so four measures bound the cost: (A) **`file_id` reuse** — the first recipient uploads the bytes, the rest reuse the Telegram `file_id` (no re-render, no re-upload; in-burst dedupe via a shared promise); (B) **tile cache** of decoded tiles (LRU+TTL, keeps us within the OSM tile usage policy by avoiding bulk refetching); (C) **rendered-map cache** keyed by rounded coords+zoom; (D) **render concurrency cap** (max 2) to bound CPU/RAM spikes.
@@ -573,6 +587,17 @@ Beyond the sidebar feed, each user can receive their own notifications on **Tele
 - **API** — `GET /api/telegram` (state + toggles), `POST /api/telegram/link` (generate code), `POST /api/telegram/unlink`, `POST /api/telegram/settings` (toggles), `POST /api/telegram/test` (test message).
 
 The token lives only in `local.properties` (gitignored, **not** in backups, stays per-deployment); the `chat_id` and toggles live in `user_settings` and are therefore included in backups.
+
+### 🔗 Outbound webhooks
+
+Besides Telegram, each user can forward the events of their **own areas** to an **arbitrary URL** (Slack, Discord, a SIEM or a custom endpoint). Per-user like the Telegram link: a webhook only fires for events visible to that user. Backend in [`src/services/webhooks.js`](src/services/webhooks.js), routes in [`src/routes/webhooks.js`](src/routes/webhooks.js), UI in the Settings **External integrations** tab ([`public/js/webhooks.js`](public/js/webhooks.js)).
+
+- **Per webhook**: URL, **format** (`generic` = raw event JSON for SIEM/custom · `slack` = `{text}` · `discord` = `{content}`), **subscribed events** (any subset of `high_risk`, `revisit`, `area_change`, `berth_new`, `berth_characterized`, `proximity`, `outage`), **enabled** on/off, and an optional **secret**.
+- **HMAC signature**: if the webhook has a secret, the POST includes `X-Tracker-Signature: sha256=<HMAC-SHA256(body)>` so the receiver can verify authenticity.
+- **Delivery**: fire-and-forget POST with a timeout (8s), no retry; errors go to the activity log. The `outage` (AIS outage) event is global: forwarded to every user that has a subscribed webhook.
+- **Security**: URLs pointing at **internal/private** hosts (localhost, 127/10/192.168/169.254/172.16–31, IPv6 loopback/link-local/ULA) are **rejected** to limit SSRF; `http`/`https` only. Max 10 webhooks per user.
+- **Storage**: a JSON list in `user_settings` (key `webhooks`), therefore included in backups; secrets are masked in API responses (`hasSecret`).
+- **API** (per-user): `GET /api/webhooks` (list + event types + formats), `POST /api/webhooks` (add), `PATCH /api/webhooks/:id` (edit/enable), `DELETE /api/webhooks/:id`, `POST /api/webhooks/:id/test` (test event). A **Test** button sends a synthetic high-risk event.
 
 ---
 

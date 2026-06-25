@@ -185,6 +185,9 @@
             <button class="replay-speed" data-speed="60" type="button">60×</button>
           </span>
           <span id="replay-count" class="replay-count">—</span>
+          <span class="list-toolbar-spacer"></span>
+          <button id="replay-geojson" class="btn btn-secondary btn-sm" type="button" data-i18n="export.geojson" data-i18n-title="export.replayTitle" title="Esporta replay in GeoJSON">⬇ GeoJSON</button>
+          <button id="replay-kml" class="btn btn-secondary btn-sm" type="button" data-i18n="export.kml" data-i18n-title="export.replayTitle" title="Esporta replay in KML">⬇ KML</button>
         </div>
       </div>
       <div id="active-map-resizer" class="map-resizer"></div>
@@ -202,11 +205,15 @@
         <label class="list-check"><input type="checkbox" id="active-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <label class="list-check"><input type="checkbox" id="berths-toggle"><span data-i18n="berths.show">Banchine</span></label>
         <button id="btn-berths-manage" class="btn btn-secondary btn-sm" data-i18n="berths.manage" data-i18n-title="berths.manageTitle" title="Gestisci banchine">⚓ Banchine</button>
+        <button id="berths-geojson" class="btn btn-secondary btn-sm" data-i18n="export.berthsGeojson" data-i18n-title="export.berthsTitle" title="Esporta banchine in GeoJSON">⬇ Banchine GeoJSON</button>
+        <button id="berths-kml" class="btn btn-secondary btn-sm" data-i18n="export.berthsKml" data-i18n-title="export.berthsTitle" title="Esporta banchine in KML">⬇ Banchine KML</button>
         <button id="replay-toggle" class="btn btn-secondary btn-sm" data-i18n="replay.toggle" data-i18n-title="replay.toggleTitle" title="Replay storico del traffico">▶ Replay</button>
         <span class="list-toolbar-spacer"></span>
         <span id="active-seen-hidden" class="list-seen-hidden"></span>
         <span id="active-filter-count" class="list-filter-count"></span>
         <button id="active-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+        <button id="active-geojson" class="btn btn-secondary btn-sm" data-i18n="export.geojson" data-i18n-title="export.geojsonTitle" title="Esporta vista in GeoJSON">⬇ GeoJSON</button>
+        <button id="active-kml" class="btn btn-secondary btn-sm" data-i18n="export.kml" data-i18n-title="export.kmlTitle" title="Esporta vista in KML">⬇ KML</button>
       </div>
       <div id="table-wrap-active">
         <table>
@@ -247,6 +254,8 @@
         <span id="past-seen-hidden" class="list-seen-hidden"></span>
         <span id="past-filter-count" class="list-filter-count"></span>
         <button id="past-export" class="btn btn-secondary btn-sm" data-i18n="filter.exportCsv">⬇ CSV filtrato</button>
+        <button id="past-geojson" class="btn btn-secondary btn-sm" data-i18n="export.geojson" data-i18n-title="export.geojsonTitle" title="Esporta vista in GeoJSON">⬇ GeoJSON</button>
+        <button id="past-kml" class="btn btn-secondary btn-sm" data-i18n="export.kml" data-i18n-title="export.kmlTitle" title="Esporta vista in KML">⬇ KML</button>
       </div>
       <div id="table-wrap-past">
         <table>
@@ -416,6 +425,11 @@
             <input id="track-slider" class="track-slider" type="range"
                    min="0" max="1000" value="0" step="1" aria-label="Timeline" />
             <span id="track-time" class="track-time">—</span>
+          </div>
+          <div id="track-export" class="track-export">
+            <span class="track-export-label" data-i18n="export.trackLabel">Esporta traccia:</span>
+            <button id="track-geojson" class="btn btn-secondary btn-sm" type="button" data-i18n="export.geojson" data-i18n-title="export.trackTitle" title="Esporta traccia in GeoJSON">⬇ GeoJSON</button>
+            <button id="track-kml" class="btn btn-secondary btn-sm" type="button" data-i18n="export.kml" data-i18n-title="export.trackTitle" title="Esporta traccia in KML">⬇ KML</button>
           </div>
         </div>
       </div>
@@ -681,7 +695,7 @@
           <button id="settings-tab-areas" class="tab" data-panel="areas"
                   data-i18n="settings.tab.areas">Aree</button>
           <button id="settings-tab-telegram" class="tab" data-panel="telegram"
-                  data-i18n="settings.tab.telegram">Telegram</button>
+                  data-i18n="settings.tab.telegram">Integrazioni esterne</button>
           <button id="settings-tab-params" class="tab" data-panel="params"
                   data-i18n="settings.tab.params">Parametri</button>
           <button id="settings-tab-backup" class="tab" data-panel="backup"
@@ -1070,6 +1084,31 @@
               <input type="checkbox" id="toggle-telegram-send-map">
               <span class="toggle-slider"></span>
             </label>
+          </div>
+
+          <div class="settings-section-head" data-i18n="settings.webhooks.head">🔗 Webhook in uscita</div>
+          <div class="setting-row setting-row-col" id="setting-webhooks">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.webhooks.name">Webhook in uscita</div>
+              <div class="setting-desc" data-i18n="settings.webhooks.desc">Inoltra gli eventi delle tue aree (alto rischio, rendezvous, cambio area, rientro, banchine, disservizio AIS) a un URL: Slack, Discord, un SIEM o un endpoint custom. Per-utente, come il collegamento Telegram. Firma HMAC opzionale (header X-Tracker-Signature) se imposti un secret.</div>
+            </div>
+            <div id="webhooks-list" class="webhooks-list"></div>
+            <div class="webhook-add">
+              <div class="webhook-add-row">
+                <input id="webhook-url" type="url" class="webhook-url" placeholder="https://hooks.example.com/…">
+                <select id="webhook-format" class="list-band">
+                  <option value="generic">Generic (JSON)</option>
+                  <option value="slack">Slack</option>
+                  <option value="discord">Discord</option>
+                </select>
+                <input id="webhook-secret" type="text" class="webhook-secret" data-i18n-placeholder="settings.webhooks.secretHolder" placeholder="Secret HMAC (opzionale)">
+              </div>
+              <div id="webhook-events" class="webhook-events"></div>
+              <div class="webhook-add-row">
+                <button id="webhook-add" class="btn" data-i18n="settings.webhooks.add">＋ Aggiungi webhook</button>
+                <span id="webhook-status" class="params-dirty"></span>
+              </div>
+            </div>
           </div>
         </div>
 

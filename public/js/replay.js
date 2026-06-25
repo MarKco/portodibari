@@ -3,6 +3,8 @@ import { api } from './api.js';
 import { escHtml, formatTime, shipTypeLabel } from './helpers.js';
 import { initActiveMap } from './maps.js';
 import { t } from './i18n.js';
+import { showAlert } from './toast.js';
+import { exportReplay } from './geoexport.js';
 
 // ── Historical replay (time-scrubber on the area map) ────────────────────────
 // Toggling "▶ Replay" on the active map enters replay mode: it fetches every
@@ -71,6 +73,15 @@ export function initReplay() {
     renderFrame();
   });
   e.area.addEventListener('change', () => load({ window: currentWin() }));
+
+  // Export the currently-loaded replay window as one LineString per ship.
+  const replayGeo = (fmt) => () => {
+    const R = S.replay;
+    if (!R || !R.ships.length) { showAlert(t('export.empty')); return; }
+    if (!exportReplay({ ships: R.ships }, fmt, e.area.value || 'area')) showAlert(t('export.empty'));
+  };
+  document.getElementById('replay-geojson')?.addEventListener('click', replayGeo('geojson'));
+  document.getElementById('replay-kml')?.addEventListener('click', replayGeo('kml'));
 }
 
 function setActiveBtn(group, btn) {
@@ -158,7 +169,7 @@ function buildScene(data) {
     marker.bindTooltip(`${escHtml(sh.name || String(sh.mmsi))} · ${escHtml(shipTypeLabel(sh.type))}`);
     marker.on('click', () => window.openShipDetail && window.openShipDetail(sh.mmsi));
     const trail = L.polyline([], { color: style.fillColor, weight: 2.5, opacity: 0.5 });
-    R.ships.push({ mmsi: sh.mmsi, fixes, marker, trail, shown: false, idx: 0 });
+    R.ships.push({ mmsi: sh.mmsi, name: sh.name, band: sh.band, fixes, marker, trail, shown: false, idx: 0 });
   }
 
   // Window bounds: from/to come back resolved+clamped from the server.

@@ -115,6 +115,16 @@ const MESSAGES = {
     en: 'Rendezvous detection disabled (PROXIMITY_SCAN_MIN = 0)',
   },
 
+  // ── Outbound webhooks ──
+  'webhook.bad_status': {
+    it: (p) => `Webhook ${p.url}: risposta ${p.status}`,
+    en: (p) => `Webhook ${p.url}: response ${p.status}`,
+  },
+  'webhook.failed': {
+    it: (p) => `Webhook ${p.url} fallito: ${p.error}`,
+    en: (p) => `Webhook ${p.url} failed: ${p.error}`,
+  },
+
   'berths.recompute_manual': { it: 'Ricalcolo banchine richiesto manualmente', en: 'Berth recompute requested manually' },
   'berths.recompute_manual_all': {
     it: 'Ricalcolo banchine richiesto manualmente (tutte le aree)',

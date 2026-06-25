@@ -371,9 +371,11 @@ Open with the **⚙ Settings** button in the sidebar.
 
 > **Auto-restore after a deploy:** the database is wiped when you update the application (deploy). If at startup the database **does not exist** and saved **auto-backups** are present (folder `data/backups/`), the app automatically restores the most recent backup (database only). This requires the backups folder to survive the deploy. It does not trigger if the database exists but was merely emptied via "Clear data". Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
-Settings are organized into **tabs**: **General** (the table above), **Areas**, **Telegram** (Telegram bot notifications, see below), **Parameters** and **Backup / Restore**.
+Settings are organized into **tabs**: **General** (the table above), **Areas**, **External integrations** (Telegram notifications + outbound webhooks, see below), **Parameters** and **Backup / Restore**.
 
-### Telegram tab
+### External integrations tab
+
+This tab is where you connect external channels to send notifications to: **Telegram** (at the top) and **outbound webhooks** (at the bottom).
 
 Lets you receive your user's notifications on **Telegram**, via a bot. It only works if the administrator configured the bot token on the server (`TELEGRAM_BOT_TOKEN`); otherwise the tab shows "Telegram bot not configured".
 
@@ -406,6 +408,16 @@ The Telegram toggles are **independent** of the sidebar notification toggles: yo
 - **⭐ Flag** — flags the ship, just like pressing the **star** in the list.
 
 After a tap you get a short confirmation and the button updates (e.g. **✅ Following**, **⭐ Flagged**). The actions are "add only": pressing an already-active button does nothing. To un-follow or un-flag, use the ship list on the site.
+
+**🔗 Outbound webhooks** — below the Telegram toggles you can also forward your areas' events to a **web address** (a *webhook*), to bring them into **Slack**, **Discord**, a security system (SIEM) or your own service. To add one:
+
+1. Paste the webhook **URL** (the one Slack/Discord gives you, or your own endpoint).
+2. Pick the **format**: *Generic* (raw event JSON, for SIEM/custom integrations), *Slack* or *Discord* (a ready-made text message for those services).
+3. Tick **which events** to send (high risk, rendezvous, area change, revisit, berths, AIS outage).
+4. (Optional) set a **secret**: if present, every delivery includes an `X-Tracker-Signature` signature the receiver can use to verify it really came from here.
+5. **Add webhook**. Use **Test** to send a test event, the switch to enable/disable it, **Delete** to remove it.
+
+Webhooks are **personal** (they only cover your areas) and independent of Telegram. For safety, internal/private addresses (localhost, local networks) are not allowed. Maximum 10 per user.
 
 ### Parameters tab
 
@@ -664,7 +676,9 @@ Check that monitoring for this area is running (ACTIVE badge at the top) and tha
 Use the **✓ Seen** button on each row: the vessel becomes faded and is immediately distinguishable from unreviewed ones.
 
 **Can I export the data?**
-Yes. Go to **⚙ Settings** → **Export CSV**. The file downloads directly from the browser.
+Yes, in several ways, all downloaded straight from the browser:
+- **CSV** — the **⬇ Filtered CSV** button in the active/past ships toolbar exports the current (filtered and sorted) view; **⚙ Settings → Export CSV** instead gives the raw export of all readings.
+- **GeoJSON / KML** (for **QGIS** or **Google Earth**) — next to the CSV you'll find **⬇ GeoJSON** and **⬇ KML**. Four sources: the filtered **ship list** (points), a ship's **track** (from the detail view, under the map), an area **replay** (one line per ship, from the Replay bar), and the **berths** as polygons ("Berths GeoJSON/KML" buttons). If there's nothing to export, a warning appears.
 
 **I changed area and the vessels disappeared — is that normal?**
 Yes. Each area has its own independent data set and its own independent stream. Changing the area in the dropdown is a view change only: it shows the data for the selected area but does not start or stop any stream. Vessels from the previous area remain in the database; if you switch back, you will see them again. To receive data from multiple areas at the same time, use the "Area monitoring" panel in Settings.

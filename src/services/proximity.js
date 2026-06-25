@@ -41,9 +41,15 @@ function areaCenter(area) {
 // invalidate both ships' cached risk scores so the new factor shows at once.
 function notifyOwners(area, c) {
   const telegram = require('./telegram'); // lazy: avoids a load-time cycle
+  const webhooks = require('./webhooks');
   const midLat = (c.latA + c.latB) / 2;
   const midLon = (c.lonA + c.lonB) / 2;
   const label = `${c.nameA || c.mmsiA} ↔ ${c.nameB || c.mmsiB}`;
+  const evp = {
+    area, mmsiA: c.mmsiA, mmsiB: c.mmsiB, nameA: c.nameA, nameB: c.nameB,
+    latA: c.latA, lonA: c.lonA, latB: c.latB, lonB: c.lonB,
+    lat: midLat, lon: midLon, distM: c.minDistM, durMin: c.durMin,
+  };
   for (const uid of db.getAreaOwners(area)) {
     const p = userPrefs.get(uid);
     if (p.notificationsEnabled && p.notifyProximity) {
@@ -52,11 +58,8 @@ function notifyOwners(area, c) {
         area, berth_lat: midLat, berth_lon: midLon,
       });
     }
-    telegram.notifyProximity(uid, {
-      area, mmsiA: c.mmsiA, mmsiB: c.mmsiB, nameA: c.nameA, nameB: c.nameB,
-      latA: c.latA, lonA: c.lonA, latB: c.latB, lonB: c.lonB,
-      lat: midLat, lon: midLon, distM: c.minDistM, durMin: c.durMin,
-    });
+    telegram.notifyProximity(uid, evp);
+    webhooks.dispatch(uid, 'proximity', evp);
   }
   try {
     const { invalidateRiskCache } = require('./risk-score');

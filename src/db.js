@@ -1061,6 +1061,15 @@ function getTelegramLinkedUserIds() {
   return telegramLinkedStmt.all().map((r) => r.user_id);
 }
 
+const userIdsWithSettingStmt = db.prepare(
+  'SELECT user_id FROM user_settings WHERE key = ? AND value IS NOT NULL AND value != ?'
+);
+/** User ids that have a non-empty value for `key` — e.g. users who configured
+ *  outbound webhooks, for broadcasting a global event like an AIS outage. */
+function getUserIdsWithSetting(key, emptyValue = '') {
+  return userIdsWithSettingStmt.all(key, emptyValue).map((r) => r.user_id);
+}
+
 /** Auto-stop follows whose ship has been silent for `hours`, across ALL users.
  *  Returns the distinct ships affected (for logging). */
 function autoStopStaleFollowsAll(hours) {
@@ -2584,6 +2593,7 @@ module.exports = {
   setUserSetting,
   findUserIdBySetting,
   getTelegramLinkedUserIds,
+  getUserIdsWithSetting,
   autoStopStaleFollowsAll,
   getScrapedData,
   setScrapedData,

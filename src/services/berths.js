@@ -24,6 +24,7 @@ const { BERTH } = require('../config');
 // personal prefs enable that alert type (prefKey = notifyBerthNew|notifyBerthChar).
 function notifyAreaOwners(area, prefKey, notif) {
   const telegram = require('./telegram'); // lazy: avoids a load-time cycle
+  const webhooks = require('./webhooks');
   for (const uid of db.getAreaOwners(area)) {
     const p = userPrefs.get(uid);
     if (p.notificationsEnabled && p[prefKey]) {
@@ -32,12 +33,9 @@ function notifyAreaOwners(area, prefKey, notif) {
     // Telegram has its own per-category toggle, independent of the in-app one.
     // lat/lon drive the static map + the "open in map" link; the berth centroid
     // travels in notif.berth_lat / notif.berth_lon.
-    telegram.notifyBerth(uid, notif.type, {
-      area,
-      band: notif.band,
-      lat: notif.berth_lat,
-      lon: notif.berth_lon,
-    });
+    const evp = { area, band: notif.band, ship_name: notif.ship_name, lat: notif.berth_lat, lon: notif.berth_lon, berth_id: notif.berth_id };
+    telegram.notifyBerth(uid, notif.type, evp);
+    webhooks.dispatch(uid, notif.type, evp);
   }
 }
 const { categoryOf, isHazmat } = require('./ship-categories');
