@@ -15,7 +15,7 @@ const shipFollow = require('../services/ship-follow');
 const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY, TESTER_MAX_FOLLOWS } = require('../config');
 const { destinationLabel } = require('../services/locode');
 
 const router = express.Router();
@@ -497,6 +497,12 @@ router.patch('/ships/:mmsi/follow', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { followed } = req.body;
   const userId = req.user.id;
+  if (followed && req.user.role === 'tester') {
+    const activeFollows = db.getUserFollowedMmsis(userId).size;
+    if (activeFollows >= TESTER_MAX_FOLLOWS) {
+      return res.status(403).json({ error: `Account tester: massimo ${TESTER_MAX_FOLLOWS} navi seguite` });
+    }
+  }
   const { reacquiring } = shipFollow.applyFollow(userId, mmsi, !!followed);
   groupSync.syncFollow(userId, mmsi, !!followed); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.follow', { on: !!followed }), { mmsi });

@@ -28,6 +28,7 @@
   .pill.disabled { background:rgba(239,68,68,.15); color:#fca5a5; }
   .pill.admin { background:var(--accent-soft,rgba(59,130,246,.18)); color:#93c5fd; }
   .pill.user { background:var(--surface-2); color:var(--text-muted); }
+  .pill.tester { background:rgba(168,85,247,.15); color:#d8b4fe; }
   button { font:inherit; padding:.32rem .6rem; border-radius:7px; border:1px solid var(--border);
            background:var(--surface-2); color:var(--text); cursor:pointer; font-size:.8rem; }
   button:hover { border-color:var(--accent); }
@@ -132,9 +133,12 @@
       const name = `${esc(u.first_name || '')} ${esc(u.last_name || '')}`.trim() || '—';
       const acts = [];
       if (u.status === 'pending') acts.push(`<button data-act="approve" data-id="${u.id}">Approva</button>`);
+      if (u.status === 'pending') acts.push(`<button data-act="approve-tester" data-id="${u.id}">Approva come tester</button>`);
       if (u.status === 'active') acts.push(`<button data-act="disable" data-id="${u.id}">Disabilita</button>`);
       if (u.status === 'disabled') acts.push(`<button data-act="enable" data-id="${u.id}">Riabilita</button>`);
-      acts.push(`<button data-act="role" data-id="${u.id}" data-role="${u.role === 'admin' ? 'user' : 'admin'}">${u.role === 'admin' ? 'Rendi utente' : 'Rendi admin'}</button>`);
+      if (u.role === 'admin') acts.push(`<button data-act="role" data-id="${u.id}" data-role="user">Rendi utente</button>`);
+      else if (u.role === 'tester') acts.push(`<button data-act="role" data-id="${u.id}" data-role="user">Rimuovi tester</button>`);
+      else acts.push(`<button data-act="role" data-id="${u.id}" data-role="admin">Rendi admin</button>`);
       acts.push(`<button data-act="reset" data-id="${u.id}">Reset password</button>`);
       if (u.id !== ME && u.status === 'active') acts.push(`<button data-act="impersonate" data-id="${u.id}">Impersona</button>`);
       if (u.id !== ME) acts.push(`<button class="danger" data-act="delete" data-id="${u.id}">Elimina</button>`);
@@ -286,6 +290,7 @@
     const act = btn.dataset.act;
     try {
       if (act === 'approve') { await api('POST', `/api/admin/users/${id}/approve`); show('Utente approvato', true); }
+      else if (act === 'approve-tester') { await api('POST', `/api/admin/users/${id}/approve-as-tester`); show('Utente approvato come tester', true); }
       else if (act === 'disable') { await api('POST', `/api/admin/users/${id}/status`, { status: 'disabled' }); show('Utente disabilitato', true); }
       else if (act === 'enable') { await api('POST', `/api/admin/users/${id}/status`, { status: 'active' }); show('Utente riabilitato', true); }
       else if (act === 'role') { await api('POST', `/api/admin/users/${id}/role`, { role: btn.dataset.role }); show('Ruolo aggiornato', true); }

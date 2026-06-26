@@ -62,11 +62,24 @@ router.post('/api/admin/users/:id/approve', (req, res) => {
   res.json({ ok: true, user: publicUser(db.getUserById(id)) });
 });
 
-router.post('/api/admin/users/:id/role', (req, res) => {
+router.post('/api/admin/users/:id/approve-as-tester', (req, res) => {
   const id = Number(req.params.id);
-  const role = req.body?.role === 'admin' ? 'admin' : 'user';
   const u = db.getUserById(id);
   if (!u) return res.status(404).json({ error: 'Utente sconosciuto' });
+  if (u.status !== 'pending') return res.status(400).json({ error: 'Utente non in attesa di approvazione' });
+  db.approveTester(id, req.realUser.id);
+  appLog.info('AUTH', `Registrazione approvata come tester: ${u.email}`, { userId: id, by: req.realUser.id });
+  res.json({ ok: true, user: publicUser(db.getUserById(id)) });
+});
+
+router.post('/api/admin/users/:id/role', (req, res) => {
+  const id = Number(req.params.id);
+  const reqRole = req.body?.role;
+  const role = ['admin', 'user', 'tester'].includes(reqRole) ? reqRole : 'user';
+  const u = db.getUserById(id);
+  if (!u) return res.status(404).json({ error: 'Utente sconosciuto' });
+  // Tester role only assignable to active pending-approved users — not re-assignable after removal.
+  if (role === 'tester') return res.status(400).json({ error: 'Usa "approva come tester" per assegnare il ruolo tester' });
   // Never demote the last remaining active admin.
   if (role === 'user' && u.role === 'admin' && db.countAdmins() <= 1) {
     return res.status(400).json({ error: 'Deve restare almeno un amministratore' });

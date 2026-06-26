@@ -606,9 +606,17 @@ function approveUser(id, approvedBy) {
   approveUserStmt.run(new Date().toISOString(), approvedBy, id);
 }
 
+const approveTesterStmt = db.prepare(
+  "UPDATE users SET status = 'active', role = 'tester', approved_at = ?, approved_by = ? WHERE id = ?"
+);
+function approveTester(id, approvedBy) {
+  approveTesterStmt.run(new Date().toISOString(), approvedBy, id);
+}
+
 const setUserRoleStmt = db.prepare('UPDATE users SET role = ? WHERE id = ?');
 function setUserRole(id, role) {
-  setUserRoleStmt.run(role === 'admin' ? 'admin' : 'user', id);
+  const allowed = ['admin', 'user', 'tester'];
+  setUserRoleStmt.run(allowed.includes(role) ? role : 'user', id);
 }
 
 const setUserPasswordStmt = db.prepare(
@@ -2687,6 +2695,7 @@ module.exports = {
   countAdmins,
   setUserStatus,
   approveUser,
+  approveTester,
   setUserRole,
   setUserPassword,
   issueResetToken,

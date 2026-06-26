@@ -26,6 +26,9 @@ async function init() {
     #imp-banner button { margin-left:.6rem; background:#fff; color:#7c2d12; border:0; border-radius:6px;
                          padding:.15rem .5rem; cursor:pointer; font:inherit; }
     body.impersonating { padding-top:26px; }
+    #tester-banner { position:fixed; top:0; left:0; right:0; z-index:1290; background:#6b21a8; color:#e9d5ff;
+                     text-align:center; padding:.35rem .5rem; font:600 12px/1.3 system-ui,sans-serif; }
+    body.tester-account { padding-top:26px; }
   `;
   document.head.appendChild(css);
 
@@ -58,6 +61,14 @@ async function init() {
       await fetch('/api/admin/impersonate/stop', { method: 'POST' });
       window.location.reload();
     });
+  }
+
+  if (me.testerLimits) {
+    document.body.classList.add('tester-account');
+    const tb = document.createElement('div');
+    tb.id = 'tester-banner';
+    tb.textContent = `Account tester — max ${me.testerLimits.maxAreas} aree (≤ ${me.testerLimits.maxAreaKm2} km²), max ${me.testerLimits.maxFollows} navi seguite`;
+    document.body.appendChild(tb);
   }
 }
 

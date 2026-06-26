@@ -84,6 +84,12 @@ const COOKIE_SECURE = (props.COOKIE_SECURE || process.env.COOKIE_SECURE) === 'tr
 // Session lifetime in days.
 const SESSION_TTL_DAYS = num('SESSION_TTL_DAYS', 30);
 
+// ── Tester account limits ─────────────────────────────────────────────────────
+// Configurable in app.config.properties (restart required after change).
+const TESTER_MAX_AREAS = num('TESTER_MAX_AREAS', 2);
+const TESTER_MAX_AREA_KM2 = num('TESTER_MAX_AREA_KM2', 100);
+const TESTER_MAX_FOLLOWS = num('TESTER_MAX_FOLLOWS', 5);
+
 // ── Telegram bot token (optional) ────────────────────────────────────────────
 // One bot serves all users; each user links their chat via a /start <code> flow
 // (see services/telegram.js). The bot stays inert until the token is set. The
@@ -881,6 +887,14 @@ function areaForPoint(lat, lon) {
   return best;
 }
 
+/** Approximate bbox area in km². Uses equirectangular projection at mid-latitude. */
+function bboxAreaKm2(swLat, neLat, swLon, neLon) {
+  const midLat = (swLat + neLat) / 2;
+  const dLat = Math.abs(neLat - swLat) * 111.0;
+  const dLon = Math.abs(neLon - swLon) * 111.0 * Math.cos((midLat * Math.PI) / 180);
+  return dLat * dLon;
+}
+
 module.exports = {
   API_KEY,
   API_KEY_SOURCE,
@@ -966,6 +980,10 @@ module.exports = {
   DEFAULT_RISK_WEIGHTS,
   EDITABLE_RISK_WEIGHTS,
   currentKeyword,
+  TESTER_MAX_AREAS,
+  TESTER_MAX_AREA_KM2,
+  TESTER_MAX_FOLLOWS,
+  bboxAreaKm2,
   bboxSignature,
   areaForPoint,
   addArea,

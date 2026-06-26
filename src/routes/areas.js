@@ -6,7 +6,7 @@ const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
 const telegram = require('../services/telegram');
 const groupSync = require('../services/group-sync');
-const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas } = require('../config');
+const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas, TESTER_MAX_AREAS, TESTER_MAX_AREA_KM2, bboxAreaKm2 } = require('../config');
 
 const router = express.Router();
 
@@ -54,7 +54,10 @@ router.get('/areas', (req, res) => {
   // The user's effective "current" area: the global preset if they own it, else
   // their first area.
   const current = myKeys.includes(state.preset) ? state.preset : myKeys[0] || null;
-  res.json({ areas, preset: current, minAreas: 0 });
+  const testerLimits = req.user.role === 'tester'
+    ? { maxAreas: TESTER_MAX_AREAS, maxAreaKm2: TESTER_MAX_AREA_KM2 }
+    : null;
+  res.json({ areas, preset: current, minAreas: 0, testerLimits });
 });
 
 // Download the user's area definitions as a portable JSON file (re-importable).
@@ -72,6 +75,24 @@ router.get('/areas/export', (req, res) => {
 router.post('/areas/import', (req, res) => {
   try {
     const raw = req.body && req.body.areas ? req.body.areas : req.body;
+    if (req.user.role === 'tester') {
+      const ok = (c) => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isFinite(Number(n)));
+      const incoming = Object.entries(raw || {}).filter(([k, v]) => !k.startsWith('_') && v && ok(v.sw) && ok(v.ne));
+      const newKeys = incoming.filter(([k]) => !BBOX_PRESETS[k]);
+      const currentCount = db.getUserAreaKeys(req.user.id).length;
+      if (currentCount + newKeys.length > TESTER_MAX_AREAS) {
+        return res.status(403).json({ error: `Account tester: l'importazione supererebbe il limite di ${TESTER_MAX_AREAS} aree` });
+      }
+      for (const [, v] of incoming) {
+        const swLat = Math.min(Number(v.sw[0]), Number(v.ne[0]));
+        const neLat = Math.max(Number(v.sw[0]), Number(v.ne[0]));
+        const swLon = Math.min(Number(v.sw[1]), Number(v.ne[1]));
+        const neLon = Math.max(Number(v.sw[1]), Number(v.ne[1]));
+        if (bboxAreaKm2(swLat, neLat, swLon, neLon) > TESTER_MAX_AREA_KM2) {
+          return res.status(403).json({ error: `Account tester: una o più aree superano il limite di ${TESTER_MAX_AREA_KM2} km²` });
+        }
+      }
+    }
     const result = importAreasAndStart(raw, req.user.id);
     res.json({ ok: true, ...result });
   } catch (e) {
@@ -84,6 +105,23 @@ router.post('/areas/import', (req, res) => {
 router.post('/areas', (req, res) => {
   try {
     const { name, sw, ne, keyword, autostart } = req.body || {};
+    if (req.user.role === 'tester') {
+      const currentCount = db.getUserAreaKeys(req.user.id).length;
+      if (currentCount >= TESTER_MAX_AREAS) {
+        return res.status(403).json({ error: `Account tester: massimo ${TESTER_MAX_AREAS} aree consentite` });
+      }
+      const ok = (c) => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isFinite(Number(n)));
+      if (ok(sw) && ok(ne)) {
+        const swLat = Math.min(Number(sw[0]), Number(ne[0]));
+        const neLat = Math.max(Number(sw[0]), Number(ne[0]));
+        const swLon = Math.min(Number(sw[1]), Number(ne[1]));
+        const neLon = Math.max(Number(sw[1]), Number(ne[1]));
+        const areaKm2 = bboxAreaKm2(swLat, neLat, swLon, neLon);
+        if (areaKm2 > TESTER_MAX_AREA_KM2) {
+          return res.status(403).json({ error: `Account tester: area troppo grande (${Math.round(areaKm2)} km², max ${TESTER_MAX_AREA_KM2} km²)` });
+        }
+      }
+    }
     const area = addArea({ name, sw, ne, keyword });
     db.addUserArea(req.user.id, area.key);
     groupSync.syncAreaAdd(req.user.id, area.key); // mirror membership to group co-members
