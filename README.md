@@ -119,6 +119,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app | *(default incluso)* |
 | `COOKIE_SECURE` | Invia il cookie di sessione solo su HTTPS — impostare a `true` dietro TLS (`true`/`false`) | `false` |
 | `SESSION_TTL_DAYS` | Durata in giorni della sessione di login | `30` |
+| `HEATMAP_AIS_API_KEY` | API key di un **account AISStream separato** per la Mappa delle zone coperte (vedi [sezione dedicata](#-mappa-delle-zone-coperte-copertura-aisstream)). Vuota = funzione disattivata. Valore nudo, niente commenti inline. | *(vuota)* |
 
 `BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` sono modificabili anche dalla UI (cambio area / modal Impostazioni) e vengono ri-persistiti nel file. `PORT` (variabile d'ambiente) imposta la porta HTTP (default 3000). Le chiavi `ADMIN_*`, `COOKIE_SECURE` e `SESSION_TTL_DAYS` si leggono solo all'avvio (non modificabili dalla UI).
 
@@ -219,6 +220,9 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 | Max byte body request/response nel log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
 | Max record log API              | `app.config.properties`           | `MAX_API_LOG_RECORDS`                 | 1.000          |
+| Griglia copertura (lato cella in gradi) | `app.config.properties`   | `HEATMAP_GRID_DEG`                    | 0.25° (≈28 km) |
+| Intervallo flush celle copertura su DB | `app.config.properties`    | `HEATMAP_FLUSH_SEC`                   | 10 s           |
+| Intervallo statistiche live copertura | `app.config.properties`     | `HEATMAP_STATS_SEC`                   | 2 s            |
 | Intervallo compattazione DB (WAL + vacuum) | `src/server.js`        | `setInterval(db.runMaintenance, …)`   | 5 min          |
 | Intervallo pulizia righe orfane | `src/server.js`                   | `setInterval(sweepOrphans, …)`        | 24h (+ avvio)  |
 
@@ -472,6 +476,32 @@ Integrazione **OpenSeaMap** (dati gratuiti CC-BY-SA, **nessuna API key**), attiv
 
 > **Nessun database, nessuna migrazione**: i toggle vivono in `local.properties` (`SHOW_OPENSEAMAP`, `SHOW_OPENSEAMAP_MARKERS`, `OPENSEAMAP_HIDDEN`) e i dati Overpass sono recuperati live, mai salvati. La `depth-api3` di OpenSeaMap **non** è usata (richiederebbe un backend Django+PostGIS self-hosted). **Copertura**: nei porti commerciali i tag `berth`/`mooring` sono spesso assenti — per questo la query Overpass copre anche porti/bacini/ancoraggi/marine, e il livello a tile resta la fonte visiva principale.
 
+## 🌐 Mappa delle zone coperte (copertura AISStream)
+
+Una sottoscrizione AISStream sul **mondo intero** aggrega i messaggi di posizione in una **griglia lat/lon** (conteggio per cella) per visualizzare dove la copertura AIS è densa e dove ci sono buchi. Si apre dalla sidebar (**🌐**): una mappa **Leaflet mondiale** con le celle colorate per densità su **scala logaritmica** (blu → rosso), disegnate con il **renderer canvas** per reggere il numero di celle.
+
+Si salva **solo** il conteggio messaggi per cella e l'ultimo avvistamento (`msg_count`, `last_seen`): **nessun nome nave, nessuna posizione** delle singole imbarcazioni.
+
+**Hot path**: parse del messaggio → incremento di un contatore **in memoria** → flush in batch su DB ogni `HEATMAP_FLUSH_SEC`. Non c'è **mai** una scrittura per singolo messaggio.
+
+**Visibilità**: la **mappa** (dati correnti) è visibile a **tutti** gli utenti autenticati in sola lettura (`GET /api/heatmap/cells`); l'**avvio/arresto** della raccolta, le **statistiche live** di connessione e l'**export/import** sono **solo admin**.
+
+**Raccolta = task in background controllato dagli admin.** Premendo **Avvia**, il firehose mondiale gira in background finché un admin non preme **Ferma**, indipendentemente da chi ha la pagina aperta. Lo **stato desiderato** è persistito (chiave `heatmap_collecting` nella tabella `meta` del DB principale) e **riprende da solo al riavvio** del server. **Sicurezza**: uno sweep ogni 10 minuti **spegne** il firehose se nessun utente è stato attivo negli ultimi 10 minuti.
+
+**Pannello admin**: stato, banda attuale, scaricato (sessione), messaggi/s, messaggi sessione, connessione (uptime + riconnessioni), celle popolate, messaggi totali; pulsanti **Avvia/Ferma**, **Aggiorna mappa**, **Cancella dati**; un banner di avviso ricorda il consumo di banda e la necessità di un account separato.
+
+> ℹ️ **Chiave dedicata, account separato.** La feature richiede `HEATMAP_AIS_API_KEY` in `local.properties`, da un **account AISStream SEPARATO**. Il limite di connessioni di AISStream è **per-account, non per-chiave**: una chiave sullo stesso account di `AIS_API_KEY` viene **rifiutata** (la WebSocket si apre e si chiude subito con codice `1006`, senza alcun frame di errore) e priverebbe gli stream delle aree del loro slot di connessione. Senza la chiave la funzione è **inerte**. Il valore va indicato "nudo": il parser **non** rimuove i commenti `//` inline sulla riga del valore.
+
+**Banda misurata**: ~100–300 msg/s ≈ **~200–400 MB/ora**.
+
+**Hardening riconnessione**: backoff esponenziale (`5s × 2^tentativi`, max 5 min) sulle sessioni che si chiudono **senza aver ricevuto messaggi**; dopo **3 fallimenti consecutivi** viene mostrata una diagnosi (limite per-account / chiave non valida).
+
+> ℹ️ **Database separato.** I dati vivono in `data/db/heatmap_data.db` (modulo `src/heatmap-db.js`), **non** nel DB principale né nelle `BACKUP_TABLES`. Sono **esportabili/importabili** per conto loro da **Impostazioni → Backup** (`/api/heatmap/export` / `import`, semantica **"sostituisci"**) e sono comunque inclusi nel **bundle completo** (formato **v3** `TPB3`: header + main DB + heatmap DB, entrambi length-prefixed, in streaming). I bundle **v1/v2** più vecchi si ripristinano lo stesso (senza la sezione heatmap).
+
+**Griglia**: `HEATMAP_GRID_DEG` in `app.config.properties` (default **0.25°** ≈ 28 km). Più piccola = più precisa, ma il costo cresce in modo **quadratico** (render/payload/righe DB). Cambiare la griglia **invalida le celle salvate** (l'indice è `floor(coord/grid)`) → eseguire **"Cancella dati"** dopo il cambio.
+
+File chiave: `src/services/heatmap-stream.js`, `src/heatmap-db.js`, `src/routes/heatmap.js`, `public/js/coverage.js`.
+
 ## 🔗 Integrazione MarineTraffic / VesselFinder
 
 Nel dettaglio nave, due pannelli arricchiscono i dati AIS con dati scaricati (scraping) da fonti esterne, con cache in tabella `ship_scrape_cache` (TTL configurabile via `SCRAPE_CACHE_TTL`).
@@ -704,6 +734,8 @@ Il server crea automaticamente un backup "bundle" completo (database + aree + im
 
 I backup automatici si trovano in `data/backups/tracker-porti-autobackup-<timestamp>.tpbk`; i manuali in `tracker-porti-manualbackup-<timestamp>.tpbk`. Il `.tpbk` è un contenitore binario in streaming — intestazione + aree/impostazioni (JSON) + database SQLite grezzo — che evita di tenere l'intero DB in memoria durante salvataggio e ripristino (i vecchi backup `.json`, con il DB in base64, restano comunque ripristinabili: il formato viene rilevato automaticamente).
 
+> ℹ️ **Database copertura nel bundle.** Dal **formato v3** (`TPB3`) il bundle incorpora anche il **database separato della Mappa delle zone coperte** (`data/db/heatmap_data.db`, vedi [sezione dedicata](#-mappa-delle-zone-coperte-copertura-aisstream)) oltre al DB principale. Nella stessa tab è disponibile un **Esporta/Importa dati copertura** dedicato per gestire solo quel DB (semantica "sostituisci"). I bundle **v1/v2** più vecchi si ripristinano lo stesso, senza la sezione copertura. L'**auto-ripristino dopo un deploy** (vedi sotto) reidrata anch'esso il DB heatmap.
+
 #### Auto-ripristino dopo un deploy
 
 Il database `ais_data.db` è gitignored: un deploy che ricrea la cartella applicativa lo **cancella**. All'avvio, se il file del database **non esiste** (è appena stato ricreato vuoto) e in `data/backups/` c'è almeno un auto-backup, il server **ripristina automaticamente l'ultimo backup** — solo il database (le aree in `bounding-boxes.json` e le impostazioni in `local.properties` sono file che sopravvivono al deploy, quindi non vengono toccati). Vedi log `[RESTORE] DB assente dopo il deploy → ripristinato l'ultimo backup …`.
@@ -711,6 +743,8 @@ Il database `ais_data.db` è gitignored: un deploy che ricrea la cartella applic
 - Scatta **solo** quando il file `.db` era assente all'avvio: un DB esistente ma vuoto (es. dopo **🗑 Cancella dati** + riavvio) **non** viene ripristinato, così non si "resuscitano" dati cancellati di proposito.
 - Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 - **Importante**: perché funzioni, la cartella `data/backups/` deve **sopravvivere al deploy** (es. su un volume persistente / fuori dalla dir sostituita dal deploy). Vedi [Deploy su server Linux](#-deploy-su-server-linux-vps).
+
+> ℹ️ **Posizione dei database.** I database SQLite (`ais_data.db` + `heatmap_data.db`) vivono ora sotto `data/db/`. Le versioni precedenti li tenevano nella root del progetto: al **primo avvio** della nuova versione vengono **spostati automaticamente** lì, inclusi i sidecar `-wal`/`-shm`. I bundle salvano il **contenuto** dei database, non i loro percorsi, quindi l'export/import tra versioni con il vecchio layout (root) e il nuovo (`data/db/`) funziona indipendentemente.
 
 #### Backup manuale (singolo componente)
 

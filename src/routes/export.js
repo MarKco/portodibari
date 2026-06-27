@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const db = require('../db');
+const heatmapDb = require('../heatmap-db');
 const berths = require('../services/berths');
 const appLog = require('../services/app-log');
 const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb, DEFAULT_ADMIN_USERNAME } = require('../config');
@@ -38,28 +39,14 @@ fs.mkdirSync(BACKUP_DIR, { recursive: true });
 // meta JSON = { format, version, exportedAt, label?, areas, settings }.
 // Legacy v1 (JSON with base64 `db`) is still read on restore for backward compat.
 const BUNDLE_MAGIC = 'TPB2';
+// v3 extends v2 by appending the SEPARATE heatmap database after the main DB, each
+// length-prefixed so both are extractable (the main DB can no longer be "read to
+// EOF"). Layout:
+//   [4B "TPB3"][4B metaLen][meta JSON][8B mainLen][main DB][8B hmLen][heatmap DB]
+// v2/v1 bundles are still read on restore; they simply carry no heatmap section,
+// so a restore from an old bundle leaves the current heatmap data untouched.
+const BUNDLE_MAGIC_V3 = 'TPB3';
 const COPY_CHUNK = 1 << 20; // 1 MB
-
-// Append the SQLite file at dbFilePath after a v2 header, all synchronously and
-// in bounded memory (1 MB chunks) — no base64, no whole-file buffering.
-function writeBundleFileSync(destPath, meta, dbFilePath) {
-  const metaBuf = Buffer.from(JSON.stringify(meta), 'utf8');
-  const header = Buffer.alloc(8);
-  header.write(BUNDLE_MAGIC, 0, 'ascii');
-  header.writeUInt32BE(metaBuf.length, 4);
-  const outFd = fs.openSync(destPath, 'w');
-  const inFd = fs.openSync(dbFilePath, 'r');
-  try {
-    fs.writeSync(outFd, header);
-    fs.writeSync(outFd, metaBuf);
-    const buf = Buffer.alloc(COPY_CHUNK);
-    let n;
-    while ((n = fs.readSync(inFd, buf, 0, buf.length, null)) > 0) fs.writeSync(outFd, buf, 0, n);
-  } finally {
-    fs.closeSync(inFd);
-    fs.closeSync(outFd);
-  }
-}
 
 // Copy `srcPath[start..EOF]` to destPath synchronously, in bounded memory.
 function copySliceSync(srcPath, start, destPath) {
@@ -75,6 +62,58 @@ function copySliceSync(srcPath, start, destPath) {
     }
   } finally {
     fs.closeSync(inFd);
+    fs.closeSync(outFd);
+  }
+}
+
+// Copy exactly `len` bytes of `srcPath` starting at `start` to destPath, bounded memory.
+function copySliceRangeSync(srcPath, start, len, destPath) {
+  const inFd = fs.openSync(srcPath, 'r');
+  const outFd = fs.openSync(destPath, 'w');
+  try {
+    const buf = Buffer.alloc(COPY_CHUNK);
+    let pos = start;
+    let left = len;
+    while (left > 0) {
+      const want = Math.min(buf.length, left);
+      const n = fs.readSync(inFd, buf, 0, want, pos);
+      if (n <= 0) break;
+      fs.writeSync(outFd, buf, 0, n);
+      pos += n;
+      left -= n;
+    }
+  } finally {
+    fs.closeSync(inFd);
+    fs.closeSync(outFd);
+  }
+}
+
+// Write a v3 bundle: header + meta, then the main DB and heatmap DB, each
+// preceded by an 8-byte big-endian length. Streamed in 1 MB chunks (no buffering).
+function writeBundleV3Sync(destPath, meta, mainDbPath, heatmapDbPath) {
+  const metaBuf = Buffer.from(JSON.stringify(meta), 'utf8');
+  const header = Buffer.alloc(8);
+  header.write(BUNDLE_MAGIC_V3, 0, 'ascii');
+  header.writeUInt32BE(metaBuf.length, 4);
+  const outFd = fs.openSync(destPath, 'w');
+  try {
+    fs.writeSync(outFd, header);
+    fs.writeSync(outFd, metaBuf);
+    for (const p of [mainDbPath, heatmapDbPath]) {
+      const size = fs.statSync(p).size;
+      const lenBuf = Buffer.alloc(8);
+      lenBuf.writeBigUInt64BE(BigInt(size));
+      fs.writeSync(outFd, lenBuf);
+      const inFd = fs.openSync(p, 'r');
+      try {
+        const buf = Buffer.alloc(COPY_CHUNK);
+        let n;
+        while ((n = fs.readSync(inFd, buf, 0, buf.length, null)) > 0) fs.writeSync(outFd, buf, 0, n);
+      } finally {
+        fs.closeSync(inFd);
+      }
+    }
+  } finally {
     fs.closeSync(outFd);
   }
 }
@@ -104,7 +143,8 @@ function readBundleHead(bundlePath) {
   } finally {
     fs.closeSync(fd);
   }
-  if (head.toString('ascii', 0, 4) === BUNDLE_MAGIC) {
+  const magic = head.toString('ascii', 0, 4);
+  if (magic === BUNDLE_MAGIC || magic === BUNDLE_MAGIC_V3) {
     const metaLen = head.readUInt32BE(4);
     if (metaLen <= 0 || metaLen > 50 * 1024 * 1024) throw new Error('intestazione backup non valida');
     const metaBuf = Buffer.alloc(metaLen);
@@ -116,7 +156,26 @@ function readBundleHead(bundlePath) {
     }
     let payload;
     try { payload = JSON.parse(metaBuf.toString('utf8')); } catch { throw new Error('intestazione backup non valida'); }
-    return { version: 2, payload, dbStart: 8 + metaLen };
+    if (magic === BUNDLE_MAGIC) {
+      // v2: the main DB runs from here to EOF; no heatmap section.
+      return { version: 2, payload, dbStart: 8 + metaLen };
+    }
+    // v3: [8B mainLen][main][8B hmLen][hm], read the length prefixes.
+    const fd2 = fs.openSync(bundlePath, 'r');
+    try {
+      const lenBuf = Buffer.alloc(8);
+      const mainLenOff = 8 + metaLen;
+      fs.readSync(fd2, lenBuf, 0, 8, mainLenOff);
+      const mainLen = Number(lenBuf.readBigUInt64BE());
+      const mainStart = mainLenOff + 8;
+      const hmLenOff = mainStart + mainLen;
+      fs.readSync(fd2, lenBuf, 0, 8, hmLenOff);
+      const hmLen = Number(lenBuf.readBigUInt64BE());
+      const hmStart = hmLenOff + 8;
+      return { version: 3, payload, dbStart: mainStart, mainLen, hmStart, hmLen };
+    } finally {
+      fs.closeSync(fd2);
+    }
   }
   // Legacy v1: the whole file is JSON with a base64 `db`.
   let payload;
@@ -125,9 +184,11 @@ function readBundleHead(bundlePath) {
   return { version: 1, payload };
 }
 
-// Write the bundle's embedded SQLite DB to destDb, validating the magic header.
+// Write the bundle's embedded main SQLite DB to destDb, validating the magic header.
 function extractBundleDb(bundlePath, head, destDb) {
-  if (head.version === 2) {
+  if (head.version === 3) {
+    copySliceRangeSync(bundlePath, head.dbStart, head.mainLen, destDb);
+  } else if (head.version === 2) {
     copySliceSync(bundlePath, head.dbStart, destDb);
   } else {
     if (!head.payload.db) throw new Error('database nel backup non valido');
@@ -135,6 +196,31 @@ function extractBundleDb(bundlePath, head, destDb) {
     fs.writeFileSync(destDb, buf);
   }
   assertSqliteFile(destDb);
+}
+
+// Extract the embedded heatmap DB (v3 only) to destDb. Returns false when the
+// bundle carries no heatmap section (v1/v2, or an empty section).
+function extractBundleHeatmap(bundlePath, head, destDb) {
+  if (head.version !== 3 || !head.hmLen) return false;
+  copySliceRangeSync(bundlePath, head.hmStart, head.hmLen, destDb);
+  assertSqliteFile(destDb);
+  return true;
+}
+
+// Restore the heatmap DB from a bundle if it carries one (best-effort: a heatmap
+// import failure must never abort the main restore). Returns the restored cell
+// count, or null when there was nothing to restore.
+function restoreBundleHeatmap(bundlePath, head) {
+  const tmp = path.join(os.tmpdir(), `tracker-porti-hm-restore-${process.pid}.db`);
+  try {
+    if (!extractBundleHeatmap(bundlePath, head, tmp)) return null;
+    return heatmapDb.restoreFrom(tmp);
+  } catch (e) {
+    console.error(`[BUNDLE] Ripristino heatmap fallito: ${e.message}`);
+    return null;
+  } finally {
+    fs.unlink(tmp, () => {});
+  }
 }
 
 // ── Auto-backup helpers ───────────────────────────────────────────────────────
@@ -160,31 +246,45 @@ function pruneOldBackups() {
   }
 }
 
-// Build the v2 meta blob (everything except the raw DB tail).
+// Build the v3 meta blob (everything except the raw DB blobs). The heatmap entry
+// is informational; the actual heatmap DB is appended after the main DB.
 function bundleMeta(label) {
+  let hm = null;
+  try { const st = heatmapDb.getStats(); hm = { cells: st.cells, total: st.total }; } catch { /* ignore */ }
   return {
     format: BUNDLE_FORMAT,
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     ...(label ? { label } : {}),
     areas: exportAreas(),
     settings: exportSettings(),
+    heatmap: hm,
   };
+}
+
+// Snapshot both databases to temp files and write a v3 bundle. Returns the temp
+// paths so the caller can clean them up.
+function writeBundle(destPath, label) {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const tmpMain = path.join(os.tmpdir(), `tracker-porti-bundle-main-${ts}-${process.pid}.db`);
+  const tmpHm = path.join(os.tmpdir(), `tracker-porti-bundle-hm-${ts}-${process.pid}.db`);
+  try {
+    db.backupTo(tmpMain);
+    heatmapDb.backupTo(tmpHm);
+    writeBundleV3Sync(destPath, bundleMeta(label), tmpMain, tmpHm); // streamed; DBs never enter the heap
+  } finally {
+    fs.unlink(tmpMain, () => {});
+    fs.unlink(tmpHm, () => {});
+  }
 }
 
 function createAndSaveBundle(label = 'auto') {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `tracker-porti-${label}backup-${ts}.tpbk`;
   const filePath = path.join(BACKUP_DIR, filename);
-  const tmp = path.join(os.tmpdir(), `tracker-porti-bundle-save-${ts}-${process.pid}.db`);
-  try {
-    db.backupTo(tmp);
-    writeBundleFileSync(filePath, bundleMeta(label), tmp); // streamed; DB never enters the heap
-    pruneOldBackups();
-    return { filename, mtime: fs.statSync(filePath).mtimeMs, size: fs.statSync(filePath).size };
-  } finally {
-    fs.unlink(tmp, () => {});
-  }
+  writeBundle(filePath, label);
+  pruneOldBackups();
+  return { filename, mtime: fs.statSync(filePath).mtimeMs, size: fs.statSync(filePath).size };
 }
 
 // Restore ONLY the database from the most recent saved backup. Used at startup
@@ -210,7 +310,9 @@ function restoreDbFromLatestBackup() {
   try {
     extractBundleDb(filePath, head, tmp); // v2: streamed slice; v1: base64 decode
     const counts = db.restoreFrom(tmp);
-    return { filename, counts };
+    // v3 bundles also carry the heatmap DB — restore it too (deploys wipe its file).
+    const heatmapCells = restoreBundleHeatmap(filePath, head);
+    return { filename, counts, heatmapCells };
   } finally {
     fs.unlink(tmp, () => {});
   }
@@ -389,17 +491,13 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
 // Download the full bundle.
 router.get('/bundle', (req, res) => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const tmpDb = path.join(os.tmpdir(), `tracker-porti-bundle-${ts}-${process.pid}.db`);
   const tmpBundle = path.join(os.tmpdir(), `tracker-porti-bundle-${ts}-${process.pid}.tpbk`);
   try {
-    db.backupTo(tmpDb);
-    writeBundleFileSync(tmpBundle, bundleMeta(null), tmpDb);
+    writeBundle(tmpBundle, null); // v3: main DB + heatmap DB, streamed
   } catch (e) {
-    fs.unlink(tmpDb, () => {});
     fs.unlink(tmpBundle, () => {});
     return res.status(500).json({ error: `Esportazione fallita: ${e.message}` });
   }
-  fs.unlink(tmpDb, () => {});
   res.download(tmpBundle, `tracker-porti-bundle-${ts}.tpbk`, (err) => {
     fs.unlink(tmpBundle, () => {});
     if (err && !res.headersSent) res.status(500).end();
@@ -429,6 +527,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
 
     extractBundleDb(tmpBundle, head, tmpDb);
     const counts = db.restoreFrom(tmpDb);
+    const heatmapCells = restoreBundleHeatmap(tmpBundle, head); // v3 only; null otherwise
 
     let areas = null;
     if (payload.areas) {
@@ -457,7 +556,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
     rehomeAfterRestore();
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('BUNDLE', appLog.t('bundle.imported'), { righe: total });
-    res.json({ ok: true, counts, areas, settings });
+    res.json({ ok: true, counts, areas, settings, heatmapCells });
   } catch (e) {
     appLog.error('BUNDLE', appLog.t('bundle.import_failed', { error: e.message }));
     res.status(400).json({ error: `Importazione fallita: ${e.message}` });
@@ -525,9 +624,11 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     let areas = null;
     let settings = null;
 
+    let heatmapCells = null;
     if (parts.includes('db')) {
       extractBundleDb(filePath, head, tmp);
       counts = db.restoreFrom(tmp);
+      heatmapCells = restoreBundleHeatmap(filePath, head); // heatmap rides with the db part
     }
 
     if (parts.includes('areas') && payload.areas) {
@@ -550,7 +651,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       }
     }
 
-    res.json({ ok: true, counts, areas, settings });
+    res.json({ ok: true, counts, areas, settings, heatmapCells });
   } catch (e) {
     res.status(400).json({ error: `Ripristino fallito: ${e.message}` });
   } finally {

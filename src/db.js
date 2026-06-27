@@ -17,8 +17,11 @@ const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
 const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 1000);
 const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
 
-// The SQLite file lives at the project root (one level above src/).
-const DB_PATH = path.join(__dirname, '..', 'ais_data.db');
+// The SQLite file lives under data/db/ (was the project root in older versions —
+// relocateDbFile moves a legacy root-level file here on first start of this version).
+const { relocateDbFile } = require('./lib/db-location');
+const DB_PATH = path.join(__dirname, '..', 'data', 'db', 'ais_data.db');
+relocateDbFile(path.join(__dirname, '..', 'ais_data.db'), DB_PATH);
 const db = new DatabaseSync(DB_PATH);
 
 db.exec(`PRAGMA journal_mode = WAL`);
@@ -2437,6 +2440,13 @@ function clearLogs() {
 // ── Whole-database backup / restore ──────────────────────────────────────────
 // Tables copied on restore. Order matters only for readability; each is
 // independent (no cross-table FKs in this schema).
+// NOTE: the global coverage heatmap lives in a SEPARATE database (heatmap-db.js,
+// file heatmap_data.db), not here — so it can be exported/imported on its own and
+// kept out of the main backup tables. An older version stored it in this DB as a
+// `heatmap_cells` table; heatmap-db.migrateFromMainIfNeeded() copies any such rows
+// out on startup. That leftover table (if present) is intentionally NOT in
+// BACKUP_TABLES below.
+
 const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
 
 /**

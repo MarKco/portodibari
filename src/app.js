@@ -6,6 +6,7 @@ const apiLogger = require('./middleware/api-logger');
 const sessionAuth = require('./middleware/session-auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const heatmapRoutes = require('./routes/heatmap');
 const apiRoutes = require('./routes');
 const { setUiLang } = require('./config');
 
@@ -59,6 +60,9 @@ function createApp() {
 
   // Admin surface (page + /api/admin/*); each route enforces admin itself.
   app.use(adminRoutes);
+
+  // Admin-only global coverage heatmap (page + /api/heatmap/*); self-gated.
+  app.use(heatmapRoutes);
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
   app.use('/api', apiRoutes);

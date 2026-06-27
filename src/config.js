@@ -70,6 +70,17 @@ const API_KEY_SOURCE = props.AIS_API_KEY
     : null;
 if (!API_KEY) throw new Error('AIS_API_KEY missing: set in local.properties or env');
 
+// Separate key for the admin global-coverage heatmap (services/heatmap-stream.js).
+// Optional: when absent the heatmap feature is inert (the page reports it off).
+// Isolating it from API_KEY keeps the worldwide firehose from putting the core
+// monitoring account at risk of throttling.
+const HEATMAP_API_KEY = props.HEATMAP_AIS_API_KEY || process.env.HEATMAP_AIS_API_KEY || '';
+const HEATMAP_API_KEY_SOURCE = props.HEATMAP_AIS_API_KEY
+  ? 'local.properties'
+  : process.env.HEATMAP_AIS_API_KEY
+    ? 'env'
+    : null;
+
 // ── Multi-user auth (sessions) ───────────────────────────────────────────────
 // Built-in administrator account, always (re)seeded at startup if absent. The
 // password defaults to the shipped value but can be overridden via
@@ -161,6 +172,28 @@ const MSG_TYPES = [
   'ExtendedClassBPositionReport',
   'StandardClassBPositionReport',
 ];
+
+// ── Global coverage heatmap (admin-only) ─────────────────────────────────────
+// A worldwide AISStream subscription whose position reports are aggregated into a
+// fixed lat/lon grid (message counts per cell) to visualise where AIS coverage is
+// dense and where the holes are. See services/heatmap-stream.js. All boot-only
+// (app.config.properties); the feature also needs HEATMAP_AIS_API_KEY set.
+//   GRID_DEG    — cell size in degrees (0.5° ≈ 55 km). Globe ⇒ 720×360 = 259 200
+//                 cells max; the table only ever holds cells that saw a message.
+//   FLUSH_MS    — how often in-memory cell deltas are batch-written to SQLite
+//                 (never per-message — that would hammer the disk on a firehose).
+//   MSG_TYPES   — position-report types counted. Static data is excluded (it adds
+//                 volume without improving the coverage picture). Class-B reports
+//                 are kept so recreational-only zones don't read as false holes.
+//   STATS_MS    — cadence of the live bandwidth/throughput SSE pushed to the page.
+const HEATMAP = {
+  GRID_DEG: num('HEATMAP_GRID_DEG', 0.5),
+  FLUSH_MS: num('HEATMAP_FLUSH_SEC', 10) * 1000,
+  STATS_MS: num('HEATMAP_STATS_SEC', 2) * 1000,
+  MSG_TYPES: ['PositionReport', 'ExtendedClassBPositionReport', 'StandardClassBPositionReport'],
+  // Whole-globe box AISStream expects as [[swLat, swLon], [neLat, neLon]].
+  WORLD_BOX: [[-90, -180], [90, 180]],
+};
 
 // ── App parameters (from app.config.properties) ──────────────────────────────
 const SOG_FERMA = num('SOG_FERMA_KN', 0.5);
@@ -898,6 +931,9 @@ function bboxAreaKm2(swLat, neLat, swLon, neLon) {
 module.exports = {
   API_KEY,
   API_KEY_SOURCE,
+  HEATMAP_API_KEY,
+  HEATMAP_API_KEY_SOURCE,
+  HEATMAP,
   DEFAULT_ADMIN_USERNAME,
   DEFAULT_ADMIN_EMAIL,
   DEFAULT_ADMIN_PASSWORD,

@@ -95,6 +95,7 @@ Administrators see an **Admin** link in the top-right corner, which opens the **
 | **■ Ferma** | Stop receiving data for the current area (already collected data is retained) |
 | **🗑 Cancella dati** | Delete readings for the currently viewed area — **irreversible** |
 | **🗺 Areas** | Open the area management screen: list, map, add and remove areas (see [Area management](#area-management)) |
+| **🌐 Coverage map** | Open the worldwide AIS coverage map, coloured by how many messages are received in each grid cell (see [Coverage map](#coverage-map)) |
 | **⚙ Impostazioni** | Open application settings. Includes the technical tabs **API Log** (📋) and **AIS Diagnostics** (📡) |
 | **🔔 Notifications** | Show/hide the notifications list in the sidebar. A red badge shows the number of unread notifications (see [Notifications](#notifications)) |
 | **Area:** | Select the geographic zone to display. This does not start or stop any stream — each area has its own independent stream. Options show 🟢 if the stream is active or ⚪ if it is off. |
@@ -248,6 +249,26 @@ When you re-follow a ship that was in **Followed in the past** (open its detail 
 
 - if the ship is found (it's transmitting), it stays followed and its position updates;
 - if it does **not** transmit within ~90 seconds, the ship **returns to "Followed in the past"** and you get a **notification** that it could not be found.
+
+---
+
+## Coverage map
+
+Open it with the **🌐 Coverage map** entry in the sidebar. It shows a **world map** where each grid cell is coloured by **how many AIS messages are received there** — a scale from **blue** (few) to **red** (many). At a glance it reveals where AIS coverage is good and where the "holes" are.
+
+**All users** can open the map and see the current data (read-only).
+
+**Only administrators** can also:
+
+- **start and stop** the data collection;
+- see the **live connection stats** (bandwidth used, messages per second, populated cells, and so on);
+- **clear** the collected data.
+
+Once an administrator starts it, collection keeps running **in the background** — even if nobody has the page open — until an administrator stops it. It **auto-resumes after a server restart**. As a safety measure it **stops by itself if no user has been active for 10 minutes**.
+
+**Buttons on the page (administrators):** **Start / Stop collection**, **Refresh map**, **Clear data**.
+
+> **⚠️ Warning:** while collecting, the app continuously downloads data from the **whole world** — roughly **200–400 MB per hour**. This feature needs its own AISStream key from a **separate account** (different from the main one), set by the administrator in `local.properties` as `HEATMAP_AIS_API_KEY`. Without that key the feature stays **off**.
 
 ---
 
@@ -494,6 +515,7 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | Key | Meaning |
 |---|---|
 | `AIS_API_KEY` | Your AISStream.io access key (required) |
+| `HEATMAP_AIS_API_KEY` | AISStream.io access key used **only** by the [Coverage map](#coverage-map). It must come from a **separate account** (different from `AIS_API_KEY`), because that map opens its own worldwide stream. Leave empty to keep the feature disabled. Write it "bare" — **no comment on the same line** |
 | `BBOX_PRESET` | Area shown at startup (an area's key, e.g. `bari`) |
 | `IMPORT_VF_DATA` | `true`/`false` — enable VesselFinder data import |
 | `IMPORT_MT_DATA` | `true`/`false` — enable MarineTraffic data import |
@@ -534,6 +556,9 @@ Holds the app's thresholds and parameters (time windows, radii, retention, risk-
 | `BERTH_DOMINANT_PCT` | Percentage a category must exceed to name the berth | `60` |
 | `BERTH_RECOMPUTE_MIN` | Minutes between automatic berth recomputes | `30` |
 | `RISK_*` | Risk-score weights and thresholds (see comments in the file) | various |
+| `HEATMAP_GRID_DEG` | [Coverage map](#coverage-map) cell size, in degrees (~28 km at 0.25). Smaller = more precise but heavier; after changing it, press **Clear data** on the map | `0.25` |
+| `HEATMAP_FLUSH_SEC` | How often (seconds) the Coverage map writes new counts to its database | `10` |
+| `HEATMAP_STATS_SEC` | How often (seconds) the Coverage map refreshes the live stats shown to administrators | `2` |
 
 ### `bounding-boxes.json` — area definitions
 
@@ -699,6 +724,8 @@ Use the **✓ Seen** button on each row: the vessel becomes faded and is immedia
 Yes, in several ways, all downloaded straight from the browser:
 - **CSV** — the **⬇ Filtered CSV** button in the active/past ships toolbar exports the current (filtered and sorted) view; **⚙ Settings → Export CSV** instead gives the raw export of all readings.
 - **GeoJSON / KML** (for **QGIS** or **Google Earth**) — next to the CSV you'll find **⬇ GeoJSON** and **⬇ KML**. Four sources: the filtered **ship list** (points), a ship's **track** (from the detail view, under the map), an area **replay** (one line per ship, from the Replay bar), and the **berths** as polygons ("Berths GeoJSON/KML" buttons). If there's nothing to export, a warning appears.
+
+> The [Coverage map](#coverage-map) data lives in a **separate database**. From the **Backup / Restore** settings you can **export and import it on its own**, and it is also included in the **full backup**.
 
 **I changed area and the vessels disappeared — is that normal?**
 Yes. Each area has its own independent data set and its own independent stream. Changing the area in the dropdown is a view change only: it shows the data for the selected area but does not start or stop any stream. Vessels from the previous area remain in the database; if you switch back, you will see them again. To receive data from multiple areas at the same time, use the "Area monitoring" panel in Settings.

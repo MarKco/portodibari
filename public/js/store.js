@@ -11,7 +11,7 @@ export const S = {
   trackSogStop: 0.5,
   notifDeleteUndoSeconds: 5,
   // View / detail
-  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'followed' | 'areas' | 'settings'
+  view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'followed' | 'areas' | 'coverage' | 'settings'
   detailMmsi: null,
   detailFrom: 'active',
   settingsFrom: 'active',
@@ -84,6 +84,11 @@ export const S = {
   followedMap: null,
   followedMarkersLayer: null,
   followedShipsCache: new Map(),
+
+  // Coverage heatmap map (mappa delle zone coperte) — see coverage.js
+  coverageMap: null,
+  coverageLayer: null,
+  coverageRenderer: null,
 
   // Berths (mooring characterization overlay on the overview map)
   berthsLayer: null,

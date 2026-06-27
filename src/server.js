@@ -6,11 +6,17 @@
 // backup. Must stay the very first statements in this file.
 const fs = require('fs');
 const path = require('path');
-const DB_PATH = path.join(__dirname, '..', 'ais_data.db');
-const dbFileExisted = fs.existsSync(DB_PATH);
+// The DB now lives under data/db/ (older versions kept it at the project root, and
+// db.js relocates a legacy file there on load). Treat EITHER location as "existed"
+// so an in-place upgrade isn't mistaken for a wiped deploy.
+const NEW_DB_PATH = path.join(__dirname, '..', 'data', 'db', 'ais_data.db');
+const OLD_DB_PATH = path.join(__dirname, '..', 'ais_data.db');
+const dbFileExisted = fs.existsSync(NEW_DB_PATH) || fs.existsSync(OLD_DB_PATH);
 
 const createApp = require('./app');
 const db = require('./db');
+const heatmapDb = require('./heatmap-db');
+const heatmapStream = require('./services/heatmap-stream');
 const stream = require('./services/ais-stream');
 const aisUptime = require('./services/ais-uptime');
 const shipFollow = require('./services/ship-follow');
@@ -205,6 +211,17 @@ app.listen(PORT, () => {
   stream.startStream(state.preset);
   // Follow stream: connects on its own only when there are ships to follow.
   shipFollow.init();
+
+  // Coverage heatmap: migrate any legacy cells out of the main DB into the
+  // separate heatmap DB, then resume background collection if it was left on
+  // (admin-controlled, persisted). A safety sweep stops the firehose if NO user
+  // has been active in the last 10 minutes — never let it run with nobody around.
+  heatmapDb.migrateFromMainIfNeeded();
+  heatmapStream.resumeIfDesired();
+  const HEATMAP_IDLE_MS = 10 * 60 * 1000;
+  setInterval(() => {
+    try { heatmapStream.autoStopIfNoUsers(HEATMAP_IDLE_MS); } catch { /* best-effort */ }
+  }, HEATMAP_IDLE_MS);
   // Cross-checks the public AISStream uptime monitor when our streams go silent.
   aisUptime.init();
   // Telegram bot: long-polls for /start link codes and sends per-user alerts.

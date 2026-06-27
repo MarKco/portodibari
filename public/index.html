@@ -60,6 +60,11 @@
         <span class="sb-icon">🗺</span>
         <span class="sb-label" data-i18n="sidebar.followed">Navi seguite</span>
       </button>
+      <button id="btn-coverage" class="btn btn-secondary sb-btn"
+              data-i18n-title="sidebar.coverage" title="Mappa delle zone coperte">
+        <span class="sb-icon">🌐</span>
+        <span class="sb-label" data-i18n="sidebar.coverage">Mappa zone coperte</span>
+      </button>
       <div class="sb-divider"></div>
       <button id="btn-start" class="btn btn-primary sb-btn"
               data-i18n-title="sidebar.start" title="Avvia il monitoraggio">
@@ -719,6 +724,40 @@
       </div>
     </div>
 
+    <!-- View: coverage heatmap (mappa delle zone coperte) -->
+    <div id="view-coverage" class="hidden">
+      <div class="coverage-wrap">
+        <div id="coverage-warn" class="coverage-warn hidden" data-i18n-html="coverage.warn"></div>
+
+        <div id="coverage-admin" class="hidden">
+          <div class="coverage-stats">
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.state">Stato</div><div class="cov-v" id="cov-state">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.bandwidth">Banda (ora)</div><div class="cov-v" id="cov-bps">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.downloaded">Scaricato</div><div class="cov-v" id="cov-bytes">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.msgps">Messaggi/s</div><div class="cov-v" id="cov-mps">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.msgs">Messaggi sessione</div><div class="cov-v" id="cov-msgs">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.conn">Connessione</div><div class="cov-v" id="cov-up">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.cells">Celle popolate</div><div class="cov-v" id="cov-cells">—</div></div>
+            <div class="cov-stat"><div class="cov-k" data-i18n="coverage.stat.total">Messaggi totali</div><div class="cov-v" id="cov-total">—</div></div>
+          </div>
+          <div class="coverage-controls">
+            <button id="btn-cov-toggle" class="btn btn-primary" data-i18n="coverage.start">▶ Avvia raccolta</button>
+            <button id="btn-cov-refresh" class="btn btn-secondary" data-i18n="coverage.refresh">↻ Aggiorna mappa</button>
+            <button id="btn-cov-reset" class="btn btn-clear" data-i18n="coverage.reset">🗑 Cancella dati</button>
+            <span id="cov-msg" class="coverage-msg"></span>
+          </div>
+        </div>
+
+        <div id="coverage-map"></div>
+        <div class="coverage-legend">
+          <span data-i18n="coverage.legend">Densità dati</span>
+          <span class="cov-bar"></span>
+          <span data-i18n="coverage.legendScale">bassa → alta (scala log)</span>
+          <span id="cov-legend-max" class="coverage-msg" style="margin-left:auto"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- View: settings -->
     <div id="view-settings" class="hidden">
       <div class="detail-nav">
@@ -1210,6 +1249,23 @@
             <input type="file" id="restore-file" accept=".db,.sqlite,application/octet-stream" class="hidden">
           </div>
 
+          <h3 class="settings-group-title" data-i18n="settings.group.heatmap">Mappa zone coperte</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.heatmapExport.name">Esporta dati copertura</div>
+              <div class="setting-desc" data-i18n="settings.heatmapExport.desc">Scarica il database separato della mappa delle zone coperte (file .db). È incluso anche nel backup completo.</div>
+            </div>
+            <button id="btn-heatmap-export" class="btn btn-secondary" data-i18n="settings.heatmapExport.btn">⬇ Esporta</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.heatmapImport.name">Importa dati copertura</div>
+              <div class="setting-desc" data-i18n-html="settings.heatmapImport.desc">Sostituisce <strong>tutti</strong> i dati attuali della mappa delle zone coperte con quelli del file selezionato. Operazione irreversibile.</div>
+            </div>
+            <button id="btn-heatmap-import" class="btn btn-clear" data-i18n="settings.heatmapImport.btn">⬆ Importa</button>
+            <input type="file" id="heatmap-file" accept=".db,.sqlite,application/octet-stream" class="hidden">
+          </div>
+
           <h3 class="settings-group-title" data-i18n="settings.group.areas">Aree</h3>
           <div class="setting-row">
             <div class="setting-info">
@@ -1385,6 +1441,25 @@
     <span class="icon-sun" aria-hidden="true">☀️</span>
   </button>
 
+  <style>
+    /* Coverage heatmap view (mappa delle zone coperte) */
+    .coverage-wrap { padding: 1rem 1.25rem; }
+    .coverage-warn { border:1px solid rgba(245,158,11,.4); background:rgba(245,158,11,.08); color:#fcd34d;
+                     border-radius:10px; padding:.8rem 1rem; margin-bottom:1rem; font-size:.85rem; line-height:1.5; }
+    .coverage-warn b { color:#fde68a; }
+    .coverage-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.55rem; margin-bottom:.9rem; }
+    .cov-stat { background:var(--surface,#141a24); border:1px solid var(--border,#2a3441); border-radius:9px; padding:.5rem .7rem; }
+    .cov-k { color:var(--text-muted,#9aa7b5); font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; }
+    .cov-v { font-size:1.1rem; font-weight:600; margin-top:.1rem; }
+    .cov-v small { font-size:.68rem; color:var(--text-muted,#9aa7b5); font-weight:400; }
+    .coverage-controls { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.8rem; }
+    .coverage-msg { font-size:.82rem; color:var(--text-muted,#9aa7b5); }
+    .coverage-msg.err { color:var(--red,#ef4444); } .coverage-msg.ok { color:var(--green,#22c55e); }
+    #coverage-map { height:62vh; min-height:380px; border:1px solid var(--border,#2a3441); border-radius:10px; background:#0e1420; }
+    .coverage-legend { margin-top:.55rem; display:flex; align-items:center; gap:.55rem; font-size:.78rem; color:var(--text-muted,#9aa7b5); }
+    .coverage-legend .cov-bar { width:180px; height:11px; border-radius:3px; border:1px solid var(--border,#2a3441);
+        background:linear-gradient(90deg,#1e3a8a,#06b6d4,#22c55e,#eab308,#ef4444); }
+  </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script type="module" src="js/main.js"></script>
   <script type="module" src="js/auth-ui.js"></script>

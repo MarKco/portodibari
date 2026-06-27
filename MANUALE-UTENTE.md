@@ -95,6 +95,7 @@ Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagi
 | **■ Ferma** | Interrompe la ricezione per l'area corrente (i dati già raccolti rimangono) |
 | **🗑 Cancella dati** | Elimina le letture dell'area correntemente visualizzata — **irreversibile** |
 | **🗺 Aree** | Apre la schermata di gestione aree: elenco, mappa, aggiunta e rimozione di aree (vedi [Gestione aree](#gestione-aree)) |
+| **🌐 Mappa zone coperte** | Apre la mappa mondiale che mostra dove la copertura AIS è buona e dove ci sono buchi (vedi [Mappa delle zone coperte](#mappa-delle-zone-coperte)) |
 | **⚙ Impostazioni** | Apre le impostazioni dell'applicazione. Include i tab tecnici **Log API** (📋) e **Diagnostica AIS** (📡) |
 | **🔔 Notifiche** | Mostra/nasconde la lista delle notifiche nella barra laterale. Un badge rosso indica il numero di notifiche da leggere (vedi [Notifiche](#notifiche)) |
 | **Area:** | Seleziona la zona geografica da visualizzare. Non avvia né ferma lo stream — ogni area ha il proprio stream indipendente. Le opzioni mostrano 🟢 se lo stream è attivo o ⚪ se è spento. |
@@ -251,6 +252,26 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il suo dett
 
 ---
 
+## Mappa delle zone coperte
+
+Si apre dalla voce **🌐 Mappa zone coperte** nella barra laterale. Mostra una **mappa del mondo** dove ogni cella della griglia è colorata in base a **quanti messaggi AIS si ricevono** in quella zona: una scala di colore che va dal **blu** (pochi messaggi) al **rosso** (molti). Serve a capire a colpo d'occhio dove la copertura AIS è buona e dove invece ci sono dei "buchi".
+
+**Tutti gli utenti** possono aprire la mappa e vedere i dati correnti: per loro è in **sola lettura**.
+
+Solo gli **amministratori** possono inoltre:
+
+- **avviare** e **fermare** la raccolta dei dati;
+- vedere le **statistiche di connessione in tempo reale** (banda usata, messaggi al secondo, numero di celle popolate, ecc.);
+- **cancellare** i dati raccolti.
+
+I pulsanti disponibili per l'amministratore nella pagina sono: **Avvia/Ferma raccolta**, **Aggiorna mappa** e **Cancella dati**.
+
+**Come funziona la raccolta:** una volta avviata da un amministratore, gira **in background** sul server — anche se nessuno ha la pagina aperta — finché un amministratore non la ferma. Riprende da sola dopo un riavvio del server. Per sicurezza si **spegne automaticamente** se nessun utente è attivo per **10 minuti**.
+
+> **Attenzione:** mentre la raccolta è attiva l'app **scarica dati in continuazione da tutto il mondo** (circa **200–400 MB l'ora**). La funzione richiede una **chiave AISStream di un account separato** (diverso da quello usato per il monitoraggio normale), impostata dall'amministratore in `local.properties` come `HEATMAP_AIS_API_KEY`. Senza quella chiave la funzione resta spenta.
+
+---
+
 ## Dettaglio nave
 
 Cliccando su qualsiasi riga della tabella si apre la scheda completa della nave.
@@ -389,6 +410,8 @@ Apri con il pulsante **⚙ Impostazioni** nella barra laterale.
 
 > **Attenzione:** Il ripristino del database sostituisce **tutti** i dati attuali. L'operazione è irreversibile. Scarica un backup prima di procedere. Dopo il ripristino, i dati vengono automaticamente assegnati all'area corretta in base alle coordinate geografiche.
 
+> **Mappa delle zone coperte:** i dati della [Mappa delle zone coperte](#mappa-delle-zone-coperte) sono tenuti in un **database separato**. Possono essere **esportati e importati per conto loro** dalle impostazioni di backup, e sono comunque inclusi anche nel **backup completo**.
+
 > **Auto-ripristino dopo un deploy:** il database viene cancellato quando si aggiorna l'applicazione (deploy). Se all'avvio il database **non esiste** e sono presenti degli **auto-backup** salvati (cartella `data/backups/`), l'app ripristina automaticamente l'ultimo backup (solo il database). Questo richiede che la cartella dei backup sopravviva al deploy. Non scatta se il database esiste ma è stato semplicemente svuotato con "Cancella dati". Disattivabile con `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 
 Le impostazioni sono organizzate in **tab**: **Generali** (la tabella qui sopra), **Aree**, **Integrazioni esterne** (notifiche Telegram + webhook in uscita, vedi sotto), **Parametri** e **Backup / Ripristino**.
@@ -494,6 +517,7 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | Chiave | Significato |
 |---|---|
 | `AIS_API_KEY` | La chiave di accesso ad AISStream.io (obbligatoria) |
+| `HEATMAP_AIS_API_KEY` | Chiave API di un account AISStream **separato** (diverso da `AIS_API_KEY`), usata **solo** per la [Mappa delle zone coperte](#mappa-delle-zone-coperte). Vuota = funzione disattivata. Va scritta "nuda", **senza commenti sulla stessa riga** |
 | `BBOX_PRESET` | Area mostrata all'avvio (la chiave di un'area, es. `bari`) |
 | `IMPORT_VF_DATA` | `true`/`false` — abilita l'import dati VesselFinder |
 | `IMPORT_MT_DATA` | `true`/`false` — abilita l'import dati MarineTraffic |
@@ -533,6 +557,9 @@ Contiene le soglie e i parametri dell'app (finestre temporali, raggi, retention,
 | `BERTH_MIN_MOORINGS` | Attracchi minimi prima di caratterizzare/colorare una banchina | `10` |
 | `BERTH_DOMINANT_PCT` | Percentuale che una categoria deve superare per dare il nome alla banchina | `60` |
 | `BERTH_RECOMPUTE_MIN` | Minuti tra un ricalcolo automatico delle banchine e il successivo | `30` |
+| `HEATMAP_GRID_DEG` | Dimensione delle celle della [Mappa delle zone coperte](#mappa-delle-zone-coperte), in gradi (~28 km). Più piccola = mappa più precisa ma più pesante. Dopo averla cambiata premi **Cancella dati** nella mappa | `0.25` |
+| `HEATMAP_FLUSH_SEC` | Ogni quanti secondi i conteggi raccolti vengono scritti su disco | `10` |
+| `HEATMAP_STATS_SEC` | Ogni quanti secondi si aggiornano le statistiche di connessione in tempo reale | `2` |
 | `RISK_*` | Pesi e soglie del punteggio di rischio (vedi commenti nel file) | vari |
 
 ### `bounding-boxes.json` — definizione delle aree

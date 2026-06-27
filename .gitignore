@@ -3,6 +3,9 @@ local.properties
 ais_data.db
 ais_data.db-shm
 ais_data.db-wal
+heatmap_data.db
+heatmap_data.db-shm
+heatmap_data.db-wal
 equasis.log
 *.zip
 .claude

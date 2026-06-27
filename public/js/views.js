@@ -18,6 +18,7 @@ import { loadTrack, stopTrackAnim } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { loadFollowed } from './followed.js';
 import { enterAreasView, commitPendingDelete } from './areas.js';
+import { enterCoverageView, leaveCoverageView } from './coverage.js';
 import { closeSettingsLog } from './app-log.js';
 import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
@@ -33,6 +34,8 @@ export function showView(v, mmsi, shipData) {
   if (S.view === 'areas' && v !== 'areas') commitPendingDelete();
   // Leaving the ship detail: stop any running track playback (rAF loop).
   if (S.view === 'detail' && v !== 'detail') stopTrackAnim();
+  // Leaving the coverage map: stop its cell-refresh timer and live-stats SSE.
+  if (S.view === 'coverage' && v !== 'coverage') leaveCoverageView();
   // Leaving Settings: stop every live feed bound to a settings tab
   // (app-log tail, API-log stream, AIS health polling).
   if (S.view === 'settings' && v !== 'settings') {
@@ -48,10 +51,11 @@ export function showView(v, mmsi, shipData) {
   el.viewTraffco.classList.toggle('hidden', v !== 'traffico');
   if (el.viewFollowed) el.viewFollowed.classList.toggle('hidden', v !== 'followed');
   el.viewAreas.classList.toggle('hidden', v !== 'areas');
+  if (el.viewCoverage) el.viewCoverage.classList.toggle('hidden', v !== 'coverage');
   el.viewSettings.classList.toggle('hidden', v !== 'settings');
   // Hide the Monitoraggi tab bar outside the active/past/traffico section
   // (the Navi seguite section carries its own tab bar).
-  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'followed' || v === 'areas' || v === 'settings');
+  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'followed' || v === 'areas' || v === 'coverage' || v === 'settings');
 
   el.tabActive.classList.toggle('tab-active', v === 'active');
   el.tabPast.classList.toggle('tab-active', v === 'past');
@@ -92,5 +96,7 @@ export function showView(v, mmsi, shipData) {
     loadFollowed();
   } else if (v === 'areas') {
     enterAreasView();
+  } else if (v === 'coverage') {
+    enterCoverageView();
   }
 }

@@ -112,6 +112,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `EQUASIS_PASSWORD` | Equasis account password — required by the Equasis lookup | *(empty)* |
 | `IMPORT_GFW` | Enable Global Fishing Watch enrichment (identity + AIS-derived behavioural events) (`true`/`false`) | `true` |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API token (Bearer), generated from the [GFW API portal](https://globalfishingwatch.org/our-apis/) — required by the GFW enrichment. GFW data is free **for non-commercial use only** (research/NGO/public good); commercial use requires a dedicated license. Without a token the feature silently no-ops | *(empty)* |
+| `HEATMAP_AIS_API_KEY` | AISStream API key from a **separate account** for the Coverage map (see the [dedicated section](#-coverage-map-aisstream-coverage)). Empty = feature disabled. Bare value, no inline comments. | *(empty)* |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (from [@BotFather](https://t.me/BotFather)) for Telegram notifications. A single bot serves all users; each links their own chat from Settings → **External integrations** tab. Empty = bot off. **Secret, do not commit.** No public URL/webhook needed: the app long-polls | *(empty)* |
 | `ADMIN_USERNAME` | Username of the built-in administrator, re-seeded at startup if missing (see [Authentication](#-authentication-multi-user)) | `admin` |
 | `ADMIN_EMAIL` | Email of the built-in administrator | `admin@local` |
@@ -211,6 +212,9 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Replay: max positions per query | `app.config.properties`           | `REPLAY_MAX_POINTS`                   | 40,000         |
 | Replay: max gap (hide ship)     | `app.config.properties`           | `REPLAY_MAX_GAP_MIN`                  | 30 min         |
 | Replay: trail length            | `app.config.properties`           | `REPLAY_TAIL_MIN`                     | 20 min         |
+| Coverage map: grid cell size    | `app.config.properties`           | `HEATMAP_GRID_DEG`                    | 0.25° (≈28 km) |
+| Coverage map: DB flush interval | `app.config.properties`           | `HEATMAP_FLUSH_SEC`                   | 10 s           |
+| Coverage map: stats push interval | `app.config.properties`         | `HEATMAP_STATS_SEC`                   | 2 s            |
 | Auto-restore DB after deploy    | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | On-disk auto-backup interval    | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 | Max request/response body bytes in log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
@@ -468,6 +472,43 @@ The system infers by itself **where** vessels moor and **what type** they are, h
 
 > **No database, no migration**: the toggles live in `local.properties` (`SHOW_OPENSEAMAP`, `SHOW_OPENSEAMAP_MARKERS`, `OPENSEAMAP_HIDDEN`) and the Overpass data is fetched live, never stored. OpenSeaMap's `depth-api3` is **not** used (it would need a self-hosted Django+PostGIS backend). **Coverage**: in commercial ports the `berth`/`mooring` tags are often missing — hence the Overpass query also covers harbours/basins/anchorages/marinas, and the tile layer stays the primary visual source.
 
+## 🌐 Coverage map (AISStream coverage)
+
+A **worldwide** AISStream subscription aggregates incoming position messages into a **lat/lon grid** (per-cell message count) to show where AIS coverage is dense and where the holes are. It is its own sidebar view (🌐): a world Leaflet map whose cells are coloured by density on a **log scale** (blue → red), drawn with the **canvas renderer** for performance. Frontend in [`public/js/coverage.js`](public/js/coverage.js).
+
+**Privacy by design** — each cell stores **only** the per-cell message count and last-seen timestamp (`msg_count`, `last_seen`). **No** ship names, **no** positions, no MMSIs are persisted.
+
+**Hot path** — the firehose is high-volume, so the pipeline is: parse → increment an **in-memory** per-cell counter → **batch-flush** to the database every `HEATMAP_FLUSH_SEC`. There is **never** one DB write per message.
+
+### Visibility
+
+- The **map** (current cells) is visible to **all authenticated users**, read-only, via `GET /api/heatmap/cells`.
+- **Collection start/stop**, live connection stats and **export/import** are **admin-only**.
+
+### Collection (admin-controlled background task)
+
+Collection is an **admin-controlled background task**: pressing **Start** runs the worldwide firehose **in the background** until an admin presses **Stop**, regardless of who has the page open. The desired state is **persisted** (key `heatmap_collecting` in the main DB `meta` table) and **auto-resumes on server restart**.
+
+> ℹ️ **Safety sweep**: a **10-minute** periodic sweep stops the firehose if **no user has been active in the last 10 minutes** — so the bandwidth-heavy stream never runs unattended forever.
+
+**Admin panel** — shows: status, current bandwidth, downloaded (this session), messages/s, messages (this session), connection (uptime + reconnects), populated cells and total messages. Buttons: **Start/Stop**, **Refresh map**, **Clear data**. A warning banner reminds the operator about the bandwidth use and the need for a separate account.
+
+### Dedicated AISStream account
+
+> ℹ️ **Separate key required.** The feature needs `HEATMAP_AIS_API_KEY` in `local.properties`, taken from a **separate AISStream account**. AISStream's connection limit is **per-account, not per-key**: a key on the **same** account as `AIS_API_KEY` is rejected (the WebSocket opens, then closes with code **1006** and no error frame) and would **starve the area streams** of their connection slot. Without the key the feature is **inert**. The value is **bare** — the parser does **not** strip inline `//` comments on a value line, so do not append a comment.
+
+**Measured bandwidth**: ~100–300 msg/s ≈ ~200–400 MB/hour.
+
+**Reconnect hardening** — exponential backoff (`5s × 2^failures`, capped at 5 min) on sessions that close having received **no** messages; after **3 consecutive** failures it surfaces a diagnosis (likely per-account limit / invalid key).
+
+### Separate database
+
+The coverage data lives in a **separate** database, `data/db/heatmap_data.db` (module [`src/heatmap-db.js`](src/heatmap-db.js)) — **not** in the main DB and **not** in `BACKUP_TABLES`. It can be **exported/imported on its own** from **Settings → Backup** (`GET /api/heatmap/export` / `POST /api/heatmap/import`, **replace** semantics), and it is also embedded in the **full bundle** (v3 format `TPB3`: header + main DB + heatmap DB, both length-prefixed and streamed). Older **v1/v2** bundles still restore (they simply carry no heatmap section).
+
+**Grid** — `HEATMAP_GRID_DEG` in `app.config.properties` (default **0.25°** ≈ 28 km). Smaller cells are more precise but the cost grows **quadratically** (render, payload, DB rows). Changing the grid **invalidates** stored cells (a cell index is `floor(coord/grid)`) → use **Clear data** after a change.
+
+**Key files**: [`src/services/heatmap-stream.js`](src/services/heatmap-stream.js), [`src/heatmap-db.js`](src/heatmap-db.js), [`src/routes/heatmap.js`](src/routes/heatmap.js), [`public/js/coverage.js`](public/js/coverage.js).
+
 ## 🔗 MarineTraffic / VesselFinder Integration
 
 In the ship detail view, two panels enrich AIS data with data downloaded (scraped) from external sources, cached in the `ship_scrape_cache` table (TTL configurable via `SCRAPE_CACHE_TTL`).
@@ -657,7 +698,11 @@ From the **⚙ Settings** modal:
 - **Backup database** → downloads the entire DB as a single `.db` file (`tracker-porti-backup-<timestamp>.db`). This is a consistent snapshot (`VACUUM INTO`), safe even with the AIS stream active and without WAL/`-shm` sidecar files.
 - **Restore database** → uploads a backup `.db` file: **all** current data is replaced (irreversible operation, with confirmation). The file is validated (SQLite header) and tables are copied column-by-column on the column intersection, so a backup with an older schema restores correctly. No app restart required. After restore, rows with an empty `area` value are automatically assigned to the correct area based on coordinates (most specific bounding box containing the point).
 
-The server also writes a full **auto-backup** bundle (database + areas + settings) at a regular interval (default **every 2 hours**, configurable via `BACKUP_INTERVAL_MIN` in `app.config.properties`) to `data/backups/` (last 5 kept), plus on-demand from the Backup/Restore tab.
+- **Export / Import coverage data** → the separate [Coverage-map database](#-coverage-map-aisstream-coverage) (`data/db/heatmap_data.db`) has its **own** export/import in the same tab (`GET /api/heatmap/export` / `POST /api/heatmap/import`, **replace** semantics), since it is **not** part of the main DB.
+
+The server also writes a full **auto-backup** bundle (database + areas + settings) at a regular interval (default **every 2 hours**, configurable via `BACKUP_INTERVAL_MIN` in `app.config.properties`) to `data/backups/` (last 5 kept), plus on-demand from the Backup/Restore tab. The bundle now also **embeds** the separate coverage-map database (**v3** format `TPB3`: header + main DB + heatmap DB, both length-prefixed and streamed); older **v1/v2** bundles still restore (no heatmap section).
+
+> ℹ️ **Database location.** The SQLite databases (`ais_data.db` + `heatmap_data.db`) now live under `data/db/`. Older versions kept them at the **project root**; on the first start of the new version they are **auto-relocated** into `data/db/` (including the `-wal`/`-shm` sidecars). Bundles store **DB content, not file paths**, so export/import between an old-layout and a new-layout version works regardless.
 
 #### Auto-restore after a deploy
 
@@ -666,6 +711,7 @@ The server also writes a full **auto-backup** bundle (database + areas + setting
 - Triggers **only** when the `.db` file was absent at startup: an existing-but-empty DB (e.g. after **🗑 Clear data** + restart) is **not** restored, so intentionally deleted data is never resurrected.
 - Disable with `AUTO_RESTORE_ON_DEPLOY=false` in `app.config.properties`.
 - **Important**: for this to work, `data/backups/` must **survive the deploy** (e.g. on a persistent volume / outside the replaced directory). See [Deploy on a Linux server](#-deploy-on-a-linux-server-vps).
+- The auto-restore also **rehydrates the heatmap DB** (`data/db/heatmap_data.db`) from the latest bundle's embedded coverage section, when present.
 
 ---
 

@@ -14,6 +14,7 @@ import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
 import { openHealth, closeHealth } from './health.js';
 import { initAreas } from './areas.js';
+import { initCoverage } from './coverage.js';
 import { applyOpenSeaMap } from './tiles.js';
 import { renderSeamarkBerths, SEAMARK_CATEGORIES } from './seamarks.js';
 import { initNotifications, loadNotifications } from './notifications.js';
@@ -1148,6 +1149,21 @@ function initSettingsModal() {
   // ── Backup / restore tab — granular and full-bundle export/import ──────────
   el.btnBundleExport.addEventListener('click', () => { window.location = '/api/bundle'; });
   el.btnAreasExport.addEventListener('click', () => { window.location = '/api/areas/export'; });
+  if (el.btnHeatmapExport) el.btnHeatmapExport.addEventListener('click', () => { window.location = '/api/heatmap/export'; });
+  if (el.btnHeatmapImport) {
+    el.btnHeatmapImport.addEventListener('click', () => el.heatmapFile.click());
+    el.heatmapFile.addEventListener('change', async () => {
+      const file = el.heatmapFile.files[0];
+      el.heatmapFile.value = '';
+      if (!file) return;
+      if (!confirm(t('confirm.heatmapImport', { file: file.name }))) return;
+      await runImport({
+        file, url: '/api/heatmap/import', contentType: 'application/octet-stream',
+        btn: el.btnHeatmapImport, busyLabel: t('toast.importing'),
+        onDone: (d) => showAlert(t('toast.heatmapImported'), t('toast.heatmapImportedBody', { n: (d.cells || 0).toLocaleString() })),
+      });
+    });
+  }
   el.btnSettingsExport.addEventListener('click', () => { window.location = '/api/settings/export'; });
 
   el.btnAreasImport.addEventListener('click', () => el.areasFile.click());
@@ -1461,6 +1477,7 @@ function initToolbar() {
   el.tabTraffco.addEventListener('click', () => showView('traffico'));
   el.btnHome.addEventListener('click', () => showView('active'));
   if (el.btnFollowed) el.btnFollowed.addEventListener('click', () => showView('followed'));
+  if (el.btnCoverage) el.btnCoverage.addEventListener('click', () => showView('coverage'));
   el.btnAreas.addEventListener('click', () => showView('areas'));
 
   el.btnBack.addEventListener('click', () => showView(S.detailFrom));
@@ -1684,6 +1701,7 @@ initBboxSelect();
 initLogPanel();
 initAppLog();
 initAreas();
+initCoverage();
 initNotifications();
 initOutageBanner();
 initMapResizer();

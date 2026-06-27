@@ -117,6 +117,8 @@ export const el = {
 
   // Navigation
   btnHome: $('btn-home'),
+  btnCoverage: $('btn-coverage'),
+  viewCoverage: $('view-coverage'),
 
   // Notifications
   btnNotifications: $('btn-notifications'),
@@ -223,6 +225,9 @@ export const el = {
   btnBundleExport: $('btn-bundle-export'),
   btnBundleImport: $('btn-bundle-import'),
   bundleFile: $('bundle-file'),
+  btnHeatmapExport: $('btn-heatmap-export'),
+  btnHeatmapImport: $('btn-heatmap-import'),
+  heatmapFile: $('heatmap-file'),
   btnAreasExport: $('btn-areas-export'),
   btnAreasImport: $('btn-areas-import'),
   areasFile: $('areas-file'),
