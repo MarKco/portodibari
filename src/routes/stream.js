@@ -3,6 +3,8 @@
 const express = require('express');
 const db = require('../db');
 const stream = require('../services/ais-stream');
+const shipFollow = require('../services/ship-follow');
+const heatmap = require('../services/heatmap-stream');
 const aisUptime = require('../services/ais-uptime');
 const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS } = require('../config');
@@ -39,7 +41,17 @@ router.get('/stream/status', (req, res) => {
 
 router.get('/stream/health', (req, res) => {
   const area = req.query.area || state.preset;
-  res.json({ ...stream.getHealth(area), scrapeCounts24h: db.getScrapeCounts24h() });
+  // Three independent AISStream keys/accounts, each its own connection. Report all
+  // three so the panel can show per-key health side by side (monitoring, follow,
+  // heatmap). Monitoring stays at the top level too for backward compatibility.
+  const monitoring = stream.getHealth(area);
+  res.json({
+    ...monitoring,
+    monitoring,
+    follow: shipFollow.getHealth(),
+    heatmap: heatmap.getHealth(),
+    scrapeCounts24h: db.getScrapeCounts24h(),
+  });
 });
 
 module.exports = router;

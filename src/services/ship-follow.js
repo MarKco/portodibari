@@ -578,6 +578,7 @@ function getHealth() {
   return {
     area: 'follow',
     connected: !!s.wsClient,
+    keyTag: KEY_TAG,
     // 'shared' means follow reuses API_KEY and competes with the area streams for
     // the per-key connection slot (the 429 risk); a distinct key removes it.
     keySource: FOLLOW_API_KEY_SOURCE,

@@ -378,6 +378,8 @@ function getHealth(areaKey) {
   const msgPerMin = uptimeSec > 0 ? Math.round((s.sessionMessages / uptimeSec) * 60) : null;
   return {
     area: areaKey,
+    keyTag: KEY_TAG,
+    keySource: API_KEY_SOURCE,
     connected: !!s.wsClient,
     connectedAt: s.connectedAt ? new Date(s.connectedAt).toISOString() : null,
     uptimeSec,

@@ -28,10 +28,15 @@ const db = require('../db');
 const heatmapDb = require('../heatmap-db');
 const appLog = require('./app-log');
 const { broadcastLog } = require('../realtime');
-const { HEATMAP_API_KEY, HEATMAP, AIS_URL, RECONNECT_DELAY_MS } = require('../config');
+const { keyAbuseReason } = require('./ais-backoff');
+const { HEATMAP_API_KEY, HEATMAP_API_KEY_SOURCE, maskKey, HEATMAP, AIS_URL, RECONNECT_DELAY_MS } = require('../config');
 
 const GRID = HEATMAP.GRID_DEG;
 const META_KEY = 'heatmap_collecting';
+
+// Non-secret key fingerprint for logs (which key this stream uses → diagnose 429s).
+// HEATMAP_API_KEY_SOURCE is null when no key is configured (feature inert).
+const KEY_TAG = `${maskKey(HEATMAP_API_KEY)} (${HEATMAP_API_KEY_SOURCE || 'non configurata'})`;
 
 // Pending per-cell deltas, keyed "latIdx:lonIdx". Drained to SQLite by the flush timer.
 const cells = new Map();
@@ -58,6 +63,7 @@ const s = {
   msgReceived: 0,
   lastError: null,
   lastErrorAt: null,
+  abuseReason: null, // human reason when the last failure is a key over-use (429) problem
   lastSample: null, // { t, bytes, msgs } rolling sample for instantaneous rate
 };
 
@@ -92,8 +98,10 @@ function connect() {
       FilterMessageTypes: HEATMAP.MSG_TYPES,
     };
     s.wsClient.send(JSON.stringify(sub));
+    s.abuseReason = null;
     appLog.warn('HEATMAP', 'Mappa zone coperte: stream AISStream worldwide AVVIATO', {
       riconnessione: s.reconnectCount,
+      key: KEY_TAG,
     });
     broadcastLog(
       db.insertLog({
@@ -101,7 +109,7 @@ function connect() {
         path: '/ais/heatmap/connect',
         status: 200,
         duration_ms: 0,
-        response_body: '[heatmap] Connesso ad AISStream.io | bounding box: mondiale | tipi: ' + HEATMAP.MSG_TYPES.join(','),
+        response_body: `[heatmap] Connesso ad AISStream.io | key: ${KEY_TAG} | bounding box: mondiale | tipi: ` + HEATMAP.MSG_TYPES.join(','),
       })
     );
 
@@ -130,7 +138,9 @@ function connect() {
     if (parsed.error) {
       s.lastError = String(parsed.error);
       s.lastErrorAt = new Date().toISOString();
-      appLog.error('HEATMAP', 'Errore API AISStream (heatmap)', { error: s.lastError });
+      const abuse = keyAbuseReason(parsed.error);
+      if (abuse) s.abuseReason = abuse;
+      appLog.error('HEATMAP', 'Errore API AISStream (heatmap)', { error: s.lastError, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
       broadcastLog(
         db.insertLog({ method: 'AIS', path: '/ais/heatmap/api-error', status: 401, duration_ms: 0, response_body: s.lastError })
       );
@@ -161,7 +171,7 @@ function connect() {
         path: '/ais/heatmap/disconnect',
         status: code || 0,
         duration_ms: 0,
-        response_body: `[heatmap] Connessione chiusa (code ${code}) dopo ${upSec}s${s.active ? ' — riconnessione' : ''}`,
+        response_body: `[heatmap] Connessione chiusa (code ${code}) dopo ${upSec}s | key: ${KEY_TAG}${s.active ? ` — riconnessione${s.abuseReason ? ` — ${s.abuseReason}` : ''}` : ''}`,
       })
     );
     s.wsClient = null;
@@ -185,7 +195,9 @@ function connect() {
     console.error('[AIS:heatmap] WS error:', err.message);
     s.lastError = err.message;
     s.lastErrorAt = new Date().toISOString();
-    appLog.error('HEATMAP', 'Errore WebSocket (heatmap)', { error: err.message });
+    const abuse = keyAbuseReason(err.message);
+    if (abuse) s.abuseReason = abuse;
+    appLog.error('HEATMAP', 'Errore WebSocket (heatmap)', { error: err.message, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
     broadcastLog(
       db.insertLog({ method: 'AIS', path: '/ais/heatmap/ws-error', status: 500, duration_ms: 0, response_body: err.message })
     );
@@ -217,6 +229,7 @@ function startCollection() {
   db.setMeta(META_KEY, '1');
   s.consecutiveFailures = 0;
   s.lastError = null;
+  s.abuseReason = null;
   if (!s.flushTimer) s.flushTimer = setInterval(flush, HEATMAP.FLUSH_MS);
   if (!s.wsClient && !s.reconnectTimer) connect();
   return { ok: true };
@@ -334,6 +347,32 @@ function removeViewer(res) {
   }
 }
 
+// Connection diagnostics for the AIS health panel (Settings → Diagnostica AIS).
+// Mirrors the shape of ais-stream.getHealth / ship-follow.getHealth so the client
+// can render the three streams uniformly. Does NOT touch s.lastSample (that rolling
+// sample belongs to the admin live-stats SSE — see liveRates).
+function getHealth() {
+  const uptimeSec = s.connectedAt ? Math.round((Date.now() - s.connectedAt) / 1000) : 0;
+  const msgPerMin = uptimeSec > 0 ? Math.round((s.msgReceived / uptimeSec) * 60) : null;
+  return {
+    area: 'heatmap',
+    enabled: isEnabled(),
+    keyTag: KEY_TAG,
+    keySource: HEATMAP_API_KEY_SOURCE,
+    connected: !!s.wsClient && s.active,
+    desired: isCollectingDesired(),
+    connectedAt: s.connectedAt ? new Date(s.connectedAt).toISOString() : null,
+    uptimeSec,
+    sessionFrames: s.msgReceived,
+    sessionMessages: s.msgReceived,
+    msgPerMin,
+    reconnectCount: s.reconnectCount,
+    consecutiveFailures: s.consecutiveFailures,
+    lastAisError: s.lastError,
+    lastAisErrorAt: s.lastErrorAt,
+  };
+}
+
 /** Wipe all computed data (pending deltas + persisted cells). */
 function reset() {
   cells.clear();
@@ -352,6 +391,7 @@ module.exports = {
   addViewer,
   removeViewer,
   getLiveStats,
+  getHealth,
   getCells: () => heatmapDb.getCells(),
   getCellsAgg: (opts) => heatmapDb.getCellsAgg(opts),
   reset,
