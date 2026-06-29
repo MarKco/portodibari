@@ -62,6 +62,9 @@ function startStream(areaKey) {
   if (s.wsClient) return;
 
   s.streamActive = true;
+  // Persist the intent so a deploy/restart or a DB restore can bring this exact
+  // monitoring back (see db.setAreaActive). No-op if the area row doesn't exist yet.
+  try { db.setAreaActive(areaKey, 1); } catch { /* area row not yet in catalog */ }
   s.wsClient = new WebSocket(AIS_URL);
 
   s.wsClient.on('open', () => {
@@ -300,6 +303,7 @@ function stopStream(areaKey) {
   const s = streams.get(areaKey);
   if (!s) return;
   s.streamActive = false;
+  try { db.setAreaActive(areaKey, 0); } catch { /* area row already gone */ }
   clearTimeout(s.reconnectTimer);
   clearInterval(s.heartbeatTimer);
   if (s.wsClient) {
@@ -370,4 +374,55 @@ function getHealth(areaKey) {
   };
 }
 
-module.exports = { startStream, stopStream, removeStream, isActive, getStatus, getHealth, getSilenceInfo };
+// Reconcile the live streams to the persisted active set (db.getActiveAreaKeys):
+// start the flagged areas that aren't running, stop the running ones no longer
+// flagged. Unknown keys (catalog/config drift) are skipped. Returns the keys now
+// meant to be active.
+function syncActiveStreams() {
+  const desired = new Set(db.getActiveAreaKeys().filter((k) => BBOX_PRESETS[k]));
+  for (const [key, s] of streams) {
+    if (s.streamActive && !desired.has(key)) stopStream(key);
+  }
+  for (const key of desired) {
+    if (isActive(key)) continue;
+    try {
+      startStream(key);
+    } catch (e) {
+      appLog.warn('AIS', appLog.t('areas.autostart_failed', { key, error: e.message }), { area: key });
+    }
+  }
+  return [...desired];
+}
+
+// Bring back the monitorings that were active before this restart/restore — and
+// only those. Called on boot and after every DB restore. The persisted active set
+// rides in backups, so a deploy's auto-restore and a manual restore both land here
+// with the right flags. First boot ever (or restoring a pre-feature backup that
+// carries no intent): nothing is flagged, so adopt whatever is already running, or
+// fall back to `defaultArea` (the preset) so a fresh install still monitors. The
+// `streams_bootstrapped` meta marks that the persisted set is now authoritative.
+function resumeActiveStreams({ defaultArea = null } = {}) {
+  if (!db.getMeta('streams_bootstrapped')) {
+    const running = [...streams.entries()].filter(([, s]) => s.streamActive).map(([k]) => k);
+    const seed = running.length ? running : defaultArea ? [defaultArea] : [];
+    for (const key of seed) {
+      if (isActive(key)) continue;
+      try { startStream(key); } catch { /* unknown area */ }
+    }
+    db.setMeta('streams_bootstrapped', '1');
+    return seed;
+  }
+  return syncActiveStreams();
+}
+
+module.exports = {
+  startStream,
+  stopStream,
+  removeStream,
+  isActive,
+  getStatus,
+  getHealth,
+  getSilenceInfo,
+  syncActiveStreams,
+  resumeActiveStreams,
+};

@@ -208,7 +208,12 @@ app.listen(PORT, () => {
   // slow, offshore vessel pairs lingering close together (transshipment signature).
   proximity.init();
 
-  stream.startStream(state.preset);
+  // Resume exactly the monitorings that were active before this restart (and only
+  // those). The active set is persisted per-area and rides in backups, so this
+  // also covers the deploy auto-restore done above. First boot ever falls back to
+  // the preset area inside resumeActiveStreams().
+  const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
+  appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
   // Follow stream: connects on its own only when there are ships to follow.
   shipFollow.init();
 

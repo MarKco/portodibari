@@ -56,6 +56,10 @@ const MESSAGES = {
   'ais.conn_closed': { it: (p) => `Connessione chiusa (code ${p.code})`, en: (p) => `Connection closed (code ${p.code})` },
   'ais.ws_error': { it: 'Errore WebSocket', en: 'WebSocket error' },
   'ais.stream_stopped': { it: 'Stream fermato', en: 'Stream stopped' },
+  'ais.streams_resumed': {
+    it: (p) => `Monitoraggi ripristinati: ${p.count} ${p.count === 1 ? 'area' : 'aree'}`,
+    en: (p) => `Monitorings resumed: ${p.count} ${p.count === 1 ? 'area' : 'areas'}`,
+  },
   'ais.outage_detected': {
     it: (p) =>
       `Possibile disservizio AISStream: nessun segnale da ${p.min} min, il monitor ${p.source === 'selfhost' ? 'self-hosted' : 'pubblico'} riporta «${p.state}»`,

@@ -347,6 +347,17 @@ db.exec(`
   );
 `);
 
+// Each catalog area carries whether its live stream is meant to be running. This
+// is the ONLY persisted record of "monitoraggi attivi": the in-memory streams map
+// is lost on every restart, so without this a deploy or a DB restore couldn't know
+// which monitorings to bring back. It lives on the area row (not per-user) because
+// a stream is shared across all users that own the area, and it rides along in
+// backups (areas is in BACKUP_TABLES; restoreFrom is column-intersection so older
+// backups without the column simply restore as 0).
+for (const col of ['active INTEGER NOT NULL DEFAULT 0']) {
+  try { db.exec(`ALTER TABLE areas ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+
 // notifications get a user_id (fan-out per owning user). Legacy rows (null) are
 // re-homed to the admin by the multi-user migration.
 for (const col of ['user_id INTEGER']) {
@@ -850,6 +861,20 @@ function upsertArea({ key, name, keyword = null, sw, ne, createdBy = null }) {
     created_by: createdBy,
     created_at: new Date().toISOString(),
   });
+}
+
+// Persisted "is this monitoring meant to be running" flag (see the ALTER above).
+// startStream/stopStream write it; boot and post-restore read getActiveAreaKeys()
+// to bring back exactly the streams that were active before.
+const setAreaActiveStmt = db.prepare('UPDATE areas SET active = ? WHERE key = ?');
+function setAreaActive(key, active) {
+  setAreaActiveStmt.run(active ? 1 : 0, key);
+}
+const getActiveAreaKeysStmt = db.prepare(
+  'SELECT key FROM areas WHERE active = 1 ORDER BY created_at ASC, key ASC'
+);
+function getActiveAreaKeys() {
+  return getActiveAreaKeysStmt.all().map((r) => r.key);
 }
 
 const deleteAreaRowStmt = db.prepare('DELETE FROM areas WHERE key = ?');
@@ -2744,6 +2769,8 @@ module.exports = {
   // Area catalog & per-user ownership
   getAllAreas,
   upsertArea,
+  setAreaActive,
+  getActiveAreaKeys,
   deleteAreaRow,
   addUserArea,
   removeUserArea,

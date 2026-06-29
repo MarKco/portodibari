@@ -8,6 +8,7 @@ const path = require('path');
 const db = require('../db');
 const heatmapDb = require('../heatmap-db');
 const berths = require('../services/berths');
+const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
 const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb, DEFAULT_ADMIN_USERNAME } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
@@ -470,6 +471,10 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
+    // Reconcile live streams to the just-restored active set (start/stop so only
+    // the monitorings active in the backup run).
+    const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
+    appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('RESTORE', appLog.t('restore.db_from_upload'), { righe: total });
     res.json({ ok: true, counts });
@@ -554,6 +559,8 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
 
     rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
+    const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
+    appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
     appLog.info('BUNDLE', appLog.t('bundle.imported'), { righe: total });
     res.json({ ok: true, counts, areas, settings, heatmapCells });
@@ -643,7 +650,11 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     }
     if (parts.includes('db')) rebuildBerthsAfterRestore(counts);
-    if (parts.includes('db') || parts.includes('areas')) rehomeAfterRestore();
+    if (parts.includes('db') || parts.includes('areas')) {
+      rehomeAfterRestore();
+      const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
+      appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
+    }
 
     if (parts.includes('settings') && payload.settings) {
       try { settings = applyImportedSettings(payload.settings); } catch (e) {
