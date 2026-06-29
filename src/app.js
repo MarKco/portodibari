@@ -7,6 +7,7 @@ const sessionAuth = require('./middleware/session-auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const heatmapRoutes = require('./routes/heatmap');
+const heatmapPublicRoutes = require('./routes/heatmap-public');
 const apiRoutes = require('./routes');
 const { setUiLang } = require('./config');
 
@@ -50,6 +51,9 @@ function createApp() {
   });
   app.get('/offline.html', (req, res) => res.sendFile(path.join(publicDir, 'offline.html')));
   app.use('/icons', express.static(path.join(publicDir, 'icons')));
+
+  // Public heatmap page + data — no session required.
+  app.use(heatmapPublicRoutes);
 
   // Global gate: everything past here requires an active session.
   app.use(sessionAuth.gate);

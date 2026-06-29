@@ -486,6 +486,8 @@ Si salva **solo** il conteggio messaggi per cella e l'ultimo avvistamento (`msg_
 
 **Visibilità**: la **mappa** (dati correnti) è visibile a **tutti** gli utenti autenticati in sola lettura (`GET /api/heatmap/cells`); l'**avvio/arresto** della raccolta, le **statistiche live** di connessione e l'**export/import** sono **solo admin**.
 
+**Pagina pubblica**: la heatmap è accessibile **senza login** all'endpoint `GET /heatmap` (pagina Leaflet standalone). I dati vengono serviti da `GET /api/heatmap/public-cells` (limitato a 30 req/min per IP); non include nessun dato utente o nave, solo i conteggi aggregati per cella.
+
 **Raccolta = task in background controllato dagli admin.** Premendo **Avvia**, il firehose mondiale gira in background finché un admin non preme **Ferma**, indipendentemente da chi ha la pagina aperta. Lo **stato desiderato** è persistito (chiave `heatmap_collecting` nella tabella `meta` del DB principale) e **riprende da solo al riavvio** del server. **Sicurezza**: uno sweep ogni 10 minuti **spegne** il firehose se nessun utente è stato attivo negli ultimi 10 minuti.
 
 **Pannello admin**: stato, banda attuale, scaricato (sessione), messaggi/s, messaggi sessione, connessione (uptime + riconnessioni), celle popolate, messaggi totali; pulsanti **Avvia/Ferma**, **Aggiorna mappa**, **Cancella dati**; un banner di avviso ricorda il consumo di banda e la necessità di un account separato.

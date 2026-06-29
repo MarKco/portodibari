@@ -258,6 +258,8 @@ Si apre dalla voce **🌐 Mappa zone coperte** nella barra laterale. Mostra una 
 
 **Tutti gli utenti** possono aprire la mappa e vedere i dati correnti: per loro è in **sola lettura**.
 
+La mappa è disponibile anche **senza fare login** all'indirizzo `/heatmap` (es. `http://localhost:3000/heatmap`): mostra gli stessi dati di copertura, senza nessun'altra funzionalità dell'app.
+
 Solo gli **amministratori** possono inoltre:
 
 - **avviare** e **fermare** la raccolta dei dati;

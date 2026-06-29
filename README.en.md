@@ -484,6 +484,7 @@ A **worldwide** AISStream subscription aggregates incoming position messages int
 
 - The **map** (current cells) is visible to **all authenticated users**, read-only, via `GET /api/heatmap/cells`.
 - **Collection start/stop**, live connection stats and **export/import** are **admin-only**.
+- A **public page** (no login required) is available at `GET /heatmap`: a standalone Leaflet map served from `GET /api/heatmap/public-cells` (rate-limited to 30 req/min per IP), exposing only aggregated cell counts — no ship or user data.
 
 ### Collection (admin-controlled background task)
 
