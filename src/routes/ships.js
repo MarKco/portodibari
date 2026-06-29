@@ -90,6 +90,11 @@ router.get('/ships/active', (req, res) => {
   res.json({ ships });
 });
 
+router.get('/ships/past/count', (req, res) => {
+  const count = db.getPastShipsCount(null, userScope(req));
+  res.json({ count });
+});
+
 router.get('/ships/past', (req, res) => {
   const lang = req.query.lang || 'it';
   const sets = userSets(req.user.id);

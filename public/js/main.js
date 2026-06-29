@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadDetail, loadVfData, loadMtData, loadEquasisData, loadGfwData } from './ships.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadEquasisData, loadGfwData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -1421,6 +1421,7 @@ function tick() {
   }
   if (S.view === 'active') {
     loadActive();
+    loadPastCount();
     if (S.showBerths) loadBerths(S.currentPreset);
   }
   else if (S.view === 'past') loadPast();
@@ -1754,5 +1755,6 @@ api('/api/config').then((cfg) => {
   await loadSettings();
   updateStatus();
   loadActive();
+  loadPastCount();
   startPolling();
 });

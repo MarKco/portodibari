@@ -1594,6 +1594,15 @@ function getPastShips(area, boxes = null) {
     .all(...params);
 }
 
+function getPastShipsCount(area, boxes = null) {
+  const filter = area ? 'AND last_area = ?' : '';
+  const geo = `AND ${boxesSql(boxes, 'last_latitude', 'last_longitude')}`;
+  const params = area ? [area] : [];
+  return db
+    .prepare(`SELECT COUNT(*) AS n FROM ships WHERE NOT ${ACTIVE_PREDICATE} ${filter} ${geo}`)
+    .get(...params).n;
+}
+
 function getShip(mmsi) {
   return db.prepare('SELECT * FROM ships WHERE mmsi = ?').get(mmsi) || null;
 }
@@ -2630,6 +2639,7 @@ module.exports = {
   pruneOrphans,
   getActiveShips,
   getPastShips,
+  getPastShipsCount,
   getFollowedShips,
   getPastFollowedShips,
   getFollowedPositions,

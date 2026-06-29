@@ -482,6 +482,16 @@ function renderActiveTable(ships) {
 }
 
 // ── Past ships ───────────────────────────────────────────────────────────────
+export async function loadPastCount() {
+  try {
+    const area = encodeURIComponent(S.currentPreset || '');
+    const data = await api(`/api/ships/past/count${area ? `?area=${area}` : ''}`);
+    el.pastCount.textContent = data.count ?? 0;
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function loadPast() {
   try {
     const area = encodeURIComponent(S.currentPreset || '');
