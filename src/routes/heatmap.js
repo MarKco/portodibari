@@ -29,8 +29,21 @@ const router = express.Router();
 const UPLOAD_LIMIT = `${MAX_UPLOAD_MB}mb`;
 
 // Readable by any authenticated user — the map is for everyone.
+//   ?level=<deg>                          cell size to aggregate to (snapped server-side)
+//   ?minLat&minLon&maxLat&maxLon          restrict to a viewport (fine detail on zoom)
+// No bbox = whole world (cached); absent level defaults to a coarse world view so a
+// bare request never streams every fine cell on the planet.
 router.get('/api/heatmap/cells', (req, res) => {
-  res.json({ gridDeg: heatmap.getLiveStats().gridDeg, cells: heatmap.getCells() });
+  const q = req.query;
+  const level = q.level !== undefined ? Number(q.level) : 1.0;
+  let bbox;
+  const keys = ['minLat', 'minLon', 'maxLat', 'maxLon'];
+  if (keys.every((k) => q[k] !== undefined)) {
+    const b = { minLat: +q.minLat, minLon: +q.minLon, maxLat: +q.maxLat, maxLon: +q.maxLon };
+    if (Object.values(b).every(Number.isFinite)) bbox = b;
+  }
+  const out = heatmap.getCellsAgg({ level, bbox });
+  res.json({ gridDeg: out.gridDeg, cells: out.cells });
 });
 
 // ── Admin-only from here ────────────────────────────────────────────────────────

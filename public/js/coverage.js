@@ -48,12 +48,30 @@ function fmtDur(s) {
 }
 
 // ── Map + grid overlay ────────────────────────────────────────────────────────
+let moveTimer = null;
+
+// Desired cell size (deg) per zoom: coarse blocks when zoomed out, fine detail in
+// close. Must match values the server can aggregate to (config HEATMAP.LEVELS).
+function levelForZoom(z) {
+  if (z >= 11) return 0.05;
+  if (z >= 9) return 0.1;
+  if (z >= 7) return 0.25;
+  if (z >= 5) return 0.5;
+  if (z >= 4) return 1.0;
+  return 2.0;
+}
+
 function initMap() {
   if (S.coverageMap) return;
   S.coverageMap = L.map('coverage-map', { worldCopyJump: true, minZoom: 2, zoomControl: true }).setView([25, 10], 2);
   addBaseLayers(S.coverageMap, 12);
   S.coverageRenderer = L.canvas({ padding: 0.5 }); // canvas keeps thousands of cells fast
   S.coverageLayer = L.layerGroup().addTo(S.coverageMap);
+  // Reload at the new resolution/viewport whenever the view settles (debounced).
+  S.coverageMap.on('moveend', () => {
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(loadCells, 250);
+  });
 }
 
 // Interpolate blue→cyan→green→yellow→red at t∈[0,1].
@@ -85,8 +103,19 @@ function renderCells(gridDeg, cells) {
 }
 
 async function loadCells() {
+  if (!S.coverageMap) return;
+  const m = S.coverageMap;
+  const level = levelForZoom(m.getZoom());
+  // Zoomed in: ask only for the viewport (fine cells). Whole world in view: drop
+  // the bbox so the server serves (and caches) the coarse world aggregation.
+  let url = `/api/heatmap/cells?level=${level}`;
+  if (m.getZoom() > 3) {
+    const b = m.getBounds();
+    url += `&minLat=${b.getSouth().toFixed(4)}&maxLat=${b.getNorth().toFixed(4)}` +
+           `&minLon=${b.getWest().toFixed(4)}&maxLon=${b.getEast().toFixed(4)}`;
+  }
   try {
-    const d = await api('GET', '/api/heatmap/cells');
+    const d = await api('GET', url);
     renderCells(d.gridDeg, d.cells || []);
   } catch (e) { msg(e.message, 'err'); }
 }
@@ -127,9 +156,13 @@ function closeStats() {
 // ── View lifecycle (called by views.js) ─────────────────────────────────────────
 export function enterCoverageView() {
   initMap();
-  // Container was just un-hidden — Leaflet needs a size recalc.
-  setTimeout(() => S.coverageMap && S.coverageMap.invalidateSize(), 0);
-  loadCells();
+  // Container was just un-hidden — Leaflet needs a size recalc before getBounds()
+  // is meaningful, so load only after the size is fixed.
+  setTimeout(() => {
+    if (!S.coverageMap) return;
+    S.coverageMap.invalidateSize();
+    loadCells();
+  }, 0);
   clearInterval(cellTimer);
   cellTimer = setInterval(() => { if (!document.hidden) loadCells(); }, 15000);
   if (isAdmin) openStats();

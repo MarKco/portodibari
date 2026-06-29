@@ -353,5 +353,6 @@ module.exports = {
   removeViewer,
   getLiveStats,
   getCells: () => heatmapDb.getCells(),
+  getCellsAgg: (opts) => heatmapDb.getCellsAgg(opts),
   reset,
 };

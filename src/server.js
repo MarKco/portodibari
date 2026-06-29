@@ -27,7 +27,7 @@ const berths = require('./services/berths');
 const proximity = require('./services/proximity');
 const appLog = require('./services/app-log');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
-const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY,
+const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY, HEATMAP,
   DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, syncAreasWithDb } = require('./config');
 
 // Honor the persisted on/off state for the operational log before anything logs.
@@ -222,6 +222,19 @@ app.listen(PORT, () => {
   setInterval(() => {
     try { heatmapStream.autoStopIfNoUsers(HEATMAP_IDLE_MS); } catch { /* best-effort */ }
   }, HEATMAP_IDLE_MS);
+  // Daily noise sweep: at the fine grid, single AIS pings spawn lone low-count
+  // cells. Drop those not seen in PRUNE_AGE_DAYS so the DB stays bounded.
+  const sweepHeatmap = () => {
+    try {
+      const cutoff = new Date(Date.now() - HEATMAP.PRUNE_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const n = heatmapDb.pruneCells(HEATMAP.PRUNE_MIN_COUNT, cutoff);
+      if (n) appLog.info('HEATMAP', `Potatura celle rumore: ${n} rimosse`);
+    } catch (e) {
+      appLog.error('HEATMAP', 'Potatura celle heatmap fallita', { error: e.message });
+    }
+  };
+  setTimeout(sweepHeatmap, 60 * 1000);
+  setInterval(sweepHeatmap, 24 * 60 * 60 * 1000);
   // Cross-checks the public AISStream uptime monitor when our streams go silent.
   aisUptime.init();
   // Telegram bot: long-polls for /start link codes and sends per-user alerts.

@@ -751,8 +751,10 @@
         <div id="coverage-map"></div>
         <div class="coverage-legend">
           <span data-i18n="coverage.legend">Densità dati</span>
-          <span class="cov-bar"></span>
-          <span data-i18n="coverage.legendScale">bassa → alta (scala log)</span>
+          <span class="cov-bar-wrap">
+            <span class="cov-bar"></span>
+            <span class="cov-scale" data-i18n="coverage.legendScale">bassa → alta (scala log)</span>
+          </span>
           <span id="cov-legend-max" class="coverage-msg" style="margin-left:auto"></span>
         </div>
       </div>
@@ -1457,8 +1459,10 @@
     .coverage-msg.err { color:var(--red,#ef4444); } .coverage-msg.ok { color:var(--green,#22c55e); }
     #coverage-map { height:62vh; min-height:380px; border:1px solid var(--border,#2a3441); border-radius:10px; background:#0e1420; }
     .coverage-legend { margin-top:.55rem; display:flex; align-items:center; gap:.55rem; font-size:.78rem; color:var(--text-muted,#9aa7b5); }
+    .coverage-legend .cov-bar-wrap { display:inline-flex; flex-direction:column; align-items:stretch; gap:.18rem; }
     .coverage-legend .cov-bar { width:180px; height:11px; border-radius:3px; border:1px solid var(--border,#2a3441);
         background:linear-gradient(90deg,#1e3a8a,#06b6d4,#22c55e,#eab308,#ef4444); }
+    .coverage-legend .cov-scale { display:flex; justify-content:space-between; font-size:.7rem; line-height:1; }
   </style>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script type="module" src="js/main.js"></script>

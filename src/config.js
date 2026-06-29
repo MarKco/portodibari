@@ -178,8 +178,19 @@ const MSG_TYPES = [
 // fixed lat/lon grid (message counts per cell) to visualise where AIS coverage is
 // dense and where the holes are. See services/heatmap-stream.js. All boot-only
 // (app.config.properties); the feature also needs HEATMAP_AIS_API_KEY set.
-//   GRID_DEG    — cell size in degrees (0.5° ≈ 55 km). Globe ⇒ 720×360 = 259 200
-//                 cells max; the table only ever holds cells that saw a message.
+//   GRID_DEG    — FINEST cell size in degrees, the resolution data is bucketed at
+//                 on ingest (0.05° ≈ 5.5 km). Coarser zoom levels are derived by
+//                 aggregating fine cells up (LEVELS); you can sum fine→coarse but
+//                 never recover detail from coarse, so always ingest at the finest
+//                 you'll ever want to show. Bucketing is implicit in the stored
+//                 cell index (floor(coord/GRID_DEG)), so changing this value makes
+//                 existing cells incompatible — heatmap-db.js tags the DB with the
+//                 grid and discards mismatched cells (on boot and on restore).
+//   LEVELS      — cell sizes (deg) the client may request per zoom. Each must be a
+//                 ~integer multiple of GRID_DEG so aggregation is exact; the server
+//                 snaps any request to the nearest achievable factor.
+//   PRUNE_*     — daily noise sweep: drop cells with msg_count ≤ MIN_COUNT not seen
+//                 in AGE_DAYS (one-off AIS pings) so the DB stays bounded over months.
 //   FLUSH_MS    — how often in-memory cell deltas are batch-written to SQLite
 //                 (never per-message — that would hammer the disk on a firehose).
 //   MSG_TYPES   — position-report types counted. Static data is excluded (it adds
@@ -187,7 +198,10 @@ const MSG_TYPES = [
 //                 are kept so recreational-only zones don't read as false holes.
 //   STATS_MS    — cadence of the live bandwidth/throughput SSE pushed to the page.
 const HEATMAP = {
-  GRID_DEG: num('HEATMAP_GRID_DEG', 0.5),
+  GRID_DEG: num('HEATMAP_GRID_DEG', 0.05),
+  LEVELS: [0.05, 0.1, 0.25, 0.5, 1.0, 2.0],
+  PRUNE_MIN_COUNT: num('HEATMAP_PRUNE_MIN_COUNT', 2),
+  PRUNE_AGE_DAYS: num('HEATMAP_PRUNE_AGE_DAYS', 30),
   FLUSH_MS: num('HEATMAP_FLUSH_SEC', 10) * 1000,
   STATS_MS: num('HEATMAP_STATS_SEC', 2) * 1000,
   MSG_TYPES: ['PositionReport', 'ExtendedClassBPositionReport', 'StandardClassBPositionReport'],
