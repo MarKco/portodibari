@@ -3,7 +3,23 @@
 # Every key here can also be supplied as an environment variable.
 
 # aisstream.io API key (required). Get one at https://aisstream.io/.
+# Used by the area-monitoring streams.
 AIS_API_KEY=your_aisstream_api_key_here
+
+# RECOMMENDED: three keys from THREE SEPARATE aisstream accounts.
+# aisstream limits concurrent connections PER ACCOUNT, not per key. The app opens
+# three independent kinds of stream — area monitoring (AIS_API_KEY), followed
+# ships (FOLLOW_AIS_API_KEY) and the coverage map (HEATMAP_AIS_API_KEY). If two of
+# them share an account they fight over the same connection slot and one keeps
+# getting rejected (429 loop / 1006 close). Give each a key from its own account.
+
+# Key for the followed-ships stream. Empty = reuse AIS_API_KEY (works, but the
+# follow handshake may hit a per-account 429 loop against the area streams).
+FOLLOW_AIS_API_KEY=
+
+# Key for the worldwide Coverage map stream. MUST be from a separate account.
+# Empty = the coverage map feature stays off. Write it bare — no inline comment.
+HEATMAP_AIS_API_KEY=
 
 # Initial bounding-box preset. Must match a key defined in `bounding-boxes.json`
 # (default keys: bari | nord_adriatico | taranto | puglia).

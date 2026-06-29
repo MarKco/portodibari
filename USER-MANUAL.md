@@ -337,6 +337,8 @@ The detail action bar also has **⧉ ShipFinder**, which simply opens the ship's
 
 When both ShipFinder and MyShipTracking are enabled, a lost followed ship is queried on both — whichever has a position gives you a marker. MyShipTracking uses terrestrial AIS: strong near coasts and ports, weaker in the open ocean.
 
+**On the Followed-ships map**, a followed ship that AIS can no longer see is now shown at its **most recent ShipFinder/MyShipTracking position** (the newer of the two) instead of staying on its stale AIS spot or dropping off the map. The marker stays **grey**, like a ship "in search", to make clear it isn't a live AIS fix; its popup shows the time of that fix and the source it came from. As soon as the ship transmits on AIS again, the marker **snaps back** to the live AIS position automatically.
+
 > The panel and buttons **appear only if Import MyShipTracking is enabled** (Settings → Import MyShipTracking). It is off by default.
 
 ### Ownership / management (Equasis)
@@ -538,7 +540,8 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 
 | Key | Meaning |
 |---|---|
-| `AIS_API_KEY` | Your AISStream.io access key (required) |
+| `AIS_API_KEY` | Your AISStream.io access key (required) — used by the **area monitoring** streams |
+| `FOLLOW_AIS_API_KEY` | AISStream.io access key for the **followed-ships** stream. Best from a **separate account** (see the note below). Leave empty to reuse `AIS_API_KEY` |
 | `HEATMAP_AIS_API_KEY` | AISStream.io access key used **only** by the [Coverage map](#coverage-map). It must come from a **separate account** (different from `AIS_API_KEY`), because that map opens its own worldwide stream. Leave empty to keep the feature disabled. Write it "bare" — **no comment on the same line** |
 | `BBOX_PRESET` | Area shown at startup (an area's key, e.g. `bari`) |
 | `IMPORT_VF_DATA` | `true`/`false` — enable VesselFinder data import |
@@ -560,6 +563,8 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `SESSION_TTL_DAYS` | Session (login) lifetime in days. Default `30` |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the interface (area selector / Settings) and are rewritten to the file automatically.
+
+> 💡 **Recommended: three keys from three separate AISStream accounts.** AISStream limits connections **per account, not per key**. The app opens three independent kinds of stream — **area monitoring** (`AIS_API_KEY`), **followed ships** (`FOLLOW_AIS_API_KEY`) and the **coverage map** (`HEATMAP_AIS_API_KEY`). If two of them use keys from the **same account** they compete for the same connection slot and one keeps getting rejected. To run all three smoothly, give each a key from its **own AISStream account**. (`FOLLOW_AIS_API_KEY` empty = follow reuses the monitoring key; `HEATMAP_AIS_API_KEY` empty = coverage map off.)
 
 ### `app.config.properties` — operating parameters
 

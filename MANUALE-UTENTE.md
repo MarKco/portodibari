@@ -339,6 +339,8 @@ Nella barra azioni del dettaglio c'è anche **⧉ ShipFinder**, che apre semplic
 
 Quando ShipFinder e MyShipTracking sono entrambi attivi, una nave seguita persa viene interrogata su entrambi: quella che ha una posizione fornisce il marker. MyShipTracking usa AIS terrestre: forte vicino a coste e porti, più debole in mare aperto.
 
+**Sulla mappa delle Navi seguite**, una nave seguita che l'AIS non vede più viene ora mostrata sulla sua **posizione ShipFinder/MyShipTracking più recente** (la più nuova fra le due) invece di restare ferma sull'ultima posizione AIS stantia o sparire dalla mappa. Il marker resta **grigio**, come una nave "in ricerca", per chiarire che non è una posizione AIS live; il suo popup mostra l'ora di quel rilevamento e la fonte da cui arriva. Appena la nave torna a trasmettere via AIS, il marker **torna automaticamente** sulla posizione AIS live.
+
 > Il pannello e i pulsanti **compaiono solo se Import MyShipTracking è attivo** (Impostazioni → Import MyShipTracking). Di default è spento.
 
 ### Proprietà / gestione (Equasis)
@@ -542,7 +544,8 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 
 | Chiave | Significato |
 |---|---|
-| `AIS_API_KEY` | La chiave di accesso ad AISStream.io (obbligatoria) |
+| `AIS_API_KEY` | La chiave di accesso ad AISStream.io (obbligatoria) — usata dagli stream delle **aree di monitoraggio** |
+| `FOLLOW_AIS_API_KEY` | Chiave AISStream.io per lo stream delle **navi seguite**. Meglio da un **account separato** (vedi nota sotto). Vuota = riusa `AIS_API_KEY` |
 | `HEATMAP_AIS_API_KEY` | Chiave API di un account AISStream **separato** (diverso da `AIS_API_KEY`), usata **solo** per la [Mappa delle zone coperte](#mappa-delle-zone-coperte). Vuota = funzione disattivata. Va scritta "nuda", **senza commenti sulla stessa riga** |
 | `BBOX_PRESET` | Area mostrata all'avvio (la chiave di un'area, es. `bari`) |
 | `IMPORT_VF_DATA` | `true`/`false` — abilita l'import dati VesselFinder |
@@ -564,6 +567,8 @@ Contiene la API key e le preferenze iniziali. Formato `CHIAVE=valore`, una per r
 | `SESSION_TTL_DAYS` | Durata in giorni della sessione di login. Default `30` |
 
 > `BBOX_PRESET`, `IMPORT_VF_DATA` e `IMPORT_MT_DATA` si cambiano anche dall'interfaccia (selettore area / Impostazioni) e vengono riscritti nel file automaticamente.
+
+> 💡 **Consigliato: tre chiavi da tre account AISStream separati.** AISStream limita le connessioni **per account, non per chiave**. L'app apre tre tipi di stream indipendenti — **monitoraggio aree** (`AIS_API_KEY`), **navi seguite** (`FOLLOW_AIS_API_KEY`) e **mappa di copertura** (`HEATMAP_AIS_API_KEY`). Se due di questi usano chiavi dello **stesso account** competono per lo stesso slot di connessione e uno viene continuamente rifiutato. Per far funzionare bene tutte e tre le funzioni, dai a ciascuna una chiave di un **account AISStream dedicato**. (`FOLLOW_AIS_API_KEY` vuota = il follow riusa la chiave del monitoraggio; `HEATMAP_AIS_API_KEY` vuota = mappa di copertura disattivata.)
 
 ### `app.config.properties` — parametri di funzionamento
 

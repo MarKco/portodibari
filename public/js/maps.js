@@ -466,8 +466,17 @@ export function renderFollowedMap(ships) {
   S.followedShipsCache.clear();
   ships.forEach((s) => S.followedShipsCache.set(s.mmsi, s));
 
-  const positioned = ships.filter((s) => s.last_latitude != null && s.last_longitude != null);
-  const searchingNoPos = ships.filter((s) => s.search_mode && (s.last_latitude == null || s.last_longitude == null));
+  // Display position per ship: a scraped fallback fix (SF/MST, AIS gone dark)
+  // wins over a stale AIS position; otherwise the AIS last position. The marker
+  // snaps back to AIS as soon as AIS re-acquires (backend drops fallback_* then).
+  const displayPos = (s) =>
+    s.fallback_lat != null && s.fallback_lon != null
+      ? { ll: [s.fallback_lat, s.fallback_lon], fallback: true }
+      : s.last_latitude != null && s.last_longitude != null
+        ? { ll: [s.last_latitude, s.last_longitude], fallback: false }
+        : null;
+  const positioned = ships.filter((s) => displayPos(s));
+  const searchingNoPos = ships.filter((s) => s.search_mode && !displayPos(s));
   const infoEl = document.getElementById('followed-map-info');
   if (infoEl) {
     infoEl.textContent = searchingNoPos.length
@@ -483,15 +492,26 @@ export function renderFollowedMap(ships) {
   };
   const GRAY_STYLE = { radius: 8, color: '#9ca3af', fillColor: '#6b7280', weight: 2.5 };
 
+  const SRC_LABEL = { sf: 'ShipFinder', mst: 'MyShipTracking' };
   const latlngs = [];
   positioned.forEach((s) => {
-    const ll = [s.last_latitude, s.last_longitude];
+    const dp = displayPos(s);
+    const ll = dp.ll;
     latlngs.push(ll);
-    const style = s.search_mode
+    // Grey when AIS-dark: hunting (search_mode) or plotting a scraped fallback fix.
+    const style = s.search_mode || dp.fallback
       ? GRAY_STYLE
       : s.flagged
         ? { radius: 10, color: '#a78bfa', fillColor: '#7c3aed', weight: 3 }
         : RISK_STYLE[s.risk?.band] || RISK_STYLE.low;
+    // When showing a scraped fix, the AIS SOG/COG/time don't match the marker —
+    // show the scrape time and source instead.
+    const posInfo = dp.fallback
+      ? `🕐 ${formatTime(s.fallback_at)}<br>` +
+        `<span style="color:#9ca3af;font-size:0.8rem">📡 via ${SRC_LABEL[s.fallback_source] || s.fallback_source}</span><br>`
+      : `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
+        `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
+        `🕐 ${formatTime(s.last_seen_at)}<br>`;
     L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
       .bindPopup(
         `<b style="font-size:1rem">${escHtml(s.ship_name || t('map.unknown'))}</b><br>` +
@@ -499,9 +519,7 @@ export function renderFollowedMap(ships) {
           `🚢 ${shipTypeLabel(s.ship_type)}<br>` +
           `${t('map.risk')} ${riskBadge(s.risk)}<br>` +
           `📍 ${(s.destination_label || s.destination) ? escHtml(s.destination_label || s.destination) : '—'}<br>` +
-          `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
-          `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
-          `🕐 ${formatTime(s.last_seen_at)}<br>` +
+          posInfo +
           `<div style="margin-top:8px;display:flex;gap:6px">` +
           `<button onclick="openFollowedShipDetail(${s.mmsi})" style="padding:4px 12px;cursor:pointer;border:1px solid #3b82f6;background:#1e40af;color:#fff;border-radius:4px;font-size:0.8rem;flex:1">${t('map.detail')}</button>` +
           `<a href="https://www.vesselfinder.com/vessels/details/${s.mmsi}" target="_blank" rel="noopener" style="padding:4px 10px;cursor:pointer;border:1px solid #374151;background:#1e2330;color:#9ca3af;border-radius:4px;font-size:0.8rem;text-decoration:none;display:flex;align-items:center" title="VesselFinder">⧉</a>` +

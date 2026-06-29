@@ -97,6 +97,29 @@ function mstBadgeAt(mmsi, lastSeenAt) {
   return scrapeBadgeAt(db.getLatestScrapedPosition(mmsi, 'mst')?.received_at || null, lastSeenAt);
 }
 
+// Position to PLOT on the followed map when AIS has gone dark. Returns the most
+// recent scraped fix {lat, lon, at, source} that the badge rule would surface
+// (AIS not fresh AND the scrape is newer than the last AIS fix), or null. Lets
+// a ship that lost AIS but was re-located via ShipFinder/MyShipTracking still
+// show on the map (grey). Fresh AIS always wins (scrapeBadgeAt returns null),
+// so the marker snaps back to the AIS position the moment AIS re-acquires.
+function scrapeFallbackFix(mmsi, lastSeenAt) {
+  const cands = [];
+  if (state.importSfData) {
+    const f = db.getLatestScrapedPosition(mmsi, 'sf');
+    const at = f && scrapeBadgeAt(f.received_at, lastSeenAt);
+    if (at && f.lat != null && f.lon != null) cands.push({ lat: f.lat, lon: f.lon, at, source: 'sf' });
+  }
+  if (state.importMstData) {
+    const f = db.getLatestScrapedPosition(mmsi, 'mst');
+    const at = f && scrapeBadgeAt(f.received_at, lastSeenAt);
+    if (at && f.lat != null && f.lon != null) cands.push({ lat: f.lat, lon: f.lon, at, source: 'mst' });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return cands[0]; // most recent of SF/MST
+}
+
 // May the current user open this ship's detail? Visible if it's in one of their
 // areas, or they follow/flag it (a followed ship roams outside the areas).
 function canSeeShip(req, mmsi) {
@@ -150,6 +173,13 @@ router.get('/ships/followed/active', (req, res) => {
     decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
     decorated.sf_last_at = sfBadgeAt(s.mmsi, s.last_seen_at);
     decorated.mst_last_at = mstBadgeAt(s.mmsi, s.last_seen_at);
+    const fb = scrapeFallbackFix(s.mmsi, s.last_seen_at);
+    if (fb) {
+      decorated.fallback_lat = fb.lat;
+      decorated.fallback_lon = fb.lon;
+      decorated.fallback_at = fb.at;
+      decorated.fallback_source = fb.source;
+    }
     return decorated;
   }).sort(flaggedFirst);
   res.json({ ships });

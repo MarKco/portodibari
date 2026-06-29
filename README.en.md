@@ -100,7 +100,8 @@ Configuration lives in the `local.properties` file at the project root (format `
 
 | Key | Description | Default |
 |---|---|---|
-| `AIS_API_KEY` | [AISStream.io](https://aisstream.io) API key (required) | — |
+| `AIS_API_KEY` | [AISStream.io](https://aisstream.io) API key (required) — used by the **monitoring-area** streams | — |
+| `FOLLOW_AIS_API_KEY` | API key from a **separate AISStream account** for the **followed-ships** stream (`services/ship-follow.js`). Empty = reuse `AIS_API_KEY`. A dedicated account is recommended: AISStream's connection limit is **per-account**, so sharing the key with the area streams gets the follow handshake rejected in a **429 loop** (see note below). | *(reuses `AIS_API_KEY`)* |
 | `BBOX_PRESET` | Initial area preset (`bari` \| `taranto` \| `nord_adriatico` \| `puglia`) | `bari` |
 | `IMPORT_VF_DATA` | Enable VesselFinder scraping (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Enable MarineTraffic scraping (`true`/`false`) | `false` |
@@ -121,6 +122,8 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `ADMIN_PASSWORD` | Password of the built-in administrator. If empty, the shipped default value is used | *(shipped default)* |
 | `COOKIE_SECURE` | Send the session cookie over HTTPS only — set to `true` behind TLS (`true`/`false`) | `false` |
 | `SESSION_TTL_DAYS` | Session (login) lifetime in days | `30` |
+
+> ⚠️ **Recommended: three keys from three separate AISStream accounts.** AISStream's connection limit is **per-account, not per-key**. The app opens three independent kinds of WebSocket stream — **area monitoring** (`AIS_API_KEY`), **followed ships** (`FOLLOW_AIS_API_KEY`) and the **coverage map** (`HEATMAP_AIS_API_KEY`) — and if two of them use keys from the **same account** they fight over the same connection slot: the second handshake is rejected (429 loop / `1006` close with no error frame). To run all three features together, give each one a key from a **distinct AISStream account**. Leaving `FOLLOW_AIS_API_KEY` or `HEATMAP_AIS_API_KEY` empty keeps the respective feature on `AIS_API_KEY` (follow) or disabled (heatmap).
 
 `BBOX_PRESET`, `IMPORT_VF_DATA` and `IMPORT_MT_DATA` can also be changed from the UI (area selector / Settings modal) and are persisted back to the file. `PORT` (environment variable) sets the HTTP port (default 3000). The `ADMIN_*`, `COOKIE_SECURE` and `SESSION_TTL_DAYS` keys are read only at startup (not editable from the UI).
 
@@ -540,6 +543,31 @@ Unlike VF/MT, the ShipFinder position is used to **find followed ships our AIS s
 - **Manual button.** In the ship detail, **📍 Locate via ShipFinder** (`POST /api/ships/:mmsi/sflocate`) forces an immediate position scrape and centers the marker — works for **any** visible ship, not just followed ones.
 
 **MyShipTracking** replicates this exact mechanism as a **second, independent backup**: tagged storage `source='mst'` (same exclusion from track/score/replay), `reacquireStaleViaMst` sweep (same `SF_REACQUIRE_*` throttle/cap), **📍 Locate via MyShipTracking** button (`POST /api/ships/:mmsi/mstlocate`). When both sources are enabled a stale ship is queried on both; on the map MST markers are **teal/cyan** to tell them apart from ShipFinder's amber.
+
+#### "Followed ships" map: SF/MST fallback position
+
+On the **Followed ships** map, a ship whose AIS stream has gone dark — but which has been **re-located via ShipFinder or MyShipTracking** — is shown at its **most recent scraped position** instead of sticking to a stale AIS position (or vanishing). The marker stays **grey** (as for ships "in search"), so it's clear it isn't a live AIS fix.
+
+- **Trigger rule** — identical to the "seen on…" badges: the scraped fix is plotted **only** when AIS is **not fresh** (older than `FOLLOW_FRESH_MS`, default 60 min) **and** the scrape is **newer** than the last AIS fix (`scrapeBadgeAt` in [`src/routes/ships.js`](src/routes/ships.js)). A fresh AIS fix **always wins**: the marker **snaps back** to the AIS position the moment the stream re-acquires the ship (the backend stops emitting the `fallback_*` fields).
+- **Source** — if both SF and MST have a valid fix, the **most recent** is plotted. The backend (`scrapeFallbackFix`, endpoint `GET /api/ships/followed/active`) attaches `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`; `renderFollowedMap` ([`public/js/maps.js`](public/js/maps.js)) prefers them over a stale AIS position. The popup shows the **scrape time** and **source** ("📡 via ShipFinder/MyShipTracking"), without SOG/COG (scrapes don't carry them reliably).
+- **No impact on track/risk/replay** — the fallback position is purely for **display**: it stays in `readings` with `source='sf'/'mst'`, never touches the `ships` row or the AIS freshness signal, and the AIS queries still filter `source='ais'`.
+
+##### Architecture: "Followed ships" map rendering & position sources
+
+| Aspect | File:line | Details |
+|---|---|---|
+| **Followed-ships map view (frontend)** | `public/js/maps.js` → `renderFollowedMap()` | Draws the markers; called from `public/js/followed.js` when the active table renders. Treats a ship as "positioned" if it has an AIS position **or** an SF/MST fallback fix. |
+| **Marker colour** | `public/js/maps.js` (`RISK_STYLE` / `GRAY_STYLE`) | Risk-band default: `high` red #dc2626, `med` amber #d97706, `low` green #059669. **Flagged** override violet #7c3aed. **Grey** #6b7280 when `search_mode` **or** when plotting an SF/MST fallback fix. |
+| **Followed-positions API** | `src/routes/ships.js` → `GET /api/ships/followed/active` | Returns followed ships with `last_seen_at`, `is_stale`, `search_mode`, `sf_last_at`, `mst_last_at` and — when applicable — `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`. |
+| **"Current" position** | `src/db.js` → `getShip(mmsi)` + upsert | The `ships` row (`last_latitude`/`last_longitude`/`last_seen_at`) is updated **only** from AIS readings (`source='ais'`). |
+| **Position queries filtered by source** | `src/db.js` (`getShipPositions`/`getRecentPositions`/`getShipTrack`/`getAreaReplayPositions`) | Explicitly filter `WHERE source='ais'`: SF/MST excluded from track, risk and replay. |
+| **SF/MST storage** | `src/db.js` → `insertScrapedPosition(mmsi, pos, source)` | Inserts into `readings` with `source='sf'`/`'mst'`. Read via `getLatestScrapedPosition(mmsi, source)`. |
+| **Badge / fallback logic** | `src/routes/ships.js` → `scrapeBadgeAt()`, `scrapeFallbackFix()` | A scraped fix is surfaced (badge or marker) only when AIS is stale **and** the scrape is newer; a fresh AIS fix hides it. |
+| **Freshness threshold** | `src/config.js` → `FOLLOW_FRESH_MS` (default 60 min) | A ship is "stale" when `now - last_seen_at > FOLLOW_FRESH_MS`. |
+| **Follow auto-stop** | `src/config.js` → `FOLLOW_STALE_HOURS` (default 4320 h ≈ 6 months) | After that long a silence the follow is auto-stopped and moved to "Followed in the past". |
+| **Stale re-acquire via SF/MST** | `src/services/ship-follow.js` → `reacquireStaleViaShipfinder()` / `reacquireStaleViaMst()` | Every `FOLLOW_REFRESH_MS` (~5 min) they scrape stale follows and store fixes with `source='sf'/'mst'`. |
+
+**In short**: AIS is the **primary and exclusive** source for ship state (track, risk, replay, current position). SF and MST are **display-only fallbacks**: they show as amber/teal breadcrumbs in the detail view and — new — as a **grey marker on the followed-ships map** when AIS has gone dark, never overwriting the AIS position.
 
 ### Proactive enrichment on first detection
 
