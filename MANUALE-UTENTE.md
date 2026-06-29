@@ -230,7 +230,7 @@ Pannello statistico con grafici e indicatori aggregati.
 
 ## Navi seguite
 
-La sezione **🗺 Navi seguite** (barra laterale) raccoglie le navi che segui ovunque vadano, anche fuori dalle aree monitorate, tramite uno stream AIS dedicato. Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (storico; una nave silenziosa per più di 48 ore viene spostata qui automaticamente).
+La sezione **🗺 Navi seguite** (barra laterale) raccoglie le navi che segui ovunque vadano, anche fuori dalle aree monitorate, tramite uno stream AIS dedicato. Una nave seguita che esce dalla copertura AIS **non viene persa**: resta agganciata a una rete di ri-acquisizione mondiale e torna tracciata automaticamente appena ri-trasmette, ovunque ricompaia. Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (storico; una nave ci finisce automaticamente solo dopo un silenzio totale molto lungo — default ~6 mesi — oppure quando smetti di seguirla).
 
 ### Cerca e segui una nave
 

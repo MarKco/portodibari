@@ -204,7 +204,8 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Max punti track mappa           | `src/routes/ships.js` (`/track`)  | `Math.min(..., 2000)` e default `500` | 500 punti      |
 | TTL cache scraping VF/MT        | `src/config.js`                   | `SCRAPE_CACHE_TTL`                    | 6 ore          |
 | Timeout recupero posizione (cerca/ri-segui nave) | `app.config.properties`  | `SEARCH_LOOKUP_TIMEOUT_SEC`  | 90 s           |
-| Freschezza posizione (no ri-acquisizione) | `app.config.properties` | `FOLLOW_FRESH_MIN`                    | 60 min         |
+| Freschezza posizione follow (oltre la soglia → ri-acquisizione worldwide) | `app.config.properties` | `FOLLOW_FRESH_MIN`   | 60 min         |
+| Auto-stop follow silente → "passate" (esce dal net worldwide) | `app.config.properties` | `FOLLOW_STALE_HOURS`  | 4320 h (~6 mesi) |
 | Negative cache scraping VF/MT   | `app.config.properties`           | `SCRAPE_NEG_CACHE_DAYS`               | 3 giorni       |
 | Bounce annullamento eliminazione notifiche | `app.config.properties` | `NOTIF_DELETE_UNDO_SECONDS`           | 5 s            |
 | Raggio clustering banchine      | `app.config.properties`           | `BERTH_CLUSTER_EPS_M`                 | 80 m           |
@@ -606,14 +607,25 @@ Lato client è tutto in [`public/js/search.js`](public/js/search.js) (modale ded
 
 ### Ri-seguire una nave dalle "passate" (ri-acquisizione in background)
 
-Quando segui una nave di cui **non** abbiamo una posizione live recente (tipicamente un **ri-follow** dalla lista "Seguite in passato": è finita lì perché silente da oltre 48 h), il box di follow stretto da 0.5° non basta — la nave ha quasi certamente lasciato quella zona. Il `PATCH /api/ships/:mmsi/follow` imposta subito il follow (icona 🗺 selezionata, nave nelle "attualmente seguite") e avvia una **ri-acquisizione in background** ([`shipFollow.startReacquire`](src/services/ship-follow.js)): la stessa ricerca worldwide del box di ricerca, ma server-side e senza UI.
+Quando segui una nave di cui **non** abbiamo una posizione live recente (tipicamente un **ri-follow** dalla lista "Seguite in passato": è finita lì perché silente oltre la soglia di auto-stop `FOLLOW_STALE_HOURS`, default ~6 mesi), il box di follow stretto da 0.5° non basta — la nave ha quasi certamente lasciato quella zona. Il `PATCH /api/ships/:mmsi/follow` imposta subito il follow (icona 🗺 selezionata, nave nelle "attualmente seguite") e avvia una **ri-acquisizione in background** ([`shipFollow.startReacquire`](src/services/ship-follow.js)): la stessa ricerca worldwide del box di ricerca, ma server-side e senza UI.
 
 - Una nave è considerata "fresca" (nessuna ri-acquisizione) se la sua ultima posizione è più recente di `FOLLOW_FRESH_MIN` (default 60 min); altrimenti parte la ri-acquisizione.
 - Al **primo fix** la ri-acquisizione termina in silenzio e il follow prosegue normalmente (box stretto attorno alla posizione fresca).
 - Se entro `SEARCH_LOOKUP_TIMEOUT_SEC` (default 90 s) **non** arriva alcun segnale, il follow viene **annullato** (la nave torna tra le "passate") e l'utente riceve una **notifica in-app** `follow_lost` (+ Telegram se collegato). Il successo è silenzioso.
-- Perché il follow ottimistico non venga annullato all'istante dallo sweep di auto-stop a 48 h, ri-seguire **ripristina `follow_started_at`** e l'auto-stop richiede ora che *sia* la posizione *sia* l'inizio del follow siano più vecchi della soglia (finestra di grazia). Questo correggeva anche un bug per cui ri-seguire una nave "passata" la faceva rimbalzare subito indietro.
+- Perché il follow ottimistico non venga annullato all'istante dallo sweep di auto-stop, ri-seguire **ripristina `follow_started_at`** e l'auto-stop richiede ora che *sia* la posizione *sia* l'inizio del follow siano più vecchi della soglia (finestra di grazia). Questo correggeva anche un bug per cui ri-seguire una nave "passata" la faceva rimbalzare subito indietro.
 
 **Nessuna connessione worldwide resta appesa**: ogni lookup worldwide (ricerca o ri-acquisizione) ha un **timer di teardown garantito** entro `SEARCH_LOOKUP_TIMEOUT_SEC` che lo rimuove anche se è già arrivato un fix o se il client resta aperto; il `refresh()` periodico (5 min) riconcilia comunque la sottoscrizione dalle sole navi seguite + lookup attivi, e quando non resta nulla la WebSocket viene chiusa.
+
+### Ri-acquisizione continua delle navi seguite uscite dalla copertura
+
+Il box di follow stretto da 0.5° è **centrato sull'ultima posizione nota**: se una nave seguita resta in silenzio (buco di copertura AIS) e poi **ri-trasmette fuori da quel box** — perché nel frattempo si è spostata, o perché era proprio uscita dalla footprint dei ricevitori AISstream — i suoi frame non corrisponderebbero più ad alcun box e il follow resterebbe "morto" fino all'auto-stop (`FOLLOW_STALE_HOURS`, default ~6 mesi). Per evitarlo, [`buildSubscription`](src/services/ship-follow.js) tiene **aperta una rete worldwide anche per le navi seguite stantie**, non solo per i lookup transitori di ricerca/ri-follow:
+
+- Una nave seguita è considerata **stantia** quando la sua ultima posizione è più vecchia di `FOLLOW_FRESH_MIN` (60 min). Per queste si **abbandona il box stretto** (inutile, punta a una posizione vecchia) e si aggiunge il **box mondiale** `[[-90,-180],[90,180]]`; il loro MMSI è già nell'allow-list `FiltersShipMMSI`, quindi vengono ri-agganciate ovunque ri-trasmettano. Le navi **fresche** mantengono il box stretto da 0.5°.
+- Poiché AISstream applica il filtro MMSI **lato server**, il box mondiale costa **solo i frame di quelle navi** → overhead trascurabile, nessuna chiamata esterna (VF/MT non espongono coordinate gratis).
+- Al **primo fix** la nave torna fresca e al `refresh()` successivo (5 min) rientra automaticamente nel box stretto attorno alla nuova posizione. Resta sul net worldwide e auto-recuperabile finché non supera `FOLLOW_STALE_HOURS` (default **~6 mesi**, `num('FOLLOW_STALE_HOURS', 4320)`) di silenzio totale: solo allora scatta l'auto-stop e finisce in "passate". Soglia deliberatamente lunga — abbatte solo i follow morti, non i buchi di copertura.
+- Il numero di navi attualmente in ri-acquisizione worldwide è esposto come `staleCount` in `getStatus`/`getHealth` e annotato nei log `subscribe`/`heartbeat` dello stream follow.
+
+> ⚠️ **Limite intrinseco.** Se una nave è davvero **fuori dalla copertura dei ricevitori AISstream** (mare aperto senza copertura satellitare nel piano in uso), nessun box la recupera: AISstream non riceve i suoi frame, punti dove punti. Questa ri-acquisizione risolve il caso "buco temporaneo / nave migrata fuori dal box stretto", non l'assenza totale di copertura. Recuperare la posizione da fonti terze (VesselFinder/MarineTraffic) richiederebbe le loro **API a pagamento** — gli endpoint gratuiti restituiscono timestamp/rotta/velocità/destinazione ma **mai le coordinate**.
 
 ## 📋 Eventi porto, statistiche e alert
 

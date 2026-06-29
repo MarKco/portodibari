@@ -263,8 +263,11 @@ const FOLLOW_BOX_HALF_DEG = num('FOLLOW_BOX_HALF_DEG', 0.5);
 // re-subscribes, and runs the inactivity auto-stop sweep.
 const FOLLOW_REFRESH_MS = num('FOLLOW_REFRESH_MIN', 5) * 60 * 1000;
 // A followed ship with no position for this many hours is auto-unfollowed and
-// moves to the "passate" history.
-const FOLLOW_STALE_HOURS = num('FOLLOW_STALE_HOURS', 48);
+// moves to the "passate" history. Until then it stays on the worldwide
+// re-acquire net (see ship-follow.buildSubscription) and resumes automatically
+// the moment it transmits again — so this is a deliberately long cutoff (default
+// ~6 months) that only sweeps away truly dead follows, not coverage gaps.
+const FOLLOW_STALE_HOURS = num('FOLLOW_STALE_HOURS', 4320);
 // How long a ship-search position lookup waits for a live AIS fix before giving
 // up (the worldwide-box subscription is dropped and the UI offers "Riprova").
 // Re-following a ship (background re-acquisition) reuses the same timeout.

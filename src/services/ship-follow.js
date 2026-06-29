@@ -5,8 +5,14 @@
 // connection whose subscription is a set of small bounding boxes — one per
 // followed ship, centred on its last known position — plus a FiltersShipMMSI
 // allow-list so we only receive those vessels. As ships move, the boxes are
-// rebuilt and re-sent every FOLLOW_REFRESH_MS. A ship silent for
-// FOLLOW_STALE_HOURS is auto-unfollowed and drops to the "passate" history.
+// rebuilt and re-sent every FOLLOW_REFRESH_MS.
+//
+// When a followed ship goes silent past FOLLOW_FRESH_MS (a coverage gap), its
+// tight box — pinned to an old position — likely no longer covers it. So stale
+// follows fall back to the worldwide box (WORLD_BOX): the server-side MMSI
+// filter keeps that cheap, and it re-acquires the ship wherever it next
+// transmits, re-centring the tight box on the fresh fix. A ship silent for
+// FOLLOW_STALE_HOURS is finally auto-unfollowed and drops to "passate" history.
 
 const WebSocket = require('ws');
 
@@ -66,26 +72,40 @@ const s = {
   isFirstConnect: true,
   sessionMessages: 0,
   followedCount: 0,
+  staleCount: 0, // followed ships currently re-acquired via the worldwide box
   lastAisError: null,
   lastAisErrorAt: null,
 };
 
-// One bounding box per followed ship, FOLLOW_BOX_HALF_DEG either side of its last
-// position. Returns null when there is nothing to follow (AISstream rejects an
-// empty BoundingBoxes — so we disconnect instead of subscribing).
+// A followed ship is "stale" once we haven't heard it for FOLLOW_FRESH_MS: its
+// tight box is centred on a now-old position and probably no longer covers it.
+function isStaleFollow(sh, now) {
+  return !sh.last_seen_at || now - new Date(sh.last_seen_at).getTime() > FOLLOW_FRESH_MS;
+}
+
+// One bounding box per *fresh* followed ship, FOLLOW_BOX_HALF_DEG either side of
+// its last position, plus a single worldwide box that re-acquires stale follows
+// (and transient search lookups) wherever they next transmit. The FiltersShipMMSI
+// allow-list keeps the worldwide box cheap — only followed/looked-up vessels.
+// Returns null when there is nothing to follow (AISstream rejects an empty
+// BoundingBoxes — so we disconnect instead of subscribing).
 function buildSubscription() {
   const ships = db.getAllFollowedPositions();
   s.followedCount = ships.length;
   const h = FOLLOW_BOX_HALF_DEG;
-  // Tight box per followed ship around its last known position.
-  const boxes = ships.map((sh) => [
-    [clamp(sh.lat - h, -90, 90), clamp(sh.lon - h, -180, 180)],
-    [clamp(sh.lat + h, -90, 90), clamp(sh.lon + h, -180, 180)],
-  ]);
+  const now = Date.now();
+  // Tight box only for fresh ships; stale ones rely on the worldwide box below.
+  const boxes = ships
+    .filter((sh) => !isStaleFollow(sh, now))
+    .map((sh) => [
+      [clamp(sh.lat - h, -90, 90), clamp(sh.lon - h, -180, 180)],
+      [clamp(sh.lat + h, -90, 90), clamp(sh.lon + h, -180, 180)],
+    ]);
   const mmsis = new Set(ships.map((sh) => String(sh.mmsi)));
-  // Pending search lookups: one shared worldwide box catches them anywhere; the
-  // server-side MMSI filter keeps the traffic to just those vessels.
-  if (lookups.size) {
+  s.staleCount = ships.reduce((n, sh) => n + (isStaleFollow(sh, now) ? 1 : 0), 0);
+  // One shared worldwide box catches stale follows + pending search lookups
+  // anywhere; the server-side MMSI filter keeps the traffic to just those vessels.
+  if (lookups.size || s.staleCount) {
     boxes.push(WORLD_BOX);
     for (const m of lookups.keys()) mmsis.add(String(m));
   }
@@ -115,7 +135,7 @@ function sendSubscription() {
       path: '/ais/follow/subscribe',
       status: 200,
       duration_ms: 0,
-      response_body: `[follow] Sottoscrizione ${sub.FiltersShipMMSI.length} navi seguite | ${masked}`,
+      response_body: `[follow] Sottoscrizione ${sub.FiltersShipMMSI.length} navi seguite${s.staleCount ? `, ${s.staleCount} in ri-acquisizione worldwide` : ''} | ${masked}`,
     })
   );
 }
@@ -144,7 +164,7 @@ function connect() {
           path: '/ais/follow/heartbeat',
           status: s.rawFramesReceived > 0 ? 200 : 204,
           duration_ms: 0,
-          response_body: `[follow] Connesso da ${upSec}s | frame WS: ${s.rawFramesReceived} | navi seguite: ${s.followedCount}`,
+          response_body: `[follow] Connesso da ${upSec}s | frame WS: ${s.rawFramesReceived} | navi seguite: ${s.followedCount}${s.staleCount ? ` (${s.staleCount} in ri-acquisizione worldwide)` : ''}`,
         })
       );
     }, 60000);
@@ -396,7 +416,7 @@ function applyFollow(userId, mmsi, followed) {
 }
 
 function getStatus() {
-  return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, lookupCount: lookups.size, reacquireCount: reacquires.size, totalReceived: s.totalReceived };
+  return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, staleCount: s.staleCount, lookupCount: lookups.size, reacquireCount: reacquires.size, totalReceived: s.totalReceived };
 }
 
 function getHealth() {
@@ -408,6 +428,7 @@ function getHealth() {
     connectedAt: s.connectedAt ? new Date(s.connectedAt).toISOString() : null,
     uptimeSec,
     followedCount: s.followedCount,
+    staleCount: s.staleCount,
     sessionFrames: s.rawFramesReceived,
     sessionMessages: s.sessionMessages,
     msgPerMin,

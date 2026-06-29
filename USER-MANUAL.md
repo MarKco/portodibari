@@ -230,7 +230,7 @@ Statistics panel with charts and aggregated indicators.
 
 ## Followed ships
 
-The **🗺 Followed ships** sidebar section tracks vessels wherever they go, even outside the monitored areas, via a dedicated AIS stream. Two sub-tabs: **Followed** (currently tracked) and **Followed in the past** (history; a ship silent for more than 48 hours is moved here automatically).
+The **🗺 Followed ships** sidebar section tracks vessels wherever they go, even outside the monitored areas, via a dedicated AIS stream. A followed ship that leaves AIS coverage is **not lost**: it is kept on a worldwide re-acquisition net and resumes tracking automatically the moment it transmits again, wherever it reappears. Two sub-tabs: **Followed** (currently tracked) and **Followed in the past** (history; a ship is moved here automatically only after a very long total silence — default ~6 months — or when you unfollow it).
 
 ### Search and follow a ship
 
