@@ -50,8 +50,8 @@ const MESSAGES = {
   'ais.api_error': { it: 'Errore API AISStream', en: 'AISStream API error' },
   'ais.parse_error': { it: 'Errore di parsing messaggio', en: 'Message parse error' },
   'ais.conn_closed_reconnect': {
-    it: (p) => `Connessione chiusa (code ${p.code}) — riconnessione in 5s`,
-    en: (p) => `Connection closed (code ${p.code}) — reconnecting in 5s`,
+    it: (p) => `Connessione chiusa (code ${p.code}) — riconnessione in ${p.delaySec ?? 5}s`,
+    en: (p) => `Connection closed (code ${p.code}) — reconnecting in ${p.delaySec ?? 5}s`,
   },
   'ais.conn_closed': { it: (p) => `Connessione chiusa (code ${p.code})`, en: (p) => `Connection closed (code ${p.code})` },
   'ais.ws_error': { it: 'Errore WebSocket', en: 'WebSocket error' },

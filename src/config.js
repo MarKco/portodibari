@@ -81,6 +81,18 @@ const HEATMAP_API_KEY_SOURCE = props.HEATMAP_AIS_API_KEY
     ? 'env'
     : null;
 
+// Separate key for the ship-follow stream (services/ship-follow.js). AISstream
+// limits concurrent connections PER KEY: when follow shares API_KEY with the
+// per-area streams, the area connection holds the only slot and follow's handshake
+// is refused with 429 in a loop. Giving follow its own key sidesteps that. Optional:
+// falls back to API_KEY (original behaviour; backoff then keeps the 429 loop tame).
+const FOLLOW_API_KEY = props.FOLLOW_AIS_API_KEY || process.env.FOLLOW_AIS_API_KEY || API_KEY;
+const FOLLOW_API_KEY_SOURCE = props.FOLLOW_AIS_API_KEY
+  ? 'local.properties'
+  : process.env.FOLLOW_AIS_API_KEY
+    ? 'env'
+    : 'shared'; // reusing API_KEY
+
 // ── Multi-user auth (sessions) ───────────────────────────────────────────────
 // Built-in administrator account, always (re)seeded at startup if absent. The
 // password defaults to the shipped value but can be overridden via
@@ -219,6 +231,12 @@ const SCRAPE_CACHE_TTL = num('SCRAPE_CACHE_TTL_HOURS', 6) * 60 * 60 * 1000;
 // backfill (0 = disabled, always retry).
 const SCRAPE_NEG_CACHE_DAYS = num('SCRAPE_NEG_CACHE_DAYS', 3);
 const RECONNECT_DELAY_MS = num('RECONNECT_DELAY_MS', 5000);
+// Exponential-backoff ceiling for AIS reconnects, and a longer floor applied when
+// the handshake was refused with HTTP 429 (rate/connection limit). Without these a
+// 429 sends the stream into a fixed-5s reconnect loop that hammers AISstream and
+// never recovers (the per-key connection slot stays contended). See ais-backoff.js.
+const RECONNECT_MAX_DELAY_MS = num('RECONNECT_MAX_DELAY_MS', 5 * 60 * 1000);
+const RECONNECT_429_DELAY_MS = num('RECONNECT_429_DELAY_MS', 60 * 1000);
 
 // ── AIS outage detection ──────────────────────────────────────────────────────
 // When an active stream stops receiving ship messages for AIS_OUTAGE_SILENCE_MIN
@@ -977,6 +995,8 @@ module.exports = {
   API_KEY_SOURCE,
   HEATMAP_API_KEY,
   HEATMAP_API_KEY_SOURCE,
+  FOLLOW_API_KEY,
+  FOLLOW_API_KEY_SOURCE,
   HEATMAP,
   DEFAULT_ADMIN_USERNAME,
   DEFAULT_ADMIN_EMAIL,
@@ -1000,6 +1020,8 @@ module.exports = {
   SCRAPE_CACHE_TTL,
   SCRAPE_NEG_CACHE_DAYS,
   RECONNECT_DELAY_MS,
+  RECONNECT_MAX_DELAY_MS,
+  RECONNECT_429_DELAY_MS,
   AIS_OUTAGE_CHECK,
   AIS_OUTAGE_SILENCE_MIN,
   AIS_UPTIME_URL,

@@ -23,12 +23,13 @@ const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
+const { is429, backoffDelay } = require('./ais-backoff');
 const {
-  API_KEY,
+  FOLLOW_API_KEY,
+  FOLLOW_API_KEY_SOURCE,
   AIS_URL,
   MSG_TYPES,
   MAX_BODY,
-  RECONNECT_DELAY_MS,
   FOLLOW_BOX_HALF_DEG,
   FOLLOW_REFRESH_MS,
   FOLLOW_STALE_HOURS,
@@ -94,6 +95,8 @@ const s = {
   reconnectCount: 0,
   isFirstConnect: true,
   sessionMessages: 0,
+  connFailCount: 0, // consecutive failed connection attempts (drives backoff)
+  was429: false, // last failure was an HTTP 429 handshake rejection
   followedCount: 0,
   staleCount: 0, // followed ships currently re-acquired via the worldwide box
   lastAisError: null,
@@ -134,7 +137,7 @@ function buildSubscription() {
   }
   if (!boxes.length) return null; // nothing to follow and nothing to look up
   return {
-    APIKey: API_KEY,
+    APIKey: FOLLOW_API_KEY,
     BoundingBoxes: boxes,
     FilterMessageTypes: MSG_TYPES,
     FiltersShipMMSI: [...mmsis],
@@ -151,7 +154,7 @@ function sendSubscription() {
     return;
   }
   s.wsClient.send(JSON.stringify(sub));
-  const masked = JSON.stringify(sub).replace(API_KEY, '***masked***');
+  const masked = JSON.stringify(sub).replace(FOLLOW_API_KEY, '***masked***');
   broadcastLog(
     db.insertLog({
       method: 'AIS',
@@ -174,6 +177,8 @@ function connect() {
     s.rawFramesReceived = 0;
     s.sessionMessages = 0;
     s.connectedAt = Date.now();
+    s.connFailCount = 0; // healthy connection: reset the backoff ramp
+    s.was429 = false;
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -273,25 +278,29 @@ function connect() {
     clearInterval(s.heartbeatTimer);
     s.heartbeatTimer = null;
     const upSec = s.connectedAt ? Math.round((Date.now() - s.connectedAt) / 1000) : 0;
+    const delayMs = s.active ? backoffDelay(s.connFailCount, s.was429) : 0;
+    const delaySec = Math.round(delayMs / 1000);
     broadcastLog(
       db.insertLog({
         method: 'AIS',
         path: '/ais/follow/disconnect',
         status: code || 0,
         duration_ms: 0,
-        response_body: `[follow] Connessione chiusa (code ${code}) dopo ${upSec}s${s.active ? ' — riconnessione in 5s' : ''}`,
+        response_body: `[follow] Connessione chiusa (code ${code}) dopo ${upSec}s${s.active ? ` — riconnessione in ${delaySec}s${s.was429 ? ' (429)' : ''}` : ''}`,
       })
     );
     s.wsClient = null;
     if (s.active) {
-      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code }), { area: 'follow', upSec });
-      s.reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
+      s.connFailCount++;
+      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec });
+      s.reconnectTimer = setTimeout(connect, delayMs);
     } else {
       appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: 'follow', upSec });
     }
   });
 
   s.wsClient.on('error', (err) => {
+    if (is429(err.message)) s.was429 = true; // raise the reconnect floor (see close handler)
     console.error('[AIS:follow] WS error:', err.message);
     appLog.error('AIS', appLog.t('ais.ws_error'), { area: 'follow', error: err.message });
     broadcastLog(
@@ -559,6 +568,9 @@ function getHealth() {
   return {
     area: 'follow',
     connected: !!s.wsClient,
+    // 'shared' means follow reuses API_KEY and competes with the area streams for
+    // the per-key connection slot (the 429 risk); a distinct key removes it.
+    keySource: FOLLOW_API_KEY_SOURCE,
     connectedAt: s.connectedAt ? new Date(s.connectedAt).toISOString() : null,
     uptimeSec,
     followedCount: s.followedCount,

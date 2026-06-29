@@ -11,8 +11,9 @@ const berths = require('./berths');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
-const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, RECONNECT_DELAY_MS, BBOX_PRESETS } = require('../config');
+const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS } = require('../config');
 const { destinationLabel } = require('./locode');
+const { is429, backoffDelay } = require('./ais-backoff');
 
 // Map of areaKey → per-stream state object
 const streams = new Map();
@@ -48,6 +49,8 @@ function createState() {
     reconnectCount: 0,
     isFirstConnect: true,
     sessionMessages: 0,
+    connFailCount: 0, // consecutive failed connection attempts (drives backoff)
+    was429: false, // last failure was an HTTP 429 handshake rejection
     lastAisError: null,
     lastAisErrorAt: null,
   };
@@ -73,6 +76,8 @@ function startStream(areaKey) {
     s.rawFramesReceived = 0;
     s.sessionMessages = 0;
     s.connectedAt = Date.now();
+    s.connFailCount = 0; // healthy connection: reset the backoff ramp
+    s.was429 = false;
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -263,26 +268,30 @@ function startStream(areaKey) {
     clearInterval(s.heartbeatTimer);
     s.heartbeatTimer = null;
     const upSec = s.connectedAt ? Math.round((Date.now() - s.connectedAt) / 1000) : 0;
+    const delayMs = s.streamActive ? backoffDelay(s.connFailCount, s.was429) : 0;
+    const delaySec = Math.round(delayMs / 1000);
     broadcastLog(
       db.insertLog({
         method: 'AIS',
         path: `/ais/${areaKey}/disconnect`,
         status: code || 0,
         duration_ms: 0,
-        response_body: `[${areaKey}] Connessione chiusa (code ${code}) dopo ${upSec}s | frame: ${s.rawFramesReceived}${s.streamActive ? ' — riconnessione in 5s' : ''}`,
+        response_body: `[${areaKey}] Connessione chiusa (code ${code}) dopo ${upSec}s | frame: ${s.rawFramesReceived}${s.streamActive ? ` — riconnessione in ${delaySec}s${s.was429 ? ' (429)' : ''}` : ''}`,
       })
     );
     s.wsClient = null;
     if (s.streamActive) {
-      console.log(`[AIS:${areaKey}] Riconnessione in 5s...`);
-      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code }), { area: areaKey, upSec });
-      s.reconnectTimer = setTimeout(() => startStream(areaKey), RECONNECT_DELAY_MS);
+      s.connFailCount++;
+      console.log(`[AIS:${areaKey}] Riconnessione in ${delaySec}s...`);
+      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: areaKey, upSec, delaySec });
+      s.reconnectTimer = setTimeout(() => startStream(areaKey), delayMs);
     } else {
       appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: areaKey, upSec });
     }
   });
 
   s.wsClient.on('error', (err) => {
+    if (is429(err.message)) s.was429 = true; // raise the reconnect floor (see close handler)
     console.error(`[AIS:${areaKey}] WS error:`, err.message);
     appLog.error('AIS', appLog.t('ais.ws_error'), { area: areaKey, error: err.message });
     broadcastLog(
