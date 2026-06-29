@@ -39,4 +39,19 @@ function backoffDelay(failCount, was429) {
   return Math.max(RECONNECT_DELAY_MS, Math.round(d + jitter));
 }
 
-module.exports = { is429, keyAbuseReason, backoffDelay };
+// Gracefully close an AISStream socket on VOLUNTARY teardown (stop monitoring /
+// stop follow / stop heatmap). `ws.close()` sends a WebSocket close frame so
+// AISStream frees the per-account connection slot promptly; `ws.terminate()` is an
+// abrupt RST the server is slow to reap, which makes an immediate restart hit the
+// still-held slot and get a 429. A timer force-terminates if the close handshake
+// stalls (server never replies), so a half-dead socket can't linger. The caller
+// should null its own reference too — the socket's own 'close' handler still fires
+// for bookkeeping.
+function closeSocket(ws) {
+  if (!ws) return;
+  try { ws.close(); } catch { /* already closing/closed */ }
+  const t = setTimeout(() => { try { ws.terminate(); } catch { /* gone */ } }, 3000);
+  if (t.unref) t.unref(); // don't keep the process alive just for the fallback
+}
+
+module.exports = { is429, keyAbuseReason, backoffDelay, closeSocket };

@@ -23,7 +23,8 @@ const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
-const { keyAbuseReason, backoffDelay } = require('./ais-backoff');
+const { keyAbuseReason, backoffDelay, closeSocket } = require('./ais-backoff');
+const { traceKey } = require('./key-trace');
 const {
   FOLLOW_API_KEY,
   FOLLOW_API_KEY_SOURCE,
@@ -160,6 +161,7 @@ function sendSubscription() {
     return;
   }
   s.wsClient.send(JSON.stringify(sub));
+  traceKey(FOLLOW_API_KEY, 'follow', 'SUBSCRIBE', { navi: sub.FiltersShipMMSI.length });
   const masked = JSON.stringify(sub).replace(FOLLOW_API_KEY, '***masked***');
   broadcastLog(
     db.insertLog({
@@ -175,9 +177,11 @@ function sendSubscription() {
 function connect() {
   if (s.wsClient) return;
   s.active = true;
+  traceKey(FOLLOW_API_KEY, 'follow', 'WS_OPEN', { riconnessione: s.reconnectCount });
   s.wsClient = new WebSocket(AIS_URL);
 
   s.wsClient.on('open', () => {
+    traceKey(FOLLOW_API_KEY, 'follow', 'OPEN_OK');
     console.log('[AIS:follow] Stream connesso');
     appLog.info('AIS', appLog.t('ais.stream_connected'), { area: 'follow', riconnessione: s.reconnectCount });
     s.rawFramesReceived = 0;
@@ -213,6 +217,7 @@ function connect() {
         console.error('[AIS:follow] Error:', parsed.error);
         const apiAbuse = keyAbuseReason(parsed.error);
         if (apiAbuse) { s.was429 = true; s.abuseReason = apiAbuse; }
+        traceKey(FOLLOW_API_KEY, 'follow', 'API_ERROR', { error: String(parsed.error), ...(apiAbuse ? { problema: apiAbuse } : {}) });
         appLog.error('AIS', appLog.t('ais.api_error'), { area: 'follow', error: String(parsed.error), key: KEY_TAG, ...(apiAbuse ? { problema: apiAbuse } : {}) });
         s.lastAisError = String(parsed.error);
         s.lastAisErrorAt = new Date().toISOString();
@@ -283,6 +288,7 @@ function connect() {
   });
 
   s.wsClient.on('close', (code) => {
+    traceKey(FOLLOW_API_KEY, 'follow', `CLOSE(${code})`, s.abuseReason ? { problema: s.abuseReason } : undefined);
     console.log(`[AIS:follow] Connessione chiusa (${code})`);
     clearInterval(s.heartbeatTimer);
     s.heartbeatTimer = null;
@@ -302,7 +308,8 @@ function connect() {
     if (s.active) {
       s.connFailCount++;
       appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec, key: KEY_TAG, ...(s.abuseReason ? { problema: s.abuseReason } : {}) });
-      s.reconnectTimer = setTimeout(connect, delayMs);
+      traceKey(FOLLOW_API_KEY, 'follow', 'RECONNECT', { delaySec });
+      s.reconnectTimer = setTimeout(() => { s.reconnectTimer = null; connect(); }, delayMs);
     } else {
       appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: 'follow', upSec, key: KEY_TAG });
     }
@@ -311,6 +318,7 @@ function connect() {
   s.wsClient.on('error', (err) => {
     const abuse = keyAbuseReason(err.message);
     if (abuse) { s.was429 = true; s.abuseReason = abuse; } // raise the reconnect floor (see close handler)
+    traceKey(FOLLOW_API_KEY, 'follow', 'ERROR', { error: err.message, ...(abuse ? { problema: abuse } : {}) });
     console.error('[AIS:follow] WS error:', err.message);
     appLog.error('AIS', appLog.t('ais.ws_error'), { area: 'follow', error: err.message, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
     broadcastLog(
@@ -329,7 +337,8 @@ function stop() {
   s.reconnectTimer = null;
   s.heartbeatTimer = null;
   if (s.wsClient) {
-    s.wsClient.terminate();
+    traceKey(FOLLOW_API_KEY, 'follow', 'CLOSE_GRACEFUL');
+    closeSocket(s.wsClient); // close frame → free the per-account slot promptly
     s.wsClient = null;
   }
 }

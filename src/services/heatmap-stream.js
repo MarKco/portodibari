@@ -28,8 +28,9 @@ const db = require('../db');
 const heatmapDb = require('../heatmap-db');
 const appLog = require('./app-log');
 const { broadcastLog } = require('../realtime');
-const { keyAbuseReason } = require('./ais-backoff');
-const { HEATMAP_API_KEY, HEATMAP_API_KEY_SOURCE, maskKey, HEATMAP, AIS_URL, RECONNECT_DELAY_MS } = require('../config');
+const { keyAbuseReason, backoffDelay, closeSocket } = require('./ais-backoff');
+const { traceKey } = require('./key-trace');
+const { HEATMAP_API_KEY, HEATMAP_API_KEY_SOURCE, maskKey, HEATMAP, AIS_URL } = require('../config');
 
 const GRID = HEATMAP.GRID_DEG;
 const META_KEY = 'heatmap_collecting';
@@ -81,9 +82,11 @@ function isCollectingDesired() {
 function connect() {
   if (s.wsClient || !isEnabled()) return;
   s.active = true;
+  traceKey(HEATMAP_API_KEY, 'heatmap', 'WS_OPEN', { riconnessione: s.reconnectCount });
   s.wsClient = new WebSocket(AIS_URL);
 
   s.wsClient.on('open', () => {
+    traceKey(HEATMAP_API_KEY, 'heatmap', 'OPEN_OK');
     console.log('[AIS:heatmap] Stream globale connesso');
     s.connectedAt = Date.now();
     s.bytesReceived = 0;
@@ -98,6 +101,7 @@ function connect() {
       FilterMessageTypes: HEATMAP.MSG_TYPES,
     };
     s.wsClient.send(JSON.stringify(sub));
+    traceKey(HEATMAP_API_KEY, 'heatmap', 'SUBSCRIBE');
     s.abuseReason = null;
     appLog.warn('HEATMAP', 'Mappa zone coperte: stream AISStream worldwide AVVIATO', {
       riconnessione: s.reconnectCount,
@@ -140,6 +144,7 @@ function connect() {
       s.lastErrorAt = new Date().toISOString();
       const abuse = keyAbuseReason(parsed.error);
       if (abuse) s.abuseReason = abuse;
+      traceKey(HEATMAP_API_KEY, 'heatmap', 'API_ERROR', { error: s.lastError, ...(abuse ? { problema: abuse } : {}) });
       appLog.error('HEATMAP', 'Errore API AISStream (heatmap)', { error: s.lastError, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
       broadcastLog(
         db.insertLog({ method: 'AIS', path: '/ais/heatmap/api-error', status: 401, duration_ms: 0, response_body: s.lastError })
@@ -161,6 +166,7 @@ function connect() {
   });
 
   s.wsClient.on('close', (code) => {
+    traceKey(HEATMAP_API_KEY, 'heatmap', `CLOSE(${code})`, s.abuseReason ? { problema: s.abuseReason } : undefined);
     console.log(`[AIS:heatmap] Connessione chiusa (${code})`);
     clearInterval(s.heartbeatTimer);
     s.heartbeatTimer = null;
@@ -178,8 +184,18 @@ function connect() {
     if (s.active) {
       if (s.msgReceived === 0) s.consecutiveFailures++;
       else s.consecutiveFailures = 0;
-      const delay = Math.min(RECONNECT_DELAY_MS * 2 ** Math.min(s.consecutiveFailures, 6), 5 * 60 * 1000);
-      if (s.consecutiveFailures === 3) {
+      // Share the exponential backoff + 429 floor with the other two streams: a
+      // 429/over-use failure (s.abuseReason set) raises the floor to
+      // RECONNECT_429_DELAY_MS so we stop reconnecting INTO AISStream's not-yet-freed
+      // per-account slot — the very thing that produces a 429 loop on a key that is
+      // actually fine and on its own account.
+      const was429 = !!s.abuseReason;
+      const delay = backoffDelay(s.consecutiveFailures, was429);
+      // Only blame the key/account after 3 silent closes that are NOT 429s. A 429 is
+      // a timing collision (we reconnected before the previous session was reaped),
+      // not a shared/invalid key — saying "use a separate account" there is wrong
+      // and alarming, especially now the key is confirmed on its own account.
+      if (s.consecutiveFailures === 3 && !was429) {
         s.lastError =
           'Connessione chiusa subito senza dati ripetutamente: la chiave è probabilmente su un account ' +
           'AISStream già connesso (limite di connessioni per-account) oppure non è valida. ' +
@@ -187,7 +203,8 @@ function connect() {
         s.lastErrorAt = new Date().toISOString();
         appLog.error('HEATMAP', s.lastError, { tentativi: s.consecutiveFailures });
       }
-      s.reconnectTimer = setTimeout(connect, delay);
+      traceKey(HEATMAP_API_KEY, 'heatmap', 'RECONNECT', { delaySec: Math.round(delay / 1000), tentativi: s.consecutiveFailures, ...(was429 ? { problema: s.abuseReason } : {}) });
+      s.reconnectTimer = setTimeout(() => { s.reconnectTimer = null; connect(); }, delay);
     }
   });
 
@@ -197,6 +214,7 @@ function connect() {
     s.lastErrorAt = new Date().toISOString();
     const abuse = keyAbuseReason(err.message);
     if (abuse) s.abuseReason = abuse;
+    traceKey(HEATMAP_API_KEY, 'heatmap', 'ERROR', { error: err.message, ...(abuse ? { problema: abuse } : {}) });
     appLog.error('HEATMAP', 'Errore WebSocket (heatmap)', { error: err.message, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
     broadcastLog(
       db.insertLog({ method: 'AIS', path: '/ais/heatmap/ws-error', status: 500, duration_ms: 0, response_body: err.message })
@@ -244,7 +262,8 @@ function stopCollection() {
   s.reconnectTimer = null;
   s.heartbeatTimer = null;
   if (s.wsClient) {
-    try { s.wsClient.terminate(); } catch { /* already gone */ }
+    traceKey(HEATMAP_API_KEY, 'heatmap', 'CLOSE_GRACEFUL');
+    closeSocket(s.wsClient); // close frame → free the per-account slot promptly
     s.wsClient = null;
   }
   clearInterval(s.flushTimer);
