@@ -23,10 +23,11 @@ const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
-const { is429, backoffDelay } = require('./ais-backoff');
+const { keyAbuseReason, backoffDelay } = require('./ais-backoff');
 const {
   FOLLOW_API_KEY,
   FOLLOW_API_KEY_SOURCE,
+  maskKey,
   AIS_URL,
   MSG_TYPES,
   MAX_BODY,
@@ -43,6 +44,10 @@ const {
 } = require('../config');
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Non-secret key fingerprint for logs. FOLLOW_API_KEY_SOURCE='shared' means follow
+// reuses API_KEY and competes with the area streams for the per-key slot (429 risk).
+const KEY_TAG = `${maskKey(FOLLOW_API_KEY)} (${FOLLOW_API_KEY_SOURCE})`;
 
 // Whole-globe bounding box. Used for "search lookups" (see addLookup): a ship the
 // user searched for whose position we don't know yet. AISstream applies
@@ -97,6 +102,7 @@ const s = {
   sessionMessages: 0,
   connFailCount: 0, // consecutive failed connection attempts (drives backoff)
   was429: false, // last failure was an HTTP 429 handshake rejection
+  abuseReason: null, // human reason when the failure is a key over-use problem
   followedCount: 0,
   staleCount: 0, // followed ships currently re-acquired via the worldwide box
   lastAisError: null,
@@ -179,6 +185,7 @@ function connect() {
     s.connectedAt = Date.now();
     s.connFailCount = 0; // healthy connection: reset the backoff ramp
     s.was429 = false;
+    s.abuseReason = null;
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -204,7 +211,9 @@ function connect() {
       const parsed = JSON.parse(data.toString());
       if (parsed.error) {
         console.error('[AIS:follow] Error:', parsed.error);
-        appLog.error('AIS', appLog.t('ais.api_error'), { area: 'follow', error: String(parsed.error) });
+        const apiAbuse = keyAbuseReason(parsed.error);
+        if (apiAbuse) { s.was429 = true; s.abuseReason = apiAbuse; }
+        appLog.error('AIS', appLog.t('ais.api_error'), { area: 'follow', error: String(parsed.error), key: KEY_TAG, ...(apiAbuse ? { problema: apiAbuse } : {}) });
         s.lastAisError = String(parsed.error);
         s.lastAisErrorAt = new Date().toISOString();
         broadcastLog(
@@ -286,23 +295,24 @@ function connect() {
         path: '/ais/follow/disconnect',
         status: code || 0,
         duration_ms: 0,
-        response_body: `[follow] Connessione chiusa (code ${code}) dopo ${upSec}s${s.active ? ` — riconnessione in ${delaySec}s${s.was429 ? ' (429)' : ''}` : ''}`,
+        response_body: `[follow] Connessione chiusa (code ${code}) dopo ${upSec}s | key: ${KEY_TAG}${s.active ? ` — riconnessione in ${delaySec}s${s.abuseReason ? ` — ${s.abuseReason}` : ''}` : ''}`,
       })
     );
     s.wsClient = null;
     if (s.active) {
       s.connFailCount++;
-      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec });
+      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec, key: KEY_TAG, ...(s.abuseReason ? { problema: s.abuseReason } : {}) });
       s.reconnectTimer = setTimeout(connect, delayMs);
     } else {
-      appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: 'follow', upSec });
+      appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: 'follow', upSec, key: KEY_TAG });
     }
   });
 
   s.wsClient.on('error', (err) => {
-    if (is429(err.message)) s.was429 = true; // raise the reconnect floor (see close handler)
+    const abuse = keyAbuseReason(err.message);
+    if (abuse) { s.was429 = true; s.abuseReason = abuse; } // raise the reconnect floor (see close handler)
     console.error('[AIS:follow] WS error:', err.message);
-    appLog.error('AIS', appLog.t('ais.ws_error'), { area: 'follow', error: err.message });
+    appLog.error('AIS', appLog.t('ais.ws_error'), { area: 'follow', error: err.message, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
     broadcastLog(
       db.insertLog({ method: 'AIS', path: '/ais/follow/ws-error', status: 500, duration_ms: 0, response_body: err.message })
     );

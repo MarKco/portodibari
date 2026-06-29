@@ -93,6 +93,11 @@ const FOLLOW_API_KEY_SOURCE = props.FOLLOW_AIS_API_KEY
     ? 'env'
     : 'shared'; // reusing API_KEY
 
+// Non-secret fingerprint of an API key for logs: last 4 chars only, so two streams
+// using the same key show the same tail (handy when diagnosing per-key 429s)
+// without ever writing the secret to the log.
+const maskKey = (k) => (k ? `…${String(k).slice(-4)}` : 'none');
+
 // ── Multi-user auth (sessions) ───────────────────────────────────────────────
 // Built-in administrator account, always (re)seeded at startup if absent. The
 // password defaults to the shipped value but can be overridden via
@@ -997,6 +1002,7 @@ module.exports = {
   HEATMAP_API_KEY_SOURCE,
   FOLLOW_API_KEY,
   FOLLOW_API_KEY_SOURCE,
+  maskKey,
   HEATMAP,
   DEFAULT_ADMIN_USERNAME,
   DEFAULT_ADMIN_EMAIL,

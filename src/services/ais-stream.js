@@ -11,9 +11,12 @@ const berths = require('./berths');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
-const { API_KEY, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS } = require('../config');
+const { API_KEY, API_KEY_SOURCE, maskKey, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS } = require('../config');
 const { destinationLabel } = require('./locode');
-const { is429, backoffDelay } = require('./ais-backoff');
+const { keyAbuseReason, backoffDelay } = require('./ais-backoff');
+
+// Non-secret key fingerprint for logs (which key this stream uses → diagnose 429s).
+const KEY_TAG = `${maskKey(API_KEY)} (${API_KEY_SOURCE})`;
 
 // Map of areaKey → per-stream state object
 const streams = new Map();
@@ -51,6 +54,7 @@ function createState() {
     sessionMessages: 0,
     connFailCount: 0, // consecutive failed connection attempts (drives backoff)
     was429: false, // last failure was an HTTP 429 handshake rejection
+    abuseReason: null, // human reason when the failure is a key over-use problem
     lastAisError: null,
     lastAisErrorAt: null,
   };
@@ -78,6 +82,7 @@ function startStream(areaKey) {
     s.connectedAt = Date.now();
     s.connFailCount = 0; // healthy connection: reset the backoff ramp
     s.was429 = false;
+    s.abuseReason = null;
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -114,7 +119,9 @@ function startStream(areaKey) {
       const parsed = JSON.parse(data.toString());
       if (parsed.error) {
         console.error(`[AIS:${areaKey}] Error:`, parsed.error);
-        appLog.error('AIS', appLog.t('ais.api_error'), { area: areaKey, error: String(parsed.error) });
+        const apiAbuse = keyAbuseReason(parsed.error);
+        if (apiAbuse) { s.was429 = true; s.abuseReason = apiAbuse; }
+        appLog.error('AIS', appLog.t('ais.api_error'), { area: areaKey, error: String(parsed.error), key: KEY_TAG, ...(apiAbuse ? { problema: apiAbuse } : {}) });
         s.lastAisError = String(parsed.error);
         s.lastAisErrorAt = new Date().toISOString();
         broadcastLog(
@@ -276,24 +283,25 @@ function startStream(areaKey) {
         path: `/ais/${areaKey}/disconnect`,
         status: code || 0,
         duration_ms: 0,
-        response_body: `[${areaKey}] Connessione chiusa (code ${code}) dopo ${upSec}s | frame: ${s.rawFramesReceived}${s.streamActive ? ` — riconnessione in ${delaySec}s${s.was429 ? ' (429)' : ''}` : ''}`,
+        response_body: `[${areaKey}] Connessione chiusa (code ${code}) dopo ${upSec}s | frame: ${s.rawFramesReceived} | key: ${KEY_TAG}${s.streamActive ? ` — riconnessione in ${delaySec}s${s.abuseReason ? ` — ${s.abuseReason}` : ''}` : ''}`,
       })
     );
     s.wsClient = null;
     if (s.streamActive) {
       s.connFailCount++;
       console.log(`[AIS:${areaKey}] Riconnessione in ${delaySec}s...`);
-      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: areaKey, upSec, delaySec });
+      appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: areaKey, upSec, delaySec, key: KEY_TAG, ...(s.abuseReason ? { problema: s.abuseReason } : {}) });
       s.reconnectTimer = setTimeout(() => startStream(areaKey), delayMs);
     } else {
-      appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: areaKey, upSec });
+      appLog.info('AIS', appLog.t('ais.conn_closed', { code }), { area: areaKey, upSec, key: KEY_TAG });
     }
   });
 
   s.wsClient.on('error', (err) => {
-    if (is429(err.message)) s.was429 = true; // raise the reconnect floor (see close handler)
+    const abuse = keyAbuseReason(err.message);
+    if (abuse) { s.was429 = true; s.abuseReason = abuse; } // raise the reconnect floor (see close handler)
     console.error(`[AIS:${areaKey}] WS error:`, err.message);
-    appLog.error('AIS', appLog.t('ais.ws_error'), { area: areaKey, error: err.message });
+    appLog.error('AIS', appLog.t('ais.ws_error'), { area: areaKey, error: err.message, key: KEY_TAG, ...(abuse ? { problema: abuse } : {}) });
     broadcastLog(
       db.insertLog({
         method: 'AIS',

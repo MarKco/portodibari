@@ -13,6 +13,20 @@ function is429(message) {
   return /\b429\b/.test(String(message || ''));
 }
 
+// Classify a WS error / AISstream error message as a key over-use problem (the
+// per-key connection/rate limit being hit), returning an Italian reason for the
+// log, or null if the error is something else. Covers both the 429 handshake
+// rejection and the JSON error messages AISstream sends when a key is over its
+// connection allowance. Callers use a non-null result to flag the longer backoff.
+function keyAbuseReason(message) {
+  const m = String(message || '');
+  if (/\b429\b/.test(m)) return 'sovra-uso chiave: troppe connessioni/richieste sulla stessa chiave (429)';
+  if (/too many|rate.?limit|connection limit|max(?:imum)?\b.*\bconnection|quota|exceeded/i.test(m)) {
+    return 'sovra-uso chiave: limite connessioni/quota della chiave superato';
+  }
+  return null;
+}
+
 // Next reconnect delay in ms. `failCount` is the number of consecutive failed
 // connection attempts (0 on the first retry after a healthy connection). `was429`
 // raises the floor so we back right off a rate/connection limit instead of poking
@@ -25,4 +39,4 @@ function backoffDelay(failCount, was429) {
   return Math.max(RECONNECT_DELAY_MS, Math.round(d + jitter));
 }
 
-module.exports = { is429, backoffDelay };
+module.exports = { is429, keyAbuseReason, backoffDelay };
