@@ -6,7 +6,7 @@ const {
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
-  BACKUP_INTERVAL_MIN, REPLAY,
+  BACKUP_INTERVAL_MIN, REPLAY, FOLLOW_STALE_HOURS,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
 } = require('../config');
 const db = require('../db');
@@ -55,6 +55,7 @@ router.get('/config', (req, res) => {
     backupIntervalMin: BACKUP_INTERVAL_MIN,
     replayMaxGapMin: REPLAY.MAX_GAP_MIN,
     replayTailMin: REPLAY.TAIL_MIN,
+    followStaleHours: FOLLOW_STALE_HOURS,
   });
 });
 

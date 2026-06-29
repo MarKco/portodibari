@@ -443,6 +443,8 @@ for (const col of ['berth_id INTEGER', 'berth_lat REAL', 'berth_lon REAL']) {
   try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
+try { db.exec('ALTER TABLE user_follows ADD COLUMN search_mode INTEGER NOT NULL DEFAULT 0'); } catch { /* already exists */ }
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS ship_scrape_cache (
     mmsi    INTEGER NOT NULL,
@@ -1145,6 +1147,20 @@ function getFollowersOf(mmsi) {
   return db.prepare('SELECT user_id FROM user_follows WHERE mmsi = ? AND followed = 1').all(mmsi).map((r) => r.user_id);
 }
 
+function setFollowSearchMode(userId, mmsi, mode) {
+  db.prepare('UPDATE user_follows SET search_mode = ? WHERE user_id = ? AND mmsi = ?').run(mode ? 1 : 0, userId, mmsi);
+}
+
+function getUserFollowSearchMode(userId, mmsi) {
+  const row = db.prepare('SELECT search_mode FROM user_follows WHERE user_id = ? AND mmsi = ? AND followed = 1').get(userId, mmsi);
+  return row ? row.search_mode : 0;
+}
+
+/** Users actively following mmsi AND in search_mode=1 (follow_searching was sent, awaiting re-detection). */
+function getSearchModeFollowersOf(mmsi) {
+  return db.prepare('SELECT user_id FROM user_follows WHERE mmsi = ? AND followed = 1 AND search_mode = 1').all(mmsi).map((r) => r.user_id);
+}
+
 /** User ids whose monitored areas geographically contain the given point —
  *  the recipients of a position-based notification (arrival/high-risk/…). */
 function getUsersSeeingPoint(lat, lon) {
@@ -1222,9 +1238,10 @@ function autoStopStaleFollowsAll(hours) {
   // follow — e.g. re-following a ship from "passate", whose last position is by
   // definition old — from being auto-stopped the instant it's re-enabled (it gets
   // a window to be re-acquired; see ship-follow.startReacquire).
+  // Returns per-user rows so the caller can send follow_lost notifications.
   const stale = db
     .prepare(
-      `SELECT DISTINCT f.mmsi, s.ship_name FROM user_follows f JOIN ships s ON s.mmsi = f.mmsi
+      `SELECT f.user_id, f.mmsi, s.ship_name FROM user_follows f JOIN ships s ON s.mmsi = f.mmsi
        WHERE f.followed = 1
          AND s.last_seen_at < datetime('now', ?)
          AND f.follow_started_at < datetime('now', ?)`
@@ -1232,8 +1249,11 @@ function autoStopStaleFollowsAll(hours) {
     .all(`-${hours} hours`, `-${hours} hours`);
   if (stale.length) {
     const now = new Date().toISOString();
-    const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ? WHERE mmsi = ? AND followed = 1');
-    for (const s of stale) stmt.run(now, s.mmsi);
+    const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ?, search_mode = 0 WHERE mmsi = ? AND followed = 1');
+    const seen = new Set();
+    for (const s of stale) {
+      if (!seen.has(s.mmsi)) { stmt.run(now, s.mmsi); seen.add(s.mmsi); }
+    }
   }
   return stale;
 }
@@ -2803,6 +2823,9 @@ module.exports = {
   getTelegramLinkedUserIds,
   getUserIdsWithSetting,
   autoStopStaleFollowsAll,
+  setFollowSearchMode,
+  getUserFollowSearchMode,
+  getSearchModeFollowersOf,
   getScrapedData,
   setScrapedData,
   setScrapeFailure,

@@ -234,9 +234,17 @@ const MSG = {
     it: (p) => `↔️ <b>Cambio area</b>\n${nameLine(p, 'it')}\nDa <b>${esc(p.fromArea)}</b> a <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>${shipExtras(p, 'it')}`,
     en: (p) => `↔️ <b>Area change</b>\n${nameLine(p, 'en')}\nFrom <b>${esc(p.fromArea)}</b> to <b>${esc(p.area)}</b> · Score: <b>${p.score}</b>${shipExtras(p, 'en')}`,
   },
+  follow_searching: {
+    it: (p) => `🔍 <b>Nave in ricerca</b>\n${esc(p.name)} non sta trasmettendo. La cerco in tutto il mondo — verrò avvisato quando riprende.`,
+    en: (p) => `🔍 <b>Searching for ship</b>\n${esc(p.name)} is not transmitting. Searching worldwide — you'll be notified when it reappears.`,
+  },
+  follow_found: {
+    it: (p) => `✅ <b>Nave ritrovata</b>\n${esc(p.name)} ha ripreso a trasmettere.`,
+    en: (p) => `✅ <b>Ship found again</b>\n${esc(p.name)} is transmitting again.`,
+  },
   follow_lost: {
-    it: (p) => `📭 <b>Nave non trovata</b>\n${esc(p.name)} non sta trasmettendo: rimossa dalle navi seguite.`,
-    en: (p) => `📭 <b>Ship not found</b>\n${esc(p.name)} is not transmitting: removed from followed ships.`,
+    it: (p) => `📭 <b>Nave rimossa dai seguiti</b>\n${esc(p.name)} non ha trasmesso per 6 mesi: rimossa dalle navi seguite.`,
+    en: (p) => `📭 <b>Ship removed from followed</b>\n${esc(p.name)} has not transmitted for 6 months: removed from followed ships.`,
   },
   berth_new: {
     it: (p) => `🛳️ <b>Nuova banchina rilevata</b>\nArea: <b>${esc(p.area)}</b>`,

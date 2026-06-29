@@ -1377,6 +1377,7 @@ function initBboxSelect() {
       S.berthsList = [];
 
       await updateStatus();
+      loadPastCount();
       if (S.view === 'active') {
         loadActive();
         if (S.showBerths) loadBerths(S.currentPreset);
@@ -1681,11 +1682,11 @@ function initGlossaryTooltip() {
   }
 
   document.addEventListener('mouseover', (e) => {
-    const icon = e.target.closest('.eq-info[data-tip]');
+    const icon = e.target.closest('.eq-info[data-tip], .follow-search-badge[data-tip]');
     if (icon) show(icon);
   });
   document.addEventListener('mouseout', (e) => {
-    const icon = e.target.closest('.eq-info[data-tip]');
+    const icon = e.target.closest('.eq-info[data-tip], .follow-search-badge[data-tip]');
     if (icon && !icon.contains(e.relatedTarget)) tip.classList.add('hidden');
   });
 }
@@ -1748,13 +1749,16 @@ api('/api/config').then((cfg) => {
   if (cfg.notifDeleteUndoSeconds != null) S.notifDeleteUndoSeconds = cfg.notifDeleteUndoSeconds;
   if (cfg.replayMaxGapMin != null) S.replayMaxGapMin = cfg.replayMaxGapMin;
   if (cfg.replayTailMin != null) S.replayTailMin = cfg.replayTailMin;
+  if (cfg.followStaleHours != null) S.followStaleHours = cfg.followStaleHours;
   if (cfg.backupIntervalMin != null && el.autobackupDesc) {
     el.autobackupDesc.textContent = t('settings.autobackup.desc', { interval: intervalLabel(cfg.backupIntervalMin) });
   }
 }).catch(() => {}).finally(async () => {
   await loadSettings();
   updateStatus();
-  loadActive();
+  const RESTORABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage'];
+  const hashView = location.hash.slice(1);
+  showView(RESTORABLE.includes(hashView) ? hashView : 'active');
   loadPastCount();
   startPolling();
 });

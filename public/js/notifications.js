@@ -48,6 +48,14 @@ function notifMessage(n) {
       score: n.score != null ? n.score : '?',
     });
   }
+  if (n.type === 'follow_searching') {
+    const ship = n.ship_name || `MMSI ${n.mmsi}`;
+    return t('notif.followSearching', { ship: escHtml(ship) });
+  }
+  if (n.type === 'follow_found') {
+    const ship = n.ship_name || `MMSI ${n.mmsi}`;
+    return t('notif.followFound', { ship: escHtml(ship) });
+  }
   if (n.type === 'follow_lost') {
     const ship = n.ship_name || `MMSI ${n.mmsi}`;
     return t('notif.followLost', { ship: escHtml(ship) });

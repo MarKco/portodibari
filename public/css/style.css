@@ -727,6 +727,25 @@ td.empty {
 .follow-btn:hover { background: var(--surface-4); opacity: 1; filter: grayscale(0.3); }
 .follow-btn.followed { filter: grayscale(0); opacity: 1; }
 
+.follow-search-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a06000;
+  background: #fff3cd;
+  border: 1px solid #f0c040;
+  border-radius: 0.3em;
+  padding: 0.1em 0.45em;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+}
+
+.follow-searching-row td { opacity: 0.72; }
+.follow-searching-row .ship-name { font-style: italic; }
+
 .military-btn {
   background: none;
   border: 1px solid var(--border);

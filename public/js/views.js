@@ -45,6 +45,8 @@ export function showView(v, mmsi, shipData) {
   }
 
   S.view = v;
+  const HASHABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage'];
+  if (HASHABLE.includes(v)) location.hash = v;
   el.viewActive.classList.toggle('hidden', v !== 'active');
   el.viewPast.classList.toggle('hidden', v !== 'past');
   el.viewDetail.classList.toggle('hidden', v !== 'detail');

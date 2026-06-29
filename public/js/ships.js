@@ -43,6 +43,17 @@ export function updateDetailFollowBtn(followed) {
   el.btnFollowDetail.title = followed ? t('detail.followRemove') : t('detail.followAdd');
 }
 
+export function updateDetailFollowStatus(shipData) {
+  const badge = document.getElementById('follow-status-detail');
+  if (!badge) return;
+  const searching = shipData.followed && shipData.search_mode;
+  badge.classList.toggle('hidden', !searching);
+  if (searching) {
+    const months = Math.round(S.followStaleHours / 24 / 30);
+    badge.dataset.tip = `Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di ${months} mesi. Se riprende a trasmettere riceverai una notifica.`;
+  }
+}
+
 export function updateDetailMilitaryBtn(isMilitary) {
   el.btnMilitaryDetail.dataset.military = isMilitary ? '1' : '0';
   el.btnMilitaryDetail.classList.toggle('active', !!isMilitary);
@@ -88,7 +99,11 @@ if (el.btnFollowDetail) {
     const newFollow = el.btnFollowDetail.dataset.followed === '1' ? 0 : 1;
     const res = await api(`/api/ships/${S.detailMmsi}/follow`, 'PATCH', { followed: newFollow });
     updateDetailFollowBtn(newFollow);
-    if (S.detailShipData) S.detailShipData.followed = newFollow;
+    if (S.detailShipData) {
+      S.detailShipData.followed = newFollow;
+      if (!newFollow) S.detailShipData.search_mode = 0;
+    }
+    updateDetailFollowStatus(S.detailShipData || { followed: newFollow, search_mode: 0 });
     // Re-follow of a ship with a stale position runs a background worldwide
     // re-acquisition (up to ~90s). Tell the user it's underway and may revert.
     if (newFollow && res && res.reacquiring) {
@@ -568,6 +583,7 @@ export async function loadDetail() {
       updateDetailFlagBtn(shipData.flagged);
       updateDetailSeenBtn(shipData.seen);
       updateDetailFollowBtn(shipData.followed);
+      updateDetailFollowStatus(shipData);
       updateDetailMilitaryBtn(shipData.is_military);
       updateDetailNotifMuteBtn(shipData.notif_muted);
       if (el.detailNotesEl !== document.activeElement) {

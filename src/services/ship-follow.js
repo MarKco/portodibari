@@ -190,6 +190,10 @@ function connect() {
       const lat = parsed.MetaData?.latitude ?? null;
       const lon = parsed.MetaData?.longitude ?? null;
       const area = lat != null && lon != null ? areaForPoint(lat, lon) || '' : '';
+      // Check before insert: users with search_mode=1 for this MMSI (follow_searching was sent).
+      // If position arrives, we'll fire follow_found for them.
+      const rawMmsi = parsed.MetaData?.MMSI ? Number(parsed.MetaData.MMSI) : null;
+      const searchFollowers = rawMmsi && lat != null && lon != null ? db.getSearchModeFollowersOf(rawMmsi) : [];
       const mmsi = db.insertFollowPosition(parsed, area);
       // A search lookup is waiting for this MMSI's first position: hand the fix
       // to its callbacks (the SSE search/recover handler streams it to the UI).
@@ -205,6 +209,16 @@ function connect() {
         };
         for (const cb of lookups.get(mmsi)) {
           try { cb(fix); } catch { /* a dead SSE client must not break the stream */ }
+        }
+      }
+      // Ship was in search_mode: position arrived → notify follow_found, reset mode.
+      if (mmsi && searchFollowers.length) {
+        const shipName = (parsed.MetaData?.ShipName || '').trim() || `MMSI ${mmsi}`;
+        appLog.info('AIS', `Nave ritrovata in ricerca: ${shipName}`, { area: 'follow', mmsi });
+        for (const userId of searchFollowers) {
+          db.setFollowSearchMode(userId, mmsi, 0);
+          db.addNotification({ user_id: userId, type: 'follow_found', mmsi, ship_name: shipName });
+          try { telegram.notifyShipEvent(userId, 'follow_found', { name: shipName }); } catch { /* best-effort */ }
         }
       }
       if (mmsi) {
@@ -284,8 +298,12 @@ function stop() {
 function refresh() {
   const stale = db.autoStopStaleFollowsAll(FOLLOW_STALE_HOURS);
   if (stale.length) {
-    const list = stale.map((x) => x.ship_name || x.mmsi).join(', ');
-    appLog.info('AIS', `Follow auto-stop dopo ${FOLLOW_STALE_HOURS}h di silenzio: ${list}`, { area: 'follow', navi: stale.length });
+    const uniqueNames = [...new Set(stale.map((x) => x.ship_name || String(x.mmsi)))];
+    appLog.info('AIS', `Follow auto-stop dopo ${FOLLOW_STALE_HOURS}h di silenzio: ${uniqueNames.join(', ')}`, { area: 'follow', navi: uniqueNames.length });
+    for (const { user_id, mmsi, ship_name } of stale) {
+      db.addNotification({ user_id, type: 'follow_lost', mmsi, ship_name });
+      try { telegram.notifyShipEvent(user_id, 'follow_lost', { name: ship_name || `MMSI ${mmsi}` }); } catch { /* best-effort */ }
+    }
   }
 
   const positions = db.getAllFollowedPositions();
@@ -353,7 +371,8 @@ function startReacquire(userId, mmsi, name) {
 
 // Resolve a re-acquisition. `found=true` (a fix arrived) just tears the lookup
 // down and rebuilds the tight box around the fresh position. `found=false` (the
-// timer fired) reverts every still-pending follower to "passate" and notifies.
+// timer fired) keeps the follow active but marks search_mode=1 so the worldwide
+// box keeps hunting for the ship; the user is notified it's "in ricerca".
 function finishReacquire(mmsi, found) {
   mmsi = Number(mmsi);
   const r = reacquires.get(mmsi);
@@ -366,12 +385,12 @@ function finishReacquire(mmsi, found) {
     refresh();
     return;
   }
-  appLog.warn('AIS', `Ri-acquisizione fallita per ${r.name || mmsi}: nessun segnale entro il timeout`, { area: 'follow', mmsi });
+  appLog.warn('AIS', `Ri-acquisizione fallita per ${r.name || mmsi}: nessun segnale entro il timeout — rimane in ricerca`, { area: 'follow', mmsi });
   for (const userId of r.users) {
     if (!db.getUserFollowedMmsis(userId).has(mmsi)) continue; // user unfollowed meanwhile
-    db.setUserFollow(userId, mmsi, false);
-    db.addNotification({ user_id: userId, type: 'follow_lost', mmsi, ship_name: r.name });
-    try { telegram.notifyShipEvent(userId, 'follow_lost', { name: r.name || `MMSI ${mmsi}` }); } catch { /* best-effort */ }
+    db.setFollowSearchMode(userId, mmsi, 1);
+    db.addNotification({ user_id: userId, type: 'follow_searching', mmsi, ship_name: r.name });
+    try { telegram.notifyShipEvent(userId, 'follow_searching', { name: r.name || `MMSI ${mmsi}` }); } catch { /* best-effort */ }
   }
   refresh();
 }

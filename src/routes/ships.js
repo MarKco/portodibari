@@ -15,7 +15,7 @@ const shipFollow = require('../services/ship-follow');
 const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
-const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY, TESTER_MAX_FOLLOWS } = require('../config');
+const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY, TESTER_MAX_FOLLOWS, FOLLOW_FRESH_MS } = require('../config');
 const { destinationLabel } = require('../services/locode');
 
 const router = express.Router();
@@ -110,7 +110,13 @@ router.get('/ships/past', (req, res) => {
 router.get('/ships/followed/active', (req, res) => {
   const lang = req.query.lang || 'it';
   const sets = userSets(req.user.id);
-  const ships = db.getUserFollowedShips(req.user.id).map((s) => decorate(s, sets, lang, true)).sort(flaggedFirst);
+  const now = Date.now();
+  const ships = db.getUserFollowedShips(req.user.id).map((s) => {
+    const decorated = decorate(s, sets, lang, true);
+    decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;
+    decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
+    return decorated;
+  }).sort(flaggedFirst);
   res.json({ ships });
 });
 
@@ -374,6 +380,8 @@ router.get('/ships/:mmsi', (req, res) => {
     is_military: mil,
     flagged: mil ? true : db.getUserFlaggedMmsis(uid).has(mmsi),
     followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
+    is_stale: (!ship.last_seen_at || Date.now() - new Date(ship.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0,
+    search_mode: db.getUserFollowSearchMode(uid, mmsi),
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
     destination_label: destinationLabel(ship.destination),
   });

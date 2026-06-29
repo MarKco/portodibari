@@ -81,6 +81,7 @@ export const S = {
   replay: null,
   replayMaxGapMin: 30, // hide a ship across fix gaps longer than this (synced from server)
   replayTailMin: 20,   // fading-trail length in minutes (synced from server)
+  followStaleHours: 4320, // hours before a followed ship is auto-removed (synced from server)
   followedMap: null,
   followedMarkersLayer: null,
   followedShipsCache: new Map(),
