@@ -7,6 +7,7 @@ import {
   loadVfData,
   loadMtData,
   loadSfData,
+  loadMstData,
   loadEquasisData,
   loadGfwData,
   renderDetailInfoBar,
@@ -24,6 +25,7 @@ import { closeSettingsLog } from './app-log.js';
 import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
 import { applyOutageBanner } from './outage.js';
+import { t } from './i18n.js';
 
 export function showView(v, mmsi, shipData) {
   // Scroll back to top on every view change (navigating away from a long detail
@@ -86,7 +88,7 @@ export function showView(v, mmsi, shipData) {
     loadTrack(mmsi);
     // VF/MT/GFW are proactive enrichment and can shift the risk score, so
     // refresh the detail (score + factors) once they resolve.
-    Promise.all([loadVfData(mmsi), loadMtData(mmsi), loadSfData(mmsi), loadGfwData(mmsi)]).then(() => loadDetail());
+    Promise.all([loadVfData(mmsi), loadMtData(mmsi), loadSfData(mmsi), loadMstData(mmsi), loadGfwData(mmsi)]).then(() => loadDetail());
     // Equasis is manual: only show cached data here, never auto-fetch.
     loadEquasisData(mmsi, false);
   } else if (v === 'active') {
@@ -96,6 +98,7 @@ export function showView(v, mmsi, shipData) {
   } else if (v === 'traffico') {
     loadTraffco();
   } else if (v === 'followed') {
+    document.title = `${t('app.title')} - ${t('sidebar.followed')}`;
     loadFollowed();
   } else if (v === 'areas') {
     enterAreasView();

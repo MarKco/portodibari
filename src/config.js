@@ -481,6 +481,10 @@ const state = {
   // its unique free last-known position, used to re-locate lost followed ships.
   // Off by default, like VF/MT.
   importSfData: props.IMPORT_SF_DATA === 'true',
+  // MyShipTracking enrichment: like ShipFinder, a free last-known position (plus
+  // duplicate static fields) used to re-locate lost followed ships — a second,
+  // independent position backup alongside SF. Off by default.
+  importMstData: props.IMPORT_MST_DATA === 'true',
   importSanctions: props.IMPORT_SANCTIONS === 'true',
   // Extended sanctions lists (EU / UK OFSI / UN), on top of OFAC SDN. Only
   // effective while importSanctions is on. Default ON unless explicitly disabled.
@@ -587,6 +591,11 @@ function setImportMt(enabled) {
 function setImportSf(enabled) {
   state.importSfData = !!enabled;
   saveProperty('IMPORT_SF_DATA', state.importSfData);
+}
+
+function setImportMst(enabled) {
+  state.importMstData = !!enabled;
+  saveProperty('IMPORT_MST_DATA', state.importMstData);
 }
 
 function setImportSanctions(enabled) {
@@ -1025,6 +1034,7 @@ module.exports = {
   setImportVf,
   setImportMt,
   setImportSf,
+  setImportMst,
   setImportSanctions,
   setImportSanctionsExtra,
   setImportPsc,

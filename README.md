@@ -106,6 +106,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `IMPORT_VF_DATA` | Abilita scraping VesselFinder (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Abilita scraping MarineTraffic (`true`/`false`) | `false` |
 | `IMPORT_SF_DATA` | Abilita scraping ShipFinder — dati statici + posizione ultimo avvistamento per ri-localizzare le navi seguite perse (`true`/`false`) | `false` |
+| `IMPORT_MST_DATA` | Abilita scraping MyShipTracking — seconda fonte di posizione di backup, stesso ruolo di ShipFinder (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS` | Abilita screening lista sanzioni OFAC SDN (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS_EXTRA` | Abilita liste sanzioni aggiuntive UE/UK OFSI/ONU oltre a OFAC (`true`/`false`) | `true` |
 | `IMPORT_PSC` | Abilita screening Port State Control Paris/Tokyo MoU: performance bandiera + navi bandite (`true`/`false`) | `false` |
@@ -523,7 +524,9 @@ Nel dettaglio nave, due pannelli arricchiscono i dati AIS con dati scaricati (sc
 
 **ShipFinder** — pagina server-rendered, scraping HTML (`crawlShipfinder` in [`src/services/scrapers/shipfinder.js`](src/services/scrapers/shipfinder.js)) via `fetchHttp` (no Cloudflare, niente libcurl). I campi sono indicizzati da `<label id="ais-…">`; la bandiera è il nome-file dell'`<img>` (codice ISO). A differenza di VF/MT (che gratis **non** danno coordinate), ShipFinder espone in chiaro la **posizione dell'ultimo avvistamento** (lat/lon in gradi-primi decimali, es. `44-35.056 N`, convertita in decimali da [`src/lib/coords.js`](src/lib/coords.js) `parseDdm`), oltre a SOG/COG/stato/destinazione/ETA. I campi statici (bandiera/tipo/dimensioni) duplicano in gran parte VF/MT e servono solo da fallback: **il valore unico è la posizione**.
 
-L'integrazione MT/VF/SF è attivabile/disattivabile via le proprietà `IMPORT_MT_DATA` / `IMPORT_VF_DATA` / `IMPORT_SF_DATA` in `local.properties` (o dai toggle nelle impostazioni UI, che le persistono).
+**MyShipTracking** — pagina server-rendered, scraping HTML (`crawlMyshiptracking` in [`src/services/scrapers/myshiptracking.js`](src/services/scrapers/myshiptracking.js)) via `fetchHttp` (no Cloudflare). Stesso ruolo di ShipFinder: una **seconda fonte di posizione di backup, indipendente**. Particolari/velocità/rotta/stato AIS vengono dalle tabelle `<th>etichetta</th><td>valore</td>`; la **posizione dell'ultimo avvistamento** (lat/lon in **gradi decimali con segno**, ordine lat/lon) e il timestamp del rilevamento vengono dalla frase SEO della pagina (la tabella azzera lat/lon a `---` per le navi stale, mentre la frase porta sempre l'ultimo fix). La copertura è AIS **terrestre** (T-AIS): buona vicino a coste/porti, debole in mare aperto — adatta alle aree-porto monitorate.
+
+L'integrazione MT/VF/SF/MST è attivabile/disattivabile via le proprietà `IMPORT_MT_DATA` / `IMPORT_VF_DATA` / `IMPORT_SF_DATA` / `IMPORT_MST_DATA` in `local.properties` (o dai toggle nelle impostazioni UI, che le persistono).
 
 #### ShipFinder: ri-localizzazione delle navi seguite (posizione)
 
@@ -532,6 +535,8 @@ A differenza di VF/MT, la posizione ShipFinder serve a **ritrovare le navi segui
 - **Storage taggato.** Le posizioni scrapate finiscono nella tabella `readings` con `source='sf'` (colonna aggiunta via migrazione, default `'ais'`) e `message_type='ShipfinderPosition'`. Sono **escluse** da traccia AIS, score di rischio e replay (le query AIS filtrano `source='ais'`) e **non** toccano la riga `ships` (così `last_seen_at` resta il segnale di freschezza AIS e il box worldwide continua la ricerca in parallelo). In mappa appaiono come **marker ambra distinti, non collegati** alla polyline AIS (`renderSfPositions` in `maps.js`).
 - **Sweep automatico.** Nel loop di refresh dei follow (ogni `FOLLOW_REFRESH_MIN`, default 5 min), `reacquireStaleViaShipfinder` scrapa le navi seguite **stale** (nessuna posizione AIS fresca) — incluse quelle **mai localizzate** (seguite da ricerca, via `getAllFollowedShips`). Throttle per-MMSI (`SF_REACQUIRE_THROTTLE_MIN`, default 30 min), tetto per passata (`SF_REACQUIRE_MAX_PER_SWEEP`, default 20), 2 s tra le richieste e negative-cache sui fallimenti → volume basso/captcha-safe.
 - **Pulsante manuale.** Nel dettaglio nave, **📍 Localizza via ShipFinder** (`POST /api/ships/:mmsi/sflocate`) forza uno scrape immediato della posizione e centra il marker — vale per **qualsiasi** nave visibile, non solo le seguite.
+
+**MyShipTracking** replica esattamente lo stesso meccanismo come **secondo backup indipendente**: storage taggato `source='mst'` (stessa esclusione da traccia/score/replay), sweep `reacquireStaleViaMst` (stessi throttle/tetto `SF_REACQUIRE_*`), pulsante **📍 Localizza via MyShipTracking** (`POST /api/ships/:mmsi/mstlocate`). Quando entrambe le fonti sono attive una nave stale viene interrogata su entrambe; in mappa i marker MST sono **teal/ciano** per distinguerli dall'ambra di ShipFinder.
 
 ### Arricchimento proattivo alla prima rilevazione
 

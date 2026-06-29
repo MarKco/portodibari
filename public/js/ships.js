@@ -2,7 +2,7 @@ import { el } from './dom.js';
 import { S, PAGE_SIZE, saveShipFilters } from './store.js';
 import { api } from './api.js';
 import { showAlert } from './toast.js';
-import { renderActiveMap, renderSfPositions } from './maps.js';
+import { renderActiveMap, renderSfPositions, renderMstPositions } from './maps.js';
 import { showView } from './views.js';
 import { t, getLang } from './i18n.js';
 import { exportShips, exportTrack, exportBerths } from './geoexport.js';
@@ -60,6 +60,12 @@ export function updateDetailFollowStatus(shipData) {
     const hasSf = !!(shipData.followed && shipData.sf_last_at);
     sfBadge.classList.toggle('hidden', !hasSf);
     if (hasSf) sfBadge.textContent = `📍 ${t('follow.sfSeen', { time: formatTime(shipData.sf_last_at) })}`;
+  }
+  const mstBadge = document.getElementById('mst-status-detail');
+  if (mstBadge) {
+    const hasMst = !!(shipData.followed && shipData.mst_last_at);
+    mstBadge.classList.toggle('hidden', !hasMst);
+    if (hasMst) mstBadge.textContent = `📍 ${t('follow.mstSeen', { time: formatTime(shipData.mst_last_at) })}`;
   }
 }
 
@@ -1049,6 +1055,97 @@ export async function locateSf(mmsi) {
   } finally {
     el.btnSfLocate.disabled = false;
     el.btnSfLocate.textContent = prev;
+  }
+}
+
+// ── MyShipTracking data (mirror of the ShipFinder block — second position backup) ──
+export async function loadMstData(mmsi) {
+  if (!S.importMstData) {
+    el.mstDataSection.classList.add('hidden');
+    if (el.btnMstDetail) el.btnMstDetail.classList.add('hidden');
+    return;
+  }
+  el.mstDataSection.classList.remove('hidden');
+  if (el.btnMstDetail) {
+    el.btnMstDetail.href = `https://www.myshiptracking.com/vessels/mmsi-${mmsi}`;
+    el.btnMstDetail.classList.remove('hidden');
+  }
+  el.mstCacheBadge.classList.add('hidden');
+  el.mstDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingMst')}</p>`;
+  try {
+    const result = await api(`/api/ships/${mmsi}/mstdata`);
+    if (!result.enabled) {
+      el.mstDataSection.classList.add('hidden');
+      return;
+    }
+    if (S.detailMmsi === mmsi) renderMstPositions(result.positions);
+    if (result.error && !result.data) {
+      el.mstDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
+      return;
+    }
+    if (result.cachedAt) {
+      el.mstCacheBadge.textContent = `${result.cached ? t('scrape.cache') : t('scrape.updated')} · ${formatTime(result.cachedAt)}`;
+      el.mstCacheBadge.classList.remove('hidden');
+    }
+    renderScrapedData(el.mstDataBody, result.data);
+    renderMstPositionBlock(result.positions);
+    invalidateDetailMap();
+  } catch {
+    el.mstDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
+  }
+}
+
+function mstPositionHtml(positions) {
+  if (!positions || !positions.length) return '';
+  const p = positions[positions.length - 1];
+  if (p.lat == null || p.lon == null) return '';
+  const sog = p.sog != null ? `${Number(p.sog).toFixed(1)} kn` : '—';
+  const cog = p.cog != null && p.cog <= 360 ? `${Number(p.cog).toFixed(0)}°` : '—';
+  return `<div id="mst-position-block" class="sf-position">
+    <span class="sf-position-label">📍 ${t('scrape.mstPosition')}</span>
+    <span class="sf-position-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</span>
+    <span class="sf-position-meta">SOG ${sog} · COG ${cog} · ${formatTime(p.received_at)}</span>
+  </div>`;
+}
+
+function renderMstPositionBlock(positions) {
+  const existing = document.getElementById('mst-position-block');
+  if (existing) existing.remove();
+  const html = mstPositionHtml(positions);
+  if (html) el.mstDataBody.insertAdjacentHTML('afterbegin', html);
+}
+
+// Manual "Localizza via MyShipTracking": force a live position scrape, drop the
+// fresh marker on the map, update the panel position block, and toast the outcome.
+export async function locateMst(mmsi) {
+  if (!S.importMstData || mmsi == null) return;
+  el.btnMstLocate.disabled = true;
+  const prev = el.btnMstLocate.textContent;
+  el.btnMstLocate.textContent = t('scrape.locating');
+  try {
+    const result = await api(`/api/ships/${mmsi}/mstlocate`, 'POST');
+    if (result.error) {
+      showAlert(t('scrape.mstLocateFailed'), escHtml(result.error));
+      return;
+    }
+    if (!result.position) {
+      showAlert(t('scrape.mstLocateFailed'), t('scrape.mstNoPosition'));
+      return;
+    }
+    const p = result.position;
+    if (S.detailMmsi === mmsi) {
+      renderMstPositions(result.positions, { focus: true });
+      renderMstPositionBlock(result.positions);
+    }
+    showAlert(
+      t('scrape.mstLocated'),
+      `${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)} · ${formatTime(p.received_at)}`
+    );
+  } catch {
+    showAlert(t('scrape.mstLocateFailed'), t('scrape.error'));
+  } finally {
+    el.btnMstLocate.disabled = false;
+    el.btnMstLocate.textContent = prev;
   }
 }
 

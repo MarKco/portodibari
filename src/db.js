@@ -24,6 +24,26 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'db', 'ais_data.db');
 relocateDbFile(path.join(__dirname, '..', 'ais_data.db'), DB_PATH);
 const db = new DatabaseSync(DB_PATH);
 
+// node:sqlite's DatabaseSync has no transaction() helper (better-sqlite3, which
+// this code was written against, does). Provide a compatible one: it returns a
+// callable that wraps `fn` in BEGIN/COMMIT and ROLLBACKs on throw — matching the
+// better-sqlite3 call sites (pruneOrphans, area-delete purge, the maintenance
+// migrations). Without this every `db.transaction(...)` call throws
+// "db.transaction is not a function" and its whole code path aborts.
+if (typeof db.transaction !== 'function') {
+  db.transaction = (fn) => (...args) => {
+    db.exec('BEGIN');
+    try {
+      const r = fn(...args);
+      db.exec('COMMIT');
+      return r;
+    } catch (e) {
+      try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+      throw e;
+    }
+  };
+}
+
 db.exec(`PRAGMA journal_mode = WAL`);
 db.exec(`PRAGMA synchronous = NORMAL`);
 // Wait (and retry internally) up to 5s for a lock instead of throwing
@@ -2649,6 +2669,33 @@ function backupTo(dest) {
  * VACUUM rewrites the whole file, so it runs only when actually needed.
  */
 function runMaintenance() {
+  // One-time fix of ShipFinder positions stored before the UTC+8 timezone fix.
+  // ShipFinder renders "Last update" in China Standard Time (UTC+8); the old
+  // parser read it as UTC, so every stored `source='sf'` fix landed 8 h in the
+  // future (e.g. a "vista su ShipFinder" badge showing tomorrow's time). Shift all
+  // existing sf rows back 8 h to real UTC — done once (meta-guarded): at first boot
+  // after the fix every sf row present was written by the buggy parser, and rows
+  // written afterwards are already correct. Position data is preserved (we correct
+  // the timestamp, not delete the fix). JS date math avoids SQLite ISO/format edge
+  // cases. (MyShipTracking reports real UTC and is unaffected.)
+  if (getMeta('sf_tz_utc8_fixed') !== '1') {
+    const SHIFT_MS = 8 * 60 * 60 * 1000;
+    const rows = db.prepare("SELECT rowid AS rid, received_at FROM readings WHERE source = 'sf'").all();
+    const upd = db.prepare('UPDATE readings SET received_at = ? WHERE rowid = ?');
+    // Shift + flag in one transaction so a partial run can't leave rows shifted
+    // with the flag unset (which would double-shift them on the next boot).
+    const fixed = db.transaction(() => {
+      let n = 0;
+      for (const r of rows) {
+        const t = Date.parse(r.received_at);
+        if (Number.isFinite(t)) { upd.run(new Date(t - SHIFT_MS).toISOString(), r.rid); n++; }
+      }
+      setMeta('sf_tz_utc8_fixed', '1');
+      return n;
+    })();
+    if (fixed) console.log(`[migrate] ShipFinder UTC+8 timezone fix: shifted ${fixed} scraped position(s) back 8h`);
+  }
+
   // One-time conversion to incremental auto_vacuum on legacy databases. The
   // open-time `PRAGMA auto_vacuum = INCREMENTAL` only sets the *intended* mode;
   // the file is actually converted by the first VACUUM. A meta flag guards it so

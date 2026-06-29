@@ -220,6 +220,7 @@ const MESSAGES = {
   'settings.import_vf': onOff(['Import VesselFinder attivato', 'Import VesselFinder disattivato'], ['VesselFinder import enabled', 'VesselFinder import disabled']),
   'settings.import_mt': onOff(['Import MarineTraffic attivato', 'Import MarineTraffic disattivato'], ['MarineTraffic import enabled', 'MarineTraffic import disabled']),
   'settings.import_sf': onOff(['Import ShipFinder attivato', 'Import ShipFinder disattivato'], ['ShipFinder import enabled', 'ShipFinder import disabled']),
+  'settings.import_mst': onOff(['Import MyShipTracking attivato', 'Import MyShipTracking disattivato'], ['MyShipTracking import enabled', 'MyShipTracking import disabled']),
   'settings.import_sanctions': onOff(['Screening sanzioni attivato', 'Screening sanzioni disattivato'], ['Sanctions screening enabled', 'Sanctions screening disabled']),
   'settings.import_psc': onOff(['Screening Port State Control attivato', 'Screening Port State Control disattivato'], ['Port State Control screening enabled', 'Port State Control screening disabled']),
   'settings.import_gfw': onOff(['Import Global Fishing Watch attivato', 'Import Global Fishing Watch disattivato'], ['Global Fishing Watch import enabled', 'Global Fishing Watch import disabled']),

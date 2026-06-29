@@ -406,6 +406,7 @@
                   data-i18n-title="detail.followAdd" title="Segui nave">🗺</button>
           <span id="follow-status-detail" class="follow-search-badge hidden" data-tip="Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di 6 mesi. Se riprende a trasmettere riceverai una notifica.">🔍 in ricerca</span>
           <span id="sf-status-detail" class="follow-search-badge follow-sf-badge hidden" data-tip="Posizione recuperata da ShipFinder mentre la nave è muta sull'AIS. È l'ultimo avvistamento noto, non un segnale AIS live.">📍 vista su ShipFinder</span>
+          <span id="mst-status-detail" class="follow-search-badge follow-sf-badge hidden" data-tip="Posizione recuperata da MyShipTracking mentre la nave è muta sull'AIS. È l'ultimo avvistamento noto, non un segnale AIS live.">📍 vista su MyShipTracking</span>
           <button id="btn-military-detail" class="military-btn" title="Segna come nave militare">🪖 <span id="military-btn-label">Segna come nave militare</span></button>
           <button id="btn-notif-mute-detail" class="notif-mute-btn"
                   data-i18n-title="detail.notifMuteAdd" title="Silenzia notifiche">🔔</button>
@@ -413,6 +414,8 @@
              data-i18n-title="detail.vfLink" title="Vedi su VesselFinder">⧉ VesselFinder</a>
           <a id="btn-mt-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"
              data-i18n-title="detail.mtLink" title="Vedi su MarineTraffic">⧉ MarineTraffic</a>
+          <a id="btn-mst-detail" class="btn btn-secondary btn-sm hidden" href="#" target="_blank" rel="noopener"
+             data-i18n-title="detail.mstLink" title="Vedi su MyShipTracking">⧉ MyShipTracking</a>
           <a id="btn-sf-detail" class="btn btn-secondary btn-sm hidden" href="#" target="_blank" rel="noopener"
              data-i18n-title="detail.sfLink" title="Vedi su ShipFinder">⧉ ShipFinder</a>
           <button id="btn-report-detail" class="btn btn-secondary btn-sm"
@@ -500,6 +503,19 @@
                   data-i18n="detail.sfLocate">📍 Localizza via ShipFinder</button>
         </h3>
         <div id="sf-data-body"></div>
+      </div>
+
+      <!-- MyShipTracking data: mirror of the ShipFinder section — static fields +
+           last-known scraped position (second position backup). "Localizza" force-
+           scrapes the current position now; markers drawn on the detail map above. -->
+      <div id="mst-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.mstTitle">Dati MyShipTracking</span>
+          <span id="mst-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
+          <button id="btn-mst-locate" class="btn btn-secondary btn-sm"
+                  data-i18n="detail.mstLocate">📍 Localizza via MyShipTracking</button>
+        </h3>
+        <div id="mst-data-body"></div>
       </div>
 
       <!-- Equasis ownership data (manual, on-demand) -->
@@ -830,6 +846,16 @@
           </div>
           <label class="toggle">
             <input type="checkbox" id="toggle-import-sf">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.mst.name">Import MyShipTracking</div>
+            <div class="setting-desc" data-i18n="settings.mst.desc">Come ShipFinder, recupera la posizione dell'ultimo avvistamento (più dati statici), usata per ri-localizzare le navi seguite che l'AIS non vede più: una seconda fonte di backup indipendente. Dati statici in cache per 6 ore.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-mst">
             <span class="toggle-slider"></span>
           </label>
         </div>

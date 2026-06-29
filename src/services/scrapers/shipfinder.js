@@ -30,12 +30,17 @@ function firstNum(s) {
   return m ? Number(m[0]) : null;
 }
 
-// ShipFinder timestamps are UTC ("2026-06-29 23:37:24"). Convert to ISO; null if
-// unparseable (we then fall back to "now" at insert time).
+// ShipFinder renders "Last update" in China Standard Time (UTC+8) — the site's
+// native timezone, served to our cookie-less server fetch regardless of the
+// vessel's location (e.g. "2026-06-30 03:37:10" for a fix actually taken at
+// 2026-06-29 19:37:10 UTC). Treat the wall-clock as UTC+8 and shift to real UTC;
+// otherwise stored fixes land ~8 h in the future. null if unparseable (we then
+// fall back to "now" at insert time).
+const SF_TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
 function parseSfTime(s) {
   const m = String(s || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return null;
-  const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - SF_TZ_OFFSET_MS;
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 

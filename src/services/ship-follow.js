@@ -22,6 +22,7 @@ const appLog = require('./app-log');
 const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
+const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
 const {
   API_KEY,
   AIS_URL,
@@ -73,6 +74,13 @@ const reacquires = new Map();
 // throttles per MMSI; `sfSweeping` prevents overlapping sweeps.
 const lastSfScrape = new Map(); // mmsi -> epoch ms of last scrape attempt
 let sfSweeping = false;
+
+// MyShipTracking re-acquire sweep — an independent second backup alongside
+// ShipFinder, same mechanics (own throttle map + sweep guard, reuses the shared
+// SF_REACQUIRE_* timing). When both are enabled a stale follow is scraped from
+// both sources; whichever returns a fix gives a last-known marker.
+const lastMstScrape = new Map();
+let mstSweeping = false;
 
 const s = {
   wsClient: null,
@@ -328,10 +336,11 @@ function refresh() {
   // throttled/capped inside). Uses getAllFollowedShips so it also covers follows
   // that NEVER got an AIS fix (e.g. added by search) — ShipFinder can locate them
   // by MMSI. The worldwide AIS box recovery continues in parallel regardless.
-  if (state.importSfData) {
+  if (state.importSfData || state.importMstData) {
     const now = Date.now();
     const stale = db.getAllFollowedShips().filter((sh) => isStaleFollow(sh, now));
-    if (stale.length) reacquireStaleViaShipfinder(stale).catch((e) => console.error(`[SF:reacquire] ${e.message}`));
+    if (stale.length && state.importSfData) reacquireStaleViaShipfinder(stale).catch((e) => console.error(`[SF:reacquire] ${e.message}`));
+    if (stale.length && state.importMstData) reacquireStaleViaMst(stale).catch((e) => console.error(`[MST:reacquire] ${e.message}`));
   }
 
   if (!positions.length && !lookups.size) {
@@ -383,6 +392,45 @@ async function reacquireStaleViaShipfinder(staleShips) {
     }
   } finally {
     sfSweeping = false;
+  }
+}
+
+// MyShipTracking counterpart of reacquireStaleViaShipfinder — identical mechanics
+// (throttle / cap / stagger / negative-cache), a second independent source so a
+// stale follow still gets a last-known fix if ShipFinder misses it.
+async function reacquireStaleViaMst(staleShips) {
+  if (mstSweeping || !state.importMstData || !staleShips.length) return;
+  mstSweeping = true;
+  try {
+    const now = Date.now();
+    const due = staleShips
+      .filter((sh) => now - (lastMstScrape.get(sh.mmsi) || 0) >= SF_REACQUIRE_THROTTLE_MS)
+      .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'mst', SCRAPE_NEG_CACHE_DAYS))
+      .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
+    for (const sh of due) {
+      lastMstScrape.set(sh.mmsi, Date.now());
+      try {
+        const { static: staticData, position } = await crawlMyshiptracking(sh.mmsi);
+        db.recordScrape('mst', true);
+        if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, 'mst', staticData);
+        if (position) {
+          const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name }, 'mst');
+          db.clearScrapeFailure(sh.mmsi, 'mst');
+          if (stored) {
+            invalidateRiskCache(sh.mmsi);
+            appLog.info('SCRAPE', `Posizione MyShipTracking per nave seguita persa: ${sh.ship_name || sh.mmsi}`, { mmsi: sh.mmsi });
+          }
+        } else {
+          db.setScrapeFailure(sh.mmsi, 'mst', 'MyShipTracking: nessuna posizione');
+        }
+      } catch (e) {
+        db.setScrapeFailure(sh.mmsi, 'mst', e.message);
+        db.recordScrape('mst', false);
+      }
+      await new Promise((r) => setTimeout(r, 2000)); // stagger requests
+    }
+  } finally {
+    mstSweeping = false;
   }
 }
 

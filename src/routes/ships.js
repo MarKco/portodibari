@@ -7,6 +7,7 @@ const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache, isMilitar
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic, searchMt, mtVesselInfo, mtDataFromInfo } = require('../services/scrapers/marinetraffic');
 const { crawlShipfinder } = require('../services/scrapers/shipfinder');
+const { crawlMyshiptracking } = require('../services/scrapers/myshiptracking');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const { crawlGfw } = require('../services/gfw');
 const sanctions = require('../services/sanctions');
@@ -70,12 +71,30 @@ function flaggedFirst(a, b) {
 // fix, OR when AIS has since re-acquired the ship (last_seen_at, AIS-only, is
 // newer than the SF fix): the scraped last-known is then stale and the badge
 // would be misleading, so we drop it.
+// A scraped "last known" badge is meant to show only WHILE the ship is dark on our
+// AIS stream. Hide it once AIS has re-acquired the vessel — i.e. the last AIS fix
+// is fresh (within FOLLOW_FRESH_MS) or is at least as recent as the scraped fix.
+// (The freshness check is also a guard against a bogus scraped timestamp: a fresh
+// AIS fix always wins regardless of what the scrape claims.)
+function scrapeBadgeAt(scrapedAt, lastSeenAt) {
+  if (!scrapedAt) return null;
+  if (lastSeenAt) {
+    const seen = new Date(lastSeenAt).getTime();
+    if (Date.now() - seen < FOLLOW_FRESH_MS) return null; // AIS re-acquired (fresh)
+    if (seen >= new Date(scrapedAt).getTime()) return null; // AIS fix newer than scrape
+  }
+  return scrapedAt;
+}
+
 function sfBadgeAt(mmsi, lastSeenAt) {
   if (!state.importSfData) return null;
-  const sfAt = db.getLatestScrapedPosition(mmsi, 'sf')?.received_at || null;
-  if (!sfAt) return null;
-  if (lastSeenAt && new Date(lastSeenAt) >= new Date(sfAt)) return null;
-  return sfAt;
+  return scrapeBadgeAt(db.getLatestScrapedPosition(mmsi, 'sf')?.received_at || null, lastSeenAt);
+}
+
+// MyShipTracking counterpart of sfBadgeAt for the "vista su MyShipTracking" badge.
+function mstBadgeAt(mmsi, lastSeenAt) {
+  if (!state.importMstData) return null;
+  return scrapeBadgeAt(db.getLatestScrapedPosition(mmsi, 'mst')?.received_at || null, lastSeenAt);
 }
 
 // May the current user open this ship's detail? Visible if it's in one of their
@@ -130,6 +149,7 @@ router.get('/ships/followed/active', (req, res) => {
     decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;
     decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
     decorated.sf_last_at = sfBadgeAt(s.mmsi, s.last_seen_at);
+    decorated.mst_last_at = mstBadgeAt(s.mmsi, s.last_seen_at);
     return decorated;
   }).sort(flaggedFirst);
   res.json({ ships });
@@ -398,6 +418,7 @@ router.get('/ships/:mmsi', (req, res) => {
     is_stale: (!ship.last_seen_at || Date.now() - new Date(ship.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0,
     search_mode: db.getUserFollowSearchMode(uid, mmsi),
     sf_last_at: sfBadgeAt(mmsi, ship.last_seen_at),
+    mst_last_at: mstBadgeAt(mmsi, ship.last_seen_at),
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
     destination_label: destinationLabel(ship.destination),
   });
@@ -714,6 +735,66 @@ router.post('/ships/:mmsi/sflocate', async (req, res) => {
     db.setScrapeFailure(mmsi, 'sf', e.message);
     db.recordScrape('sf', false);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'ShipFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
+    res.json({ enabled: true, error: e.message });
+  }
+});
+
+// MyShipTracking static data + last-known scraped positions. Mirror of /sfdata for
+// the second position-backup source: serves cached static + stored 'mst' positions,
+// scraping fresh static (and any carried position) only when the cache is cold.
+router.get('/ships/:mmsi/mstdata', async (req, res) => {
+  if (!state.importMstData) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+  const positions = db.getScrapedPositions(mmsi, 'mst');
+  const cached = db.getScrapedData(mmsi, 'mst');
+  if (cached && Date.now() - new Date(cached.scraped_at).getTime() < SCRAPE_CACHE_TTL) {
+    return res.json({ enabled: true, data: JSON.parse(cached.data_json), cached: true, cachedAt: cached.scraped_at, positions });
+  }
+  try {
+    appLog.info('SCRAPE', appLog.t('scrape.requested', { source: 'MyShipTracking', name: ship.ship_name || mmsi }), { mmsi });
+    const { static: staticData, position } = await crawlMyshiptracking(mmsi);
+    const scraped_at = db.setScrapedData(mmsi, 'mst', staticData);
+    db.clearScrapeFailure(mmsi, 'mst');
+    db.recordScrape('mst', true);
+    if (position) db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name }, 'mst');
+    appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'MyShipTracking', name: ship.ship_name || mmsi }), { mmsi });
+    res.json({ enabled: true, data: staticData, cached: false, cachedAt: scraped_at, positions: db.getScrapedPositions(mmsi, 'mst') });
+  } catch (e) {
+    db.setScrapeFailure(mmsi, 'mst', e.message);
+    db.recordScrape('mst', false);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'MyShipTracking', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
+    if (cached) {
+      return res.json({ enabled: true, data: JSON.parse(cached.data_json), cached: true, cachedAt: cached.scraped_at, error: e.message, positions });
+    }
+    res.json({ enabled: true, error: e.message, positions });
+  }
+});
+
+// Manual "Locate via MyShipTracking": force a live position scrape now, store it,
+// and return the fix so the UI can drop a marker. Mirror of /sflocate.
+router.post('/ships/:mmsi/mstlocate', async (req, res) => {
+  if (!state.importMstData) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+  try {
+    appLog.info('SCRAPE', `Localizzazione MyShipTracking richiesta: ${ship.ship_name || mmsi}`, { mmsi });
+    const { static: staticData, position } = await crawlMyshiptracking(mmsi);
+    if (staticData && Object.keys(staticData).length) db.setScrapedData(mmsi, 'mst', staticData);
+    db.clearScrapeFailure(mmsi, 'mst');
+    db.recordScrape('mst', true);
+    if (!position) return res.json({ enabled: true, position: null });
+    const stored = db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name }, 'mst');
+    invalidateRiskCache(mmsi);
+    res.json({ enabled: true, position: stored || { mmsi, ...position, received_at: position.reportedAt }, positions: db.getScrapedPositions(mmsi, 'mst') });
+  } catch (e) {
+    db.setScrapeFailure(mmsi, 'mst', e.message);
+    db.recordScrape('mst', false);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'MyShipTracking', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     res.json({ enabled: true, error: e.message });
   }
 });

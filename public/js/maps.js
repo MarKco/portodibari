@@ -35,6 +35,9 @@ function initMap() {
   // the AIS track so loadTrack()'s clearLayers() doesn't wipe them and they render
   // as distinct, un-connected markers.
   S.sfLayer = L.layerGroup().addTo(S.aisMap);
+  // Same idea for MyShipTracking last-known positions — its own layer so the two
+  // scraped sources clear independently and render as distinct-coloured markers.
+  S.mstLayer = L.layerGroup().addTo(S.aisMap);
   // Re-render tiles when container resizes (e.g. VF data loads and grows the flex row)
   const ro = new ResizeObserver(() => S.aisMap && S.aisMap.invalidateSize());
   ro.observe(document.getElementById('detail-map'));
@@ -67,6 +70,40 @@ export function renderSfPositions(positions, { focus = false } = {}) {
           `COG: ${p.cog != null && p.cog <= 360 ? Number(p.cog).toFixed(0) + '°' : '—'}`
       )
       .addTo(S.sfLayer);
+  });
+  const last = pts[pts.length - 1];
+  const noAisTrack = !S.trackLayer || S.trackLayer.getLayers().length === 0;
+  if ((focus || noAisTrack) && S.aisMap) {
+    const bounds = L.latLngBounds(pts.map((p) => [p.lat, p.lon]));
+    if (bounds.isValid()) S.aisMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+  }
+  return last;
+}
+
+// MyShipTracking counterpart of renderSfPositions — same un-connected "last known"
+// markers on their own layer, in teal/cyan to tell them apart from ShipFinder's amber.
+export function renderMstPositions(positions, { focus = false } = {}) {
+  initMap();
+  if (!S.mstLayer) return;
+  S.mstLayer.clearLayers();
+  const pts = (positions || []).filter((p) => p.lat != null && p.lon != null);
+  if (!pts.length) return;
+  pts.forEach((p, i) => {
+    const isLast = i === pts.length - 1;
+    L.circleMarker([p.lat, p.lon], {
+      radius: isLast ? 8 : 5,
+      color: '#0e7490',
+      fillColor: isLast ? '#06b6d4' : '#67e8f9',
+      fillOpacity: 0.9,
+      weight: 2,
+      dashArray: '3 2',
+    })
+      .bindPopup(
+        `<b>📍 ${t('map.mstLastKnown')}</b><br>${formatTime(p.received_at)}<br>` +
+          `SOG: ${p.sog != null ? Number(p.sog).toFixed(1) + ' kn' : '—'}&nbsp;&nbsp;` +
+          `COG: ${p.cog != null && p.cog <= 360 ? Number(p.cog).toFixed(0) + '°' : '—'}`
+      )
+      .addTo(S.mstLayer);
   });
   const last = pts[pts.length - 1];
   const noAisTrack = !S.trackLayer || S.trackLayer.getLayers().length === 0;
@@ -211,6 +248,7 @@ export async function loadTrack(mmsi, opts = {}) {
   S.aisMap.invalidateSize();
   S.trackLayer.clearLayers();
   if (S.sfLayer) S.sfLayer.clearLayers(); // SF markers re-added by loadSfData
+  if (S.mstLayer) S.mstLayer.clearLayers(); // MST markers re-added by loadMstData
   const ctrls = document.getElementById('track-anim');
   if (ctrls) ctrls.classList.add('hidden');
 

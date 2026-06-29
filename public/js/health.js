@@ -14,6 +14,7 @@ function scrapeCountsBlock(counts) {
     { key: 'vf', label: 'VesselFinder' },
     { key: 'mt', label: 'MarineTraffic' },
     { key: 'sf', label: 'ShipFinder' },
+    { key: 'mst', label: 'MyShipTracking' },
   ];
   const cells = vendors
     .map(({ key, label }) => {

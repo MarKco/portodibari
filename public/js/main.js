@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadEquasisData, loadGfwData } from './ships.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -147,11 +147,13 @@ async function loadSettings() {
     S.importVfData = !!s.importVfData;
     S.importMtData = !!s.importMtData;
     S.importSfData = !!s.importSfData;
+    S.importMstData = !!s.importMstData;
     S.importSanctions = !!s.importSanctions;
     S.importSanctionsExtra = s.importSanctionsExtra !== false;
     if (el.toggleImportVf) el.toggleImportVf.checked = S.importVfData;
     if (el.toggleImportMt) el.toggleImportMt.checked = S.importMtData;
     if (el.toggleImportSf) el.toggleImportSf.checked = S.importSfData;
+    if (el.toggleImportMst) el.toggleImportMst.checked = S.importMstData;
     if (el.toggleImportSanctions) el.toggleImportSanctions.checked = S.importSanctions;
     if (el.toggleImportSanctionsExtra) el.toggleImportSanctionsExtra.checked = S.importSanctionsExtra;
     applySanctionsSettingsState();
@@ -626,6 +628,26 @@ function initSettingsModal() {
     el.btnSfLocate.addEventListener('click', (e) => {
       e.stopPropagation(); // the button sits inside the collapsible <h3>; don't toggle it
       if (S.detailMmsi != null) locateSf(S.detailMmsi);
+    });
+  }
+
+  if (el.toggleImportMst) {
+    el.toggleImportMst.addEventListener('change', async () => {
+      const enabled = el.toggleImportMst.checked;
+      try {
+        await api('/api/settings', 'POST', { importMstData: enabled });
+        S.importMstData = enabled;
+        if (S.view === 'detail' && S.detailMmsi != null) loadMstData(S.detailMmsi);
+      } catch {
+        el.toggleImportMst.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.btnMstLocate) {
+    el.btnMstLocate.addEventListener('click', (e) => {
+      e.stopPropagation(); // the button sits inside the collapsible <h3>; don't toggle it
+      if (S.detailMmsi != null) locateMst(S.detailMmsi);
     });
   }
 
