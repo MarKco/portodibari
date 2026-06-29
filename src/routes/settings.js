@@ -2,7 +2,7 @@
 
 const express = require('express');
 const {
-  state, setImportVf, setImportMt, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
+  state, setImportVf, setImportMt, setImportSf, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
@@ -88,6 +88,7 @@ router.get('/settings', (req, res) => {
     // ── Global (admin-managed; shown read-only to non-admins) ──
     importVfData: state.importVfData,
     importMtData: state.importMtData,
+    importSfData: state.importSfData,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     sanctions: sanctions.getStatus(),
@@ -266,6 +267,7 @@ function exportSettings() {
   return {
     importVfData: state.importVfData,
     importMtData: state.importMtData,
+    importSfData: state.importSfData,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
@@ -308,6 +310,7 @@ function applyImportedSettings(s) {
   // The interactive POST /settings handler still backfills on a live toggle.
   if (s.importVfData !== undefined) setImportVf(s.importVfData);
   if (s.importMtData !== undefined) setImportMt(s.importMtData);
+  if (s.importSfData !== undefined) setImportSf(s.importSfData);
   // Persist the extra-lists toggle before the master block so its refresh sees
   // the right active set.
   if (s.importSanctionsExtra !== undefined) setImportSanctionsExtra(s.importSanctionsExtra);
@@ -385,11 +388,11 @@ router.post('/settings', (req, res) => {
 
   // ── Global settings (admin only) ──
   const {
-    importVfData: newImportVf, importMtData: newImportMt, importSanctions: newSanctions,
+    importVfData: newImportVf, importMtData: newImportMt, importSfData: newImportSf, importSanctions: newSanctions,
     importSanctionsExtra: newSanctionsExtra, importPsc: newPsc, importEquasis: newEquasis, importGfw: newGfw,
     excludeTankers: newExcludeTankers, checkSpoofing: newCheckSpoofing, checkDarkActivity: newCheckDarkActivity,
   } = b;
-  const globalTouched = [newImportVf, newImportMt, newSanctions, newSanctionsExtra, newPsc, newEquasis, newGfw, newExcludeTankers, newCheckSpoofing, newCheckDarkActivity].some((v) => v !== undefined);
+  const globalTouched = [newImportVf, newImportMt, newImportSf, newSanctions, newSanctionsExtra, newPsc, newEquasis, newGfw, newExcludeTankers, newCheckSpoofing, newCheckDarkActivity].some((v) => v !== undefined);
   if (globalTouched && !isAdminReq(req)) {
     return res.status(403).json({ error: 'Solo un amministratore può modificare le impostazioni globali (sorgenti dati, rischio).' });
   }
@@ -423,6 +426,13 @@ router.post('/settings', (req, res) => {
     console.log(`[MT] Import MT data: ${state.importMtData}`);
     appLog.info('SETTINGS', appLog.t('settings.import_mt', { on: state.importMtData }));
     if (state.importMtData && wasDisabled) enrichAllExisting('mt');
+  }
+  if (newImportSf !== undefined) {
+    const wasDisabled = !state.importSfData;
+    setImportSf(newImportSf);
+    console.log(`[SF] Import SF data: ${state.importSfData}`);
+    appLog.info('SETTINGS', appLog.t('settings.import_sf', { on: state.importSfData }));
+    if (state.importSfData && wasDisabled) enrichAllExisting('sf');
   }
   // Persist the extra-lists (EU/UK/UN) toggle before the master block so its
   // refresh below sees the correct active source set.
@@ -506,6 +516,7 @@ router.post('/settings', (req, res) => {
     openSeaMapHidden: prefs.openSeaMapHidden,
     importVfData: state.importVfData,
     importMtData: state.importMtData,
+    importSfData: state.importSfData,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     sanctions: sanctions.getStatus(),

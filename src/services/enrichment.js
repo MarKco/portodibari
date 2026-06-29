@@ -12,6 +12,7 @@ const { state, SCRAPE_NEG_CACHE_DAYS } = require('../config');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlVesselFinder } = require('./scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('./scrapers/marinetraffic');
+const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlGfw } = require('./gfw');
 const { GFW_TOKEN } = require('../config');
 
@@ -19,7 +20,7 @@ const { GFW_TOKEN } = require('../config');
 const inFlight = new Set();
 
 // Display name per source code, for log messages.
-const SOURCE_NAME = { vf: 'VesselFinder', mt: 'MarineTraffic', gfw: 'Global Fishing Watch' };
+const SOURCE_NAME = { vf: 'VesselFinder', mt: 'MarineTraffic', sf: 'ShipFinder', gfw: 'Global Fishing Watch' };
 const sourceName = (s) => SOURCE_NAME[s] || s.toUpperCase();
 
 // Skip a ship+source that is already cached OR that failed recently (negative
@@ -40,6 +41,13 @@ async function fetchSource(ship, source) {
     if (source === 'vf') {
       const data = await crawlVesselFinder(ship.imo_number || ship.mmsi);
       db.setScrapedData(ship.mmsi, 'vf', data);
+    } else if (source === 'sf') {
+      // Cache the static fields only. The unique value — position — is captured
+      // separately by the stale-follow re-acquire sweep / the manual button, not
+      // here (a just-detected ship is already live on AIS, so its SF position adds
+      // nothing and we avoid spurious "last known" markers).
+      const { static: staticData } = await crawlShipfinder(ship.mmsi);
+      db.setScrapedData(ship.mmsi, 'sf', staticData);
     } else if (source === 'gfw') {
       const data = await crawlGfw(ship);
       if (!data.found) {
@@ -76,11 +84,12 @@ async function fetchSource(ship, source) {
  */
 function enrichNewShip(mmsi) {
   const gfwOn = state.importGfw && GFW_TOKEN;
-  if (!state.importVfData && !state.importMtData && !gfwOn) return;
+  if (!state.importVfData && !state.importMtData && !state.importSfData && !gfwOn) return;
   const ship = db.getShip(mmsi);
   if (!ship) return;
   if (state.importVfData) fetchSource(ship, 'vf');
   if (state.importMtData) fetchSource(ship, 'mt');
+  if (state.importSfData) fetchSource(ship, 'sf');
   if (gfwOn) fetchSource(ship, 'gfw');
 }
 

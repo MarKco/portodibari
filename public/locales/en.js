@@ -73,6 +73,9 @@ export default {
   'detail.mtLink':       'View on MarineTraffic',
   'detail.vfTitle':      'VesselFinder data',
   'detail.mtTitle':      'MarineTraffic data',
+  'detail.sfLink':       'View on ShipFinder',
+  'detail.sfTitle':      'ShipFinder data',
+  'detail.sfLocate':     '📍 Locate via ShipFinder',
   'detail.equasisTitle': 'Ownership / management (Equasis)',
   'detail.equasisFetch': 'Fetch Equasis information',
   'detail.gfwTitle':     'Global Fishing Watch',
@@ -199,6 +202,8 @@ export default {
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In port',
+  'follow.sfSeen': 'seen on ShipFinder · {time}',
+  'follow.sfSeenTip': 'Position fetched from ShipFinder while the ship is dark on AIS: last known sighting, not a live AIS signal.',
 
   // ── Risk score ─────────────────────────────────────────────────────────────
   'risk.low':      'Green',
@@ -227,6 +232,7 @@ export default {
   // ── Map markers ────────────────────────────────────────────────────────────
   'map.lastPos': '📍 Last position',
   'map.stay':    '⚓ Stop',
+  'map.sfLastKnown': 'Last known position (ShipFinder)',
   'map.stays':   '{n} positions · {from} → {to}',
   'map.detail':  'Detail →',
   'map.unknown': 'Unknown',
@@ -242,6 +248,12 @@ export default {
   // ── VF/MT scraping ─────────────────────────────────────────────────────────
   'scrape.loadingVf': 'Fetching data from VesselFinder…',
   'scrape.loadingMt': 'Fetching data from MarineTraffic…',
+  'scrape.loadingSf': 'Fetching data from ShipFinder…',
+  'scrape.locating':  'Locating…',
+  'scrape.sfNoPosition': 'ShipFinder has no position for this vessel.',
+  'scrape.sfPosition':   'Last known position',
+  'scrape.sfLocated':    '✅ Position fetched from ShipFinder',
+  'scrape.sfLocateFailed': 'ShipFinder location failed',
   'scrape.error':     'Error fetching data.',
   'scrape.errorFmt':  'Error: {msg}',
   'scrape.cache':     'cached',
@@ -407,6 +419,8 @@ export default {
   'settings.vf.desc':        'Fetches additional data from VesselFinder (flag, GT, DWT, year built, etc.). Data cached for 6 hours.',
   'settings.mt.name':        'Import MarineTraffic',
   'settings.mt.desc':        'Fetches additional data from MarineTraffic in the ship detail view. Data cached for 6 hours.',
+  'settings.sf.name':        'Import ShipFinder',
+  'settings.sf.desc':        'Fetches data from ShipFinder and — uniquely among the sources — its last-seen position, used to re-locate followed ships AIS can no longer see. Static data cached for 6 hours.',
   'settings.equasis.name':   'Equasis lookup (ownership)',
   'settings.equasis.desc':   'Enables the "Fetch Equasis information" button in the ship detail to retrieve registered owner, ISM manager and operator (by IMO number). Never automatic: runs only on request. Requires Equasis credentials (EQUASIS_USER / EQUASIS_PASSWORD in local.properties). Data stored once.',
   'settings.equasis.viewLog':  'View Equasis log',

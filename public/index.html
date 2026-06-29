@@ -405,6 +405,7 @@
           <button id="btn-follow-detail" class="follow-btn"
                   data-i18n-title="detail.followAdd" title="Segui nave">🗺</button>
           <span id="follow-status-detail" class="follow-search-badge hidden" data-tip="Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di 6 mesi. Se riprende a trasmettere riceverai una notifica.">🔍 in ricerca</span>
+          <span id="sf-status-detail" class="follow-search-badge follow-sf-badge hidden" data-tip="Posizione recuperata da ShipFinder mentre la nave è muta sull'AIS. È l'ultimo avvistamento noto, non un segnale AIS live.">📍 vista su ShipFinder</span>
           <button id="btn-military-detail" class="military-btn" title="Segna come nave militare">🪖 <span id="military-btn-label">Segna come nave militare</span></button>
           <button id="btn-notif-mute-detail" class="notif-mute-btn"
                   data-i18n-title="detail.notifMuteAdd" title="Silenzia notifiche">🔔</button>
@@ -412,6 +413,8 @@
              data-i18n-title="detail.vfLink" title="Vedi su VesselFinder">⧉ VesselFinder</a>
           <a id="btn-mt-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"
              data-i18n-title="detail.mtLink" title="Vedi su MarineTraffic">⧉ MarineTraffic</a>
+          <a id="btn-sf-detail" class="btn btn-secondary btn-sm hidden" href="#" target="_blank" rel="noopener"
+             data-i18n-title="detail.sfLink" title="Vedi su ShipFinder">⧉ ShipFinder</a>
           <button id="btn-report-detail" class="btn btn-secondary btn-sm"
                   data-i18n-title="detail.reportTitle" title="Genera report stampabile (PDF)">📄 <span data-i18n="detail.report">Report</span></button>
         </div>
@@ -484,6 +487,19 @@
           <span id="mt-cache-badge" class="scrape-badge scrape-badge--mt hidden"></span>
         </h3>
         <div id="mt-data-body"></div>
+      </div>
+
+      <!-- ShipFinder data: static fields (fallback) + last-known scraped position.
+           The "Localizza" button force-scrapes the current position now; positions
+           are drawn as distinct markers on the detail map above. -->
+      <div id="sf-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.sfTitle">Dati ShipFinder</span>
+          <span id="sf-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
+          <button id="btn-sf-locate" class="btn btn-secondary btn-sm"
+                  data-i18n="detail.sfLocate">📍 Localizza via ShipFinder</button>
+        </h3>
+        <div id="sf-data-body"></div>
       </div>
 
       <!-- Equasis ownership data (manual, on-demand) -->
@@ -804,6 +820,16 @@
           </div>
           <label class="toggle">
             <input type="checkbox" id="toggle-import-mt">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.sf.name">Import ShipFinder</div>
+            <div class="setting-desc" data-i18n="settings.sf.desc">Recupera dati da ShipFinder e — unico tra le fonti — la posizione dell'ultimo avvistamento, usata per ri-localizzare le navi seguite che l'AIS non vede più. Dati statici in cache per 6 ore.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-import-sf">
             <span class="toggle-slider"></span>
           </label>
         </div>

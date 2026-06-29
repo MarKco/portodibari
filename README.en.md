@@ -104,6 +104,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `BBOX_PRESET` | Initial area preset (`bari` \| `taranto` \| `nord_adriatico` \| `puglia`) | `bari` |
 | `IMPORT_VF_DATA` | Enable VesselFinder scraping (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Enable MarineTraffic scraping (`true`/`false`) | `false` |
+| `IMPORT_SF_DATA` | Enable ShipFinder scraping — static data + last-seen position to re-locate lost followed ships (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS` | Enable OFAC SDN sanctions list screening (`true`/`false`) | `false` |
 | `IMPORT_SANCTIONS_EXTRA` | Enable additional EU/UK OFSI/UN sanctions lists on top of OFAC (`true`/`false`) | `true` |
 | `IMPORT_PSC` | Enable Paris/Tokyo MoU Port State Control screening: flag performance + banned vessels (`true`/`false`) | `false` |
@@ -523,7 +524,17 @@ In the ship detail view, two panels enrich AIS data with data downloaded (scrape
 
 > ℹ️ **Deploy**: no system `curl` needed on the host. `node-libcurl` bundles its own libcurl (prebuilt binaries downloaded at `npm install`; source build as fallback). Note: the TLS fingerprint can vary between libcurl builds and Cloudflare may treat them differently — verify in production.
 
-MT/VF integration can be enabled/disabled via the `IMPORT_MT_DATA` / `IMPORT_VF_DATA` properties in `local.properties` (or from the toggle switches in the UI settings, which persist them).
+**ShipFinder** — server-rendered page; HTML scraping (`crawlShipfinder` in [`src/services/scrapers/shipfinder.js`](src/services/scrapers/shipfinder.js)) via `fetchHttp` (no Cloudflare, no libcurl). Fields are keyed by `<label id="ais-…">`; the flag is the filename of the `<img>` (ISO code). Unlike VF/MT (whose free pages carry **no** coordinates), ShipFinder exposes the vessel's **last-seen position** in plain HTML (lat/lon in degrees-decimal-minutes, e.g. `44-35.056 N`, converted to decimals by [`src/lib/coords.js`](src/lib/coords.js) `parseDdm`), plus SOG/COG/status/destination/ETA. The static fields (flag/type/dimensions) mostly duplicate VF/MT and serve only as a fallback: **the unique value is the position**.
+
+MT/VF/SF integration can be enabled/disabled via the `IMPORT_MT_DATA` / `IMPORT_VF_DATA` / `IMPORT_SF_DATA` properties in `local.properties` (or from the toggle switches in the UI settings, which persist them).
+
+#### ShipFinder: re-locating lost followed ships (position)
+
+Unlike VF/MT, the ShipFinder position is used to **find followed ships our AIS stream can no longer see** (see [Followed ships](#-followed-ships)): a "lost" ship that doesn't reappear on the worldwide AIS box often still has a relayed position on ShipFinder.
+
+- **Tagged storage.** Scraped positions land in the `readings` table with `source='sf'` (column added by migration, default `'ais'`) and `message_type='ShipfinderPosition'`. They are **excluded** from the AIS track, risk score and replay (AIS queries filter `source='ais'`) and do **not** touch the `ships` row (so `last_seen_at` stays the AIS freshness signal and the worldwide box keeps searching in parallel). On the map they render as **distinct amber markers, not connected** to the AIS polyline (`renderSfPositions` in `maps.js`).
+- **Automatic sweep.** In the follow refresh loop (every `FOLLOW_REFRESH_MIN`, default 5 min), `reacquireStaleViaShipfinder` scrapes **stale** followed ships (no fresh AIS position) — including those **never located** (followed by search, via `getAllFollowedShips`). Per-MMSI throttle (`SF_REACQUIRE_THROTTLE_MIN`, default 30 min), per-sweep cap (`SF_REACQUIRE_MAX_PER_SWEEP`, default 20), 2 s between requests and negative-cache on failures → low volume / captcha-safe.
+- **Manual button.** In the ship detail, **📍 Locate via ShipFinder** (`POST /api/ships/:mmsi/sflocate`) forces an immediate position scrape and centers the marker — works for **any** visible ship, not just followed ones.
 
 ### Proactive enrichment on first detection
 

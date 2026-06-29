@@ -6,6 +6,7 @@ const { computeDirection, isInPort } = require('../services/ship-analysis');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache, isMilitary } = require('../services/risk-score');
 const { crawlVesselFinder } = require('../services/scrapers/vesselfinder');
 const { crawlMarineTraffic, searchMt, mtVesselInfo, mtDataFromInfo } = require('../services/scrapers/marinetraffic');
+const { crawlShipfinder } = require('../services/scrapers/shipfinder');
 const { crawlEquasis } = require('../services/scrapers/equasis');
 const { crawlGfw } = require('../services/gfw');
 const sanctions = require('../services/sanctions');
@@ -115,6 +116,7 @@ router.get('/ships/followed/active', (req, res) => {
     const decorated = decorate(s, sets, lang, true);
     decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;
     decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
+    decorated.sf_last_at = state.importSfData ? (db.getLatestScrapedPosition(s.mmsi, 'sf')?.received_at || null) : null;
     return decorated;
   }).sort(flaggedFirst);
   res.json({ ships });
@@ -382,6 +384,7 @@ router.get('/ships/:mmsi', (req, res) => {
     followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
     is_stale: (!ship.last_seen_at || Date.now() - new Date(ship.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0,
     search_mode: db.getUserFollowSearchMode(uid, mmsi),
+    sf_last_at: state.importSfData ? (db.getLatestScrapedPosition(mmsi, 'sf')?.received_at || null) : null,
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
     destination_label: destinationLabel(ship.destination),
   });
@@ -630,6 +633,66 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
         shipId: ship.mt_ship_id || null,
       });
     }
+    res.json({ enabled: true, error: e.message });
+  }
+});
+
+// ShipFinder static data + last-known scraped positions. Mirrors vfdata for the
+// static fields, and additionally returns the scraped-position breadcrumb (source
+// 'sf') so the detail map can drop distinct "last known" markers. Never scrapes a
+// fresh position here (that's the manual /sflocate button below or the background
+// stale-follow sweep) — only serves cached static + stored positions.
+router.get('/ships/:mmsi/sfdata', async (req, res) => {
+  if (!state.importSfData) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+  const positions = db.getScrapedPositions(mmsi, 'sf');
+  const cached = db.getScrapedData(mmsi, 'sf');
+  if (cached && Date.now() - new Date(cached.scraped_at).getTime() < SCRAPE_CACHE_TTL) {
+    return res.json({ enabled: true, data: JSON.parse(cached.data_json), cached: true, cachedAt: cached.scraped_at, positions });
+  }
+  try {
+    appLog.info('SCRAPE', appLog.t('scrape.requested', { source: 'ShipFinder', name: ship.ship_name || mmsi }), { mmsi });
+    const { static: staticData, position } = await crawlShipfinder(mmsi);
+    const scraped_at = db.setScrapedData(mmsi, 'sf', staticData);
+    db.clearScrapeFailure(mmsi, 'sf');
+    // A fresh page also carries a live position — store it (cheap, and useful if
+    // the ship is currently AIS-dark). insertScrapedPosition de-dupes by report time.
+    if (position) db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name });
+    appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'ShipFinder', name: ship.ship_name || mmsi }), { mmsi });
+    res.json({ enabled: true, data: staticData, cached: false, cachedAt: scraped_at, positions: db.getScrapedPositions(mmsi, 'sf') });
+  } catch (e) {
+    db.setScrapeFailure(mmsi, 'sf', e.message);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'ShipFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
+    if (cached) {
+      return res.json({ enabled: true, data: JSON.parse(cached.data_json), cached: true, cachedAt: cached.scraped_at, error: e.message, positions });
+    }
+    res.json({ enabled: true, error: e.message, positions });
+  }
+});
+
+// Manual "Locate via ShipFinder": force a live position scrape now, store it, and
+// return the fix so the UI can drop a marker. Works for any visible ship.
+router.post('/ships/:mmsi/sflocate', async (req, res) => {
+  if (!state.importSfData) return res.json({ enabled: false });
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const ship = db.getShip(mmsi);
+  if (!ship) return res.status(404).json({ error: 'Ship not found' });
+  try {
+    appLog.info('SCRAPE', `Localizzazione ShipFinder richiesta: ${ship.ship_name || mmsi}`, { mmsi });
+    const { static: staticData, position } = await crawlShipfinder(mmsi);
+    if (staticData && Object.keys(staticData).length) db.setScrapedData(mmsi, 'sf', staticData);
+    db.clearScrapeFailure(mmsi, 'sf');
+    if (!position) return res.json({ enabled: true, position: null });
+    const stored = db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name });
+    invalidateRiskCache(mmsi);
+    res.json({ enabled: true, position: stored || { mmsi, ...position, received_at: position.reportedAt }, positions: db.getScrapedPositions(mmsi, 'sf') });
+  } catch (e) {
+    db.setScrapeFailure(mmsi, 'sf', e.message);
+    appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'ShipFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     res.json({ enabled: true, error: e.message });
   }
 });

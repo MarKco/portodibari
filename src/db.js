@@ -429,6 +429,12 @@ for (const col of ["area TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec(`ALTER TABLE port_events ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
+// Provenance of a position row. 'ais' (default) = broadcast we received live;
+// non-'ais' (e.g. 'sf' = ShipFinder) = a position obtained by scraping to re-locate
+// a ship AIS lost. Scraped positions are EXCLUDED from the AIS track/risk/replay
+// queries below and surface only as distinct "last known" markers.
+try { db.exec("ALTER TABLE readings ADD COLUMN source TEXT NOT NULL DEFAULT 'ais'"); } catch { /* already exists */ }
+
 // Origin area for 'area_change' notifications (the `area` column holds the destination).
 for (const col of ['from_area TEXT']) {
   try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
@@ -1142,6 +1148,21 @@ function getAllFollowedPositions() {
     .all();
 }
 
+// Every followed ship regardless of whether we have an AIS position — including
+// follows added by search that never got a fix (no row in `ships`, or a row with
+// NULL last position). Used by the ShipFinder re-acquire sweep, which can locate a
+// ship by MMSI even with zero prior fixes. (getAllFollowedPositions, used to build
+// the AIS subscription boxes, deliberately requires a position and so misses these.)
+function getAllFollowedShips() {
+  return db
+    .prepare(
+      `SELECT uf.mmsi, s.ship_name, s.last_seen_at, s.last_latitude AS lat, s.last_longitude AS lon
+       FROM (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1) uf
+       LEFT JOIN ships s ON s.mmsi = uf.mmsi`
+    )
+    .all();
+}
+
 /** Users who actively follow a given ship (for notification fan-out). */
 function getFollowersOf(mmsi) {
   return db.prepare('SELECT user_id FROM user_follows WHERE mmsi = ? AND followed = 1').all(mmsi).map((r) => r.user_id);
@@ -1262,6 +1283,14 @@ const insertReading = db.prepare(`
   INSERT INTO readings (received_at, message_type, mmsi, ship_name, latitude, longitude,
     navigational_status, sog, cog, true_heading, raw_json, area)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+// Same as insertReading but sets `source` explicitly — used for scraped positions
+// (source != 'ais'). The plain insertReading above lets `source` default to 'ais'.
+const insertReadingSourced = db.prepare(`
+  INSERT INTO readings (received_at, message_type, mmsi, ship_name, latitude, longitude,
+    navigational_status, sog, cog, true_heading, raw_json, area, source)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const pruneStmt = db.prepare(`
@@ -1562,6 +1591,70 @@ function insertFollowPosition(parsed, area = '') {
   return mmsi;
 }
 
+// Persist a position obtained by scraping (ShipFinder) for a ship AIS has lost.
+// Stored in `readings` tagged source != 'ais', so it is EXCLUDED from the AIS
+// track polyline, risk scoring and replay (lower trust, irregular cadence) and
+// surfaces only as a distinct "last known (ShipFinder)" marker on the detail map.
+// Deliberately does NOT touch the ships master row: last_seen_at stays the AIS
+// freshness signal, so the follow stream keeps re-acquiring the ship over its
+// worldwide box and the 6-month auto-stop isn't reset by a scraped fix. Skips a
+// duplicate of the latest stored fix (same report time). Returns the stored fix.
+function insertScrapedPosition(mmsi, pos, source = 'sf') {
+  if (!mmsi || !pos || pos.lat == null || pos.lon == null) return null;
+  const received_at = pos.reportedAt || new Date().toISOString();
+  const last = db
+    .prepare("SELECT received_at FROM readings WHERE mmsi = ? AND source = ? ORDER BY received_at DESC LIMIT 1")
+    .get(mmsi, source);
+  if (last && last.received_at === received_at) return null;
+  insertReadingSourced.run(
+    received_at,
+    'ShipfinderPosition',
+    mmsi,
+    pos.name || null,
+    pos.lat,
+    pos.lon,
+    pos.status ?? null,
+    pos.sog ?? null,
+    pos.cog ?? null,
+    pos.heading != null ? Math.round(pos.heading) : null,
+    JSON.stringify(pos),
+    '',
+    source
+  );
+  insertCounters.ShipfinderPosition = (insertCounters.ShipfinderPosition || 0) + 1;
+  if (insertCounters.ShipfinderPosition % 500 === 0) {
+    pruneStmt.run('ShipfinderPosition', 'ShipfinderPosition', MAX_READINGS_PER_TYPE);
+  }
+  return { mmsi, received_at, lat: pos.lat, lon: pos.lon, sog: pos.sog ?? null, cog: pos.cog ?? null, status: pos.status ?? null };
+}
+
+// Scraped positions (source != 'ais') for a ship, oldest-first — the breadcrumb of
+// last-known fixes shown as distinct markers on the detail map.
+function getScrapedPositions(mmsi, source = 'sf', limit = 200) {
+  return db
+    .prepare(
+      `SELECT received_at, latitude AS lat, longitude AS lon, sog, cog, navigational_status AS status
+       FROM readings
+       WHERE mmsi = ? AND source = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+       ORDER BY received_at ASC LIMIT ?`
+    )
+    .all(mmsi, source, limit);
+}
+
+// Most recent scraped fix for a ship, or null.
+function getLatestScrapedPosition(mmsi, source = 'sf') {
+  return (
+    db
+      .prepare(
+        `SELECT received_at, latitude AS lat, longitude AS lon, sog, cog, navigational_status AS status
+         FROM readings
+         WHERE mmsi = ? AND source = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+         ORDER BY received_at DESC LIMIT 1`
+      )
+      .get(mmsi, source) || null
+  );
+}
+
 function checkAndLogDepartures() {
   const departed = db
     .prepare(
@@ -1703,7 +1796,7 @@ function getRecentPositions(mmsi, minutes = 30) {
     SELECT latitude AS lat, longitude AS lon, sog
     FROM readings
     WHERE mmsi = ? AND received_at > datetime('now', ?)
-      AND latitude IS NOT NULL AND longitude IS NOT NULL
+      AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'
     ORDER BY received_at DESC
     LIMIT 50
   `
@@ -1720,7 +1813,7 @@ function getShipPositions(mmsi, hours = 168, limit = 2000) {
     SELECT received_at, latitude AS lat, longitude AS lon, sog, navigational_status AS ns
     FROM readings
     WHERE mmsi = ? AND received_at > datetime('now', ?)
-      AND latitude IS NOT NULL AND longitude IS NOT NULL
+      AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'
     ORDER BY received_at ASC
     LIMIT ?
   `
@@ -1732,7 +1825,7 @@ function getShipPositions(mmsi, hours = 168, limit = 2000) {
 function getDistinctShipNames(mmsi) {
   return db
     .prepare(
-      'SELECT DISTINCT ship_name FROM readings WHERE mmsi = ? AND ship_name IS NOT NULL'
+      "SELECT DISTINCT ship_name FROM readings WHERE mmsi = ? AND ship_name IS NOT NULL AND source = 'ais'"
     )
     .all(mmsi)
     .map((r) => r.ship_name);
@@ -1742,13 +1835,13 @@ function getShipTrackRange(mmsi) {
   return db
     .prepare(
       `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi
-       FROM readings WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL`
+       FROM readings WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'`
     )
     .get(mmsi);
 }
 
 function getShipTrack(mmsi, limit = 500, from = null, to = null) {
-  const where = ['mmsi = ?', 'latitude IS NOT NULL', 'longitude IS NOT NULL'];
+  const where = ['mmsi = ?', 'latitude IS NOT NULL', 'longitude IS NOT NULL', "source = 'ais'"];
   const params = [mmsi];
   if (from) { where.push('received_at >= ?'); params.push(from); }
   if (to)   { where.push('received_at <= ?'); params.push(to); }
@@ -1776,7 +1869,7 @@ function getAreaReplayPositions(boxes, fromIso, toIso, limit) {
               s.ship_name, s.ship_type
        FROM readings r
        LEFT JOIN ships s ON s.mmsi = r.mmsi
-       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.source = 'ais'
          AND r.received_at >= ? AND r.received_at <= ?
          AND ${geo}
        ORDER BY r.mmsi ASC, r.received_at ASC
@@ -1793,7 +1886,7 @@ function getAreaReplayRange(boxes) {
     .prepare(
       `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi, COUNT(*) AS n
        FROM readings
-       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND ${geo}`
+       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais' AND ${geo}`
     )
     .get();
 }
@@ -2700,6 +2793,10 @@ module.exports = {
   getShipPositions,
   getDistinctShipNames,
   getRecentPositions,
+  getAllFollowedShips,
+  insertScrapedPosition,
+  getScrapedPositions,
+  getLatestScrapedPosition,
   setFlag,
   setSeen,
   updateNotes,

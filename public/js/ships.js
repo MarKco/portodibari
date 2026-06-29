@@ -2,7 +2,7 @@ import { el } from './dom.js';
 import { S, PAGE_SIZE, saveShipFilters } from './store.js';
 import { api } from './api.js';
 import { showAlert } from './toast.js';
-import { renderActiveMap } from './maps.js';
+import { renderActiveMap, renderSfPositions } from './maps.js';
 import { showView } from './views.js';
 import { t, getLang } from './i18n.js';
 import { exportShips, exportTrack, exportBerths } from './geoexport.js';
@@ -51,6 +51,15 @@ export function updateDetailFollowStatus(shipData) {
   if (searching) {
     const months = Math.round(S.followStaleHours / 24 / 30);
     badge.dataset.tip = `Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di ${months} mesi. Se riprende a trasmettere riceverai una notifica.`;
+  }
+  // Dedicated, separate ShipFinder indicator: shown alongside "in ricerca" when we
+  // have a scraped last-known position — distinguishes "located on ShipFinder" from
+  // a live AIS re-acquisition (the ship is still AIS-dark).
+  const sfBadge = document.getElementById('sf-status-detail');
+  if (sfBadge) {
+    const hasSf = !!(shipData.followed && shipData.sf_last_at);
+    sfBadge.classList.toggle('hidden', !hasSf);
+    if (hasSf) sfBadge.textContent = `📍 ${t('follow.sfSeen', { time: formatTime(shipData.sf_last_at) })}`;
   }
 }
 
@@ -943,6 +952,103 @@ export async function loadMtData(mmsi) {
     invalidateDetailMap();
   } catch {
     el.mtDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
+  }
+}
+
+// ── ShipFinder data (static fallback + last-known scraped positions) ─────────
+// Renders the static panel like VF/MT, and draws any stored scraped positions as
+// distinct markers on the detail map. Does NOT force a fresh position scrape — the
+// "Localizza" button (locateSf) and the background stale-follow sweep do that.
+export async function loadSfData(mmsi) {
+  if (!S.importSfData) {
+    el.sfDataSection.classList.add('hidden');
+    if (el.btnSfDetail) el.btnSfDetail.classList.add('hidden');
+    return;
+  }
+  el.sfDataSection.classList.remove('hidden');
+  if (el.btnSfDetail) {
+    el.btnSfDetail.href = `https://www.shipfinder.com/ship/detail/mmsi/${mmsi}`;
+    el.btnSfDetail.classList.remove('hidden');
+  }
+  el.sfCacheBadge.classList.add('hidden');
+  el.sfDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingSf')}</p>`;
+  try {
+    const result = await api(`/api/ships/${mmsi}/sfdata`);
+    if (!result.enabled) {
+      el.sfDataSection.classList.add('hidden');
+      return;
+    }
+    if (S.detailMmsi === mmsi) renderSfPositions(result.positions);
+    if (result.error && !result.data) {
+      el.sfDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
+      return;
+    }
+    if (result.cachedAt) {
+      el.sfCacheBadge.textContent = `${result.cached ? t('scrape.cache') : t('scrape.updated')} · ${formatTime(result.cachedAt)}`;
+      el.sfCacheBadge.classList.remove('hidden');
+    }
+    renderScrapedData(el.sfDataBody, result.data);
+    renderSfPositionBlock(result.positions); // show last-known position at top of panel
+    invalidateDetailMap();
+  } catch {
+    el.sfDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
+  }
+}
+
+// Latest scraped position rendered as a readable line at the top of the SF panel,
+// so the user sees the coordinates (and that the lookup succeeded), not just a map
+// marker. Replaces any previous block. Returns '' when there's no position.
+function sfPositionHtml(positions) {
+  if (!positions || !positions.length) return '';
+  const p = positions[positions.length - 1];
+  if (p.lat == null || p.lon == null) return '';
+  const sog = p.sog != null ? `${Number(p.sog).toFixed(1)} kn` : '—';
+  const cog = p.cog != null && p.cog <= 360 ? `${Number(p.cog).toFixed(0)}°` : '—';
+  return `<div id="sf-position-block" class="sf-position">
+    <span class="sf-position-label">📍 ${t('scrape.sfPosition')}</span>
+    <span class="sf-position-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</span>
+    <span class="sf-position-meta">SOG ${sog} · COG ${cog} · ${formatTime(p.received_at)}</span>
+  </div>`;
+}
+
+function renderSfPositionBlock(positions) {
+  const existing = document.getElementById('sf-position-block');
+  if (existing) existing.remove();
+  const html = sfPositionHtml(positions);
+  if (html) el.sfDataBody.insertAdjacentHTML('afterbegin', html);
+}
+
+// Manual "Localizza via ShipFinder": force a live position scrape, drop the fresh
+// marker on the map, update the panel position block, and toast the outcome.
+export async function locateSf(mmsi) {
+  if (!S.importSfData || mmsi == null) return;
+  el.btnSfLocate.disabled = true;
+  const prev = el.btnSfLocate.textContent;
+  el.btnSfLocate.textContent = t('scrape.locating');
+  try {
+    const result = await api(`/api/ships/${mmsi}/sflocate`, 'POST');
+    if (result.error) {
+      showAlert(t('scrape.sfLocateFailed'), escHtml(result.error));
+      return;
+    }
+    if (!result.position) {
+      showAlert(t('scrape.sfLocateFailed'), t('scrape.sfNoPosition'));
+      return;
+    }
+    const p = result.position;
+    if (S.detailMmsi === mmsi) {
+      renderSfPositions(result.positions, { focus: true });
+      renderSfPositionBlock(result.positions);
+    }
+    showAlert(
+      t('scrape.sfLocated'),
+      `${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)} · ${formatTime(p.received_at)}`
+    );
+  } catch {
+    showAlert(t('scrape.sfLocateFailed'), t('scrape.error'));
+  } finally {
+    el.btnSfLocate.disabled = false;
+    el.btnSfLocate.textContent = prev;
   }
 }
 

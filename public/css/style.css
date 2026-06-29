@@ -743,6 +743,14 @@ td.empty {
   cursor: help;
 }
 
+/* ShipFinder "seen" badge — orange, to set it apart from the yellow "in ricerca"
+   (AIS) badge: located via scrape, not a live AIS re-acquisition. */
+.follow-sf-badge {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #f59e0b;
+}
+
 .follow-searching-row td { opacity: 0.72; }
 .follow-searching-row .ship-name { font-style: italic; }
 
@@ -2033,6 +2041,23 @@ pre {
 .scrape-badge--mt { color: #7c9fc0; }
 .scrape-badge--eq { color: #c0a37c; }
 .scrape-badge--gfw { color: #1fb6a6; }
+.scrape-badge--sf { color: #f59e0b; }
+
+/* ShipFinder last-known position summary at the top of the SF detail panel. */
+.sf-position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35em 0.6em;
+  margin: 0 0 0.6em;
+  padding: 0.4em 0.6em;
+  border-left: 3px solid #f59e0b;
+  background: #fff7ed;
+  border-radius: 0.3em;
+}
+.sf-position-label { font-weight: 600; color: #9a3412; }
+.sf-position-coords { font-family: ui-monospace, monospace; font-weight: 600; }
+.sf-position-meta { color: #6b7280; font-size: 0.85em; }
 
 /* Equasis: button sits inline in the section title, management sub-tables. */
 #equasis-data-section .detail-section-title {

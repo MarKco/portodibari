@@ -24,6 +24,7 @@ export const S = {
   pollTimer: null,
   importVfData: false,
   importMtData: false,
+  importSfData: false,
   importSanctions: false,
   importSanctionsExtra: true,
   importPsc: false,
@@ -68,6 +69,7 @@ export const S = {
   // Maps
   aisMap: null,
   trackLayer: null,
+  sfLayer: null, // ShipFinder scraped last-known position markers (see maps.js)
   trackAnim: null, // active track-playback state (see maps.js)
   activeMap: null,
   activeMarkersLayer: null,

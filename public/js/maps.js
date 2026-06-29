@@ -31,9 +31,50 @@ function initMap() {
   S.aisMap = L.map('detail-map', { zoomControl: true }).setView([41.138, 16.843], 13);
   addBaseLayers(S.aisMap);
   S.trackLayer = L.layerGroup().addTo(S.aisMap);
+  // Separate layer for scraped (ShipFinder) last-known positions — kept apart from
+  // the AIS track so loadTrack()'s clearLayers() doesn't wipe them and they render
+  // as distinct, un-connected markers.
+  S.sfLayer = L.layerGroup().addTo(S.aisMap);
   // Re-render tiles when container resizes (e.g. VF data loads and grows the flex row)
   const ro = new ResizeObserver(() => S.aisMap && S.aisMap.invalidateSize());
   ro.observe(document.getElementById('detail-map'));
+}
+
+// Draw ShipFinder scraped positions as distinct amber markers on their own layer,
+// un-connected (no polyline) so they read clearly as "last known, scraped" fixes
+// rather than part of the live AIS track. The newest fix is emphasised. When the
+// AIS track is empty (a ship gone dark to our stream — the typical case for these),
+// fit the map to the scraped points so the user still sees where it was last.
+export function renderSfPositions(positions, { focus = false } = {}) {
+  initMap();
+  if (!S.sfLayer) return;
+  S.sfLayer.clearLayers();
+  const pts = (positions || []).filter((p) => p.lat != null && p.lon != null);
+  if (!pts.length) return;
+  pts.forEach((p, i) => {
+    const isLast = i === pts.length - 1;
+    L.circleMarker([p.lat, p.lon], {
+      radius: isLast ? 8 : 5,
+      color: '#b45309',
+      fillColor: isLast ? '#f59e0b' : '#fbbf24',
+      fillOpacity: 0.9,
+      weight: 2,
+      dashArray: '3 2',
+    })
+      .bindPopup(
+        `<b>📍 ${t('map.sfLastKnown')}</b><br>${formatTime(p.received_at)}<br>` +
+          `SOG: ${p.sog != null ? Number(p.sog).toFixed(1) + ' kn' : '—'}&nbsp;&nbsp;` +
+          `COG: ${p.cog != null && p.cog <= 360 ? Number(p.cog).toFixed(0) + '°' : '—'}`
+      )
+      .addTo(S.sfLayer);
+  });
+  const last = pts[pts.length - 1];
+  const noAisTrack = !S.trackLayer || S.trackLayer.getLayers().length === 0;
+  if ((focus || noAisTrack) && S.aisMap) {
+    const bounds = L.latLngBounds(pts.map((p) => [p.lat, p.lon]));
+    if (bounds.isValid()) S.aisMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+  }
+  return last;
 }
 
 // Collapse consecutive stationary points (SOG≈0) that stay within the merge
@@ -169,6 +210,7 @@ export async function loadTrack(mmsi, opts = {}) {
   stopTrackAnim();
   S.aisMap.invalidateSize();
   S.trackLayer.clearLayers();
+  if (S.sfLayer) S.sfLayer.clearLayers(); // SF markers re-added by loadSfData
   const ctrls = document.getElementById('track-anim');
   if (ctrls) ctrls.classList.add('hidden');
 

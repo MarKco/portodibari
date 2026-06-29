@@ -317,6 +317,20 @@ If enabled in settings, additional information fetched from these services is sh
 
 When you **enable** VesselFinder or MarineTraffic, the app fetches data in the background for every ship seen in the last few days that doesn't have it yet (one at a time, to avoid overloading the services). Ships the source **doesn't know** (typical of those without an IMO number) are not re-contacted on every re-enable: they are retried at most every `SCRAPE_NEG_CACHE_DAYS` days (default 3, editable in **Parameters**). **Restoring** a backup does **not** re-trigger these fetches: VF/MT data is already saved in the restored database.
 
+### ShipFinder data and re-locating followed ships
+
+If you enable **Import ShipFinder** in settings, the detail view shows a **ShipFinder data** panel. Besides static fields (flag, type, dimensions — mostly the same as VesselFinder/MarineTraffic, here as a fallback), ShipFinder offers something the other free sources do **not**: the vessel's **last-seen position**.
+
+This position is used to **find followed ships AIS can no longer see**:
+
+- **Automatic.** For every ship in your **Followed ships** that hasn't transmitted for a while (including those you never located, followed via search), the app periodically queries ShipFinder in the background. If it finds a position, it appears on the detail mini-map as a **distinct amber marker** ("Last known position (ShipFinder)"), separate from the AIS track and **without altering** the track, the risk score or replay. The worldwide AIS search keeps running in parallel. Requests are throttled (at most one per ship every 30 min) to avoid overloading the service.
+- **Dedicated badge.** When a ShipFinder position exists, an orange **📍 seen on ShipFinder · &lt;date&gt;** badge appears next to the ship name (in the **Followed ships** list and in the detail), distinct from the yellow **🔍 searching** badge (which reflects the AIS state). The two can coexist: the ship is still dark on AIS (*searching*), but ShipFinder has its last known position. The "searching" badge clears **only** on a real AIS signal (or after the ~6-month auto-stop): a ShipFinder hit does **not** clear it.
+- **Manual — the button.** In the **ShipFinder data** panel there's a **📍 Locate via ShipFinder** button: press it to fetch the ship's current position **immediately** and see it on the map. It works for any ship, not just followed ones.
+
+The detail action bar also has **⧉ ShipFinder**, which simply opens the ship's page on the ShipFinder site.
+
+> The panel and buttons **appear only if Import ShipFinder is enabled** (Settings → Import ShipFinder). It is off by default.
+
 ### Ownership / management (Equasis)
 
 If the Equasis lookup is enabled in settings, the detail view shows an **Ownership / management (Equasis)** panel with a **Fetch Equasis information** button. Unlike VesselFinder/MarineTraffic it **never runs automatically**: the lookup happens only when you press the button, and queries Equasis by **IMO number** (if the ship has no IMO the lookup is not possible). It returns: ship particulars (flag, call sign, MMSI, tonnages, type, year, status), **ownership and management** (registered owner, ISM manager, operator, commercial manager), **classification** (society, status, date), **P&I cover**, **performance/risk** indicators (36-month detention rate, IACS class, Paris/Tokyo MOU performance, USCG targeting) and **recent positions** (areas the ship was seen in). The result is **stored once** and shown indefinitely (no expiry); the button disappears after the first fetch. Requires a free Equasis account configured in `local.properties`. Every fetch is also recorded in a log viewable from settings (see **View Equasis log**).
@@ -385,6 +399,7 @@ Open with the **⚙ Settings** button in the sidebar.
 | **Area monitoring** | Panel at the top of the settings: shows all configured areas with a toggle to start or stop the stream for each one. 🟢 = stream active, ⚪ = stream off. Allows monitoring multiple areas simultaneously. |
 | **VesselFinder** (toggle) | Fetch additional data from VesselFinder in the vessel detail view. Data cached for 6 hours. |
 | **MarineTraffic** (toggle) | Fetch additional data from MarineTraffic in the vessel detail view. Data cached for 6 hours. |
+| **Import ShipFinder** (toggle) | Fetch data from ShipFinder and — uniquely among the free sources — the **last-seen position**, used to re-locate followed ships AIS can no longer see (automatically, in the background) and via the **📍 Locate via ShipFinder** button in the detail view. Positions appear as distinct amber markers, without altering the AIS track/score/replay. Static data cached for 6 hours. Off by default. |
 | **Sanctions screening** (toggle) | Matches every ship against the OFAC SDN sanctions list (US Treasury), downloaded locally. Matching is done by IMO number, name or call sign. A match is a very strong risk signal (large score contribution). The list is downloaded on enable and refreshed every 24 hours; the **Refresh list** button forces an immediate download. The number of sanctioned vessels loaded and the last refresh date are shown below the toggle. |
 | **Additional sanctions lists (EU / UK / UN)** (toggle) | On top of the OFAC list, also matches every ship against the EU consolidated list, the UK OFSI list and the UN designated-vessels list. Indented sub-row under the **Sanctions screening** row, active only while sanctions screening is on. A match on any list contributes to the score like an OFAC match. The lists are downloaded and refreshed every 24 hours (via OpenSanctions). Default on. |
 | **Port State Control screening (Paris/Tokyo MoU)** (toggle) | Matches every ship against two official Memorandum of Understanding lists: (1) the **flag performance** white/grey/black lists of Paris MoU and Tokyo MoU — a black-listed flag is a high-risk registry for detentions/inspections (medium-high score contribution), a white-listed one carries no penalty; (2) the **banned-ships list** of the Paris MoU (refusal of access after repeated detentions) — a strong signal, matched by IMO/name. The flag lists are bundled with the app and must be updated manually ~once a year; the banned-ships list is downloaded on enable and refreshed every 24 hours. The **Refresh lists** button forces a download. Below the toggle the flag counts (black/grey/white) and banned-ship count are shown with the last refresh date. |
@@ -519,6 +534,7 @@ Holds the API key and initial preferences. Format `KEY=value`, one per line. **D
 | `BBOX_PRESET` | Area shown at startup (an area's key, e.g. `bari`) |
 | `IMPORT_VF_DATA` | `true`/`false` — enable VesselFinder data import |
 | `IMPORT_MT_DATA` | `true`/`false` — enable MarineTraffic data import |
+| `IMPORT_SF_DATA` | `true`/`false` — enable ShipFinder data import + position to re-locate lost followed ships |
 | `IMPORT_SANCTIONS` | `true`/`false` — enable screening against the OFAC SDN sanctions list |
 | `IMPORT_SANCTIONS_EXTRA` | `true`/`false` — enable the additional EU / UK OFSI / UN sanctions lists on top of OFAC (only active with `IMPORT_SANCTIONS`); default `true` |
 | `IMPORT_PSC` | `true`/`false` — enable Port State Control screening (Paris/Tokyo MoU flag performance + Paris MoU banned vessels) |

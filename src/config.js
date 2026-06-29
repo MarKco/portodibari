@@ -276,6 +276,15 @@ const SEARCH_LOOKUP_TIMEOUT_MS = num('SEARCH_LOOKUP_TIMEOUT_SEC', 90) * 1000;
 // follow box still covers it, so re-following needs no worldwide re-acquisition.
 // Older (or missing) → trigger a background worldwide re-acquire.
 const FOLLOW_FRESH_MS = num('FOLLOW_FRESH_MIN', 60) * 60 * 1000;
+// Min gap between ShipFinder position scrapes for the same ship during the
+// stale-follow re-acquire sweep. The follow refresh runs every FOLLOW_REFRESH_MS;
+// this throttle keeps us from re-hitting ShipFinder for the same vessel each pass
+// (default 30 min) so the worldwide AIS box stays the primary recovery path and
+// ShipFinder is only an occasional fallback — also keeps request volume captcha-safe.
+const SF_REACQUIRE_THROTTLE_MS = num('SF_REACQUIRE_THROTTLE_MIN', 30) * 60 * 1000;
+// Cap on how many stale follows we scrape from ShipFinder in a single sweep, so a
+// large lost-follow backlog can't burst-hammer the site.
+const SF_REACQUIRE_MAX_PER_SWEEP = num('SF_REACQUIRE_MAX_PER_SWEEP', 20);
 
 // Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer
 // express.raw() allocates, so a single request can't exhaust memory. Generous
@@ -468,6 +477,10 @@ const state = {
   centerLon: null,
   importVfData: props.IMPORT_VF_DATA === 'true',
   importMtData: props.IMPORT_MT_DATA === 'true',
+  // ShipFinder enrichment: static fields (fallback, mostly duplicates VF/MT) plus
+  // its unique free last-known position, used to re-locate lost followed ships.
+  // Off by default, like VF/MT.
+  importSfData: props.IMPORT_SF_DATA === 'true',
   importSanctions: props.IMPORT_SANCTIONS === 'true',
   // Extended sanctions lists (EU / UK OFSI / UN), on top of OFAC SDN. Only
   // effective while importSanctions is on. Default ON unless explicitly disabled.
@@ -569,6 +582,11 @@ function setImportVf(enabled) {
 function setImportMt(enabled) {
   state.importMtData = !!enabled;
   saveProperty('IMPORT_MT_DATA', state.importMtData);
+}
+
+function setImportSf(enabled) {
+  state.importSfData = !!enabled;
+  saveProperty('IMPORT_SF_DATA', state.importSfData);
 }
 
 function setImportSanctions(enabled) {
@@ -991,6 +1009,8 @@ module.exports = {
   FOLLOW_STALE_HOURS,
   SEARCH_LOOKUP_TIMEOUT_MS,
   FOLLOW_FRESH_MS,
+  SF_REACQUIRE_THROTTLE_MS,
+  SF_REACQUIRE_MAX_PER_SWEEP,
   BACKUP_INTERVAL_MIN,
   AUTO_RESTORE_ON_DEPLOY,
   APP_CONFIG_FILE,
@@ -1004,6 +1024,7 @@ module.exports = {
   setPreset,
   setImportVf,
   setImportMt,
+  setImportSf,
   setImportSanctions,
   setImportSanctionsExtra,
   setImportPsc,

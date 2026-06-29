@@ -21,6 +21,7 @@ const { invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
+const { crawlShipfinder } = require('./scrapers/shipfinder');
 const {
   API_KEY,
   AIS_URL,
@@ -32,6 +33,10 @@ const {
   FOLLOW_STALE_HOURS,
   FOLLOW_FRESH_MS,
   SEARCH_LOOKUP_TIMEOUT_MS,
+  SF_REACQUIRE_THROTTLE_MS,
+  SF_REACQUIRE_MAX_PER_SWEEP,
+  SCRAPE_NEG_CACHE_DAYS,
+  state,
   areaForPoint,
 } = require('../config');
 
@@ -58,6 +63,16 @@ const lookups = new Map();
 // SEARCH_LOOKUP_TIMEOUT_MS the follow is reverted (back to "passate") and the
 // user is notified. Value: { users:Set<userId>, name, cb, timer }.
 const reacquires = new Map();
+
+// ShipFinder fallback re-acquisition. When a followed ship is stale (no AIS for
+// FOLLOW_FRESH_MS), the worldwide AIS box is the primary recovery net — but a ship
+// that has gone fully dark to our stream won't reappear there. ShipFinder often
+// still serves a relayed last-known position for it, so the refresh sweep scrapes
+// stale follows as a fallback and stores the fix (tagged source='sf', shown as a
+// distinct marker — it never enters the AIS track/risk/freshness). `lastSfScrape`
+// throttles per MMSI; `sfSweeping` prevents overlapping sweeps.
+const lastSfScrape = new Map(); // mmsi -> epoch ms of last scrape attempt
+let sfSweeping = false;
 
 const s = {
   wsClient: null,
@@ -308,6 +323,17 @@ function refresh() {
 
   const positions = db.getAllFollowedPositions();
   s.followedCount = positions.length;
+
+  // Fallback: scrape ShipFinder for stale follows AIS can't see (fire-and-forget,
+  // throttled/capped inside). Uses getAllFollowedShips so it also covers follows
+  // that NEVER got an AIS fix (e.g. added by search) — ShipFinder can locate them
+  // by MMSI. The worldwide AIS box recovery continues in parallel regardless.
+  if (state.importSfData) {
+    const now = Date.now();
+    const stale = db.getAllFollowedShips().filter((sh) => isStaleFollow(sh, now));
+    if (stale.length) reacquireStaleViaShipfinder(stale).catch((e) => console.error(`[SF:reacquire] ${e.message}`));
+  }
+
   if (!positions.length && !lookups.size) {
     if (s.wsClient || s.active) stop();
     return;
@@ -316,6 +342,45 @@ function refresh() {
     connect();
   } else {
     sendSubscription();
+  }
+}
+
+// Scrape ShipFinder for stale followed ships and store any position found, so a
+// follow that has gone dark to our AIS stream still gets a last-known fix on the
+// map. Throttled per MMSI (SF_REACQUIRE_THROTTLE_MS), capped per sweep, staggered,
+// and negative-cached on miss — keeps request volume low / captcha-safe. The AIS
+// worldwide box keeps hunting in parallel; a real AIS fix always supersedes this.
+async function reacquireStaleViaShipfinder(staleShips) {
+  if (sfSweeping || !state.importSfData || !staleShips.length) return;
+  sfSweeping = true;
+  try {
+    const now = Date.now();
+    const due = staleShips
+      .filter((sh) => now - (lastSfScrape.get(sh.mmsi) || 0) >= SF_REACQUIRE_THROTTLE_MS)
+      .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'sf', SCRAPE_NEG_CACHE_DAYS))
+      .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
+    for (const sh of due) {
+      lastSfScrape.set(sh.mmsi, Date.now());
+      try {
+        const { static: staticData, position } = await crawlShipfinder(sh.mmsi);
+        if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, 'sf', staticData);
+        if (position) {
+          const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name });
+          db.clearScrapeFailure(sh.mmsi, 'sf');
+          if (stored) {
+            invalidateRiskCache(sh.mmsi);
+            appLog.info('SCRAPE', `Posizione ShipFinder per nave seguita persa: ${sh.ship_name || sh.mmsi}`, { mmsi: sh.mmsi });
+          }
+        } else {
+          db.setScrapeFailure(sh.mmsi, 'sf', 'ShipFinder: nessuna posizione');
+        }
+      } catch (e) {
+        db.setScrapeFailure(sh.mmsi, 'sf', e.message);
+      }
+      await new Promise((r) => setTimeout(r, 2000)); // stagger requests
+    }
+  } finally {
+    sfSweeping = false;
   }
 }
 

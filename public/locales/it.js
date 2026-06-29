@@ -75,6 +75,9 @@ export default {
   'detail.mtLink':       'Vedi su MarineTraffic',
   'detail.vfTitle':      'Dati VesselFinder',
   'detail.mtTitle':      'Dati MarineTraffic',
+  'detail.sfLink':       'Vedi su ShipFinder',
+  'detail.sfTitle':      'Dati ShipFinder',
+  'detail.sfLocate':     '📍 Localizza via ShipFinder',
   'detail.equasisTitle': 'Proprietà / gestione (Equasis)',
   'detail.equasisFetch': 'Recupera informazioni Equasis',
   'detail.gfwTitle':     'Global Fishing Watch',
@@ -201,6 +204,8 @@ export default {
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In porto',
+  'follow.sfSeen': 'vista su ShipFinder · {time}',
+  'follow.sfSeenTip': 'Posizione recuperata da ShipFinder mentre la nave è muta sull\'AIS: ultimo avvistamento noto, non un segnale AIS live.',
 
   // ── Risk score ─────────────────────────────────────────────────────────────
   'risk.low':      'Verde',
@@ -229,6 +234,7 @@ export default {
   // ── Map markers ────────────────────────────────────────────────────────────
   'map.lastPos':  '📍 Ultima posizione',
   'map.stay':     '⚓ Sosta',
+  'map.sfLastKnown': 'Ultima posizione nota (ShipFinder)',
   'map.stays':    '{n} posizioni · {from} → {to}',
   'map.detail':   'Dettaglio →',
   'map.unknown':  'Sconosciuta',
@@ -244,6 +250,12 @@ export default {
   // ── VF/MT scraping ─────────────────────────────────────────────────────────
   'scrape.loadingVf':  'Recupero dati da VesselFinder…',
   'scrape.loadingMt':  'Recupero dati da MarineTraffic…',
+  'scrape.loadingSf':  'Recupero dati da ShipFinder…',
+  'scrape.locating':   'Localizzo…',
+  'scrape.sfNoPosition': 'ShipFinder non ha una posizione per questa nave.',
+  'scrape.sfPosition':   'Ultima posizione nota',
+  'scrape.sfLocated':    '✅ Posizione recuperata da ShipFinder',
+  'scrape.sfLocateFailed': 'Localizzazione ShipFinder non riuscita',
   'scrape.error':      'Errore recupero dati.',
   'scrape.errorFmt':   'Errore: {msg}',
   'scrape.cache':      'cache',
@@ -409,6 +421,8 @@ export default {
   'settings.vf.desc':        'Recupera informazioni aggiuntive da VesselFinder (bandiera, GT, DWT, anno costruzione, ecc.). Dati in cache per 6 ore.',
   'settings.mt.name':        'Import MarineTraffic',
   'settings.mt.desc':        'Recupera informazioni aggiuntive da MarineTraffic nel dettaglio nave. Dati in cache per 6 ore.',
+  'settings.sf.name':        'Import ShipFinder',
+  'settings.sf.desc':        'Recupera dati da ShipFinder e — unico tra le fonti — la posizione dell\'ultimo avvistamento, usata per ri-localizzare le navi seguite che l\'AIS non vede più. Dati statici in cache per 6 ore.',
   'settings.equasis.name':   'Lookup Equasis (proprietà)',
   'settings.equasis.desc':   'Abilita il pulsante "Recupera informazioni Equasis" nel dettaglio nave per recuperare proprietario registrato, gestore ISM e operatore (per numero IMO). Mai automatico: parte solo su richiesta. Richiede credenziali Equasis (EQUASIS_USER / EQUASIS_PASSWORD in local.properties). Dati memorizzati una sola volta.',
   'settings.equasis.viewLog':  'Visualizza log Equasis',

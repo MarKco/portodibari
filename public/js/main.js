@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadEquasisData, loadGfwData } from './ships.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadEquasisData, loadGfwData } from './ships.js';
 import { loadTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -146,10 +146,12 @@ async function loadSettings() {
     }
     S.importVfData = !!s.importVfData;
     S.importMtData = !!s.importMtData;
+    S.importSfData = !!s.importSfData;
     S.importSanctions = !!s.importSanctions;
     S.importSanctionsExtra = s.importSanctionsExtra !== false;
     if (el.toggleImportVf) el.toggleImportVf.checked = S.importVfData;
     if (el.toggleImportMt) el.toggleImportMt.checked = S.importMtData;
+    if (el.toggleImportSf) el.toggleImportSf.checked = S.importSfData;
     if (el.toggleImportSanctions) el.toggleImportSanctions.checked = S.importSanctions;
     if (el.toggleImportSanctionsExtra) el.toggleImportSanctionsExtra.checked = S.importSanctionsExtra;
     applySanctionsSettingsState();
@@ -607,6 +609,26 @@ function initSettingsModal() {
     }
   });
 
+  if (el.toggleImportSf) {
+    el.toggleImportSf.addEventListener('change', async () => {
+      const enabled = el.toggleImportSf.checked;
+      try {
+        await api('/api/settings', 'POST', { importSfData: enabled });
+        S.importSfData = enabled;
+        if (S.view === 'detail' && S.detailMmsi != null) loadSfData(S.detailMmsi);
+      } catch {
+        el.toggleImportSf.checked = !enabled;
+      }
+    });
+  }
+
+  if (el.btnSfLocate) {
+    el.btnSfLocate.addEventListener('click', (e) => {
+      e.stopPropagation(); // the button sits inside the collapsible <h3>; don't toggle it
+      if (S.detailMmsi != null) locateSf(S.detailMmsi);
+    });
+  }
+
   if (el.toggleImportEquasis) {
     el.toggleImportEquasis.addEventListener('change', async () => {
       const enabled = el.toggleImportEquasis.checked;
@@ -635,7 +657,8 @@ function initSettingsModal() {
   }
 
   if (el.btnEquasisFetch) {
-    el.btnEquasisFetch.addEventListener('click', () => {
+    el.btnEquasisFetch.addEventListener('click', (e) => {
+      e.stopPropagation(); // button sits inside the collapsible <h3>; don't toggle it
       if (S.detailMmsi != null) loadEquasisData(S.detailMmsi, true);
     });
   }
