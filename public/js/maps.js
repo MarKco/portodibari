@@ -387,20 +387,31 @@ export function renderFollowedMap(ships) {
   ships.forEach((s) => S.followedShipsCache.set(s.mmsi, s));
 
   const positioned = ships.filter((s) => s.last_latitude != null && s.last_longitude != null);
+  const searchingNoPos = ships.filter((s) => s.search_mode && (s.last_latitude == null || s.last_longitude == null));
+  const infoEl = document.getElementById('followed-map-info');
+  if (infoEl) {
+    infoEl.textContent = searchingNoPos.length
+      ? `🔍 ${searchingNoPos.length} ${searchingNoPos.length === 1 ? 'nave in ricerca senza posizione nota' : 'navi in ricerca senza posizione nota'}`
+      : '';
+  }
   if (!positioned.length) return;
+
+  const RISK_STYLE = {
+    high: { radius: 9, color: '#f87171', fillColor: '#dc2626', weight: 3 },
+    med: { radius: 8, color: '#fbbf24', fillColor: '#d97706', weight: 2.5 },
+    low: { radius: 7, color: '#34d399', fillColor: '#059669', weight: 2 },
+  };
+  const GRAY_STYLE = { radius: 8, color: '#9ca3af', fillColor: '#6b7280', weight: 2.5 };
 
   const latlngs = [];
   positioned.forEach((s) => {
     const ll = [s.last_latitude, s.last_longitude];
     latlngs.push(ll);
-    const RISK_STYLE = {
-      high: { radius: 9, color: '#f87171', fillColor: '#dc2626', weight: 3 },
-      med: { radius: 8, color: '#fbbf24', fillColor: '#d97706', weight: 2.5 },
-      low: { radius: 7, color: '#34d399', fillColor: '#059669', weight: 2 },
-    };
-    const style = s.flagged
-      ? { radius: 10, color: '#a78bfa', fillColor: '#7c3aed', weight: 3 }
-      : RISK_STYLE[s.risk?.band] || RISK_STYLE.low;
+    const style = s.search_mode
+      ? GRAY_STYLE
+      : s.flagged
+        ? { radius: 10, color: '#a78bfa', fillColor: '#7c3aed', weight: 3 }
+        : RISK_STYLE[s.risk?.band] || RISK_STYLE.low;
     L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
       .bindPopup(
         `<b style="font-size:1rem">${escHtml(s.ship_name || t('map.unknown'))}</b><br>` +

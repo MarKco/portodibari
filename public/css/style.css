@@ -844,7 +844,14 @@ td.empty {
   background: #0e1420;
   z-index: 0;
 }
-#followed-map { margin-bottom: 1.25rem; }
+#followed-map { margin-bottom: 0; }
+#followed-map-info {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  padding: 4px 8px;
+  min-height: 0;
+  margin-bottom: 0.75rem;
+}
 
 .map-resizer {
   height: 10px;
