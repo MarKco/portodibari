@@ -6,6 +6,30 @@ import { fmtUptime, formatTime, escHtml } from './helpers.js';
 
 let healthTimer = null;
 
+// Scraping counters over the last 24h, per external vendor. Shows total fetches
+// with the failed count when any failed.
+function scrapeCountsBlock(counts) {
+  counts = counts || {};
+  const vendors = [
+    { key: 'vf', label: 'VesselFinder' },
+    { key: 'mt', label: 'MarineTraffic' },
+    { key: 'sf', label: 'ShipFinder' },
+  ];
+  const cells = vendors
+    .map(({ key, label }) => {
+      const c = counts[key] || { total: 0, failed: 0 };
+      const failed = c.failed ? ` <span class="health-warn">(${t('health.scrapeFailed', { n: c.failed })})</span>` : '';
+      return `<div class="health-item"><label>${label}</label><span>${c.total.toLocaleString()}${failed}</span></div>`;
+    })
+    .join('');
+  return `
+    <div class="health-section">
+      <h4 class="health-subtitle">${t('health.scrape24h')}</h4>
+      <p class="health-section-desc">${t('health.scrapeDesc')}</p>
+      <div class="health-grid">${cells}</div>
+    </div>`;
+}
+
 async function fetchHealth() {
   try {
     const area = encodeURIComponent(S.currentPreset || '');
@@ -49,6 +73,7 @@ async function fetchHealth() {
         <div class="health-item"><label>${t('health.dbCount')}</label><span>${h.totalDbCount.toLocaleString()}</span></div>
         <div class="health-item"><label>${t('health.lastError')}</label><span>${h.lastAisError ? `<span class="health-err">${escHtml(h.lastAisError).slice(0, 80)}</span>` : `<span class="health-muted">${t('health.noError')}</span>`}</span></div>
       </div>
+      ${scrapeCountsBlock(h.scrapeCounts24h)}
       <p class="health-note">${t('health.note')}</p>
     `;
   } catch {

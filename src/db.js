@@ -525,6 +525,40 @@ function hasRecentScrapeFailure(mmsi, source, days) {
     .get(mmsi, source, cutoff);
 }
 
+// ── Scrape activity log (diagnostics) ────────────────────────────────────────
+// One row per scrape attempt per vendor, used only for the "last 24h" counters in
+// Settings → Diagnostica AIS. Ephemeral diagnostics: NOT in BACKUP_TABLES, pruned
+// to ~2 days. `ok` distinguishes successful fetches from failures.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS scrape_log (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    ok     INTEGER NOT NULL,
+    at     TEXT NOT NULL
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_scrape_log_at ON scrape_log(at)');
+const insertScrapeLogStmt = db.prepare('INSERT INTO scrape_log (source, ok, at) VALUES (?, ?, ?)');
+let scrapeLogInserts = 0;
+function recordScrape(source, ok) {
+  insertScrapeLogStmt.run(source, ok ? 1 : 0, new Date().toISOString());
+  // Periodic prune so the table stays tiny (counters only need a 24h window).
+  if (++scrapeLogInserts % 100 === 0) {
+    db.prepare('DELETE FROM scrape_log WHERE at < ?').run(new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString());
+  }
+}
+
+// { vf: {total, ok, failed}, mt: {...}, sf: {...}, ... } over the last 24h.
+function getScrapeCounts24h() {
+  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const rows = db
+    .prepare('SELECT source, COUNT(*) AS total, SUM(ok) AS ok FROM scrape_log WHERE at >= ? GROUP BY source')
+    .all(cutoff);
+  const out = {};
+  for (const r of rows) out[r.source] = { total: r.total, ok: r.ok, failed: r.total - r.ok };
+  return out;
+}
+
 // ── Meta key/value ───────────────────────────────────────────────────────────
 const getMetaStmt = db.prepare('SELECT value FROM meta WHERE key = ?');
 const setMetaStmt = db.prepare(
@@ -2794,6 +2828,8 @@ module.exports = {
   getDistinctShipNames,
   getRecentPositions,
   getAllFollowedShips,
+  recordScrape,
+  getScrapeCounts24h,
   insertScrapedPosition,
   getScrapedPositions,
   getLatestScrapedPosition,

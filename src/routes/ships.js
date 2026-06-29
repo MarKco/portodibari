@@ -65,6 +65,19 @@ function flaggedFirst(a, b) {
   return (b.flagged ? 1 : 0) - (a.flagged ? 1 : 0);
 }
 
+// Timestamp of the last ShipFinder fix to surface as the "vista su ShipFinder"
+// badge, or null. Returns null when SF import is off, when there's no scraped
+// fix, OR when AIS has since re-acquired the ship (last_seen_at, AIS-only, is
+// newer than the SF fix): the scraped last-known is then stale and the badge
+// would be misleading, so we drop it.
+function sfBadgeAt(mmsi, lastSeenAt) {
+  if (!state.importSfData) return null;
+  const sfAt = db.getLatestScrapedPosition(mmsi, 'sf')?.received_at || null;
+  if (!sfAt) return null;
+  if (lastSeenAt && new Date(lastSeenAt) >= new Date(sfAt)) return null;
+  return sfAt;
+}
+
 // May the current user open this ship's detail? Visible if it's in one of their
 // areas, or they follow/flag it (a followed ship roams outside the areas).
 function canSeeShip(req, mmsi) {
@@ -116,7 +129,7 @@ router.get('/ships/followed/active', (req, res) => {
     const decorated = decorate(s, sets, lang, true);
     decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;
     decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
-    decorated.sf_last_at = state.importSfData ? (db.getLatestScrapedPosition(s.mmsi, 'sf')?.received_at || null) : null;
+    decorated.sf_last_at = sfBadgeAt(s.mmsi, s.last_seen_at);
     return decorated;
   }).sort(flaggedFirst);
   res.json({ ships });
@@ -384,7 +397,7 @@ router.get('/ships/:mmsi', (req, res) => {
     followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
     is_stale: (!ship.last_seen_at || Date.now() - new Date(ship.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0,
     search_mode: db.getUserFollowSearchMode(uid, mmsi),
-    sf_last_at: state.importSfData ? (db.getLatestScrapedPosition(mmsi, 'sf')?.received_at || null) : null,
+    sf_last_at: sfBadgeAt(mmsi, ship.last_seen_at),
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
     destination_label: destinationLabel(ship.destination),
   });
@@ -579,10 +592,12 @@ router.get('/ships/:mmsi/vfdata', async (req, res) => {
     appLog.info('SCRAPE', appLog.t('scrape.requested', { source: 'VesselFinder', name: ship.ship_name || mmsi }), { mmsi, id: identifier });
     const data = await crawlVesselFinder(identifier);
     const scraped_at = db.setScrapedData(mmsi, 'vf', data);
+    db.recordScrape('vf', true);
     invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
     appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'VesselFinder', name: ship.ship_name || mmsi }), { mmsi });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at });
   } catch (e) {
+    db.recordScrape('vf', false);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'VesselFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     if (cached) {
       return res.json({
@@ -618,10 +633,12 @@ router.get('/ships/:mmsi/mtdata', async (req, res) => {
     const { data, shipId } = await crawlMarineTraffic(ship);
     if (shipId && shipId !== ship.mt_ship_id) db.setMtShipId(mmsi, shipId);
     const scraped_at = db.setScrapedData(mmsi, 'mt', data);
+    db.recordScrape('mt', true);
     invalidateRiskCache(mmsi); // flag/year/home-port may now contribute
     appLog.info('SCRAPE', appLog.t('scrape.ok', { source: 'MarineTraffic', name: ship.ship_name || mmsi }), { mmsi, shipId: shipId || null });
     res.json({ enabled: true, data, cached: false, cachedAt: scraped_at, shipId });
   } catch (e) {
+    db.recordScrape('mt', false);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'MarineTraffic', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     if (cached) {
       return res.json({
@@ -658,6 +675,7 @@ router.get('/ships/:mmsi/sfdata', async (req, res) => {
     const { static: staticData, position } = await crawlShipfinder(mmsi);
     const scraped_at = db.setScrapedData(mmsi, 'sf', staticData);
     db.clearScrapeFailure(mmsi, 'sf');
+    db.recordScrape('sf', true);
     // A fresh page also carries a live position — store it (cheap, and useful if
     // the ship is currently AIS-dark). insertScrapedPosition de-dupes by report time.
     if (position) db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name });
@@ -665,6 +683,7 @@ router.get('/ships/:mmsi/sfdata', async (req, res) => {
     res.json({ enabled: true, data: staticData, cached: false, cachedAt: scraped_at, positions: db.getScrapedPositions(mmsi, 'sf') });
   } catch (e) {
     db.setScrapeFailure(mmsi, 'sf', e.message);
+    db.recordScrape('sf', false);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'ShipFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     if (cached) {
       return res.json({ enabled: true, data: JSON.parse(cached.data_json), cached: true, cachedAt: cached.scraped_at, error: e.message, positions });
@@ -686,12 +705,14 @@ router.post('/ships/:mmsi/sflocate', async (req, res) => {
     const { static: staticData, position } = await crawlShipfinder(mmsi);
     if (staticData && Object.keys(staticData).length) db.setScrapedData(mmsi, 'sf', staticData);
     db.clearScrapeFailure(mmsi, 'sf');
+    db.recordScrape('sf', true);
     if (!position) return res.json({ enabled: true, position: null });
     const stored = db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name });
     invalidateRiskCache(mmsi);
     res.json({ enabled: true, position: stored || { mmsi, ...position, received_at: position.reportedAt }, positions: db.getScrapedPositions(mmsi, 'sf') });
   } catch (e) {
     db.setScrapeFailure(mmsi, 'sf', e.message);
+    db.recordScrape('sf', false);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: 'ShipFinder', name: ship.ship_name || mmsi, error: e.message }), { mmsi });
     res.json({ enabled: true, error: e.message });
   }

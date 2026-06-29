@@ -363,6 +363,7 @@ async function reacquireStaleViaShipfinder(staleShips) {
       lastSfScrape.set(sh.mmsi, Date.now());
       try {
         const { static: staticData, position } = await crawlShipfinder(sh.mmsi);
+        db.recordScrape('sf', true);
         if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, 'sf', staticData);
         if (position) {
           const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name });
@@ -376,6 +377,7 @@ async function reacquireStaleViaShipfinder(staleShips) {
         }
       } catch (e) {
         db.setScrapeFailure(sh.mmsi, 'sf', e.message);
+        db.recordScrape('sf', false);
       }
       await new Promise((r) => setTimeout(r, 2000)); // stagger requests
     }

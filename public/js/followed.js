@@ -82,7 +82,7 @@ function renderFollowedActiveTable(ships) {
     <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.search_mode ? 'follow-searching-row' : ''}" data-mmsi="${s.mmsi}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td>${s.search_mode ? '🔍' : formatTime(s.last_seen_at)}</td>
-      <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}${s.search_mode ? ` <span class="follow-search-badge" data-tip="${staleMonthsLabel()}">🔍 in ricerca</span>` : ''}${s.sf_last_at ? ` <span class="follow-search-badge follow-sf-badge" data-tip="${t('follow.sfSeenTip')}">📍 ${t('follow.sfSeen', { time: formatTime(s.sf_last_at) })}</span>` : ''}</td>
+      <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}${s.search_mode ? ` <span class="follow-search-badge" data-tip="${staleMonthsLabel()}">🔍 in ricerca</span>` : ''}${s.sf_last_at ? `<div class="ship-name-sub"><span class="follow-search-badge follow-sf-badge" data-tip="${t('follow.sfSeenTip')}">📍 ${t('follow.sfSeen', { time: formatTime(s.sf_last_at) })}</span></div>` : ''}</td>
       <td class="mono">${s.mmsi}</td>
       <td>${shipTypeBadge(s.ship_type)}</td>
       <td class="destination">${escHtml(s.destination_label || s.destination) || '—'}</td>

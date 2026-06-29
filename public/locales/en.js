@@ -346,6 +346,9 @@ export default {
   'health.noError':     'None',
   'health.msgPerMin':   '{n} msg/min',
   'health.note':        'Auto-updates every 5s. aisstream.io does not expose quota APIs — this panel shows local signals of issues.',
+  'health.scrape24h':   'Scraping last 24h',
+  'health.scrapeDesc':  'Data fetches from external vendors (not the AIS feed). Count per source over the last 24h.',
+  'health.scrapeFailed': '{n} failed',
 
   // ── AIS outage banner ────────────────────────────────────────────────────────
   'outage.banner':  'Possible AISStream outage: no incoming signals and the public monitor reports “{state}” (checked at {time}). Data may not be updating.',

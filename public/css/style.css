@@ -754,6 +754,12 @@ td.empty {
 .follow-searching-row td { opacity: 0.72; }
 .follow-searching-row .ship-name { font-style: italic; }
 
+/* ShipFinder badge shown on its own line under the ship name in the followed
+   table, so the long "seen on ShipFinder · <date>" text grows the ROW height
+   instead of widening the column (which pushed the table past the page edge). */
+.ship-name-sub { margin-top: 3px; }
+.ship-name-sub .follow-sf-badge { white-space: normal; font-style: normal; }
+
 .military-btn {
   background: none;
   border: 1px solid var(--border);
@@ -1329,6 +1335,31 @@ pre {
   line-height: 1.55;
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
+}
+
+.health-subtitle {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+
+/* Scraping counters live in their own boxed section, set apart from the
+   live AIS-stream diagnostics above (different data source: vendor scrapes,
+   not the aisstream.io feed). */
+.health-section {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2, rgba(255,255,255,0.02));
+}
+.health-section .health-grid { margin-bottom: 0; }
+.health-section-desc {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  margin: 0 0 0.85rem;
+  line-height: 1.5;
 }
 
 /* ── AIS outage banner ──────────────────────────────────────────────────────── */

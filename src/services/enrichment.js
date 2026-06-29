@@ -65,11 +65,14 @@ async function fetchSource(ship, source) {
       db.setScrapedData(ship.mmsi, 'mt', data);
     }
     db.clearScrapeFailure(ship.mmsi, source); // success → drop any stale failure marker
+    db.recordScrape(source, true); // diagnostics counter (Settings → Diagnostica AIS)
     invalidateRiskCache(ship.mmsi); // newly cached flag/year/home-port may shift the score
     appLog.info('SCRAPE', appLog.t('scrape.ok', { source: sourceName(source), name: ship.ship_name || ship.mmsi }), { mmsi: ship.mmsi, imo: ship.imo_number || null });
   } catch (e) {
     // Record the failure so the negative cache skips this ship until it expires.
     db.setScrapeFailure(ship.mmsi, source, e.message);
+    db.recordScrape(source, false); // diagnostics counter
+
     console.error(`[ENRICH:${source}] ${ship.mmsi}: ${e.message}`);
     appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: sourceName(source), name: ship.ship_name || ship.mmsi, error: e.message }), { mmsi: ship.mmsi });
   } finally {

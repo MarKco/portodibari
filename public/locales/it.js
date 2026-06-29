@@ -348,6 +348,9 @@ export default {
   'health.noError':     'Nessuno',
   'health.msgPerMin':   '{n} msg/min',
   'health.note':        'Aggiornamento automatico ogni 5s. aisstream.io non espone API di quota — questo pannello mostra segnali locali di problemi.',
+  'health.scrape24h':   'Scraping ultime 24h',
+  'health.scrapeDesc':  'Recuperi dati dai fornitori esterni (non dal feed AIS). Conteggio per fonte nelle ultime 24h.',
+  'health.scrapeFailed': '{n} falliti',
 
   // ── Banner disservizio AIS ───────────────────────────────────────────────────
   'outage.banner':  'Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «{state}» (controllato alle {time}). I dati potrebbero non aggiornarsi.',

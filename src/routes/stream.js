@@ -39,7 +39,7 @@ router.get('/stream/status', (req, res) => {
 
 router.get('/stream/health', (req, res) => {
   const area = req.query.area || state.preset;
-  res.json(stream.getHealth(area));
+  res.json({ ...stream.getHealth(area), scrapeCounts24h: db.getScrapeCounts24h() });
 });
 
 module.exports = router;
