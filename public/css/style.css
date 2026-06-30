@@ -745,10 +745,14 @@ td.empty {
 
 /* ShipFinder "seen" badge — orange, to set it apart from the yellow "in ricerca"
    (AIS) badge: located via scrape, not a live AIS re-acquisition. */
+/* SF/MST "seen" badge — deliberately faint. Theme-aware via tokens: on dark
+   theme it reads as muted light text on a dark chip, on light theme as muted
+   dark text on a light chip (the old fixed colors looked identical in both). */
 .follow-sf-badge {
-  color: #9a3412;
-  background: #ffedd5;
-  border-color: #f59e0b;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border-color: var(--border);
+  font-weight: 500;
 }
 
 /* "AIS signal lost X ago" badge under the last-AIS-sighting cell of a followed
@@ -1517,7 +1521,7 @@ pre {
 /* ── Hazmat badge ─────────────────────────────────────────────────────── */
 .hazmat-badge {
   background: var(--red-soft);
-  color: #fca5a5;
+  color: var(--red);
   border: 1px solid var(--red-bd);
   border-radius: var(--r-sm);
   padding: 1px 6px;
@@ -2155,6 +2159,16 @@ pre {
   color: var(--text-muted);
 }
 .gloss-tooltip.hidden { display: none; }
+/* Light theme: surface-2 is near-white and the shadow is faint, so the tooltip
+   melted into the page. Pop it with white bg, a firm border and a stronger
+   shadow; darken the body/term text for readability. */
+html[data-theme="light"] .gloss-tooltip {
+  background: var(--surface-1);
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.22);
+  color: var(--text);
+}
+html[data-theme="light"] .gloss-tooltip .gt-term { color: var(--accent); }
 .gt-term {
   font-weight: 600;
   font-size: 0.8rem;
