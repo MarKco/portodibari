@@ -205,10 +205,21 @@ export default {
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In port',
-  'follow.sfSeen': 'seen on ShipFinder · {time}',
+  'follow.sfSeen': 'ShipFinder · {time}',
   'follow.sfSeenTip': 'Position fetched from ShipFinder while the ship is dark on AIS: last known sighting, not a live AIS signal.',
-  'follow.mstSeen': 'seen on MyShipTracking · {time}',
+  'follow.mstSeen': 'MyShipTracking · {time}',
   'follow.mstSeenTip': 'Position fetched from MyShipTracking while the ship is dark on AIS: last known sighting, not a live AIS signal.',
+  'follow.aisLost': '📡 AIS signal lost {ago} ago',
+  'follow.aisLostTip': 'The ship has been dark on AIS for this long: the shown position comes from ShipFinder/MyShipTracking, not a live AIS signal.',
+  'ago.now':   'moments',
+  'ago.min1':  '{n} minute',
+  'ago.minN':  '{n} minutes',
+  'ago.hour1': '{n} hour',
+  'ago.hourN': '{n} hours',
+  'ago.day1':  '{n} day',
+  'ago.dayN':  '{n} days',
+  'ago.week1': '{n} week',
+  'ago.weekN': '{n} weeks',
 
   // ── Risk score ─────────────────────────────────────────────────────────────
   'risk.low':      'Green',

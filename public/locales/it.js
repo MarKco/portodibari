@@ -207,10 +207,21 @@ export default {
 
   // ── Port badge ─────────────────────────────────────────────────────────────
   'port.badge': '⚓ In porto',
-  'follow.sfSeen': 'vista su ShipFinder · {time}',
+  'follow.sfSeen': 'ShipFinder · {time}',
   'follow.sfSeenTip': 'Posizione recuperata da ShipFinder mentre la nave è muta sull\'AIS: ultimo avvistamento noto, non un segnale AIS live.',
-  'follow.mstSeen': 'vista su MyShipTracking · {time}',
+  'follow.mstSeen': 'MyShipTracking · {time}',
   'follow.mstSeenTip': 'Posizione recuperata da MyShipTracking mentre la nave è muta sull\'AIS: ultimo avvistamento noto, non un segnale AIS live.',
+  'follow.aisLost': '📡 segnale AIS perso da {ago}',
+  'follow.aisLostTip': 'La nave è muta sull\'AIS da questo intervallo: la posizione mostrata proviene da ShipFinder/MyShipTracking, non da un segnale AIS live.',
+  'ago.now':   'pochi istanti',
+  'ago.min1':  '{n} minuto',
+  'ago.minN':  '{n} minuti',
+  'ago.hour1': '{n} ora',
+  'ago.hourN': '{n} ore',
+  'ago.day1':  '{n} giorno',
+  'ago.dayN':  '{n} giorni',
+  'ago.week1': '{n} settimana',
+  'ago.weekN': '{n} settimane',
 
   // ── Risk score ─────────────────────────────────────────────────────────────
   'risk.low':      'Verde',

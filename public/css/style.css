@@ -751,6 +751,25 @@ td.empty {
   border-color: #f59e0b;
 }
 
+/* "AIS signal lost X ago" badge under the last-AIS-sighting cell of a followed
+   ship — shown only when ShipFinder/MyShipTracking have a fresher contact than
+   AIS. Red, to read as a "signal gap" warning. Reuses .ship-name-sub layout. */
+.ais-lost-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #f87171;
+  border-radius: 0.3em;
+  padding: 0.1em 0.45em;
+  white-space: normal;
+  vertical-align: middle;
+  cursor: help;
+}
+
 .follow-searching-row td { opacity: 0.72; }
 .follow-searching-row .ship-name { font-style: italic; }
 

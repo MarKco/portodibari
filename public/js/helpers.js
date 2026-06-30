@@ -24,6 +24,23 @@ export function formatTime(iso) {
   }
 }
 
+// Coarse "time since" label that auto-upgrades its unit: minutes < 1h, hours
+// < 1 day, days < 1 week, then weeks. Used for the "AIS signal lost X ago"
+// badge on followed ships. Returns localized, pluralized text (it/en).
+export function formatAgo(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return t('ago.now');
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return t(min === 1 ? 'ago.min1' : 'ago.minN', { n: min });
+  const h = Math.floor(min / 60);
+  if (h < 24) return t(h === 1 ? 'ago.hour1' : 'ago.hourN', { n: h });
+  const d = Math.floor(h / 24);
+  if (d < 7) return t(d === 1 ? 'ago.day1' : 'ago.dayN', { n: d });
+  const w = Math.floor(d / 7);
+  return t(w === 1 ? 'ago.week1' : 'ago.weekN', { n: w });
+}
+
 export function formatDuration(ms) {
   if (!ms || ms < 0) return '—';
   const totalMin = Math.round(ms / 60000);
