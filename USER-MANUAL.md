@@ -188,6 +188,8 @@ On the active-ships map you can enable a **berths overlay**: the system learns b
 
 Each ship moves interpolated between its real positions, leaves a **fading trail** behind it, and is coloured by risk band; click it to open its detail. If a ship has a long **signal gap** (AIS off or it left the area) it is **hidden** during that stretch instead of "teleporting" in a straight line. At the bottom you see the current replay time and how many ships are visible. Press **✕ Exit** to return to the live view.
 
+If you have the **ShipFinder** and/or **MyShipTracking** integrations enabled and there are positions from them in the chosen window, an **Include SF/MST** toggle appears next to the controls (on by default): it also uses those scraped positions when drawing the animated route, handy for filling the stretches where AIS went dark. Clearing it makes the replay use AIS data only.
+
 ---
 
 ### 2. Navi passate (Past ships)
@@ -383,6 +385,7 @@ Map showing the vessel's track with animated playback controls.
 - **▶ / ⏸** — play or pause the track animation (the ship marker moves along the route leaving a growing trail).
 - **Scrubber** — drag it to jump to any point along the track.
 - **Speed multipliers** — **1× / 5× / 20× / 60×** relative to the standard playback duration. Default is 20×. Can be changed mid-playback without interruption.
+- **Include SF/MST** — appears only when the ShipFinder/MyShipTracking integrations are enabled and this ship has scraped positions. On by default: it also folds those positions into the animated track (the added nodes are coloured amber for ShipFinder / teal for MyShipTracking, with the source noted in their popup), useful to fill the stretches where AIS went dark. Clear it to draw the track from AIS only.
 
 ### AIS readings
 

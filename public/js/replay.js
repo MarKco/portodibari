@@ -42,6 +42,7 @@ function dom() {
     area: $('replay-area'), from: $('replay-from'), to: $('replay-to'), apply: $('replay-apply'),
     play: $('replay-play'), slider: $('replay-slider'), time: $('replay-time'),
     count: $('replay-count'), status: $('replay-status'),
+    useScraped: $('replay-use-scraped'), useScrapedWrap: $('replay-use-scraped-wrap'),
     wins: document.querySelectorAll('.replay-win'), speeds: document.querySelectorAll('.replay-speed'),
   };
   return els;
@@ -73,6 +74,13 @@ export function initReplay() {
     renderFrame();
   });
   e.area.addEventListener('change', () => load({ window: currentWin() }));
+
+  // "Includi SF/MST" — toggle scraped positions in the animated route, then
+  // reload the current window so the change takes effect immediately.
+  if (e.useScraped) e.useScraped.addEventListener('change', () => {
+    S.replayUseScraped = e.useScraped.checked;
+    reloadCurrent();
+  });
 
   // Export the currently-loaded replay window as one LineString per ship.
   const replayExpSel = document.getElementById('replay-export-sel');
@@ -128,16 +136,27 @@ function exit() {
   e.toggle.classList.remove('active');
 }
 
+// Re-run the most recent load (same window or custom range) — used when the
+// "Includi SF/MST" toggle changes so it takes effect without losing the view.
+function reloadCurrent() {
+  const R = S.replay;
+  if (!R) return;
+  load(R.lastParams || { window: currentWin() });
+}
+
 async function load(params) {
   const R = S.replay;
   const e = dom();
   if (!R) return;
+  R.lastParams = params;
   pause();
   const area = e.area.value;
   const q = new URLSearchParams();
   if (area) q.set('area', area);
   if (params.from && params.to) { q.set('from', params.from); q.set('to', params.to); }
   else q.set('window', params.window || '1h');
+  // Ask the server to fold in SF/MST scraped positions when the toggle is on.
+  if (S.replayUseScraped) q.set('scraped', '1');
   e.status.textContent = t('replay.loading');
   let data;
   try {
@@ -183,6 +202,13 @@ function buildScene(data) {
   // Reflect the resolved window in the custom pickers + the available range.
   if (data.from) e.from.value = isoToLocalInput(data.from);
   if (data.to) e.to.value = isoToLocalInput(data.to);
+  // Show the "Includi SF/MST" toggle only when scraped positions exist for this
+  // window and the integrations are on (server reports extraAvailable).
+  if (e.useScrapedWrap) {
+    e.useScrapedWrap.classList.toggle('hidden', !data.extraAvailable);
+    if (e.useScraped) e.useScraped.checked = S.replayUseScraped;
+  }
+
   const avail = data.range
     ? `${formatTime(data.range.lo)} – ${formatTime(data.range.hi)}`
     : '';

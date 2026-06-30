@@ -438,7 +438,7 @@ Hysteresis prevents anchor swing from causing the ship to "flicker" in and out o
 
 ## ⏯️ Historical replay (time-scrubber on the area map)
 
-The **single ship track** in the detail view (`setupTrackAnim`) now also has time filters (**6h / 24h / 7d / all**, or a custom from/to range) and **speed multipliers** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` or `?from=ISO&to=ISO`. The **active-ships** map has a separate **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
+The **single ship track** in the detail view (`setupTrackAnim`) now also has time filters (**6h / 24h / 7d / all**, or a custom from/to range) and **speed multipliers** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` or `?from=ISO&to=ISO`. Here too, when ShipFinder/MyShipTracking are enabled and the ship has scraped positions, an **Include SF/MST** toggle appears (under the detail map, on by default, `?scraped=1` → `db.getShipTrack`/`getShipTrackRange` with widened `sources`, `extraAvailable` via `db.hasShipScrapedPositions`, state `S.trackUseScraped`): the SF/MST fixes enter the animated route, with distinctly coloured nodes (amber SF / teal MST) and a source note in the popup. The **active-ships** map has a separate **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
 
 The **▶ Replay** button in the toolbar enters replay mode (hides the live markers, shows the controls bar). You pick:
 
@@ -449,7 +449,9 @@ The **▶ Replay** button in the toolbar enters replay mode (hides the live mark
 
 **Controls** — play/pause, a **scrubber** (manual seek) and **speed multipliers** (1× / 5× / 20× / 60× of real time). The status line shows ships loaded, the available range, and any truncation.
 
-**Data** — `GET /api/replay?area=KEY&window=1h|6h|24h|all` (or `&from=ISO&to=ISO`) returns the positions inside the area bbox over the window, **grouped by ship** (`db.getAreaReplayPositions`), plus the available range (`db.getAreaReplayRange`) and the per-ship risk band. The total is capped by `REPLAY_MAX_POINTS` (default 40,000); beyond that the response is flagged `truncated`. Read-only: it only reads existing `readings`.
+**Include SF/MST** — by default the replay uses **AIS fixes only**. When ShipFinder and/or MyShipTracking are enabled *and* there are positions from them in the window, an **Include SF/MST** toggle appears next to the controls (on by default): it also folds in the scraped positions when drawing the animated route, handy for filling the stretches where AIS went dark. Clearing it reverts the replay to AIS only. It is a **per-session** toggle (`S.replayUseScraped`), not persisted; changing it reloads the current window.
+
+**Data** — `GET /api/replay?area=KEY&window=1h|6h|24h|all` (or `&from=ISO&to=ISO`) returns the positions inside the area bbox over the window, **grouped by ship** (`db.getAreaReplayPositions`), plus the available range (`db.getAreaReplayRange`) and the per-ship risk band. With `&scraped=1` the included sources become `('ais','sf','mst')` (only for the integrations actually enabled); without the param it stays `'ais'` only. The response carries `extraAvailable` (boolean: SF/MST fixes exist in the window regardless of the toggle — drives the client toggle's visibility, via `db.hasAreaReplayPositions`). The total is capped by `REPLAY_MAX_POINTS` (default 40,000); beyond that the response is flagged `truncated`. Read-only: it only reads existing `readings`.
 
 ## ⚓ Berths (automatic mooring characterization)
 
@@ -538,7 +540,7 @@ MT/VF/SF/MST integration can be enabled/disabled via the `IMPORT_MT_DATA` / `IMP
 
 Unlike VF/MT, the ShipFinder position is used to **find followed ships our AIS stream can no longer see** (see [Followed ships](#-followed-ships)): a "lost" ship that doesn't reappear on the worldwide AIS box often still has a relayed position on ShipFinder.
 
-- **Tagged storage.** Scraped positions land in the `readings` table with `source='sf'` (column added by migration, default `'ais'`) and `message_type='ShipfinderPosition'`. They are **excluded** from the AIS track, risk score and replay (AIS queries filter `source='ais'`) and do **not** touch the `ships` row (so `last_seen_at` stays the AIS freshness signal and the worldwide box keeps searching in parallel). On the map they render as **distinct amber markers, not connected** to the AIS polyline (`renderSfPositions` in `maps.js`).
+- **Tagged storage.** Scraped positions land in the `readings` table with `source='sf'` (column added by migration, default `'ais'`) and `message_type='ShipfinderPosition'`. They are **excluded** from the risk score (the risk queries filter `source='ais'`) and — *by default* — from the single-ship track and the replay, but can be folded into both via the **Include SF/MST** toggle (see [Historical replay](#️-historical-replay-time-scrubber-on-the-area-map)); and they do **not** touch the `ships` row (so `last_seen_at` stays the AIS freshness signal and the worldwide box keeps searching in parallel). On the map they render as **distinct amber markers, not connected** to the AIS polyline (`renderSfPositions` in `maps.js`).
 - **Automatic sweep.** In the follow refresh loop (every `FOLLOW_REFRESH_MIN`, default 5 min), `reacquireStaleViaShipfinder` scrapes **stale** followed ships (no fresh AIS position) — including those **never located** (followed by search, via `getAllFollowedShips`). Per-MMSI throttle (`SF_REACQUIRE_THROTTLE_MIN`, default 30 min), per-sweep cap (`SF_REACQUIRE_MAX_PER_SWEEP`, default 20), 2 s between requests and negative-cache on failures → low volume / captcha-safe.
 - **Manual button.** In the ship detail, **📍 Locate via ShipFinder** (`POST /api/ships/:mmsi/sflocate`) forces an immediate position scrape and centers the marker — works for **any** visible ship, not just followed ones.
 
@@ -550,7 +552,7 @@ On the **Followed ships** map, a ship whose AIS stream has gone dark — but whi
 
 - **Trigger rule** — identical to the "seen on…" badges: the scraped fix is plotted **only** when AIS is **not fresh** (older than `FOLLOW_FRESH_MS`, default 60 min) **and** the scrape is **newer** than the last AIS fix (`scrapeBadgeAt` in [`src/routes/ships.js`](src/routes/ships.js)). A fresh AIS fix **always wins**: the marker **snaps back** to the AIS position the moment the stream re-acquires the ship (the backend stops emitting the `fallback_*` fields).
 - **Source** — if both SF and MST have a valid fix, the **most recent** is plotted. The backend (`scrapeFallbackFix`, endpoint `GET /api/ships/followed/active`) attaches `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`; `renderFollowedMap` ([`public/js/maps.js`](public/js/maps.js)) prefers them over a stale AIS position. The popup shows the **scrape time** and **source** ("📡 via ShipFinder/MyShipTracking"), without SOG/COG (scrapes don't carry them reliably).
-- **No impact on track/risk/replay** — the fallback position is purely for **display**: it stays in `readings` with `source='sf'/'mst'`, never touches the `ships` row or the AIS freshness signal, and the AIS queries still filter `source='ais'`.
+- **No impact on track/risk** — the fallback position is purely for **display**: it stays in `readings` with `source='sf'/'mst'`, never touches the `ships` row or the AIS freshness signal, and the track/risk queries still filter `source='ais'`. (The **replay** can optionally include it via the *Include SF/MST* toggle.)
 
 ##### Architecture: "Followed ships" map rendering & position sources
 
@@ -560,14 +562,14 @@ On the **Followed ships** map, a ship whose AIS stream has gone dark — but whi
 | **Marker colour** | `public/js/maps.js` (`RISK_STYLE` / `GRAY_STYLE`) | Risk-band default: `high` red #dc2626, `med` amber #d97706, `low` green #059669. **Flagged** override violet #7c3aed. **Grey** #6b7280 when `search_mode` **or** when plotting an SF/MST fallback fix. |
 | **Followed-positions API** | `src/routes/ships.js` → `GET /api/ships/followed/active` | Returns followed ships with `last_seen_at`, `is_stale`, `search_mode`, `sf_last_at`, `mst_last_at` and — when applicable — `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`. |
 | **"Current" position** | `src/db.js` → `getShip(mmsi)` + upsert | The `ships` row (`last_latitude`/`last_longitude`/`last_seen_at`) is updated **only** from AIS readings (`source='ais'`). |
-| **Position queries filtered by source** | `src/db.js` (`getShipPositions`/`getRecentPositions`/`getShipTrack`/`getAreaReplayPositions`) | Explicitly filter `WHERE source='ais'`: SF/MST excluded from track, risk and replay. |
+| **Position queries filtered by source** | `src/db.js` (`getShipPositions`/`getRecentPositions`) | Explicitly filter `WHERE source='ais'`: SF/MST excluded from the current position and risk. The **single-ship track** (`getShipTrack`/`getShipTrackRange`) and the **replay** (`getAreaReplayPositions`/`getAreaReplayRange`) instead take a `sources` list and include SF/MST when the *Include SF/MST* toggle is on. |
 | **SF/MST storage** | `src/db.js` → `insertScrapedPosition(mmsi, pos, source)` | Inserts into `readings` with `source='sf'`/`'mst'`. Read via `getLatestScrapedPosition(mmsi, source)`. |
 | **Badge / fallback logic** | `src/routes/ships.js` → `scrapeBadgeAt()`, `scrapeFallbackFix()` | A scraped fix is surfaced (badge or marker) only when AIS is stale **and** the scrape is newer; a fresh AIS fix hides it. |
 | **Freshness threshold** | `src/config.js` → `FOLLOW_FRESH_MS` (default 60 min) | A ship is "stale" when `now - last_seen_at > FOLLOW_FRESH_MS`. |
 | **Follow auto-stop** | `src/config.js` → `FOLLOW_STALE_HOURS` (default 4320 h ≈ 6 months) | After that long a silence the follow is auto-stopped and moved to "Followed in the past". |
 | **Stale re-acquire via SF/MST** | `src/services/ship-follow.js` → `reacquireStaleViaShipfinder()` / `reacquireStaleViaMst()` | Every `FOLLOW_REFRESH_MS` (~5 min) they scrape stale follows and store fixes with `source='sf'/'mst'`. |
 
-**In short**: AIS is the **primary and exclusive** source for ship state (track, risk, replay, current position). SF and MST are **display-only fallbacks**: they show as amber/teal breadcrumbs in the detail view and — new — as a **grey marker on the followed-ships map** when AIS has gone dark, never overwriting the AIS position.
+**In short**: AIS is the **primary** source for ship state (risk, current position), and exclusive for risk. SF and MST are **display-only fallbacks**: they show as amber/teal breadcrumbs in the detail view, as a **grey marker on the followed-ships map** when AIS has gone dark, and — optionally, via the *Include SF/MST* toggle — in the **single-ship track** and the area **historical replay**; never overwriting the AIS position.
 
 ### Proactive enrichment on first detection
 
@@ -1062,7 +1064,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/ships/:mmsi` | Static data for a ship (+ fields `direction`, `in_port`, `risk`, `is_military`, `flagged`) |
 | GET | `/api/ships/:mmsi/readings` | Readings for a ship (`?limit=50&offset=0`) |
 | GET | `/api/ships/:mmsi/track` | Position points for map track (`?limit=500`) |
-| GET | `/api/replay` | Historical positions of all ships in an area for the replay (`?area=KEY&window=1h\|6h\|24h\|all` or `&from=ISO&to=ISO`), grouped by ship + available range |
+| GET | `/api/replay` | Historical positions of all ships in an area for the replay (`?area=KEY&window=1h\|6h\|24h\|all` or `&from=ISO&to=ISO`), grouped by ship + available range. With `&scraped=1` it also folds in SF/MST positions (enabled integrations); response carries `extraAvailable` |
 | GET | `/api/ships/:mmsi/vfdata` | Data downloaded from VesselFinder (with cache) |
 | GET | `/api/ships/:mmsi/mtdata` | Data downloaded from MarineTraffic (with cache); resolves and saves `mt_ship_id` |
 | GET | `/api/ships/:mmsi/equasis` | Equasis data (ownership/management) from cache; scrapes only with `?fetch=1` (detail button). Never automatic, no expiry |

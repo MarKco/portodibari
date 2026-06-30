@@ -185,6 +185,10 @@
             <button class="replay-speed" data-speed="60" type="button">60×</button>
           </span>
           <span id="replay-count" class="replay-count">—</span>
+          <label id="replay-use-scraped-wrap" class="list-check hidden" data-i18n-title="replay.useScrapedTitle" title="Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta">
+            <input type="checkbox" id="replay-use-scraped" checked>
+            <span data-i18n="replay.useScraped">Includi SF/MST</span>
+          </label>
           <span class="list-toolbar-spacer"></span>
           <select id="replay-export-sel" class="list-band" title="Esporta replay">
             <option value="">⬇ Esporta…</option>
@@ -470,6 +474,10 @@
                 <button class="track-speed active" data-speed="20" type="button">20×</button>
                 <button class="track-speed" data-speed="60" type="button">60×</button>
               </span>
+              <label id="track-use-scraped-wrap" class="list-check hidden" data-i18n-title="track.useScrapedTitle" title="Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata">
+                <input type="checkbox" id="track-use-scraped" checked>
+                <span data-i18n="track.useScraped">Includi SF/MST</span>
+              </label>
             </div>
           </div>
           <div id="track-export" class="track-export">

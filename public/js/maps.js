@@ -135,6 +135,7 @@ function collapseTrack(pts) {
       cl.longitude = cl._lonSum / cl.count;
       cl.sog = p.sog;
       cl.cog = p.cog;
+      if ((p.source || 'ais') !== cl.source) cl.source = 'mixed';
     } else {
       if (cl) nodes.push(cl);
       cl = {
@@ -145,6 +146,7 @@ function collapseTrack(pts) {
         toTime: p.received_at,
         sog: p.sog,
         cog: p.cog,
+        source: p.source || 'ais',
         stopped,
         count: 1,
         _latSum: p.latitude,
@@ -240,7 +242,19 @@ function initTrackControls() {
       }
     })
   );
+
+  // "Includi SF/MST" — fold scraped positions into the animated track, then
+  // reload with the same window so the change takes effect immediately.
+  const scrapedToggle = document.getElementById('track-use-scraped');
+  if (scrapedToggle) scrapedToggle.addEventListener('change', () => {
+    S.trackUseScraped = scrapedToggle.checked;
+    loadTrack(S.detailMmsi, _lastTrackOpts || {});
+  });
 }
+
+// Remembers the last loadTrack options so the SF/MST toggle can reload the same
+// window/range without resetting the view to "all".
+let _lastTrackOpts = null;
 
 export async function loadTrack(mmsi, opts = {}) {
   initMap();
@@ -253,15 +267,25 @@ export async function loadTrack(mmsi, opts = {}) {
   if (ctrls) ctrls.classList.add('hidden');
 
   initTrackControls();
+  _lastTrackOpts = opts;
 
   const q = new URLSearchParams();
   if (opts.from && opts.to) { q.set('from', opts.from); q.set('to', opts.to); }
   else if (opts.window)     { q.set('window', opts.window); }
+  // Ask the server to fold in SF/MST scraped positions when the toggle is on.
+  if (S.trackUseScraped) q.set('scraped', '1');
   const qs = q.toString() ? `?${q}` : '';
 
   try {
     const data = await api(`/api/ships/${mmsi}/track${qs}`);
     const pts = data.points || [];
+
+    // Show the "Includi SF/MST" toggle only when the ship has scraped positions
+    // and the integrations are on (server reports extraAvailable).
+    const scrapedWrap = document.getElementById('track-use-scraped-wrap');
+    const scrapedToggle = document.getElementById('track-use-scraped');
+    if (scrapedWrap) scrapedWrap.classList.toggle('hidden', !data.extraAvailable);
+    if (scrapedToggle) scrapedToggle.checked = S.trackUseScraped;
 
     // Pre-fill date inputs with the ship's full data range on first open.
     if (!opts.from && !opts.window && data.range && data.range.lo) {
@@ -280,10 +304,15 @@ export async function loadTrack(mmsi, opts = {}) {
     nodes.forEach((n, i) => {
       const isLast = i === nodes.length - 1;
       const isSosta = n.count > 1;
+      // Scraped (SF/MST) nodes get a distinct fill — amber for ShipFinder, teal
+      // for MyShipTracking (same convention as the standalone scraped markers) —
+      // so it stays clear which stretches of the route are not live AIS.
+      const scraped = n.source && n.source !== 'ais';
+      const scrapedColor = n.source === 'sf' ? '#d97706' : n.source === 'mst' ? '#0e7490' : '#6b7280';
       L.circleMarker([n.latitude, n.longitude], {
         radius: isLast ? 9 : isSosta ? 7 : 5,
-        color: isLast ? '#34d399' : isSosta ? '#38bdf8' : '#3b82f6',
-        fillColor: isLast ? '#34d399' : isSosta ? '#0ea5e9' : '#1e40af',
+        color: isLast ? '#34d399' : scraped ? scrapedColor : isSosta ? '#38bdf8' : '#3b82f6',
+        fillColor: isLast ? '#34d399' : scraped ? scrapedColor : isSosta ? '#0ea5e9' : '#1e40af',
         fillOpacity: 0.85,
         weight: isLast ? 2.5 : 1.5,
       })
@@ -291,6 +320,7 @@ export async function loadTrack(mmsi, opts = {}) {
           `<b>${isLast ? t('map.lastPos') : isSosta ? t('map.stay') : formatTime(n.received_at)}</b><br>` +
             `${isLast ? formatTime(n.received_at) + '<br>' : ''}` +
             `${isSosta ? `${t('map.stays', { n: n.count, from: formatTime(n.fromTime), to: formatTime(n.toTime) })}<br>` : ''}` +
+            `${scraped ? `<span class="cargo-src">${t('track.srcScraped', { src: n.source === 'sf' ? 'ShipFinder' : n.source === 'mst' ? 'MyShipTracking' : 'SF/MST' })}</span><br>` : ''}` +
             `SOG: ${n.sog != null ? n.sog.toFixed(1) + ' kn' : '—'}&nbsp;&nbsp;` +
             `COG: ${n.cog != null && n.cog <= 360 ? n.cog.toFixed(0) + '°' : '—'}`
         )

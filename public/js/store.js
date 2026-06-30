@@ -9,6 +9,7 @@ export const S = {
   pollIntervalMs: 300000,
   trackMergeRadiusM: 100,
   trackSogStop: 0.5,
+  trackUseScraped: true, // include SF/MST scraped positions in the single-ship track (per-session toggle, default on)
   notifDeleteUndoSeconds: 5,
   // View / detail
   view: 'active', // 'active' | 'past' | 'detail' | 'traffico' | 'followed' | 'areas' | 'coverage' | 'settings'
@@ -85,6 +86,7 @@ export const S = {
   replay: null,
   replayMaxGapMin: 30, // hide a ship across fix gaps longer than this (synced from server)
   replayTailMin: 20,   // fading-trail length in minutes (synced from server)
+  replayUseScraped: true, // include SF/MST scraped positions in the replay route (per-session toggle, default on)
   followStaleHours: 4320, // hours before a followed ship is auto-removed (synced from server)
   followedMap: null,
   followedMarkersLayer: null,

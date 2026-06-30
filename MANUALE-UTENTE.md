@@ -188,6 +188,8 @@ Sulla mappa delle navi presenti puoi attivare un **overlay delle banchine**: il 
 
 Ogni nave si muove interpolata tra le sue posizioni reali, lascia una **scia che sfuma** dietro di sé, ed è colorata per fascia di rischio; cliccala per aprire il suo dettaglio. Se una nave ha un **buco di segnale** lungo (AIS spento o uscita dall'area) viene **nascosta** in quel tratto, invece di "teletrasportarsi" in linea retta. In basso vedi l'ora corrente del replay e quante navi sono visibili. Premi **✕ Esci** per tornare alla vista live.
 
+Se hai attive le integrazioni **ShipFinder** e/o **MyShipTracking** e nella finestra scelta ci sono loro posizioni, accanto ai controlli compare il toggle **Includi SF/MST** (acceso di default): tiene conto anche di quelle posizioni nel tracciare la rotta animata, utile per riempire i tratti in cui l'AIS è andato silente. Togliendo la spunta il replay usa solo i dati AIS.
+
 ---
 
 ### 2. Navi passate
@@ -385,6 +387,7 @@ Mappa con la traccia della nave e controlli di riproduzione animata.
 - **▶ / ⏸** — riproduce o mette in pausa l'animazione della traccia (la nave si muove lungo il percorso lasciando una scia).
 - **Scrubber** — trascinalo per saltare a un qualsiasi punto della traccia.
 - **Moltiplicatori di velocità** — **1× / 5× / 20× / 60×** rispetto alla durata di riproduzione standard. Di default 20×. Cambiabili durante la riproduzione senza interruzioni.
+- **Includi SF/MST** — compare solo se le integrazioni ShipFinder/MyShipTracking sono attive e questa nave ha posizioni scrapate. Acceso di default: include anche quelle posizioni nella traccia animata (i nodi aggiunti sono colorati ambra per ShipFinder / teal per MyShipTracking, con la sorgente indicata nel popup), utile per riempire i tratti in cui l'AIS è andato silente. Togli la spunta per tracciare la rotta solo dai dati AIS.
 
 ### Letture AIS
 

@@ -563,7 +563,17 @@ function applyFollow(userId, mmsi, followed) {
   db.setUserFollow(userId, mmsi, !!followed);
   let reacquiring = false;
   if (followed) {
-    const ship = db.getShip(mmsi);
+    let ship = db.getShip(mmsi);
+    if (!ship) {
+      // Never seen via AIS — followed from a ShipFinder/MyShipTracking scrape fix.
+      // Materialize a stub master row (epoch last_seen = "never had AIS") so it
+      // lists and the worldwide box hunts it; mark search_mode=1 so the UI shows
+      // "in ricerca" at once. A real AIS frame later upgrades last_seen and clears
+      // search_mode (see the insert path's follow_found handling).
+      db.ensureShipStub(mmsi, db.getScrapedShipName(mmsi));
+      db.setFollowSearchMode(userId, mmsi, 1);
+      ship = db.getShip(mmsi);
+    }
     const fresh = ship && ship.last_latitude != null && ship.last_longitude != null && ship.last_seen_at
       && Date.now() - new Date(ship.last_seen_at).getTime() < FOLLOW_FRESH_MS;
     if (!fresh) {

@@ -125,6 +125,11 @@ export default {
   'replay.shipsLoaded':      '{n} ships',
   'replay.truncated':        'data truncated (window too wide)',
   'replay.count':            '{n} ships visible',
+  'replay.useScraped':       'Include SF/MST',
+  'replay.useScrapedTitle':  'Also use ShipFinder and MyShipTracking scraped positions when drawing the animated route',
+  'track.useScraped':        'Include SF/MST',
+  'track.useScrapedTitle':   'Also use ShipFinder and MyShipTracking scraped positions when drawing the animated route',
+  'track.srcScraped':        '📡 position from {src}',
 
   // ── Event badges ───────────────────────────────────────────────────────────
   'event.arrived':  '↙ Arrival',

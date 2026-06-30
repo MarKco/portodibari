@@ -127,6 +127,11 @@ export default {
   'replay.shipsLoaded':      '{n} navi',
   'replay.truncated':        'dati troncati (finestra troppo ampia)',
   'replay.count':            '{n} navi visibili',
+  'replay.useScraped':       'Includi SF/MST',
+  'replay.useScrapedTitle':  'Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata',
+  'track.useScraped':        'Includi SF/MST',
+  'track.useScrapedTitle':   'Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata',
+  'track.srcScraped':        '📡 posizione da {src}',
 
   // ── Event badges ───────────────────────────────────────────────────────────
   'event.arrived':  '↙ Arrivo',

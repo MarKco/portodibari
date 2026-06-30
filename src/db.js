@@ -1314,12 +1314,23 @@ function autoStopStaleFollowsAll(hours) {
   // definition old — from being auto-stopped the instant it's re-enabled (it gets
   // a window to be re-acquired; see ship-follow.startReacquire).
   // Returns per-user rows so the caller can send follow_lost notifications.
+  // "Silent" means no AIS *and* no scraped fix newer than the threshold: a follow
+  // that AIS lost but ShipFinder/MyShipTracking still locates stays alive. The
+  // effective-last is max(AIS last_seen, latest scrape received_at) — so a
+  // scrape-only follow (epoch AIS sentinel) auto-stops only once even scraping
+  // goes cold. NULL/missing both → effective-last NULL → not selected.
   const stale = db
     .prepare(
       `SELECT f.user_id, f.mmsi, s.ship_name FROM user_follows f JOIN ships s ON s.mmsi = f.mmsi
        WHERE f.followed = 1
-         AND s.last_seen_at < datetime('now', ?)
-         AND f.follow_started_at < datetime('now', ?)`
+         AND f.follow_started_at < datetime('now', ?)
+         AND (
+           SELECT MAX(t) FROM (
+             SELECT s.last_seen_at AS t
+             UNION ALL
+             SELECT (SELECT MAX(received_at) FROM readings r WHERE r.mmsi = f.mmsi AND r.source <> 'ais')
+           )
+         ) < datetime('now', ?)`
     )
     .all(`-${hours} hours`, `-${hours} hours`);
   if (stale.length) {
@@ -1380,6 +1391,29 @@ const upsertShipStmt = db.prepare(`
     eta = COALESCE(excluded.eta, ships.eta),
     last_area = excluded.last_area
 `);
+
+// Minimal master row for a ship we follow but have NEVER seen via AIS (followed
+// from a ShipFinder/MyShipTracking scrape fix). last_seen_at is an epoch sentinel
+// so the AIS-freshness logic treats it as "never seen": worldwide re-acquire box,
+// "in ricerca", and — now that auto-stop counts scrape activity — no premature
+// auto-stop. A real AIS frame later overwrites last_seen_at via upsertShip.
+// INSERT OR IGNORE never clobbers an existing (AIS-fed) row.
+const NEVER_SEEN_AIS = '1970-01-01T00:00:00.000Z';
+const insertShipStubStmt = db.prepare(
+  `INSERT OR IGNORE INTO ships (mmsi, ship_name, first_seen_at, last_seen_at, flagged)
+   VALUES (?, ?, ?, ?, 0)`
+);
+function ensureShipStub(mmsi, name) {
+  insertShipStubStmt.run(mmsi, name || null, NEVER_SEEN_AIS, NEVER_SEEN_AIS);
+}
+
+// Most recent name we scraped for a ship (SF/MST), for labelling a stub master row.
+function getScrapedShipName(mmsi) {
+  const row = db
+    .prepare("SELECT ship_name FROM readings WHERE mmsi = ? AND source <> 'ais' AND ship_name IS NOT NULL ORDER BY received_at DESC LIMIT 1")
+    .get(mmsi);
+  return row ? row.ship_name : null;
+}
 
 const getShipLastSeen = db.prepare(
   'SELECT last_seen_at, ship_name, ship_type, destination, max_draught, flagged, last_area FROM ships WHERE mmsi = ?'
@@ -1885,24 +1919,29 @@ function getDistinctShipNames(mmsi) {
     .map((r) => r.ship_name);
 }
 
-function getShipTrackRange(mmsi) {
+// `sources` selects which reading sources feed the single-ship track: ['ais']
+// by default, optionally widened with 'sf'/'mst' when the user keeps the track
+// "Includi SF/MST" toggle on and those integrations are enabled.
+function getShipTrackRange(mmsi, sources = ['ais']) {
+  const ph = sources.map(() => '?').join(', ');
   return db
     .prepare(
       `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi
-       FROM readings WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'`
+       FROM readings WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL AND source IN (${ph})`
     )
-    .get(mmsi);
+    .get(mmsi, ...sources);
 }
 
-function getShipTrack(mmsi, limit = 500, from = null, to = null) {
-  const where = ['mmsi = ?', 'latitude IS NOT NULL', 'longitude IS NOT NULL', "source = 'ais'"];
-  const params = [mmsi];
+function getShipTrack(mmsi, limit = 500, from = null, to = null, sources = ['ais']) {
+  const ph = sources.map(() => '?').join(', ');
+  const where = ['mmsi = ?', 'latitude IS NOT NULL', 'longitude IS NOT NULL', `source IN (${ph})`];
+  const params = [mmsi, ...sources];
   if (from) { where.push('received_at >= ?'); params.push(from); }
   if (to)   { where.push('received_at <= ?'); params.push(to); }
   params.push(limit);
   return db
     .prepare(
-      `SELECT id, received_at, latitude, longitude, sog, cog
+      `SELECT id, received_at, latitude, longitude, sog, cog, source
        FROM readings
        WHERE ${where.join(' AND ')}
        ORDER BY received_at ASC
@@ -1911,38 +1950,77 @@ function getShipTrack(mmsi, limit = 500, from = null, to = null) {
     .all(...params);
 }
 
+// Whether this ship has any reading from one of `sources` (e.g. ['sf','mst']) —
+// drives the track "Includi SF/MST" toggle visibility (shown only when there is
+// scraped data to add). Cheap, indexed by mmsi.
+function hasShipScrapedPositions(mmsi, sources) {
+  if (!sources || !sources.length) return false;
+  const ph = sources.map(() => '?').join(', ');
+  const row = db
+    .prepare(
+      `SELECT 1 FROM readings
+       WHERE mmsi = ? AND latitude IS NOT NULL AND longitude IS NOT NULL AND source IN (${ph})
+       LIMIT 1`
+    )
+    .get(mmsi, ...sources);
+  return !!row;
+}
+
 // Positions inside an area's bbox(es) within a time window, for historical
 // replay. Joined with the ship master for name/type. Ordered by ship then time
 // so the route can group cheaply. `limit` caps the raw rows (the route
 // downsamples per ship if the cap is hit).
-function getAreaReplayPositions(boxes, fromIso, toIso, limit) {
+// `sources` selects which reading sources feed the replay: ['ais'] by default,
+// optionally widened with 'sf'/'mst' (ShipFinder/MyShipTracking scraped fixes)
+// when the user keeps the replay toggle on and those integrations are enabled.
+function getAreaReplayPositions(boxes, fromIso, toIso, limit, sources = ['ais']) {
   const geo = boxesSql(boxes, 'r.latitude', 'r.longitude');
+  const ph = sources.map(() => '?').join(', ');
   return db
     .prepare(
       `SELECT r.mmsi, r.received_at, r.latitude AS lat, r.longitude AS lon, r.sog, r.cog,
               s.ship_name, s.ship_type
        FROM readings r
        LEFT JOIN ships s ON s.mmsi = r.mmsi
-       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.source = 'ais'
+       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.source IN (${ph})
          AND r.received_at >= ? AND r.received_at <= ?
          AND ${geo}
        ORDER BY r.mmsi ASC, r.received_at ASC
        LIMIT ?`
     )
-    .all(fromIso, toIso, limit);
+    .all(...sources, fromIso, toIso, limit);
 }
 
 // Oldest/newest reading timestamp available inside an area's bbox(es) — bounds
 // the replay window picker. Cheap (indexed scan over received_at).
-function getAreaReplayRange(boxes) {
+function getAreaReplayRange(boxes, sources = ['ais']) {
   const geo = boxesSql(boxes, 'latitude', 'longitude');
+  const ph = sources.map(() => '?').join(', ');
   return db
     .prepare(
       `SELECT MIN(received_at) AS lo, MAX(received_at) AS hi, COUNT(*) AS n
        FROM readings
-       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais' AND ${geo}`
+       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND source IN (${ph}) AND ${geo}`
     )
-    .get();
+    .get(...sources);
+}
+
+// Whether any reading from one of `sources` exists inside the bbox(es) within
+// the window. Drives the replay "use SF/MST positions" toggle visibility — it
+// only appears when there is actually scraped data to add. Cheap EXISTS probe.
+function hasAreaReplayPositions(boxes, fromIso, toIso, sources) {
+  if (!sources || !sources.length) return false;
+  const geo = boxesSql(boxes, 'latitude', 'longitude');
+  const ph = sources.map(() => '?').join(', ');
+  const row = db
+    .prepare(
+      `SELECT 1 FROM readings
+       WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND source IN (${ph})
+         AND received_at >= ? AND received_at <= ? AND ${geo}
+       LIMIT 1`
+    )
+    .get(...sources, fromIso, toIso);
+  return !!row;
 }
 
 function getPortEvents(limit = 100, offset = 0, area, areaKeys = null) {
@@ -2869,8 +2947,10 @@ module.exports = {
   getShipReadings,
   getShipTrackRange,
   getShipTrack,
+  hasShipScrapedPositions,
   getAreaReplayPositions,
   getAreaReplayRange,
+  hasAreaReplayPositions,
   getShipPositions,
   getDistinctShipNames,
   getRecentPositions,
@@ -3003,6 +3083,9 @@ module.exports = {
   getTelegramLinkedUserIds,
   getUserIdsWithSetting,
   autoStopStaleFollowsAll,
+  NEVER_SEEN_AIS,
+  ensureShipStub,
+  getScrapedShipName,
   setFollowSearchMode,
   getUserFollowSearchMode,
   getSearchModeFollowersOf,

@@ -180,6 +180,9 @@ router.get('/ships/followed/active', (req, res) => {
       decorated.fallback_at = fb.at;
       decorated.fallback_source = fb.source;
     }
+    // Scrape-only follow (never AIS): hide the epoch sentinel from the UI — the
+    // 🔍 "in ricerca" cell + scrape badge already convey its state.
+    if (decorated.last_seen_at === db.NEVER_SEEN_AIS) decorated.last_seen_at = null;
     return decorated;
   }).sort(flaggedFirst);
   res.json({ ships });
@@ -188,7 +191,11 @@ router.get('/ships/followed/active', (req, res) => {
 router.get('/ships/followed/past', (req, res) => {
   const lang = req.query.lang || 'it';
   const sets = userSets(req.user.id);
-  const ships = db.getUserPastFollowedShips(req.user.id).map((s) => decorate(s, sets, lang, false)).sort(flaggedFirst);
+  const ships = db.getUserPastFollowedShips(req.user.id).map((s) => {
+    const decorated = decorate(s, sets, lang, false);
+    if (decorated.last_seen_at === db.NEVER_SEEN_AIS) decorated.last_seen_at = null;
+    return decorated;
+  }).sort(flaggedFirst);
   res.json({ ships });
 });
 
@@ -404,6 +411,55 @@ router.get('/ships/search/recover', async (req, res) => {
       }
     })());
   }
+  // ShipFinder / MyShipTracking: enrich identity AND, if AIS has no fix yet, surface
+  // a scraped position so the ship can be followed straight from it ("in ricerca").
+  // A live AIS frame, if one arrives, supersedes this on the client. Guarded by
+  // positionFound so a cached AIS fix or an earlier scrape isn't overridden — AIS
+  // is always preferred; the first scrape source to land wins between SF and MST.
+  const emitScrapeFix = (position, source) => {
+    const stored = db.insertScrapedPosition(mmsi, { ...position, name: position.name || ship.ship_name }, source);
+    if (closed || positionFound) return;
+    positionFound = true;
+    send('position', {
+      lat: position.lat,
+      lon: position.lon,
+      name: position.name || ship.ship_name || null,
+      sog: position.sog ?? null,
+      cog: position.cog ?? null,
+      time: (stored && stored.received_at) || position.reportedAt || null,
+      cached: true,
+      scrape: true,
+      source,
+    });
+  };
+  if (state.importSfData) {
+    tasks.push((async () => {
+      try {
+        const { static: staticData, position } = await crawlShipfinder(mmsi);
+        db.recordScrape('sf', true);
+        if (staticData && Object.keys(staticData).length) db.setScrapedData(mmsi, 'sf', staticData);
+        if (position) { db.clearScrapeFailure(mmsi, 'sf'); emitScrapeFix(position, 'sf'); }
+        send('source', { source: 'sf', ok: true, data: staticData, hasPosition: !!position });
+      } catch (e) {
+        db.recordScrape('sf', false);
+        send('source', { source: 'sf', ok: false, error: e.message });
+      }
+    })());
+  }
+  if (state.importMstData) {
+    tasks.push((async () => {
+      try {
+        const { static: staticData, position } = await crawlMyshiptracking(mmsi);
+        db.recordScrape('mst', true);
+        if (staticData && Object.keys(staticData).length) db.setScrapedData(mmsi, 'mst', staticData);
+        if (position) { db.clearScrapeFailure(mmsi, 'mst'); emitScrapeFix(position, 'mst'); }
+        send('source', { source: 'mst', ok: true, data: staticData, hasPosition: !!position });
+      } catch (e) {
+        db.recordScrape('mst', false);
+        send('source', { source: 'mst', ok: false, error: e.message });
+      }
+    })());
+  }
   Promise.allSettled(tasks).then(() => { if (!closed) send('sources-done', {}); });
 
   // Register the AISstream worldwide-box lookup for the live position. We do NOT
@@ -439,6 +495,10 @@ router.get('/ships/:mmsi', (req, res) => {
   const uid = req.user.id;
   res.json({
     ...ship,
+    // A scrape-only follow (never seen via AIS) carries an epoch sentinel; present
+    // it as "no AIS fix" rather than a 1970 timestamp. Badges/is_stale above used
+    // the real (old) value to decide AIS is absent.
+    last_seen_at: ship.last_seen_at === db.NEVER_SEEN_AIS ? null : ship.last_seen_at,
     direction: computeDirection(ship),
     in_port: isInPort(ship),
     risk,
@@ -480,12 +540,20 @@ router.get('/ships/:mmsi/track', (req, res) => {
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   const limit = Math.min(Number(req.query.limit) || TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
 
+  // Optionally fold in SF/MST scraped positions (only for enabled integrations,
+  // and only when the client keeps the track toggle on with ?scraped=1).
+  const extras = [];
+  if (state.importSfData) extras.push('sf');
+  if (state.importMstData) extras.push('mst');
+  const useScraped = req.query.scraped === '1' && extras.length > 0;
+  const sources = useScraped ? ['ais', ...extras] : ['ais'];
+
   let fromIso = null, toIso = null;
   if (req.query.from && req.query.to) {
     fromIso = String(req.query.from);
     toIso   = String(req.query.to);
   } else if (req.query.window && req.query.window !== 'all') {
-    const range = db.getShipTrackRange(mmsi);
+    const range = db.getShipTrackRange(mmsi, sources);
     if (range && range.hi) {
       const hours = req.query.window === '7d' ? 168 : req.query.window === '24h' ? 24 : 6;
       toIso   = range.hi;
@@ -493,8 +561,11 @@ router.get('/ships/:mmsi/track', (req, res) => {
     }
   }
 
-  const range = db.getShipTrackRange(mmsi);
-  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso), range });
+  const range = db.getShipTrackRange(mmsi, sources);
+  // Whether the ship has any SF/MST fix at all (regardless of toggle) — the
+  // client shows the toggle only when there is scraped data to add.
+  const extraAvailable = extras.length > 0 && db.hasShipScrapedPositions(mmsi, extras);
+  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso, sources), range, extraAvailable });
 });
 
 // Historical replay: all positions inside an area's bbox over a time window,
@@ -508,8 +579,16 @@ router.get('/replay', (req, res) => {
   const empty = { ships: [], range: null, from: null, to: null, truncated: false };
   if (!boxes.length) return res.json(empty);
 
-  const range = db.getAreaReplayRange(boxes);
-  if (!range || !range.lo) return res.json(empty);
+  // Enabled scraped position sources (SF/MST). Included in the route only when
+  // the client keeps the toggle on (?scraped=1) AND the integration is enabled.
+  const extras = [];
+  if (state.importSfData) extras.push('sf');
+  if (state.importMstData) extras.push('mst');
+  const useScraped = req.query.scraped === '1' && extras.length > 0;
+  const sources = useScraped ? ['ais', ...extras] : ['ais'];
+
+  const range = db.getAreaReplayRange(boxes, sources);
+  if (!range || !range.lo) return res.json({ ...empty, extraAvailable: false });
 
   let fromIso, toIso;
   if (req.query.from && req.query.to) {
@@ -527,8 +606,12 @@ router.get('/replay', (req, res) => {
   if (fromIso < range.lo) fromIso = range.lo;
   if (toIso > range.hi) toIso = range.hi;
 
-  const rows = db.getAreaReplayPositions(boxes, fromIso, toIso, REPLAY.MAX_POINTS);
+  const rows = db.getAreaReplayPositions(boxes, fromIso, toIso, REPLAY.MAX_POINTS, sources);
   const truncated = rows.length >= REPLAY.MAX_POINTS;
+
+  // Whether SF/MST positions exist in this window (regardless of the toggle) —
+  // the client shows the toggle only when there is scraped data to add.
+  const extraAvailable = extras.length > 0 && db.hasAreaReplayPositions(boxes, fromIso, toIso, extras);
 
   const lang = req.query.lang || 'it';
   const flaggedSet = db.getUserFlaggedMmsis(req.user.id);
@@ -551,7 +634,7 @@ router.get('/replay', (req, res) => {
     ships.push(g);
   }
 
-  res.json({ ships, range: { lo: range.lo, hi: range.hi }, from: fromIso, to: toIso, truncated });
+  res.json({ ships, range: { lo: range.lo, hi: range.hi }, from: fromIso, to: toIso, truncated, extraAvailable });
 });
 
 router.patch('/ships/:mmsi/flag', (req, res) => {

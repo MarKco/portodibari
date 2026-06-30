@@ -187,7 +187,7 @@ function startRecover(c) {
 }
 
 function addSourceBadge(source, kind, error) {
-  const labels = { local: t('search.srcLocal'), vf: 'VesselFinder', mt: 'MarineTraffic', gfw: 'GFW' };
+  const labels = { local: t('search.srcLocal'), vf: 'VesselFinder', mt: 'MarineTraffic', gfw: 'GFW', sf: 'ShipFinder', mst: 'MyShipTracking' };
   const label = labels[source] || source;
   const icon = kind === 'ok' ? '✓' : kind === 'miss' ? '–' : '✕';
   const existing = el.searchSources.querySelector(`[data-src="${source}"]`);
@@ -234,7 +234,8 @@ function onPosition(d) {
   map.setView([d.lat, d.lon], map.getZoom() < 6 ? 8 : map.getZoom());
   if (marker) marker.setLatLng([d.lat, d.lon]);
   else marker = L.marker([d.lat, d.lon]).addTo(map);
-  const when = d.cached && d.time ? ` · ${t('search.lastKnown')}` : '';
+  const srcName = d.source === 'sf' ? 'ShipFinder' : d.source === 'mst' ? 'MyShipTracking' : null;
+  const when = d.cached && d.time ? ` · ${t('search.lastKnown')}${srcName ? ` (${srcName})` : ''}` : '';
   marker.bindPopup(`${escHtml(d.name || current.name || '')}<br>${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}${when}`);
   // The modal was hidden when Leaflet sized itself; nudge it once visible.
   setTimeout(() => map && map.invalidateSize(), 60);
