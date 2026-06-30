@@ -393,7 +393,7 @@ async function reacquireStaleViaShipfinder(staleShips) {
   try {
     const now = Date.now();
     const due = staleShips
-      .filter((sh) => now - (lastSfScrape.get(sh.mmsi) || 0) >= SF_REACQUIRE_THROTTLE_MS)
+      .filter((sh) => now - (lastSfScrape.get(sh.mmsi) || 0) >= state.sfScrapeIntervalMs)
       .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'sf', SCRAPE_NEG_CACHE_DAYS))
       .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
     for (const sh of due) {
@@ -432,7 +432,7 @@ async function reacquireStaleViaMst(staleShips) {
   try {
     const now = Date.now();
     const due = staleShips
-      .filter((sh) => now - (lastMstScrape.get(sh.mmsi) || 0) >= SF_REACQUIRE_THROTTLE_MS)
+      .filter((sh) => now - (lastMstScrape.get(sh.mmsi) || 0) >= state.mstScrapeIntervalMs)
       .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'mst', SCRAPE_NEG_CACHE_DAYS))
       .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
     for (const sh of due) {

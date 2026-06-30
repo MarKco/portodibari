@@ -5,6 +5,7 @@ const {
   state, setImportVf, setImportMt, setImportSf, setImportMst, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
+  setSfScrapeInterval, setMstScrapeInterval, setScrapeClusterRadius,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN, REPLAY, FOLLOW_STALE_HOURS,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -90,6 +91,9 @@ router.get('/settings', (req, res) => {
     importMtData: state.importMtData,
     importSfData: state.importSfData,
     importMstData: state.importMstData,
+    sfScrapeIntervalMs: state.sfScrapeIntervalMs,
+    mstScrapeIntervalMs: state.mstScrapeIntervalMs,
+    scrapeClusterRadiusM: state.scrapeClusterRadiusM,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     sanctions: sanctions.getStatus(),
@@ -270,6 +274,9 @@ function exportSettings() {
     importMtData: state.importMtData,
     importSfData: state.importSfData,
     importMstData: state.importMstData,
+    sfScrapeIntervalMs: state.sfScrapeIntervalMs,
+    mstScrapeIntervalMs: state.mstScrapeIntervalMs,
+    scrapeClusterRadiusM: state.scrapeClusterRadiusM,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     importPsc: state.importPsc,
@@ -314,6 +321,9 @@ function applyImportedSettings(s) {
   if (s.importMtData !== undefined) setImportMt(s.importMtData);
   if (s.importSfData !== undefined) setImportSf(s.importSfData);
   if (s.importMstData !== undefined) setImportMst(s.importMstData);
+  if (s.sfScrapeIntervalMs != null) setSfScrapeInterval(+s.sfScrapeIntervalMs);
+  if (s.mstScrapeIntervalMs != null) setMstScrapeInterval(+s.mstScrapeIntervalMs);
+  if (s.scrapeClusterRadiusM != null) setScrapeClusterRadius(+s.scrapeClusterRadiusM);
   // Persist the extra-lists toggle before the master block so its refresh sees
   // the right active set.
   if (s.importSanctionsExtra !== undefined) setImportSanctionsExtra(s.importSanctionsExtra);
@@ -528,6 +538,9 @@ router.post('/settings', (req, res) => {
     importMtData: state.importMtData,
     importSfData: state.importSfData,
     importMstData: state.importMstData,
+    sfScrapeIntervalMs: state.sfScrapeIntervalMs,
+    mstScrapeIntervalMs: state.mstScrapeIntervalMs,
+    scrapeClusterRadiusM: state.scrapeClusterRadiusM,
     importSanctions: state.importSanctions,
     importSanctionsExtra: state.importSanctionsExtra,
     sanctions: sanctions.getStatus(),
@@ -541,6 +554,16 @@ router.post('/settings', (req, res) => {
     checkSpoofing: state.checkSpoofing,
     checkDarkActivity: state.checkDarkActivity,
   });
+});
+
+// Update the per-source scrape intervals and spatial clustering radius.
+router.post('/settings/scrape-params', requireAdmin, (req, res) => {
+  const { sfScrapeIntervalMs, mstScrapeIntervalMs, scrapeClusterRadiusM } = req.body || {};
+  if (sfScrapeIntervalMs != null) setSfScrapeInterval(+sfScrapeIntervalMs);
+  if (mstScrapeIntervalMs != null) setMstScrapeInterval(+mstScrapeIntervalMs);
+  if (scrapeClusterRadiusM != null) setScrapeClusterRadius(+scrapeClusterRadiusM);
+  appLog.info('SETTINGS', `Scraping params: SF ${Math.round(state.sfScrapeIntervalMs / 60000)}min, MST ${Math.round(state.mstScrapeIntervalMs / 60000)}min, cluster ${state.scrapeClusterRadiusM}m`);
+  res.json({ ok: true, sfScrapeIntervalMs: state.sfScrapeIntervalMs, mstScrapeIntervalMs: state.mstScrapeIntervalMs, scrapeClusterRadiusM: state.scrapeClusterRadiusM });
 });
 
 module.exports = router;

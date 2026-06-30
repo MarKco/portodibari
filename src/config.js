@@ -304,10 +304,15 @@ const FOLLOW_FRESH_MS = num('FOLLOW_FRESH_MIN', 60) * 60 * 1000;
 // this throttle keeps us from re-hitting ShipFinder for the same vessel each pass
 // (default 30 min) so the worldwide AIS box stays the primary recovery path and
 // ShipFinder is only an occasional fallback — also keeps request volume captcha-safe.
-const SF_REACQUIRE_THROTTLE_MS = num('SF_REACQUIRE_THROTTLE_MIN', 30) * 60 * 1000;
+const SF_REACQUIRE_THROTTLE_MS = num('SF_REACQUIRE_THROTTLE_MIN', 60) * 60 * 1000;
 // Cap on how many stale follows we scrape from ShipFinder in a single sweep, so a
 // large lost-follow backlog can't burst-hammer the site.
 const SF_REACQUIRE_MAX_PER_SWEEP = num('SF_REACQUIRE_MAX_PER_SWEEP', 20);
+// Minimum distance (metres) a scraped position must differ from the previous fix
+// for the same ship+source before a new row is inserted. Within this radius the
+// existing row's timestamp is updated instead, preventing port-cluster bloat.
+// Overridable at runtime via admin Settings. Zero = disabled.
+const SCRAPE_CLUSTER_RADIUS_M_DEFAULT = num('SCRAPE_CLUSTER_RADIUS_M', 200);
 
 // Max size (MB) of an uploaded restore/bundle body. Caps the in-memory buffer
 // express.raw() allocates, so a single request can't exhaust memory. Generous
@@ -508,6 +513,13 @@ const state = {
   // duplicate static fields) used to re-locate lost followed ships — a second,
   // independent position backup alongside SF. Off by default.
   importMstData: props.IMPORT_MST_DATA === 'true',
+  // Per-ship scrape cooldown for SF and MST (ms). Overrides SF_REACQUIRE_THROTTLE_MS
+  // at runtime; persisted to local.properties so changes survive restart.
+  sfScrapeIntervalMs: +(props.SF_SCRAPE_INTERVAL_MS || SF_REACQUIRE_THROTTLE_MS),
+  mstScrapeIntervalMs: +(props.MST_SCRAPE_INTERVAL_MS || SF_REACQUIRE_THROTTLE_MS),
+  // Spatial dedup radius for scraped positions. New fix within this distance from
+  // the last stored fix updates the timestamp instead of inserting a new row.
+  scrapeClusterRadiusM: +(props.SCRAPE_CLUSTER_RADIUS_M || SCRAPE_CLUSTER_RADIUS_M_DEFAULT),
   importSanctions: props.IMPORT_SANCTIONS === 'true',
   // Extended sanctions lists (EU / UK OFSI / UN), on top of OFAC SDN. Only
   // effective while importSanctions is on. Default ON unless explicitly disabled.
@@ -619,6 +631,21 @@ function setImportSf(enabled) {
 function setImportMst(enabled) {
   state.importMstData = !!enabled;
   saveProperty('IMPORT_MST_DATA', state.importMstData);
+}
+
+function setSfScrapeInterval(ms) {
+  state.sfScrapeIntervalMs = Math.max(60000, +ms || SF_REACQUIRE_THROTTLE_MS);
+  saveProperty('SF_SCRAPE_INTERVAL_MS', state.sfScrapeIntervalMs);
+}
+
+function setMstScrapeInterval(ms) {
+  state.mstScrapeIntervalMs = Math.max(60000, +ms || SF_REACQUIRE_THROTTLE_MS);
+  saveProperty('MST_SCRAPE_INTERVAL_MS', state.mstScrapeIntervalMs);
+}
+
+function setScrapeClusterRadius(m) {
+  state.scrapeClusterRadiusM = Math.max(0, +m || SCRAPE_CLUSTER_RADIUS_M_DEFAULT);
+  saveProperty('SCRAPE_CLUSTER_RADIUS_M', state.scrapeClusterRadiusM);
 }
 
 function setImportSanctions(enabled) {
@@ -1063,6 +1090,9 @@ module.exports = {
   setImportMt,
   setImportSf,
   setImportMst,
+  setSfScrapeInterval,
+  setMstScrapeInterval,
+  setScrapeClusterRadius,
   setImportSanctions,
   setImportSanctionsExtra,
   setImportPsc,

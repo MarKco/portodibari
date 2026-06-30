@@ -17,6 +17,13 @@ const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
 const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 1000);
 const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
 
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad, dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 // The SQLite file lives under data/db/ (was the project root in older versions —
 // relocateDbFile moves a legacy root-level file here on first start of this version).
 const { relocateDbFile } = require('./lib/db-location');
@@ -1691,9 +1698,19 @@ function insertScrapedPosition(mmsi, pos, source = 'sf') {
   if (!mmsi || !pos || pos.lat == null || pos.lon == null) return null;
   const received_at = pos.reportedAt || new Date().toISOString();
   const last = db
-    .prepare("SELECT received_at FROM readings WHERE mmsi = ? AND source = ? ORDER BY received_at DESC LIMIT 1")
+    .prepare("SELECT id, received_at, latitude AS lat, longitude AS lon FROM readings WHERE mmsi = ? AND source = ? AND latitude IS NOT NULL ORDER BY received_at DESC LIMIT 1")
     .get(mmsi, source);
   if (last && last.received_at === received_at) return null;
+  // Spatial dedup: if new fix is within cluster radius of the last stored fix,
+  // just refresh the timestamp of that row instead of inserting a new point.
+  // Prevents port-cluster bloat when a ship is moored and position doesn't change.
+  if (last && last.lat != null && last.lon != null) {
+    const radiusM = cfg.state.scrapeClusterRadiusM;
+    if (radiusM > 0 && haversineM(last.lat, last.lon, pos.lat, pos.lon) < radiusM) {
+      db.prepare('UPDATE readings SET received_at = ? WHERE id = ?').run(received_at, last.id);
+      return null;
+    }
+  }
   insertReadingSourced.run(
     received_at,
     'ShipfinderPosition',

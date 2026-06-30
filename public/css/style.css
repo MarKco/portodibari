@@ -2777,28 +2777,28 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 #search-modal-close:hover { color: var(--text); background: var(--surface-3); }
 #search-modal-body { overflow-y: auto; padding: 1.25rem; }
 
-.search-message { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 0.5rem; }
+.search-message { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
 .search-message:empty { margin: 0; }
 
 .search-candidates { display: flex; flex-direction: column; gap: 0.4rem; }
 .search-cand {
   display: flex; flex-direction: column; gap: 0.2rem;
   text-align: left; cursor: pointer;
-  background: var(--surface-3); border: 1px solid var(--border);
+  background: var(--surface-4); border: 1px solid var(--border-strong);
   border-radius: var(--r-md); padding: 0.6rem 0.75rem;
   transition: border-color var(--t-fast), background var(--t-fast);
 }
-.search-cand:hover { border-color: var(--accent); background: var(--surface-1); }
+.search-cand:hover { border-color: var(--accent); background: var(--surface-4); filter: brightness(1.12); }
 .search-cand-name { font-weight: 600; }
-.search-cand-meta { font-size: 0.8rem; color: var(--text-dim); }
+.search-cand-meta { font-size: 0.8rem; color: var(--text-muted); }
 .search-cand-src { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.15rem; }
 
 .src-tag {
-  font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 999px;
-  background: var(--surface-1); color: var(--text-dim); border: 1px solid var(--border);
+  font-size: 0.68rem; padding: 0.1rem 0.5rem; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-strong);
 }
-.src-tag.src-local { color: var(--accent); border-color: var(--accent); }
-.src-tag.src-pos { color: #16a34a; border-color: #16a34a; }
+.src-tag.src-local { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.src-tag.src-pos { background: var(--green-soft); color: var(--green); border-color: var(--green); }
 
 .search-detail-head { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.6rem; }
 .search-detail-name { font-weight: 700; font-size: 1.05rem; }

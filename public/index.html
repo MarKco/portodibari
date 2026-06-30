@@ -867,6 +867,27 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="setting-row setting-row-child" id="setting-scrape-params">
+          <div class="setting-info">
+            <div class="setting-name">Parametri scraping SF / MST</div>
+            <div class="setting-desc">Intervallo minimo tra due scraping consecutivi per la stessa nave (minuti) e soglia di clustering posizioni (metri): se la nuova posizione è entro questa distanza dall'ultima memorizzata, aggiorna solo il timestamp invece di creare un nuovo punto. Zero = clustering disabilitato.</div>
+            <div style="display:flex;gap:1.2rem;margin-top:.6rem;flex-wrap:wrap;align-items:center;">
+              <label style="display:flex;flex-direction:column;gap:.2rem;font-size:.85em;">
+                SF intervallo (min)
+                <input type="number" id="sf-scrape-interval-min" min="1" max="1440" style="width:5rem">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:.2rem;font-size:.85em;">
+                MST intervallo (min)
+                <input type="number" id="mst-scrape-interval-min" min="1" max="1440" style="width:5rem">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:.2rem;font-size:.85em;">
+                Cluster radius (m)
+                <input type="number" id="scrape-cluster-radius-m" min="0" max="5000" style="width:5rem">
+              </label>
+              <button id="btn-scrape-params-save" class="btn btn-clear" style="align-self:flex-end">💾 Salva</button>
+            </div>
+          </div>
+        </div>
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-name" data-i18n="settings.equasis.name">Lookup Equasis (proprietà)</div>

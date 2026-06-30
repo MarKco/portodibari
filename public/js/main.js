@@ -148,6 +148,12 @@ async function loadSettings() {
     S.importMtData = !!s.importMtData;
     S.importSfData = !!s.importSfData;
     S.importMstData = !!s.importMstData;
+    if (s.sfScrapeIntervalMs != null) S.sfScrapeIntervalMs = s.sfScrapeIntervalMs;
+    if (s.mstScrapeIntervalMs != null) S.mstScrapeIntervalMs = s.mstScrapeIntervalMs;
+    if (s.scrapeClusterRadiusM != null) S.scrapeClusterRadiusM = s.scrapeClusterRadiusM;
+    if (el.sfScrapeIntervalMin) el.sfScrapeIntervalMin.value = Math.round(S.sfScrapeIntervalMs / 60000);
+    if (el.mstScrapeIntervalMin) el.mstScrapeIntervalMin.value = Math.round(S.mstScrapeIntervalMs / 60000);
+    if (el.scrapeClusterRadiusM) el.scrapeClusterRadiusM.value = S.scrapeClusterRadiusM;
     S.importSanctions = !!s.importSanctions;
     S.importSanctionsExtra = s.importSanctionsExtra !== false;
     if (el.toggleImportVf) el.toggleImportVf.checked = S.importVfData;
@@ -648,6 +654,27 @@ function initSettingsModal() {
     el.btnMstLocate.addEventListener('click', (e) => {
       e.stopPropagation(); // the button sits inside the collapsible <h3>; don't toggle it
       if (S.detailMmsi != null) locateMst(S.detailMmsi);
+    });
+  }
+
+  if (el.btnScrapeParamsSave) {
+    el.btnScrapeParamsSave.addEventListener('click', async () => {
+      const sfMs = Math.max(60000, (+el.sfScrapeIntervalMin.value || 60) * 60000);
+      const mstMs = Math.max(60000, (+el.mstScrapeIntervalMin.value || 60) * 60000);
+      const radiusM = Math.max(0, +el.scrapeClusterRadiusM.value || 0);
+      try {
+        const r = await api('/api/settings/scrape-params', 'POST', {
+          sfScrapeIntervalMs: sfMs,
+          mstScrapeIntervalMs: mstMs,
+          scrapeClusterRadiusM: radiusM,
+        });
+        S.sfScrapeIntervalMs = r.sfScrapeIntervalMs;
+        S.mstScrapeIntervalMs = r.mstScrapeIntervalMs;
+        S.scrapeClusterRadiusM = r.scrapeClusterRadiusM;
+        el.sfScrapeIntervalMin.value = Math.round(r.sfScrapeIntervalMs / 60000);
+        el.mstScrapeIntervalMin.value = Math.round(r.mstScrapeIntervalMs / 60000);
+        el.scrapeClusterRadiusM.value = r.scrapeClusterRadiusM;
+      } catch { /* ignore */ }
     });
   }
 
