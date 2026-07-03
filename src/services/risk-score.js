@@ -15,9 +15,10 @@
 // is clamped to [0, 100].
 
 const db = require('../db');
-const { state, SOG_FERMA, RISK: R } = require('../config');
+const { state, SOG_FERMA, RISK: R, BBOX_PRESETS, areaForPoint } = require('../config');
 const { haversineM } = require('./ship-analysis');
 const { cargoTypeForShip, isTankerClass, loadStateOf } = require('./cargo-type');
+const { destinationLabel } = require('./locode');
 const sanctions = require('./sanctions');
 const psc = require('./psc');
 
@@ -42,10 +43,13 @@ const CARGO_CLASS_LABELS = {
 };
 
 // Self-declared destinations / known ports tied to arms embargoes or conflict
-// zones. Matched case-insensitively as substrings of the AIS destination field.
+// zones. Matched with WORD BOUNDARIES (see hasHighRiskToken) — a plain substring
+// test produced false positives ('IRAN' in "MIRANDA", 'ADEN' in "BADEN"). Overly
+// generic tokens were narrowed for the same reason ('BANDAR' → "BANDAR ABBAS", to
+// avoid Brunei's Bandar Seri Begawan / Indonesia's Bandar Lampung).
 const HIGH_RISK_DEST = [
   'SYRIA', 'TARTUS', 'LATAKIA', 'BANIYAS',
-  'IRAN', 'BANDAR', 'BUSHEHR', 'CHABAHAR',
+  'IRAN', 'BANDAR ABBAS', 'BUSHEHR', 'CHABAHAR',
   'NORTH KOREA', 'DPRK', 'NAMPO', 'WONSAN',
   'LIBYA', 'TRIPOLI', 'BENGHAZI', 'MISRATA', 'TOBRUK',
   'YEMEN', 'HODEIDAH', 'HUDAYDAH', 'ADEN',
@@ -53,6 +57,25 @@ const HIGH_RISK_DEST = [
   'RUSSIA', 'NOVOROSSIYSK', 'SEVASTOPOL', 'KERCH', 'CRIMEA',
   'SOMALIA', 'MOGADISHU',
 ];
+
+// Pre-compiled word-boundary matchers for the tokens above (built once).
+const HIGH_RISK_DEST_RE = HIGH_RISK_DEST.map((k) => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`));
+
+// True when any high-risk token appears (as a whole word) in an already-uppercased
+// free-text string (port + country label).
+function hasHighRiskToken(upperText) {
+  if (!upperText) return false;
+  return HIGH_RISK_DEST_RE.some((re) => re.test(upperText));
+}
+
+// True when a declared AIS destination is high-risk. Resolves UN/LOCODE forms
+// ("IR BND" → Bandar Abbas) via destinationLabel first, then matches the resolved
+// label AND the raw string, so both plain names and LOCODEs are caught.
+function isHighRiskDest(raw) {
+  if (!raw) return false;
+  const label = destinationLabel(raw) || '';
+  return hasHighRiskToken(`${raw} ${label}`.toUpperCase());
+}
 
 // MID = first 3 MMSI digits → flag state. Embargo / conflict flags weigh heavier
 // than ordinary flags of convenience (lax registries favoured by smugglers).
@@ -312,12 +335,23 @@ function computeRiskScore(ship, lang) {
 
   // 3. Loitering — stationary in open water (far from the monitored port centre)
   //    while NOT moored/anchored: classic ship-to-ship transfer signature.
-  if (state.centerLat != null) {
+  //    Distance is measured from the centre of the AREA the position falls in, not
+  //    a single global bbox centre. The app is multi-area and follows ships
+  //    worldwide, so measuring against one centre flagged every distant/followed
+  //    ship as open-sea loitering. Positions outside every monitored area are
+  //    skipped — we have no port context there to call a stop "transshipment".
+  {
     const open = positions.filter((p) => {
       const slow = p.sog != null && p.sog < SOG_FERMA;
       const notMoored = p.ns !== '1' && p.ns !== '5';
-      const farKm = haversineM(p.lat, p.lon, state.centerLat, state.centerLon) / 1000;
-      return slow && notMoored && farKm > W.LOITER_FAR_KM;
+      if (!slow || !notMoored) return false;
+      const areaKey = areaForPoint(p.lat, p.lon);
+      const box = areaKey && BBOX_PRESETS[areaKey] ? BBOX_PRESETS[areaKey].box[0] : null;
+      if (!box) return false;
+      const cLat = (box[0][0] + box[1][0]) / 2;
+      const cLon = (box[0][1] + box[1][1]) / 2;
+      const farKm = haversineM(p.lat, p.lon, cLat, cLon) / 1000;
+      return farKm > W.LOITER_FAR_KM;
     }).length;
     if (open >= W.LOITER_MIN_POS) add(W.LOITER_MAX, L.loiterMax);
     else if (open >= 1) add(W.LOITER_PARTIAL, L.loiterPartial);
@@ -351,10 +385,19 @@ function computeRiskScore(ship, lang) {
   //    its own weight (state.cargoWeights, editable from Settings). With "exclude
   //    tankers" on, tanker-hull classes contribute nothing — useful when
   //    monitoring arms transport, which tankers cannot carry.
+  // Declared here (before the enrichment block) so the cargo-class factor below can
+  // flag VF/MT as having contributed: the class can be derived from the scraped
+  // subtype, and the source dot in the UI must reflect that (it previously stayed
+  // 'available' even when VF/MT cargo data added points).
+  let vfContributed = false, mtContributed = false;
   const cargo = cargoTypeForShip(ship);
   if (!(state.excludeTankers && isTankerClass(cargo.class))) {
     const w = state.cargoWeights[cargo.class] || 0;
-    if (w > 0) add(w, L.cargoClass(cargo));
+    if (w > 0) {
+      add(w, L.cargoClass(cargo));
+      if (cargo.source === 'VesselFinder') vfContributed = true;
+      else if (cargo.source === 'MarineTraffic') mtContributed = true;
+    }
   }
 
   // 7. Flag/name hopping — one MMSI broadcasting multiple hull names.
@@ -365,7 +408,7 @@ function computeRiskScore(ship, lang) {
   //    Tracks which sources actually contributed points ('used') vs were merely
   //    consulted but had no relevant data ('available').
   const { fields: enr, vfStatus, mtStatus, gfwStatus, gfwData } = loadEnrichment(mmsi);
-  let vfContributed = false, mtContributed = false, gfwContributed = false, pscContributed = false;
+  let gfwContributed = false, pscContributed = false;
   const addEnr = (points, label, src) => {
     add(points, label);
     if (points > 0) {
@@ -402,8 +445,7 @@ function computeRiskScore(ship, lang) {
     if (age >= W.OLD_MIN_AGE) addEnr(W.OLD_VESSEL, L.oldVessel(y, age, enr.year.src), enr.year.src);
   }
   if (enr.homePort) {
-    const hpUpper = enr.homePort.value.toUpperCase();
-    if (HIGH_RISK_DEST.some((k) => hpUpper.includes(k))) {
+    if (hasHighRiskToken(enr.homePort.value.toUpperCase())) {
       addEnr(W.HIGH_RISK_PORT, L.highRiskPort(enr.homePort.value, enr.homePort.src), enr.homePort.src);
     }
   }
@@ -419,7 +461,11 @@ function computeRiskScore(ship, lang) {
     const hit = sanctions.matchShip(ship);
     if (hit) {
       const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][hit.matchedOn] || hit.matchedOn;
-      add(W.SANCTION_MATCH, L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
+      // A name-only match (no IMO/call-sign confirmation) is far weaker — common
+      // hull names collide with sanctioned entities — so it carries half the weight
+      // of a strong identifier match. The factor label still says "matched by name".
+      const strong = hit.matchedOn === 'imo' || hit.matchedOn === 'callSign';
+      add(strong ? W.SANCTION_MATCH : Math.round(W.SANCTION_MATCH / 2), L.sanctioned(hit.entry.source, hit.entry.program, onLabel));
       sanctionStatus = 'used';
       // Structured detail for the dedicated sanctions panel in the ship detail view.
       sanctionMatch = {
@@ -452,7 +498,8 @@ function computeRiskScore(ship, lang) {
       const ban = psc.matchBanned(ship);
       if (ban) {
         const onLabel = MATCHED_ON[lang === 'en' ? 'en' : 'it'][ban.matchedOn] || ban.matchedOn;
-        add(W.PSC_BANNED, L.pscBanned(ban.entry.reason, onLabel));
+        // Half weight for a name-only match (no IMO confirmation) — see sanctions above.
+        add(ban.matchedOn === 'imo' ? W.PSC_BANNED : Math.round(W.PSC_BANNED / 2), L.pscBanned(ban.entry.reason, onLabel));
         pscStatus = 'used';
       }
     }
@@ -469,10 +516,9 @@ function computeRiskScore(ship, lang) {
     if (ev.encounters?.length) addEnr(W.GFW_ENCOUNTER, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch');
     if (ev.gaps?.length) addEnr(W.GFW_GAP, L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
     if (ev.loitering?.length) addEnr(W.GFW_LOITERING, L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
-    const highRiskCall = (ev.portVisits || []).find((pv) => {
-      const hay = `${pv.port || ''} ${pv.country || ''}`.toUpperCase();
-      return HIGH_RISK_DEST.some((k) => hay.includes(k));
-    });
+    const highRiskCall = (ev.portVisits || []).find((pv) =>
+      hasHighRiskToken(`${pv.port || ''} ${pv.country || ''}`.toUpperCase())
+    );
     if (highRiskCall) {
       addEnr(W.GFW_PORT_HIGH, L.gfwPortHigh(highRiskCall.port || highRiskCall.country), 'Global Fishing Watch');
     }
@@ -491,8 +537,7 @@ function computeRiskScore(ship, lang) {
   }
 
   // ── Geopolitical context multiplier ────────────────────────────────────────
-  const destUpper = (ship.destination || '').toUpperCase();
-  const highRiskDest = HIGH_RISK_DEST.some((k) => destUpper.includes(k));
+  const highRiskDest = isHighRiskDest(ship.destination);
   const mid = Math.floor(mmsi / 1e6);
   const embargoFlag = EMBARGO_MID.has(mid);
   const focFlag = FOC_MID.has(mid);
@@ -536,20 +581,25 @@ function computeRiskScore(ship, lang) {
   };
 }
 
-// Name prefixes / keywords that identify military or NATO vessels in AIS data.
-// Prefixes include a trailing space to avoid false positives (e.g. "ITSM..." vs "ITS Lupo").
-const MILITARY_NAME_TOKENS = [
-  'WARSHIP', 'NATO',
-  'HMS ', 'USS ', 'FS ', 'FGS ', 'HNLMS ', 'HMAS ', 'HMCS ',
-  'INS ', 'BNS ', 'HDMS ', 'HTMS ', 'TCG ', 'ORP ', 'ITS ',
-  'ROKS ', 'NRP ', 'RFS ', 'ESPS ', 'SPS ',
-];
+// Hull-name prefixes that identify military / NATO vessels. These must appear as
+// the FIRST word of the name (e.g. "ITS Cavour", "HMS Daring") — a substring test
+// produced serious false positives ("SP{IR}ITS OF THE SEA", "DOLPH{INS} ONE" →
+// score 100). Free keywords (WARSHIP/NATO) may appear anywhere but only whole-word.
+const MILITARY_PREFIXES = new Set([
+  'HMS', 'USS', 'FS', 'FGS', 'HNLMS', 'HMAS', 'HMCS',
+  'INS', 'BNS', 'HDMS', 'HTMS', 'TCG', 'ORP', 'ITS',
+  'ROKS', 'NRP', 'RFS', 'ESPS', 'SPS',
+]);
+const MILITARY_KEYWORD_RE = /\b(WARSHIP|NATO)\b/;
 
 function isMilitary(ship) {
   if (ship.is_military === 1) return true;
   if (ship.ship_type === 35) return true;
-  const name = (ship.ship_name || '').toUpperCase();
-  return MILITARY_NAME_TOKENS.some((tok) => name.includes(tok));
+  const name = (ship.ship_name || '').trim().toUpperCase();
+  if (!name) return false;
+  const firstWord = name.split(/\s+/)[0];
+  if (MILITARY_PREFIXES.has(firstWord)) return true;
+  return MILITARY_KEYWORD_RE.test(name);
 }
 
 // ── Memoisation ──────────────────────────────────────────────────────────────
