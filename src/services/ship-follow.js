@@ -94,6 +94,7 @@ const s = {
   active: false, // we want a connection (there are ships to follow)
   reconnectTimer: null,
   heartbeatTimer: null,
+  healthyTimer: null, // fires after a grace period to reset the backoff ramp
   refreshTimer: null,
   totalReceived: 0,
   rawFramesReceived: 0,
@@ -178,18 +179,28 @@ function connect() {
   if (s.wsClient) return;
   s.active = true;
   traceKey(FOLLOW_API_KEY, 'follow', 'WS_OPEN', { riconnessione: s.reconnectCount });
-  s.wsClient = new WebSocket(AIS_URL);
+  // Bind every handler to THIS socket instance and guard on it: an error→close
+  // sequence on a stale socket must never mutate the shared state of a newer one
+  // (that race could open a second connection on the same account → 429 storm).
+  const ws = new WebSocket(AIS_URL);
+  s.wsClient = ws;
 
-  s.wsClient.on('open', () => {
+  ws.on('open', () => {
+    if (s.wsClient !== ws) return;
     traceKey(FOLLOW_API_KEY, 'follow', 'OPEN_OK');
     console.log('[AIS:follow] Stream connesso');
     appLog.info('AIS', appLog.t('ais.stream_connected'), { area: 'follow', riconnessione: s.reconnectCount });
     s.rawFramesReceived = 0;
     s.sessionMessages = 0;
     s.connectedAt = Date.now();
-    s.connFailCount = 0; // healthy connection: reset the backoff ramp
     s.was429 = false;
     s.abuseReason = null;
+    // Do NOT reset the backoff ramp on 'open': AISStream authenticates only AFTER
+    // the handshake, so resetting here restarted the ramp every cycle → a 5s
+    // infinite reconnect loop. Reset only once the connection proves healthy — a
+    // grace period elapses, or the first real ship message arrives.
+    clearTimeout(s.healthyTimer);
+    s.healthyTimer = setTimeout(() => { if (s.wsClient === ws) s.connFailCount = 0; }, 30000);
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -209,7 +220,8 @@ function connect() {
     }, 60000);
   });
 
-  s.wsClient.on('message', (data) => {
+  ws.on('message', (data) => {
+    if (s.wsClient !== ws) return;
     s.rawFramesReceived++;
     try {
       const parsed = JSON.parse(data.toString());
@@ -227,6 +239,7 @@ function connect() {
         return;
       }
       if (!parsed.MessageType) return;
+      s.connFailCount = 0; // subscription accepted & delivering: healthy
 
       const t0 = Date.now();
       const lat = parsed.MetaData?.latitude ?? null;
@@ -287,11 +300,14 @@ function connect() {
     }
   });
 
-  s.wsClient.on('close', (code) => {
+  ws.on('close', (code) => {
+    if (s.wsClient !== ws) return; // a superseded socket closing; ignore
     traceKey(FOLLOW_API_KEY, 'follow', `CLOSE(${code})`, s.abuseReason ? { problema: s.abuseReason } : undefined);
     console.log(`[AIS:follow] Connessione chiusa (${code})`);
     clearInterval(s.heartbeatTimer);
     s.heartbeatTimer = null;
+    clearTimeout(s.healthyTimer);
+    s.healthyTimer = null;
     const upSec = s.connectedAt ? Math.round((Date.now() - s.connectedAt) / 1000) : 0;
     const delayMs = s.active ? backoffDelay(s.connFailCount, s.was429) : 0;
     const delaySec = Math.round(delayMs / 1000);
@@ -315,7 +331,8 @@ function connect() {
     }
   });
 
-  s.wsClient.on('error', (err) => {
+  ws.on('error', (err) => {
+    if (s.wsClient !== ws) return;
     const abuse = keyAbuseReason(err.message);
     if (abuse) { s.was429 = true; s.abuseReason = abuse; } // raise the reconnect floor (see close handler)
     traceKey(FOLLOW_API_KEY, 'follow', 'ERROR', { error: err.message, ...(abuse ? { problema: abuse } : {}) });
@@ -324,8 +341,10 @@ function connect() {
     broadcastLog(
       db.insertLog({ method: 'AIS', path: '/ais/follow/ws-error', status: 500, duration_ms: 0, response_body: err.message })
     );
-    s.wsClient?.terminate();
-    s.wsClient = null;
+    // Terminate and let THIS socket's 'close' handler run the single teardown +
+    // reconnect path. Do NOT null s.wsClient here: keeping it set until close
+    // blocks a concurrent connect() from opening a second socket in the gap.
+    ws.terminate();
   });
 }
 
@@ -334,8 +353,10 @@ function stop() {
   s.active = false;
   clearTimeout(s.reconnectTimer);
   clearInterval(s.heartbeatTimer);
+  clearTimeout(s.healthyTimer);
   s.reconnectTimer = null;
   s.heartbeatTimer = null;
+  s.healthyTimer = null;
   if (s.wsClient) {
     traceKey(FOLLOW_API_KEY, 'follow', 'CLOSE_GRACEFUL');
     closeSocket(s.wsClient); // close frame → free the per-account slot promptly

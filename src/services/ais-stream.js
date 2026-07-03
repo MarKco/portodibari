@@ -34,6 +34,7 @@ const conn = {
   active: false, // desired: at least one area is being monitored
   reconnectTimer: null,
   heartbeatTimer: null,
+  healthyTimer: null, // fires after a grace period to reset the backoff ramp
   connectedAt: null,
   reconnectCount: 0,
   isFirstConnect: true,
@@ -145,18 +146,29 @@ function connect() {
   if (!activeKeys().length) return; // nothing to monitor
   conn.active = true;
   traceKey(API_KEY, 'monitoring', 'WS_OPEN', { riconnessione: conn.reconnectCount });
-  conn.wsClient = new WebSocket(AIS_URL);
+  // Bind every handler to THIS socket instance and guard on it: an error→close
+  // sequence on a stale socket must never mutate the shared state of a newer one
+  // (that race could open a second connection on the same account → 429 storm).
+  const ws = new WebSocket(AIS_URL);
+  conn.wsClient = ws;
 
-  conn.wsClient.on('open', () => {
+  ws.on('open', () => {
+    if (conn.wsClient !== ws) return;
     traceKey(API_KEY, 'monitoring', 'OPEN_OK');
     console.log('[AIS:monitoring] Stream connesso');
     appLog.info('AIS', appLog.t('ais.stream_connected'), { area: 'monitoring', riconnessione: conn.reconnectCount });
     conn.rawFramesReceived = 0;
     conn.sessionMessages = 0;
     conn.connectedAt = Date.now();
-    conn.connFailCount = 0; // healthy connection: reset the backoff ramp
     conn.was429 = false;
     conn.abuseReason = null;
+    // Do NOT reset the backoff ramp on 'open': AISStream authenticates only AFTER
+    // the handshake (an invalid key/subscription opens the socket, then errors and
+    // closes). Resetting here restarted the ramp every cycle → a 5s infinite
+    // reconnect loop that never backed off. Reset only once the connection proves
+    // healthy — a grace period elapses, or the first real ship message arrives.
+    clearTimeout(conn.healthyTimer);
+    conn.healthyTimer = setTimeout(() => { if (conn.wsClient === ws) conn.connFailCount = 0; }, 30000);
     if (conn.isFirstConnect) conn.isFirstConnect = false;
     else conn.reconnectCount++;
 
@@ -176,7 +188,8 @@ function connect() {
     }, 60000);
   });
 
-  conn.wsClient.on('message', (data) => {
+  ws.on('message', (data) => {
+    if (conn.wsClient !== ws) return;
     conn.rawFramesReceived++;
     try {
       const parsed = JSON.parse(data.toString());
@@ -213,6 +226,7 @@ function connect() {
       }
       if (parsed.MessageType) {
         lastFrameAt = Date.now(); // a real ship message: the pipe is alive
+        conn.connFailCount = 0; // subscription accepted & delivering: healthy
         const t0 = Date.now();
         // Attribute the message to the (tightest) active area covering its
         // position — replaces the old "one socket per area knows its own key".
@@ -338,11 +352,14 @@ function connect() {
     }
   });
 
-  conn.wsClient.on('close', (code) => {
+  ws.on('close', (code) => {
+    if (conn.wsClient !== ws) return; // a superseded socket closing; ignore
     traceKey(API_KEY, 'monitoring', `CLOSE(${code})`, conn.abuseReason ? { problema: conn.abuseReason } : undefined);
     console.log(`[AIS:monitoring] Connessione chiusa (${code})`);
     clearInterval(conn.heartbeatTimer);
     conn.heartbeatTimer = null;
+    clearTimeout(conn.healthyTimer);
+    conn.healthyTimer = null;
     const upSec = conn.connectedAt ? Math.round((Date.now() - conn.connectedAt) / 1000) : 0;
     const delayMs = conn.active ? backoffDelay(conn.connFailCount, conn.was429) : 0;
     const delaySec = Math.round(delayMs / 1000);
@@ -368,7 +385,8 @@ function connect() {
     }
   });
 
-  conn.wsClient.on('error', (err) => {
+  ws.on('error', (err) => {
+    if (conn.wsClient !== ws) return;
     const abuse = keyAbuseReason(err.message);
     if (abuse) { conn.was429 = true; conn.abuseReason = abuse; } // raise the reconnect floor (see close handler)
     traceKey(API_KEY, 'monitoring', 'ERROR', { error: err.message, ...(abuse ? { problema: abuse } : {}) });
@@ -383,8 +401,10 @@ function connect() {
         response_body: err.message,
       })
     );
-    conn.wsClient?.terminate();
-    conn.wsClient = null;
+    // Terminate and let THIS socket's 'close' handler run the single teardown +
+    // reconnect path. Do NOT null conn.wsClient here: keeping it set until close
+    // blocks a concurrent connect() from opening a second socket in the gap.
+    ws.terminate();
   });
 }
 
@@ -393,8 +413,10 @@ function teardown() {
   conn.active = false;
   clearTimeout(conn.reconnectTimer);
   clearInterval(conn.heartbeatTimer);
+  clearTimeout(conn.healthyTimer);
   conn.reconnectTimer = null;
   conn.heartbeatTimer = null;
+  conn.healthyTimer = null;
   if (conn.wsClient) {
     traceKey(API_KEY, 'monitoring', 'CLOSE_GRACEFUL');
     closeSocket(conn.wsClient); // close frame → free the per-account slot promptly

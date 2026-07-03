@@ -16,6 +16,8 @@
 const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
+const dns = require('dns');
+const net = require('net');
 const { URL } = require('url');
 const db = require('../db');
 const appLog = require('./app-log');
@@ -52,8 +54,56 @@ function normalize(w) {
   };
 }
 
-// Reject obviously-internal targets to limit SSRF (best-effort; users are
-// authenticated, but the server still makes the request). http/https only.
+// True when an IP address points at an internal/private/loopback/link-local
+// target (SSRF). Normalizes IPv4-mapped IPv6 and blocks the cloud metadata range.
+// This is the real enforcement point — the hostname string check below is only a
+// fast UX pre-filter and is trivially bypassable (decimal/hex IPs, DNS rebinding).
+function isBlockedIp(ip) {
+  if (!ip) return true;
+  let addr = String(ip);
+  const mapped = addr.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i); // IPv4-mapped IPv6
+  if (mapped) addr = mapped[1];
+  const fam = net.isIP(addr);
+  if (fam === 4) {
+    const [a, b] = addr.split('.').map(Number);
+    if (a === 0 || a === 127 || a === 10) return true;            // this-host / loopback / private
+    if (a === 169 && b === 254) return true;                       // link-local + cloud metadata
+    if (a === 192 && b === 168) return true;                       // private
+    if (a === 172 && b >= 16 && b <= 31) return true;              // private
+    if (a === 100 && b >= 64 && b <= 127) return true;            // CGNAT
+    if (a >= 224) return true;                                     // multicast / reserved
+    return false;
+  }
+  if (fam === 6) {
+    const l = addr.toLowerCase();
+    if (l === '::' || l === '::1') return true;                    // unspecified / loopback
+    if (l.startsWith('fe80:')) return true;                        // link-local
+    if (l.startsWith('fc') || l.startsWith('fd')) return true;    // unique-local
+    return false;
+  }
+  return true; // not a valid IP literal → block
+}
+
+// A dns.lookup drop-in for http(s).request that validates EVERY resolved address
+// and refuses the connection if any is internal. Because getaddrinfo also resolves
+// decimal/hex/octal IP forms, this catches http://2130706433/ etc., and because it
+// runs at connect time it defeats DNS rebinding / TOCTOU (the check and the socket
+// use the same resolution).
+function guardedLookup(hostname, opts, cb) {
+  const options = typeof opts === 'object' && opts ? opts : { family: opts || 0 };
+  dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return cb(err);
+    for (const a of addresses) {
+      if (isBlockedIp(a.address)) return cb(new Error('SSRF: indirizzo interno/privato non consentito'));
+    }
+    if (options.all) return cb(null, addresses);
+    const first = addresses[0];
+    cb(null, first.address, first.family);
+  });
+}
+
+// Reject obviously-internal targets to limit SSRF. Fast pre-filter for immediate
+// UX feedback; the authoritative check is guardedLookup at request time. http/https only.
 function validateUrl(url) {
   let u;
   try {
@@ -62,12 +112,13 @@ function validateUrl(url) {
     return 'URL non valido';
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Solo http/https';
-  const h = u.hostname.toLowerCase();
+  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (
     h === 'localhost' || h === '0.0.0.0' || h.endsWith('.local') ||
     /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) ||
     /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
-    h === '::1' || h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')
+    h === '::1' || h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd') ||
+    isBlockedIp(h)
   ) {
     return 'Host interno/privato non consentito';
   }
@@ -160,7 +211,7 @@ function post(webhook, type, params) {
     const lib = u.protocol === 'http:' ? http : https;
     const req = lib.request(
       u,
-      { method: 'POST', headers, timeout: POST_TIMEOUT_MS },
+      { method: 'POST', headers, timeout: POST_TIMEOUT_MS, lookup: guardedLookup },
       (res) => {
         res.resume(); // drain
         const ok = res.statusCode >= 200 && res.statusCode < 300;
