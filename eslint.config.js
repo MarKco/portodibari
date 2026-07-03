@@ -36,10 +36,15 @@ const BROWSER_GLOBALS = {
   EventSource: 'readonly',
   Blob: 'readonly',
   URL: 'readonly',
+  URLSearchParams: 'readonly',
   setInterval: 'readonly',
   clearInterval: 'readonly',
   setTimeout: 'readonly',
   clearTimeout: 'readonly',
+  requestAnimationFrame: 'readonly',
+  cancelAnimationFrame: 'readonly',
+  performance: 'readonly',
+  ResizeObserver: 'readonly',
   L: 'readonly', // Leaflet (loaded from CDN)
 };
 

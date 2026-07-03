@@ -3,7 +3,7 @@ import { escHtml } from './helpers.js';
 
 let toastTimer = null;
 
-export function showAlert(title, bodyHtml, duration = 5000) {
+export function showAlert(title, bodyHtml = '', duration = 5000) {
   el.toastTitle.textContent = title;
   el.toastBody.innerHTML = bodyHtml;
   el.toastEl.classList.remove('hidden', 'toast-hiding');

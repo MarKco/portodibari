@@ -267,7 +267,9 @@ export async function loadTrack(mmsi, opts = {}) {
   if (ctrls) ctrls.classList.add('hidden');
 
   initTrackControls();
-  _lastTrackOpts = opts;
+  // Remember only the query-affecting options (not the keepView refresh flag), so
+  // the SF/MST toggle and the poll refresh reload the SAME window the user chose.
+  _lastTrackOpts = { from: opts.from, to: opts.to, window: opts.window };
 
   const q = new URLSearchParams();
   if (opts.from && opts.to) { q.set('from', opts.from); q.set('to', opts.to); }
@@ -327,12 +329,13 @@ export async function loadTrack(mmsi, opts = {}) {
         .addTo(S.trackLayer);
     });
 
+    // On a background poll refresh (keepView) leave the user's pan/zoom alone.
     const bounds = L.latLngBounds(latlngs);
-    if (bounds.isValid()) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    if (bounds.isValid() && !opts.keepView) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
 
     // Read current speed from active button (or default 20×).
     const activeSpeed = document.querySelector('.track-speed.active');
-    setupTrackAnim(nodes, activeSpeed ? Number(activeSpeed.dataset.speed) : 20);
+    setupTrackAnim(nodes, activeSpeed ? Number(activeSpeed.dataset.speed) : 20, { autoplay: !opts.keepView });
   } catch {
     /* track unavailable */
   }
@@ -343,7 +346,7 @@ export async function loadTrack(mmsi, opts = {}) {
 // duration, with a trail that grows behind it. Autoplays; play/pause + a
 // timeline scrubber let the user replay or seek. Speed multiplier scales how
 // fast p advances — 20× default means 12 s total / 20 = 0.6 s real time.
-function setupTrackAnim(nodes, speed = 20) {
+function setupTrackAnim(nodes, speed = 20, { autoplay = true } = {}) {
   const ctrls = document.getElementById('track-anim');
   if (!ctrls || nodes.length < 2) return;
 
@@ -447,11 +450,19 @@ function setupTrackAnim(nodes, speed = 20) {
     render(A.p);
   };
 
-  // Autoplay.
+  // Autoplay (skipped on a background poll refresh so it doesn't restart the
+  // animation under the user every 5 minutes).
   render(0);
+  if (!autoplay) { setPlaying(false); return; }
   setPlaying(true);
   A.startTs = null;
   A.rafId = requestAnimationFrame(step);
+}
+
+// Reload the current ship's track on a background poll without disturbing the
+// user's chosen window, pan/zoom, or playback state.
+export function refreshTrack() {
+  if (S.detailMmsi != null) loadTrack(S.detailMmsi, { ...(_lastTrackOpts || {}), keepView: true });
 }
 
 // ── Active-ships overview map ────────────────────────────────────────────────

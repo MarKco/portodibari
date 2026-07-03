@@ -582,14 +582,16 @@ export function bindShipRows(tbody, fromView, ships) {
 // ── Ship detail ──────────────────────────────────────────────────────────────
 export async function loadDetail() {
   if (S.detailMmsi == null) return;
+  const mmsi = S.detailMmsi; // pin: the user may open another ship while this loads
   try {
     const [data, shipData, eventsData, historyData, rdvData] = await Promise.all([
-      api(`/api/ships/${S.detailMmsi}/readings?limit=${PAGE_SIZE}&offset=${S.detailPage * PAGE_SIZE}`),
-      api(`/api/ships/${S.detailMmsi}`).catch(() => null),
-      api(`/api/ships/${S.detailMmsi}/events`).catch(() => null),
-      api(`/api/ships/${S.detailMmsi}/risk-history`).catch(() => null),
-      api(`/api/ships/${S.detailMmsi}/rendezvous`).catch(() => null),
+      api(`/api/ships/${mmsi}/readings?limit=${PAGE_SIZE}&offset=${S.detailPage * PAGE_SIZE}`),
+      api(`/api/ships/${mmsi}`).catch(() => null),
+      api(`/api/ships/${mmsi}/events`).catch(() => null),
+      api(`/api/ships/${mmsi}/risk-history`).catch(() => null),
+      api(`/api/ships/${mmsi}/rendezvous`).catch(() => null),
     ]);
+    if (S.detailMmsi !== mmsi) return; // navigated to another ship; drop this response
     renderRiskHistory(historyData?.history || []);
     renderRendezvous(rdvData?.rendezvous || []);
     if (shipData) {
@@ -909,6 +911,7 @@ export async function loadVfData(mmsi) {
   el.vfDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingVf')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/vfdata`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.vfDataSection.classList.add('hidden');
       invalidateDetailMap();
@@ -939,6 +942,7 @@ export async function loadMtData(mmsi) {
   el.mtDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingMt')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/mtdata`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.mtDataSection.classList.add('hidden');
       return;
@@ -1350,6 +1354,7 @@ export async function loadGfwData(mmsi) {
   el.gfwDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingGfw')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/gfwdata`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.gfwDataSection.classList.add('hidden');
       return;

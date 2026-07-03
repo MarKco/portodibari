@@ -7,12 +7,16 @@
  *   • navigations      → network-first, fall back to the cached shell/offline
  *                        page when the network is unavailable (never caches the
  *                        response, so a login redirect can't poison the shell).
- *   • same-origin GET  → stale-while-revalidate (the SPA shell: HTML/CSS/JS,
- *                        locales, icons, manifest) so the app opens offline.
+ *   • app code (/js/, /locales/, *.js) → network-first, so a deploy never serves
+ *                        a MIX of old + new ES modules (a fresh module importing a
+ *                        symbol absent from a stale sibling breaks the whole app);
+ *                        falls back to cache offline.
+ *   • other same-origin GET → stale-while-revalidate (CSS, icons, manifest) so the
+ *                        app opens offline.
  *
  * Bump CACHE to invalidate everything on the next visit.
  */
-const CACHE = 'tp-shell-v2';
+const CACHE = 'tp-shell-v3';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -71,7 +75,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: stale-while-revalidate.
+  // App code (ES modules + locales): network-first to avoid mixing module versions
+  // across a deploy. Cache the fresh copy for offline; fall back to it when offline.
+  if (url.pathname.startsWith('/js/') || url.pathname.startsWith('/locales/') || url.pathname.endsWith('.js')) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        try {
+          const res = await fetch(req);
+          if (res && res.ok && res.type === 'basic') cache.put(req, res.clone());
+          return res;
+        } catch {
+          return (await cache.match(req)) || (await cache.match('/offline.html')) || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // Other static assets (CSS, icons, manifest): stale-while-revalidate.
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);

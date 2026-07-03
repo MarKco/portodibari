@@ -72,8 +72,8 @@ function createApp() {
   app.use('/api', apiRoutes);
 
   // Final error handler: turn an uncaught route error into a 500 instead of a
-  // hung request, and keep it off the process's uncaughtException path.
-  // eslint-disable-next-line no-unused-vars
+  // hung request, and keep it off the process's uncaughtException path. The 4-arg
+  // signature (next included) is what marks this as Express error middleware.
   app.use((err, req, res, next) => {
     console.error(`[HTTP] ${req.method} ${req.originalUrl}: ${err && err.stack || err}`);
     if (res.headersSent) return;

@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
 import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
-import { loadTrack } from './maps.js';
+import { refreshTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay } from './replay.js';
@@ -61,9 +61,9 @@ function renderAreaMonitors() {
       const active = S.allStreamStatus[key]?.active;
       const dot = active ? '🟢' : '⚪';
       return `<div class="area-monitor">
-        <span class="area-monitor-name">${dot} ${v.name}</span>
+        <span class="area-monitor-name">${dot} ${escHtml(v.name)}</span>
         <label class="toggle">
-          <input type="checkbox" data-area="${key}"${active ? ' checked' : ''}>
+          <input type="checkbox" data-area="${escHtml(key)}"${active ? ' checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>`;
@@ -135,7 +135,7 @@ async function loadSettings() {
     const s = await api('/api/settings');
     S.presets = s.presets || {};
     el.bboxSelect.innerHTML = Object.entries(s.presets)
-      .map(([k, v]) => `<option value="${k}" data-name="${v.name}"${k === s.preset ? ' selected' : ''}>${v.name}</option>`)
+      .map(([k, v]) => `<option value="${escHtml(k)}" data-name="${escHtml(v.name)}"${k === s.preset ? ' selected' : ''}>${escHtml(v.name)}</option>`)
       .join('');
     renderAreaMonitors();
     S.currentPreset = s.preset;
@@ -527,7 +527,10 @@ async function showEquasisLog() {
     }
     el.modalOverlay.classList.remove('hidden');
   } catch {
-    showToast(t('scrape.error'));
+    // showToast(name, bbox) expects an area + bounding box; this is a plain error
+    // message, so use showAlert (calling showToast here threw on the missing bbox
+    // and swallowed the real error).
+    showAlert(t('scrape.error'), '');
   }
 }
 
@@ -1500,7 +1503,7 @@ function tick() {
   else if (S.view === 'past') loadPast();
   else if (S.view === 'detail') {
     loadDetail();
-    loadTrack(S.detailMmsi);
+    refreshTrack();
   } else if (S.view === 'traffico') loadTraffco();
 }
 
