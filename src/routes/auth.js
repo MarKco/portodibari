@@ -6,6 +6,7 @@
 
 const express = require('express');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const db = require('../db');
 const auth = require('../services/auth');
 const appLog = require('../services/app-log');
@@ -16,6 +17,25 @@ const router = express.Router();
 const VIEWS = path.join(__dirname, '..', 'views');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Throttle the public auth surface to blunt brute-force / credential-stuffing and
+// automated sign-ups. Keyed by IP (built-in, IPv6-safe). Successful logins still
+// count, but 10 attempts / 15 min per IP is far above any human and well below a
+// guessing rig. Register/reset are rarer, so a wider window with the same ceiling.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppi tentativi di accesso. Riprova tra qualche minuto.' },
+});
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Troppe richieste. Riprova più tardi.' },
+});
 
 /** Shape a user row for the client (never includes hash/tokens). */
 function publicUser(u) {
@@ -44,7 +64,7 @@ for (const page of ['login', 'register', 'reset']) {
 
 // Register. Always lands in 'pending' until an admin approves. Email-verify
 // token is generated but unused until SMTP is configured.
-router.post('/api/auth/register', (req, res) => {
+router.post('/api/auth/register', registerLimiter, (req, res) => {
   const { email, username, first_name, last_name, password } = req.body || {};
   if (!email || !EMAIL_RE.test(String(email).trim())) {
     return res.status(400).json({ error: 'Email non valida' });
@@ -80,7 +100,7 @@ router.post('/api/auth/register', (req, res) => {
 });
 
 // Login by email OR username.
-router.post('/api/auth/login', (req, res) => {
+router.post('/api/auth/login', loginLimiter, (req, res) => {
   const { identifier, password } = req.body || {};
   const row = db.findUserByLogin(identifier);
   // Always run a verify (even on a missing user) to keep timing uniform.
@@ -130,7 +150,7 @@ router.get('/api/auth/me', (req, res) => {
 // Forgot-password request. No email transport yet → no link is sent; we return a
 // generic message regardless of whether the account exists (no enumeration).
 // The real reset path today is admin-initiated (see admin router).
-router.post('/api/auth/reset/request', (req, res) => {
+router.post('/api/auth/reset/request', loginLimiter, (req, res) => {
   const { identifier } = req.body || {};
   const row = db.findUserByLogin(identifier);
   if (row) appLog.info('AUTH', `Richiesta reset password: ${row.email}`, { userId: row.id });
