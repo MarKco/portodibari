@@ -23,17 +23,46 @@ function loadProperties(file) {
   );
 }
 
-/** Upsert a single `key=value` line in the properties file (created elsewhere). */
+/** Escape a string for safe use as a literal inside a RegExp. */
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Sanitize a properties value: strip CR/LF so a value can never inject extra
+ * lines into the file (a `\n` in an id/JSON would otherwise forge new keys).
+ */
+function sanitizePropValue(v) {
+  return String(v ?? '').replace(/[\r\n]+/g, ' ');
+}
+
+/**
+ * Write a file atomically: write to a temp file and rename over the target, so a
+ * crash mid-write can never leave a half-written (corrupt) config that would then
+ * break the next boot (e.g. a truncated local.properties → "AIS_API_KEY missing").
+ */
+function writeFileAtomic(file, content) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, content, 'utf8');
+  fs.renameSync(tmp, file);
+}
+
+/**
+ * Upsert a single `key=value` line in local.properties. Creates the file if it
+ * is missing (e.g. when the API key comes from env) so runtime settings still
+ * persist across restarts instead of being silently dropped.
+ */
 function saveProperty(key, value) {
-  if (!fs.existsSync(PROPERTIES_FILE)) return;
-  let content = fs.readFileSync(PROPERTIES_FILE, 'utf8');
-  const re = new RegExp(`^${key}=.*`, 'm');
+  const val = sanitizePropValue(value);
+  let content = fs.existsSync(PROPERTIES_FILE) ? fs.readFileSync(PROPERTIES_FILE, 'utf8') : '';
+  const re = new RegExp(`^${escapeRegExp(key)}=.*`, 'm');
   if (re.test(content)) {
-    content = content.replace(re, `${key}=${value}`);
+    // Function replacer so `$&`/`$'`/`$1` in the value are treated literally.
+    content = content.replace(re, () => `${key}=${val}`);
   } else {
-    content += `\n${key}=${value}\n`;
+    content += `${content.endsWith('\n') || content === '' ? '' : '\n'}${key}=${val}\n`;
   }
-  fs.writeFileSync(PROPERTIES_FILE, content, 'utf8');
+  writeFileAtomic(PROPERTIES_FILE, content);
 }
 
 /**
@@ -42,14 +71,15 @@ function saveProperty(key, value) {
  * after a server restart (the Settings UI tells the user so).
  */
 function saveAppProperty(key, value) {
+  const val = sanitizePropValue(value);
   let content = fs.existsSync(APP_CONFIG_FILE) ? fs.readFileSync(APP_CONFIG_FILE, 'utf8') : '';
-  const re = new RegExp(`^${key}=.*`, 'm');
+  const re = new RegExp(`^${escapeRegExp(key)}=.*`, 'm');
   if (re.test(content)) {
-    content = content.replace(re, `${key}=${value}`);
+    content = content.replace(re, () => `${key}=${val}`);
   } else {
-    content += `${content.endsWith('\n') || content === '' ? '' : '\n'}${key}=${value}\n`;
+    content += `${content.endsWith('\n') || content === '' ? '' : '\n'}${key}=${val}\n`;
   }
-  fs.writeFileSync(APP_CONFIG_FILE, content, 'utf8');
+  writeFileAtomic(APP_CONFIG_FILE, content);
 }
 
 const props = loadProperties(PROPERTIES_FILE);
@@ -881,7 +911,7 @@ function saveBboxPresets() {
   for (const [k, v] of Object.entries(BBOX_PRESETS)) {
     out[k] = { name: v.name, keyword: v.keyword || null, sw: v.box[0][0], ne: v.box[0][1] };
   }
-  fs.writeFileSync(BBOX_FILE, JSON.stringify(out, null, 2) + '\n', 'utf8');
+  writeFileAtomic(BBOX_FILE, JSON.stringify(out, null, 2) + '\n');
 }
 
 /**

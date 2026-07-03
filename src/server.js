@@ -33,6 +33,18 @@ const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH
 // Honor the persisted on/off state for the operational log before anything logs.
 appLog.setEnabled(state.appLogEnabled);
 
+// Survive stray async failures. Node 22 terminates the process on an unhandled
+// rejection, so a single failing scrape/telegram/webhook promise anywhere would
+// take the whole tracker down. Log and keep running.
+process.on('unhandledRejection', (reason) => {
+  try { appLog.error('PROCESS', `Unhandled rejection: ${(reason && reason.stack) || reason}`); }
+  catch { console.error('[PROCESS] Unhandled rejection:', reason); }
+});
+process.on('uncaughtException', (err) => {
+  try { appLog.error('PROCESS', `Uncaught exception: ${(err && err.stack) || err}`); }
+  catch { console.error('[PROCESS] Uncaught exception:', err); }
+});
+
 // Always ensure the built-in administrator exists (idempotent), and clear out
 // any expired sessions left behind. Runs before listen so the very first request
 // can already authenticate.
@@ -112,9 +124,15 @@ app.listen(PORT, () => {
   }
 
   // Catch departures that crossed the 60-min threshold while the server was down,
-  // then keep checking every minute.
-  db.checkAndLogDepartures();
-  setInterval(db.checkAndLogDepartures, 60 * 1000);
+  // then keep checking every minute. Wrapped in try/catch like every other
+  // interval so a transient SQLite error can't abort the boot sequence (nor, now,
+  // crash the process).
+  const runDepartures = () => {
+    try { db.checkAndLogDepartures(); }
+    catch (e) { appLog.error('DB', `checkAndLogDepartures fallito: ${e.message}`); }
+  };
+  runDepartures();
+  setInterval(runDepartures, 60 * 1000);
 
   // DB compaction: fold the WAL back into the main file (the passive
   // autocheckpoint can't, while the stream/SSE readers hold a read lock) and

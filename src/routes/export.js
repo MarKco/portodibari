@@ -10,11 +10,12 @@ const heatmapDb = require('../heatmap-db');
 const berths = require('../services/berths');
 const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
-const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb, DEFAULT_ADMIN_USERNAME } = require('../config');
+const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb,
+  DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, SESSION_TTL_DAYS } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
-const { requireAdmin } = require('../middleware/session-auth');
+const { requireAdmin, setSessionCookie } = require('../middleware/session-auth');
 
 const router = express.Router();
 
@@ -343,11 +344,36 @@ function rebuildBerthsAfterRestore(counts = {}) {
 // well as a new bundle that already carries the per-user tables.
 function rehomeAfterRestore() {
   try {
+    // A restore replaced the users table with the backup's. Guarantee the built-in
+    // admin still exists (an older backup may predate the users schema, or carry a
+    // different admin set), so the instance is never left with no known login.
+    db.seedDefaultAdmin({ username: DEFAULT_ADMIN_USERNAME, email: DEFAULT_ADMIN_EMAIL, password: DEFAULT_ADMIN_PASSWORD });
     const admin = db.findUserByLogin(DEFAULT_ADMIN_USERNAME);
     syncAreasWithDb(admin ? admin.id : null);
     if (admin) db.migrateMultiUser(admin.id);
   } catch (e) {
     console.error(`[RESTORE] Re-home multi-utente fallito: ${e.message}`);
+  }
+}
+
+// A DB restore also replaces the sessions table, so the operator who launched the
+// restore loses their session and would be locked out until the next login. Mint a
+// fresh session (as themselves if their account survived the restore, else as the
+// re-seeded admin) and set the cookie so they stay authenticated.
+function reissueSession(req, res) {
+  try {
+    const uname = req.realUser && req.realUser.username;
+    let u = uname ? db.findUserByLogin(uname) : null;
+    if (!u || u.role !== 'admin') u = db.findUserByLogin(DEFAULT_ADMIN_USERNAME);
+    if (!u) return;
+    const sid = db.createSession(u.id, {
+      ttlMs: SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    setSessionCookie(res, sid);
+  } catch (e) {
+    console.error(`[RESTORE] Riemissione sessione fallita: ${e.message}`);
   }
 }
 
@@ -471,6 +497,7 @@ router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), 
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
+    reissueSession(req, res);
     // Reconcile live streams to the just-restored active set (start/stop so only
     // the monitorings active in the backup run).
     const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
@@ -559,6 +586,7 @@ router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMI
 
     rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
+    reissueSession(req, res);
     const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
     appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
     const total = Object.values(counts || {}).reduce((a, b) => a + b, 0);
@@ -652,6 +680,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
     if (parts.includes('db')) rebuildBerthsAfterRestore(counts);
     if (parts.includes('db') || parts.includes('areas')) {
       rehomeAfterRestore();
+      if (parts.includes('db')) reissueSession(req, res); // sessions table only replaced with the db part
       const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
       appLog.info('AIS', appLog.t('ais.streams_resumed', { count: resumed.length }), { count: resumed.length, aree: resumed });
     }

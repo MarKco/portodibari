@@ -881,13 +881,11 @@ function pruneExpiredSessions() {
 function seedDefaultAdmin({ username = 'admin', email = 'admin@local', password } = {}) {
   if (!password) return null;
   const existing = findUserByLogin(username);
-  if (existing) {
-    if (!auth.verifyPassword(password, existing.pw_hash, existing.pw_salt)) {
-      appLog.info('AUTH', `Reset password amministratore di default "${username}"`);
-      setUserPassword(existing.id, password);
-    }
-    return existing;
-  }
+  // Idempotent: if the admin already exists, leave it untouched. Never re-write the
+  // password of an existing account — doing so on every boot silently reverted any
+  // password (or role) change made through the UI, and with the shipped default
+  // password left the admin account permanently on a public credential.
+  if (existing) return existing;
   // Also avoid colliding with a user who already claimed the synthetic email.
   if (findUserByLogin(email)) return null;
   appLog.info('AUTH', `Creazione utente amministratore di default "${username}"`);
@@ -1766,12 +1764,12 @@ function checkAndLogDepartures() {
       `
     SELECT mmsi, ship_name, ship_type, destination, max_draught, last_seen_at, last_area
     FROM ships
-    WHERE last_seen_at BETWEEN datetime('now', '-62 minutes') AND datetime('now', '-60 minutes')
+    WHERE last_seen_at <= datetime('now', '-60 minutes')
     AND NOT EXISTS (
       SELECT 1 FROM port_events
       WHERE port_events.mmsi = ships.mmsi
         AND port_events.event_type = 'departed'
-        AND port_events.ts > datetime('now', '-3 hours')
+        AND port_events.ts >= ships.last_seen_at
     )
   `
     )
