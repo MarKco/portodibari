@@ -1425,7 +1425,7 @@ function renderGfwData(container, data) {
   const events = (data && data.events) || {};
   const enc = events.encounters || [];
   const loi = events.loitering || [];
-  const prt = events.portVisits || [];
+  const prt = (events.portVisits || []).slice().sort((a, b) => (b.start > a.start ? 1 : b.start < a.start ? -1 : 0));
   const gaps = events.gaps || [];
 
   let html = '';

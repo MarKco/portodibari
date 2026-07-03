@@ -88,6 +88,7 @@ export default {
   'detail.notesSave':    'Save notes',
   'detail.notesSaved':   'Saved ✓',
   'detail.eventsTitle':  'Port visit history',
+  'detail.eventsSource': 'AISStream / ShipFinder / position reports',
   'detail.readingTitle': 'Reading detail',
   'detail.rawData':      'Raw AIS data',
   'detail.unknown':      'Unknown ship',

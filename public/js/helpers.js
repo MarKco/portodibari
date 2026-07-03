@@ -17,7 +17,7 @@ export function formatTime(iso) {
     return (
       d.toLocaleTimeString(DATE_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
       ' ' +
-      d.toLocaleDateString(DATE_LOCALE, { day: '2-digit', month: '2-digit' })
+      d.toLocaleDateString(DATE_LOCALE, { day: '2-digit', month: '2-digit', year: '2-digit' })
     );
   } catch {
     return iso;

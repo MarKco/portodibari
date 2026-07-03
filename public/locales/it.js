@@ -90,6 +90,7 @@ export default {
   'detail.notesSave':    'Salva note',
   'detail.notesSaved':   'Salvato ✓',
   'detail.eventsTitle':  'Storico visite in porto',
+  'detail.eventsSource': 'AISStream / ShipFinder / report posizione',
   'detail.readingTitle': 'Dettaglio lettura',
   'detail.rawData':      'Dati grezzi AIS',
   'detail.unknown':      'Nave sconosciuta',
