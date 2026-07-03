@@ -113,12 +113,16 @@ function validateUrl(url) {
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Solo http/https';
   const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  // For hostnames the authoritative check is guardedLookup at connect time (it
+  // resolves the name and rejects private IPs, defeating rebinding). Here only
+  // reject obvious internal names and IP LITERALS that resolve to internal ranges
+  // — isBlockedIp on a non-IP string returns true, so gate it on net.isIP(h).
   if (
     h === 'localhost' || h === '0.0.0.0' || h.endsWith('.local') ||
     /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) ||
     /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
     h === '::1' || h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd') ||
-    isBlockedIp(h)
+    (net.isIP(h) && isBlockedIp(h))
   ) {
     return 'Host interno/privato non consentito';
   }
