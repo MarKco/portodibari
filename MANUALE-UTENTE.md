@@ -36,6 +36,8 @@ Dalla pagina di accesso, segui il link di **registrazione** e inserisci **nome, 
 
 Nella pagina di login inserisci la password e, come identificativo, **lo username oppure l'email** (vanno bene entrambi). La sessione resta valida per diversi giorni: di norma non devi reinserire le credenziali a ogni visita.
 
+> Dopo **troppi tentativi di accesso falliti** ravvicinati (10 in 15 minuti) l'accesso viene **temporaneamente bloccato** per qualche minuto, come protezione contro i tentativi automatici. Aspetta qualche minuto e riprova; se hai dimenticato la password vedi sotto.
+
 ### Disconnettersi
 
 Usa il **widget account in alto a destra** e scegli **Esci** (logout) per terminare la sessione.
