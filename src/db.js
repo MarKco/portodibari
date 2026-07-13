@@ -1998,17 +1998,24 @@ function hasShipScrapedPositions(mmsi, sources) {
 function getAreaReplayPositions(boxes, fromIso, toIso, limit, sources = ['ais']) {
   const geo = boxesSql(boxes, 'r.latitude', 'r.longitude');
   const ph = sources.map(() => '?').join(', ');
+  // Over `limit`, keep the MOST RECENT positions in the window (inner DESC +
+  // LIMIT), then return them grouped/chronological for the client. Ordering by
+  // mmsi before the LIMIT would drop whole high-MMSI ships when truncated; a
+  // time-based cut instead keeps every ship present in the retained span.
   return db
     .prepare(
-      `SELECT r.mmsi, r.received_at, r.latitude AS lat, r.longitude AS lon, r.sog, r.cog,
-              s.ship_name, s.ship_type
-       FROM readings r
-       LEFT JOIN ships s ON s.mmsi = r.mmsi
-       WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.source IN (${ph})
-         AND r.received_at >= ? AND r.received_at <= ?
-         AND ${geo}
-       ORDER BY r.mmsi ASC, r.received_at ASC
-       LIMIT ?`
+      `SELECT mmsi, received_at, lat, lon, sog, cog, ship_name, ship_type FROM (
+         SELECT r.mmsi, r.received_at, r.latitude AS lat, r.longitude AS lon, r.sog, r.cog,
+                s.ship_name, s.ship_type
+         FROM readings r
+         LEFT JOIN ships s ON s.mmsi = r.mmsi
+         WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.source IN (${ph})
+           AND r.received_at >= ? AND r.received_at <= ?
+           AND ${geo}
+         ORDER BY r.received_at DESC
+         LIMIT ?
+       )
+       ORDER BY mmsi ASC, received_at ASC`
     )
     .all(...sources, fromIso, toIso, limit);
 }
