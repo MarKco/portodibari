@@ -39,7 +39,11 @@ function securityHeaders(req, res, next) {
   res.setHeader('Content-Security-Policy', CSP);
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
+  // NOT 'no-referrer': OpenStreetMap's volunteer tile servers reject requests
+  // without a Referer (403). This still strips the path and never leaks the
+  // referrer to less-secure (HTTP) destinations, but sends the origin so the
+  // OSM/OpenSeaMap tiles keep loading.
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=()');
   if (req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
