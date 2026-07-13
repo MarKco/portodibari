@@ -219,6 +219,10 @@ export default {
   'follow.mstSeenTip': 'Posizione recuperata da MyShipTracking mentre la nave è muta sull\'AIS: ultimo avvistamento noto, non un segnale AIS live.',
   'follow.aisLost': '📡 segnale AIS perso da {ago}',
   'follow.aisLostTip': 'La nave è muta sull\'AIS da questo intervallo: la posizione mostrata proviene da ShipFinder/MyShipTracking, non da un segnale AIS live.',
+  'follow.searchBadge': '🔍 in ricerca',
+  'follow.staleTip': 'Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di {months} mesi. Se riprende a trasmettere riceverai una notifica.',
+  'follow.searchingNoPosOne': 'nave in ricerca senza posizione nota',
+  'follow.searchingNoPosMany': 'navi in ricerca senza posizione nota',
   'ago.now':   'pochi istanti',
   'ago.min1':  '{n} minuto',
   'ago.minN':  '{n} minuti',
@@ -252,6 +256,18 @@ export default {
   'risk.src.sanctionDim':'Verificata nelle liste sanzioni (OFAC/UE/UK/ONU, nessun match)',
   'risk.src.psc':        'Segnale dalle liste Paris/Tokyo MoU (bandiera o banned)',
   'risk.src.pscDim':     'Verificata nelle liste MoU (nessun segnale)',
+
+  // ── Risk hover tooltip (risk-badge) ─────────────────────────────────────────
+  'rtip.score':          'Score rischio',
+  'rtip.sources':        'Fonti',
+  'rtip.noAnomaly':      'Nessuna anomalia rilevata',
+  'rtip.noRelevant':     '(nessun dato rilevante per lo score)',
+  'rtip.aisOnly':        'Solo AIS free',
+  'rtip.sanctions':      'Sanzioni',
+  'rtip.sanctionsTip':   'Verificato in liste sanzioni (OFAC/UE/UK/ONU), nessun match',
+  'rtip.pscTip':         'Verificato liste MoU (bandiera/banned), nessun segnale',
+  'rtip.consultedTip':   'Consultato, nessun dato rilevante per lo score',
+  'rtip.consultedGfwTip':'Consultato, nessun evento/dato rilevante per lo score',
 
   // ── Map markers ────────────────────────────────────────────────────────────
   'map.lastPos':  '📍 Ultima posizione',
@@ -358,6 +374,12 @@ export default {
   'error.changeArea':   'Errore cambio area: ',
   'error.startStream':  'Errore avvio stream: ',
   'error.diagnostics':  'Errore caricamento dati diagnostica.',
+  'error.action':       'Azione non riuscita',
+  'error.stopStream':   'Errore arresto stream: ',
+  'error.clearReadings':'Errore cancellazione letture: ',
+  'error.restore':      'Errore ripristino: ',
+  'error.backupSave':   'Errore salvataggio backup: ',
+  'error.selectPart':   'Seleziona almeno una parte da ripristinare.',
 
   // ── Health panel ───────────────────────────────────────────────────────────
   'health.title':       'Diagnostica AIS Stream',

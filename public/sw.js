@@ -3,7 +3,7 @@
  * Goal: make the app installable + fast to open, WITHOUT ever caching live or
  * authenticated data. Strategy:
  *   • /api/*           → not intercepted (always network; never cached).
- *   • cross-origin     → not intercepted (Leaflet CDN, OSM/OpenSeaMap tiles).
+ *   • cross-origin     → not intercepted (OSM/OpenSeaMap map tiles).
  *   • navigations      → network-first, fall back to the cached shell/offline
  *                        page when the network is unavailable (never caches the
  *                        response, so a login redirect can't poison the shell).
@@ -16,7 +16,7 @@
  *
  * Bump CACHE to invalidate everything on the next visit.
  */
-const CACHE = 'tp-shell-v3';
+const CACHE = 'tp-shell-v4';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -25,6 +25,14 @@ const PRECACHE = [
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  // Self-hosted Leaflet (was a CDN dependency): precache so the map works offline.
+  '/vendor/leaflet/leaflet.js',
+  '/vendor/leaflet/leaflet.css',
+  '/vendor/leaflet/images/marker-icon.png',
+  '/vendor/leaflet/images/marker-icon-2x.png',
+  '/vendor/leaflet/images/marker-shadow.png',
+  '/vendor/leaflet/images/layers.png',
+  '/vendor/leaflet/images/layers-2x.png',
 ];
 
 self.addEventListener('install', (event) => {

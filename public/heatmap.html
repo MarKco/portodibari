@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Copertura AIS</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css"/>
   <style>
     html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
     #map { width: 100%; height: 100%; }
@@ -34,7 +34,7 @@
     <div id="legend-labels"><span>bassa</span><span>alta</span></div>
     <div id="legend-info">Caricamento…</div>
   </div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/vendor/leaflet/leaflet.js"></script>
   <script>
     const map = L.map('map', { worldCopyJump: true, minZoom: 2 }).setView([25, 10], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

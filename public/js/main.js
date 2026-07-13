@@ -7,7 +7,7 @@ import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData
 import { refreshTrack } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
-import { initReplay } from './replay.js';
+import { initReplay, exitReplay } from './replay.js';
 import { initWebhooks } from './webhooks.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel, openLogs, closeLogs } from './logs.js';
@@ -303,7 +303,9 @@ function startTelegramLinkPoll() {
     } catch { /* keep trying */ }
   }, 3000);
 }
-function stopTelegramLinkPoll() {
+// Exported so views.js can stop it when Settings is left via the sidebar (not
+// just the Back button) — otherwise the link poll keeps running for up to ~2min.
+export function stopTelegramLinkPoll() {
   if (telegramLinkPoll) { clearInterval(telegramLinkPoll); telegramLinkPoll = null; }
 }
 
@@ -1214,7 +1216,7 @@ function initSettingsModal() {
       await loadSettings();
       tick();
     } catch (e) {
-      alert('Errore ripristino: ' + e.message);
+      alert(t('error.restore') + e.message);
     } finally {
       el.btnRestore.disabled = false;
       el.btnRestore.textContent = prevLabel;
@@ -1305,7 +1307,7 @@ function initSettingsModal() {
         await loadAutoBackups();
         showAlert('Backup salvato', '');
       } catch (e) {
-        alert('Errore salvataggio backup: ' + (e.message || String(e)));
+        alert(t('error.backupSave') + (e.message || String(e)));
       } finally {
         el.btnManualBackup.disabled = false;
         el.btnManualBackup.textContent = prev;
@@ -1388,7 +1390,7 @@ function showBackupRestoreDialog(filename) {
     if (document.getElementById('rp-db')?.checked) parts.push('db');
     if (document.getElementById('rp-areas')?.checked) parts.push('areas');
     if (document.getElementById('rp-settings')?.checked) parts.push('settings');
-    if (parts.length === 0) { alert('Seleziona almeno una parte da ripristinare.'); return; }
+    if (parts.length === 0) { alert(t('error.selectPart')); return; }
 
     const partsLabel = { db: 'database', areas: 'aree', settings: 'impostazioni' };
     const partsStr = parts.map((p) => partsLabel[p]).join(', ');
@@ -1419,7 +1421,7 @@ function showBackupRestoreDialog(filename) {
     } catch (e) {
       btn.disabled = false;
       btn.textContent = prev;
-      alert('Errore ripristino: ' + (e.message || String(e)));
+      alert(t('error.restore') + (e.message || String(e)));
     }
   });
 
@@ -1430,6 +1432,7 @@ function initBboxSelect() {
   el.bboxSelect.addEventListener('change', async () => {
     try {
       const preset = el.bboxSelect.value;
+      exitReplay(); // a running replay belongs to the old area's map — close it first
       const result = await api('/api/settings', 'POST', { preset });
       S.currentPreset = preset;
       showToast(result.name, result.bbox);
@@ -1437,8 +1440,8 @@ function initBboxSelect() {
       S.currentBbox = result.bbox;
 
       // Clear ship data — switching view area, not stream
-      el.activeBody.innerHTML = `<tr><td colspan="8" class="empty">${t('toast.changing')}</td></tr>`;
-      el.pastBody.innerHTML = `<tr><td colspan="7" class="empty">${t('empty.past')}</td></tr>`;
+      el.activeBody.innerHTML = `<tr><td colspan="9" class="empty">${t('toast.changing')}</td></tr>`;
+      el.pastBody.innerHTML = `<tr><td colspan="8" class="empty">${t('empty.past')}</td></tr>`;
       el.activeCount.textContent = '0';
       el.pastCount.textContent = '0';
       S.activeShipsCache.clear();
@@ -1528,23 +1531,38 @@ function initToolbar() {
   });
 
   el.btnStop.addEventListener('click', async () => {
-    await api('/api/stream/stop', 'POST', { area: S.currentPreset });
-    await updateStatus();
+    if (el.btnStop.disabled) return;
+    el.btnStop.disabled = true;
+    try {
+      await api('/api/stream/stop', 'POST', { area: S.currentPreset });
+      await updateStatus(); // reconciles btnStop.disabled with the new stream state
+    } catch (e) {
+      showAlert(t('error.stopStream'), escHtml(e.message || String(e)));
+      el.btnStop.disabled = false; // re-enable so the user can retry
+    }
   });
 
   el.btnExport.addEventListener('click', () => {
     window.location = '/api/export';
   });
 
-  const onClearClick = async () => {
+  const onClearClick = async (ev) => {
+    const btn = ev.currentTarget;
     const areaName = S.presets[S.currentPreset]?.name || S.currentPreset;
     if (!confirm(t('confirm.clear', { area: areaName }))) return;
-    const area = encodeURIComponent(S.currentPreset || '');
-    await api(`/api/readings?area=${area}`, 'DELETE');
-    el.activeCount.textContent = '0';
-    el.pastCount.textContent = '0';
-    S.activeShipsCache.clear();
-    tick();
+    if (btn) btn.disabled = true;
+    try {
+      const area = encodeURIComponent(S.currentPreset || '');
+      await api(`/api/readings?area=${area}`, 'DELETE');
+      el.activeCount.textContent = '0';
+      el.pastCount.textContent = '0';
+      S.activeShipsCache.clear();
+      tick();
+    } catch (e) {
+      showAlert(t('error.clearReadings'), escHtml(e.message || String(e)));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   };
   el.btnClear.addEventListener('click', onClearClick);
   el.btnClearPast.addEventListener('click', onClearClick);
@@ -1670,7 +1688,7 @@ function initRiskTooltip() {
     const factors = risk.factors || [];
     const factorsHtml = factors.length
       ? `<ul class="rt-factors">${factors.map((f) => `<li><span class="rt-pts risk-${risk.band}">+${f.points}</span> ${escHtml(f.label)}</li>`).join('')}</ul>`
-      : '<p class="rt-none">Nessuna anomalia rilevata</p>';
+      : `<p class="rt-none">${t('rtip.noAnomaly')}</p>`;
     const { vf, mt, gfw, sanctions, psc } = risk.sources || {};
     const vfUsed = vf === 'used', vfAvail = vf === 'available';
     const mtUsed = mt === 'used', mtAvail = mt === 'available';
@@ -1682,26 +1700,26 @@ function initRiskTooltip() {
     let srcHtml;
     if (anyUsed || anyAvail) {
       const parts = [];
-      if (sancUsed) parts.push('<span class="rt-src rt-src-sanction">Sanzioni ⚠</span>');
-      else if (sancAvail) parts.push('<span class="rt-src rt-src-sanction rt-src-dim" title="Verificato in liste sanzioni (OFAC/UE/UK/ONU), nessun match">Sanzioni</span>');
+      if (sancUsed) parts.push(`<span class="rt-src rt-src-sanction">${t('rtip.sanctions')} ⚠</span>`);
+      else if (sancAvail) parts.push(`<span class="rt-src rt-src-sanction rt-src-dim" title="${t('rtip.sanctionsTip')}">${t('rtip.sanctions')}</span>`);
       if (pscUsed) parts.push('<span class="rt-src rt-src-psc">Paris/Tokyo MoU ⚓</span>');
-      else if (pscAvail) parts.push('<span class="rt-src rt-src-psc rt-src-dim" title="Verificato liste MoU (bandiera/banned), nessun segnale">Paris/Tokyo MoU</span>');
+      else if (pscAvail) parts.push(`<span class="rt-src rt-src-psc rt-src-dim" title="${t('rtip.pscTip')}">Paris/Tokyo MoU</span>`);
       if (vfUsed) parts.push('<span class="rt-src rt-src-vf">VesselFinder</span>');
-      else if (vfAvail) parts.push('<span class="rt-src rt-src-vf rt-src-dim" title="Consultato, nessun dato rilevante per lo score">VesselFinder</span>');
+      else if (vfAvail) parts.push(`<span class="rt-src rt-src-vf rt-src-dim" title="${t('rtip.consultedTip')}">VesselFinder</span>`);
       if (mtUsed) parts.push('<span class="rt-src rt-src-mt">MarineTraffic</span>');
-      else if (mtAvail) parts.push('<span class="rt-src rt-src-mt rt-src-dim" title="Consultato, nessun dato rilevante per lo score">MarineTraffic</span>');
+      else if (mtAvail) parts.push(`<span class="rt-src rt-src-mt rt-src-dim" title="${t('rtip.consultedTip')}">MarineTraffic</span>`);
       if (gfwUsed) parts.push('<span class="rt-src rt-src-gfw">Global Fishing Watch</span>');
-      else if (gfwAvail) parts.push('<span class="rt-src rt-src-gfw rt-src-dim" title="Consultato, nessun evento/dato rilevante per lo score">Global Fishing Watch</span>');
+      else if (gfwAvail) parts.push(`<span class="rt-src rt-src-gfw rt-src-dim" title="${t('rtip.consultedGfwTip')}">Global Fishing Watch</span>`);
       srcHtml = parts.join(' <span class="rt-src-sep">+</span> ');
-      if (!anyUsed) srcHtml += ' <span class="rt-src-note">(nessun dato rilevante per lo score)</span>';
+      if (!anyUsed) srcHtml += ` <span class="rt-src-note">${t('rtip.noRelevant')}</span>`;
     } else {
-      srcHtml = '<span class="rt-src rt-src-ais">Solo AIS free</span>';
+      srcHtml = `<span class="rt-src rt-src-ais">${t('rtip.aisOnly')}</span>`;
     }
 
     tip.innerHTML = `
-      <div class="rt-header risk-${risk.band}">Score rischio: <strong>${risk.score}/100</strong> — <em>${bandLabel}</em></div>
+      <div class="rt-header risk-${risk.band}">${t('rtip.score')}: <strong>${risk.score}/100</strong> — <em>${bandLabel}</em></div>
       ${factorsHtml}
-      <div class="rt-sources"><span class="rt-src-label">Fonti:</span> ${srcHtml}</div>
+      <div class="rt-sources"><span class="rt-src-label">${t('rtip.sources')}:</span> ${srcHtml}</div>
     `;
     tip.classList.remove('hidden');
 

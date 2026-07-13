@@ -26,6 +26,8 @@ import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
 import { applyOutageBanner } from './outage.js';
 import { t } from './i18n.js';
+import { stopTelegramLinkPoll } from './main.js';
+import { exitReplay } from './replay.js';
 
 export function showView(v, mmsi, shipData) {
   // Scroll back to top on every view change (navigating away from a long detail
@@ -39,12 +41,16 @@ export function showView(v, mmsi, shipData) {
   if (S.view === 'detail' && v !== 'detail') stopTrackAnim();
   // Leaving the coverage map: stop its cell-refresh timer and live-stats SSE.
   if (S.view === 'coverage' && v !== 'coverage') leaveCoverageView();
+  // Leaving the active view: tear down any running replay (rAF + replay layer
+  // on the now-hidden active map, and restore the live markers).
+  if (S.view === 'active' && v !== 'active') exitReplay();
   // Leaving Settings: stop every live feed bound to a settings tab
   // (app-log tail, API-log stream, AIS health polling).
   if (S.view === 'settings' && v !== 'settings') {
     closeSettingsLog();
     closeLogs();
     closeHealth();
+    stopTelegramLinkPoll();
   }
 
   S.view = v;

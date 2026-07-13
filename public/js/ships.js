@@ -50,7 +50,7 @@ export function updateDetailFollowStatus(shipData) {
   badge.classList.toggle('hidden', !searching);
   if (searching) {
     const months = Math.round(S.followStaleHours / 24 / 30);
-    badge.dataset.tip = `Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di ${months} mesi. Se riprende a trasmettere riceverai una notifica.`;
+    badge.dataset.tip = t('follow.staleTip', { months });
   }
   // Dedicated, separate ShipFinder indicator: shown alongside "in ricerca" when we
   // have a scraped last-known position — distinguishes "located on ShipFinder" from
@@ -84,24 +84,38 @@ export function updateDetailNotifMuteBtn(muted) {
   el.btnNotifMuteDetail.title = muted ? t('detail.notifMuteRemove') : t('detail.notifMuteAdd');
 }
 
-el.btnNotifMuteDetail.addEventListener('click', async () => {
-  if (S.detailMmsi == null) return;
+// Wrap a detail-action click handler: ignore re-entrant clicks, disable the
+// button while the PATCH is in flight (no double-submit), and surface an error
+// toast instead of leaving an unhandled rejection when the request fails.
+function guardDetailBtn(btn, fn) {
+  btn.addEventListener('click', async () => {
+    if (btn.disabled || S.detailMmsi == null) return;
+    btn.disabled = true;
+    try {
+      await fn();
+    } catch (e) {
+      showAlert(t('error.action'), escHtml(e.message || String(e)));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+guardDetailBtn(el.btnNotifMuteDetail, async () => {
   const newMuted = el.btnNotifMuteDetail.dataset.muted === '1' ? 0 : 1;
   await api(`/api/ships/${S.detailMmsi}/notif-muted`, 'PATCH', { notif_muted: newMuted });
   updateDetailNotifMuteBtn(newMuted);
   if (S.detailShipData) S.detailShipData.notif_muted = newMuted;
 });
 
-el.btnFlagDetail.addEventListener('click', async () => {
-  if (S.detailMmsi == null) return;
+guardDetailBtn(el.btnFlagDetail, async () => {
   const newFlag = el.btnFlagDetail.dataset.flagged === '1' ? 0 : 1;
   await api(`/api/ships/${S.detailMmsi}/flag`, 'PATCH', { flagged: newFlag });
   updateDetailFlagBtn(newFlag);
   if (S.detailShipData) S.detailShipData.flagged = newFlag;
 });
 
-el.btnSeenDetail.addEventListener('click', async () => {
-  if (S.detailMmsi == null) return;
+guardDetailBtn(el.btnSeenDetail, async () => {
   const newSeen = el.btnSeenDetail.dataset.seen === '1' ? 0 : 1;
   await api(`/api/ships/${S.detailMmsi}/seen`, 'PATCH', { seen: newSeen });
   updateDetailSeenBtn(newSeen);
@@ -109,8 +123,7 @@ el.btnSeenDetail.addEventListener('click', async () => {
 });
 
 if (el.btnFollowDetail) {
-  el.btnFollowDetail.addEventListener('click', async () => {
-    if (S.detailMmsi == null) return;
+  guardDetailBtn(el.btnFollowDetail, async () => {
     const newFollow = el.btnFollowDetail.dataset.followed === '1' ? 0 : 1;
     const res = await api(`/api/ships/${S.detailMmsi}/follow`, 'PATCH', { followed: newFollow });
     updateDetailFollowBtn(newFollow);
@@ -127,8 +140,7 @@ if (el.btnFollowDetail) {
   });
 }
 
-el.btnMilitaryDetail.addEventListener('click', async () => {
-  if (S.detailMmsi == null) return;
+guardDetailBtn(el.btnMilitaryDetail, async () => {
   const newMilitary = el.btnMilitaryDetail.dataset.military === '1' ? 0 : 1;
   await api(`/api/ships/${S.detailMmsi}/military`, 'PATCH', { is_military: newMilitary });
   updateDetailMilitaryBtn(newMilitary);

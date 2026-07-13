@@ -59,6 +59,10 @@ function createApp() {
   });
   app.get('/offline.html', (req, res) => res.sendFile(path.join(publicDir, 'offline.html')));
   app.use('/icons', express.static(path.join(publicDir, 'icons')));
+  // Self-hosted vendor libraries (Leaflet). Non-sensitive static assets, served
+  // before the gate so the public heatmap page (and the login-time SW precache)
+  // can load them without a session.
+  app.use('/vendor', express.static(path.join(publicDir, 'vendor')));
 
   // Public heatmap page + data — no session required.
   app.use(heatmapPublicRoutes);

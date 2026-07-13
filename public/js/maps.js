@@ -521,7 +521,7 @@ export function renderFollowedMap(ships) {
   const infoEl = document.getElementById('followed-map-info');
   if (infoEl) {
     infoEl.textContent = searchingNoPos.length
-      ? `🔍 ${searchingNoPos.length} ${searchingNoPos.length === 1 ? 'nave in ricerca senza posizione nota' : 'navi in ricerca senza posizione nota'}`
+      ? `🔍 ${searchingNoPos.length} ${searchingNoPos.length === 1 ? t('follow.searchingNoPosOne') : t('follow.searchingNoPosMany')}`
       : '';
   }
   if (!positioned.length) return;

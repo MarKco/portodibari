@@ -5,25 +5,25 @@
 // (no helmet) to match the project's lightweight middleware style.
 
 // Content-Security-Policy. The allowlist mirrors the origins the app actually
-// uses today: Leaflet + its marker images from unpkg, OSM/OpenSeaMap raster
-// tiles, Google Fonts, and the Overpass API queried client-side by seamarks.js.
+// uses today: OSM/OpenSeaMap raster tiles, Google Fonts, and the Overpass API
+// queried client-side by seamarks.js. Leaflet is self-hosted (/vendor/leaflet),
+// so no external script/style origin is allowed — only 'self'.
 //
-// NOTE: 'unsafe-inline' is currently required on script-src/style-src because
+// NOTE: 'unsafe-inline' is still required on script-src/style-src because
 // index.html and the login page ship inline <script>/<style> blocks and a few
-// inline event handlers. Removing it (and the unpkg entries) depends on
-// self-hosting Leaflet and de-inlining those scripts — tracked as a later
-// hardening batch. Even with 'unsafe-inline', this CSP still blocks framing
-// (clickjacking), plugin/object embedding, <base> hijacking, and script/connect
-// to any non-allowlisted origin.
+// inline event handlers. Removing it depends on de-inlining those scripts
+// (nonces/hashes) — tracked as a later hardening step. Even with 'unsafe-inline',
+// this CSP blocks framing (clickjacking), plugin/object embedding, <base>
+// hijacking, and any script/connect to a non-allowlisted external origin.
 const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org https://tiles.openseamap.org",
-  "script-src 'self' 'unsafe-inline' https://unpkg.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tiles.openseamap.org",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "connect-src 'self' https://overpass-api.de",
   "worker-src 'self'",

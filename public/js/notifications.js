@@ -13,6 +13,13 @@ import { showUndoToast } from './toast.js';
 
 const VISIBLE_KEY = 'notifVisible';
 
+// Number of delete/clear-all undo windows currently open. While > 0 the poll
+// skips re-rendering the list: renderNotifications rebuilds it via innerHTML and
+// would wipe the pending item's "deleting" state, making it reappear as normal
+// only to vanish when the timer fires. Incremented when an undo window opens,
+// decremented on exactly one of its two exits (undo, or commit).
+let pendingDeletes = 0;
+
 function isVisible() {
   return localStorage.getItem(VISIBLE_KEY) !== 'hidden';
 }
@@ -111,6 +118,8 @@ function updateBadge(unread) {
 }
 
 export async function loadNotifications() {
+  // Don't clobber an open undo window (see pendingDeletes).
+  if (pendingDeletes > 0) return;
   try {
     const data = await api('/api/notifications');
     renderNotifications(data.notifications || []);
@@ -135,17 +144,20 @@ export function initNotifications() {
     if (!items.length) return;
     items.forEach((i) => i.classList.add('notif-deleting'));
     let cancelled = false;
+    pendingDeletes++;
     const secs = S.notifDeleteUndoSeconds;
     const { cancel } = showUndoToast({
       message: t('notif.clearAllUndo'),
       seconds: secs,
       onUndo: () => {
         cancelled = true;
+        pendingDeletes--;
         items.forEach((i) => i.classList.remove('notif-deleting'));
       },
     });
     setTimeout(async () => {
       if (cancelled) return;
+      pendingDeletes--;
       cancel();
       try {
         await api('/api/notifications', 'DELETE');
@@ -184,17 +196,20 @@ export function initNotifications() {
       const item = delBtn.closest('.notif-item');
       item?.classList.add('notif-deleting');
       let cancelled = false;
+      pendingDeletes++;
       const secs = S.notifDeleteUndoSeconds;
       const { cancel } = showUndoToast({
         message: t('notif.deleteUndo'),
         seconds: secs,
         onUndo: () => {
           cancelled = true;
+          pendingDeletes--;
           item?.classList.remove('notif-deleting');
         },
       });
       setTimeout(async () => {
         if (cancelled) return;
+        pendingDeletes--;
         cancel();
         try {
           const res = await api(`/api/notifications/${id}`, 'DELETE');

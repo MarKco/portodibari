@@ -123,18 +123,21 @@ function enter() {
   load({ window: '1h' });
 }
 
-function exit() {
+// Exported as exitReplay: also called from views.js (leaving the active view)
+// and on area change, so the rAF loop and replay layer don't linger on a hidden
+// map with the live markers stuck removed. Safe no-op when not in replay mode.
+export function exit() {
+  if (!S.replay) return;
   const e = dom();
   const R = S.replay;
-  if (R) {
-    if (R.rafId) cancelAnimationFrame(R.rafId);
-    if (R.layer) S.activeMap.removeLayer(R.layer);
-  }
+  if (R.rafId) cancelAnimationFrame(R.rafId);
+  if (R.layer && S.activeMap) S.activeMap.removeLayer(R.layer);
   S.replay = null;
-  if (S.activeMarkersLayer) S.activeMarkersLayer.addTo(S.activeMap); // restore live markers
+  if (S.activeMarkersLayer && S.activeMap) S.activeMarkersLayer.addTo(S.activeMap); // restore live markers
   e.bar.classList.add('hidden');
   e.toggle.classList.remove('active');
 }
+export { exit as exitReplay };
 
 // Re-run the most recent load (same window or custom range) — used when the
 // "Includi SF/MST" toggle changes so it takes effect without losing the view.

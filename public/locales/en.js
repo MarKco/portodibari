@@ -28,6 +28,8 @@ export default {
   'notif.revisit':  '<strong>{ship}</strong> back in {area}',
   'notif.areaChange': '<strong>{ship}</strong> moved from {from} to {to}',
   'notif.highRisk': '<strong>{ship}</strong> arrived in {area} — risk score {score}/100',
+  'notif.followSearching': '🔍 <strong>{ship}</strong> not found: searching for it worldwide.',
+  'notif.followFound': '✅ <strong>{ship}</strong> is transmitting again.',
   'notif.followLost': '📭 <strong>{ship}</strong> not found: not transmitting, removed from followed ships.',
   'notif.berthNew': 'New berth detected in {area}',
   'notif.berthChar': 'Berth <strong>{berth}</strong> characterised as {cat} in {area}',
@@ -217,6 +219,10 @@ export default {
   'follow.mstSeenTip': 'Position fetched from MyShipTracking while the ship is dark on AIS: last known sighting, not a live AIS signal.',
   'follow.aisLost': '📡 AIS signal lost {ago} ago',
   'follow.aisLostTip': 'The ship has been dark on AIS for this long: the shown position comes from ShipFinder/MyShipTracking, not a live AIS signal.',
+  'follow.searchBadge': '🔍 searching',
+  'follow.staleTip': 'No AIS signal received. The ship is being searched worldwide for up to {months} months. You will be notified if it starts transmitting again.',
+  'follow.searchingNoPosOne': 'ship searching, position unknown',
+  'follow.searchingNoPosMany': 'ships searching, position unknown',
   'ago.now':   'moments',
   'ago.min1':  '{n} minute',
   'ago.minN':  '{n} minutes',
@@ -250,6 +256,18 @@ export default {
   'risk.src.sanctionDim':'Checked against sanctions lists (OFAC/EU/UK/UN, no match)',
   'risk.src.psc':        'Signal from Paris/Tokyo MoU lists (flag or banned)',
   'risk.src.pscDim':     'Checked against MoU lists (no signal)',
+
+  // ── Risk hover tooltip (risk-badge) ─────────────────────────────────────────
+  'rtip.score':          'Risk score',
+  'rtip.sources':        'Sources',
+  'rtip.noAnomaly':      'No anomaly detected',
+  'rtip.noRelevant':     '(no data relevant to the score)',
+  'rtip.aisOnly':        'Free AIS only',
+  'rtip.sanctions':      'Sanctions',
+  'rtip.sanctionsTip':   'Checked against sanctions lists (OFAC/EU/UK/UN), no match',
+  'rtip.pscTip':         'Checked against MoU lists (flag/banned), no signal',
+  'rtip.consultedTip':   'Consulted, no data relevant to the score',
+  'rtip.consultedGfwTip':'Consulted, no event/data relevant to the score',
 
   // ── Map markers ────────────────────────────────────────────────────────────
   'map.lastPos': '📍 Last position',
@@ -356,6 +374,12 @@ export default {
   'error.changeArea':  'Error changing area: ',
   'error.startStream': 'Error starting stream: ',
   'error.diagnostics': 'Error loading diagnostics.',
+  'error.action':      'Action failed',
+  'error.stopStream':  'Error stopping stream: ',
+  'error.clearReadings':'Error clearing readings: ',
+  'error.restore':     'Restore error: ',
+  'error.backupSave':  'Backup save error: ',
+  'error.selectPart':  'Select at least one part to restore.',
 
   // ── Health panel ───────────────────────────────────────────────────────────
   'health.title':       'AIS Stream Diagnostics',

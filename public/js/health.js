@@ -138,6 +138,7 @@ async function fetchHealth() {
 // Called when the Settings → "Diagnostica AIS" tab becomes active: poll health
 // every 5s while visible.
 export function openHealth() {
+  clearInterval(healthTimer); // guard against a leaked timer if re-opened without close
   fetchHealth();
   healthTimer = setInterval(fetchHealth, 5000);
 }
