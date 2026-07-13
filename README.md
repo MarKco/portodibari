@@ -198,7 +198,7 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Raggio "stessa sosta" (in porto)| `src/config.js`                   | `STILL_RADIUS_M = 100`                | 100 m          |
 | Raggio merge traccia (de-noise) | `public/js/store.js`              | `TRACK_MERGE_RADIUS_M = 100`          | 100 m          |
 | Replay: max posizioni per query | `app.config.properties`           | `REPLAY_MAX_POINTS`                   | 40.000         |
-| Replay: buco max (nascondi nave) | `app.config.properties`          | `REPLAY_MAX_GAP_MIN`                  | 30 min         |
+| Replay: buco max (oltre → tieni ultima pos.) | `app.config.properties`  | `REPLAY_MAX_GAP_MIN`                  | 30 min         |
 | Replay: lunghezza scia          | `app.config.properties`           | `REPLAY_TAIL_MIN`                     | 20 min         |
 | Ritardo riconnessione WebSocket | `src/services/ais-stream.js`      | `setTimeout(startStream, 5000)`       | 5000 ms        |
 | Rilevamento disservizio AIS     | `app.config.properties`           | `AIS_OUTAGE_CHECK`                    | `true`         |
@@ -452,7 +452,7 @@ Il pulsante **▶ Replay** nella toolbar entra in modalità replay (nasconde i m
 - **Area** — una delle aree dell'utente (default quella corrente);
 - **Finestra** — preset rapidi **1h / 6h / 24h / tutto**, oppure un intervallo **personalizzato** (da/a) con i due selettori datetime. La finestra è ancorata al **dato più recente** dell'area (non all'orologio), così lo scrubber cade sempre su dati anche dopo una pausa, ed è limitata all'intervallo disponibile nei `readings` (a rotazione, cap 10k/tipo).
 
-**Modello di riproduzione** — un **clock globale** scorre da inizio a fine finestra. A ogni istante T ciascuna nave è disegnata nella posizione **interpolata** tra i suoi due fix circostanti — *a meno che* quei fix non siano separati da un buco più lungo di `REPLAY_MAX_GAP_MIN` (default 30 min): in quel caso la nave è **nascosta** (niente moto inventato attraverso dati mancanti, es. AIS spento o uscita dall'area). Una **scia che sfuma** lunga `REPLAY_TAIL_MIN` (default 20 min) mostra il percorso recente. I marker sono **colorati per fascia di rischio** (lo score è quello corrente) e **cliccabili** per aprire il dettaglio.
+**Modello di riproduzione** — un **clock globale** scorre da inizio a fine finestra. A ogni istante T ciascuna nave è disegnata nella posizione **interpolata** tra i suoi due fix circostanti — *a meno che* quei fix non siano separati da un buco più lungo di `REPLAY_MAX_GAP_MIN` (default 30 min): in quel caso la nave è **tenuta all'ultima posizione nota** (fix a-o-prima di T) invece di essere interpolata. Così non si inventa un movimento attraverso i dati mancanti, ma la nave **resta visibile**: le navi lente o all'ancora, che trasmettono solo ogni qualche ora, prima **sparivano** per quasi tutta la timeline (bug corretto). Una nave è nascosta solo **prima del suo primo** e **dopo il suo ultimo** fix nella finestra. Una **scia che sfuma** lunga `REPLAY_TAIL_MIN` (default 20 min) mostra il percorso recente. I marker sono **colorati per fascia di rischio** (lo score è quello corrente) e **cliccabili** per aprire il dettaglio.
 
 **Controlli** — play/pausa, **scrubber** (seek manuale) e **moltiplicatori di velocità** (1× / 5× / 20× / 60× del tempo reale). Lo stato mostra navi caricate, intervallo disponibile ed eventuale troncamento.
 

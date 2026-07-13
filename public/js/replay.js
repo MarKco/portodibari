@@ -11,10 +11,13 @@ import { exportReplay } from './geoexport.js';
 // position inside the selected area's bbox over a chosen window (grouped by
 // ship), hides the live markers, and animates a global clock from window start
 // to end. At clock time T each ship is drawn at its position interpolated
-// between its surrounding fixes — UNLESS those fixes straddle a gap longer than
-// replayMaxGapMin (then the ship is hidden, no fabricated motion). A short
-// fading trail (replayTailMin) shows recent path; markers are risk-band
-// coloured and clickable. Speed multipliers + a scrubber drive the clock.
+// between its surrounding fixes; when those fixes straddle a gap longer than
+// replayMaxGapMin the ship is HELD at its last known position instead of
+// interpolated (no fabricated motion across the gap, but it stays visible — a
+// ship at anchor reporting every few hours must not vanish for most of the
+// timeline). A ship is only hidden before its first / after its last fix in the
+// window. A short fading trail (replayTailMin) shows recent path; markers are
+// risk-band coloured and clickable. Speed multipliers + a scrubber drive the clock.
 
 const RISK_STYLE = {
   high: { radius: 7, color: '#f87171', fillColor: '#dc2626', weight: 2.5 },
@@ -235,16 +238,27 @@ function renderFrame() {
     const f = s.fixes;
     let pos = null;
     if (T >= f[0].ms && T <= f[f.length - 1].ms) {
-      // Find the segment [a,b] straddling T (linear scan from the cached index).
-      let i = Math.min(s.idx, f.length - 2);
-      while (i > 0 && f[i].ms > T) i--;
-      while (i < f.length - 2 && f[i + 1].ms < T) i++;
-      s.idx = i;
-      const a = f[i], b = f[i + 1];
-      const gap = b.ms - a.ms;
-      if (gap <= R.maxGapMs) {
-        const lt = gap > 0 ? (T - a.ms) / gap : 1;
-        pos = [lerp(a.lat, b.lat, lt), lerp(a.lon, b.lon, lt)];
+      if (f.length === 1) {
+        pos = [f[0].lat, f[0].lon];
+      } else {
+        // Find the segment [a,b] straddling T (linear scan from the cached index).
+        let i = Math.min(s.idx, f.length - 2);
+        while (i > 0 && f[i].ms > T) i--;
+        while (i < f.length - 2 && f[i + 1].ms < T) i++;
+        s.idx = i;
+        const a = f[i], b = f[i + 1];
+        const gap = b.ms - a.ms;
+        if (gap <= R.maxGapMs) {
+          const lt = gap > 0 ? (T - a.ms) / gap : 1;
+          pos = [lerp(a.lat, b.lat, lt), lerp(a.lon, b.lon, lt)];
+        } else {
+          // Gap too large to fabricate motion between a and b: instead of hiding
+          // the ship (which made slow/anchored ships that report every few hours
+          // vanish for most of the timeline), HOLD it at the last known position
+          // at-or-before T. No fabricated glide; the ship stays present until its
+          // next fix, then jumps there. Matches "who was here at time T".
+          pos = [a.lat, a.lon];
+        }
       }
     }
 
