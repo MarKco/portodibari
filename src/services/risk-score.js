@@ -81,7 +81,7 @@ function isHighRiskDest(raw) {
 // than ordinary flags of convenience (lax registries favoured by smugglers).
 const EMBARGO_MID = new Set([445, 468, 422, 642, 273]); // NK, Syria, Iran, Libya, Russia
 const FOC_MID = new Set([
-  351, 352, 353, 354, 355, 356, 357, 370, 371, 372, 373, // Panama
+  351, 352, 353, 354, 355, 356, 357, 370, 371, 372, 373, 374, // Panama
   636, 637, // Liberia
   538, // Marshall Islands
   616, // Comoros
@@ -282,6 +282,12 @@ function computeRiskScore(ship, lang) {
     factors.push({ label, points: Math.round(points) });
   };
 
+  // Points contributed by the LOCAL heuristics whose behaviour GFW also reports,
+  // so the GFW event factor can be capped to max(local, GFW) per family instead
+  // of stacking on top (a single blackout/loiter/rendezvous must not be counted
+  // twice — see the GFW and proximity blocks below).
+  let localDarkPts = 0, localLoiterPts = 0, gfwRdvPts = 0;
+
   // Military ships → fixed maximum score regardless of behavioural signals.
   if (isMilitary(ship)) {
     return {
@@ -307,10 +313,12 @@ function computeRiskScore(ship, lang) {
       if (dtH > maxGapH) maxGapH = dtH;
     }
     if (maxGapH >= W.DARK_MAX_H) {
-      add(W.DARK_MAX, L.darkMax(maxGapH.toFixed(0)));
+      localDarkPts = W.DARK_MAX;
+      add(localDarkPts, L.darkMax(maxGapH.toFixed(0)));
     } else if (maxGapH >= W.DARK_MIN_H) {
       const t = (maxGapH - W.DARK_MIN_H) / (W.DARK_MAX_H - W.DARK_MIN_H);
-      add(W.DARK_PARTIAL_MIN + t * (W.DARK_MAX - W.DARK_PARTIAL_MIN), L.darkPartial(maxGapH.toFixed(1)));
+      localDarkPts = W.DARK_PARTIAL_MIN + t * (W.DARK_MAX - W.DARK_PARTIAL_MIN);
+      add(localDarkPts, L.darkPartial(maxGapH.toFixed(1)));
     }
   }
 
@@ -341,7 +349,8 @@ function computeRiskScore(ship, lang) {
   //    ship as open-sea loitering. Positions outside every monitored area are
   //    skipped — we have no port context there to call a stop "transshipment".
   {
-    const open = positions.filter((p) => {
+    // positions are chronological (ASC), so the filtered list is too.
+    const openPos = positions.filter((p) => {
       const slow = p.sog != null && p.sog < SOG_FERMA;
       const notMoored = p.ns !== '1' && p.ns !== '5';
       if (!slow || !notMoored) return false;
@@ -352,9 +361,16 @@ function computeRiskScore(ship, lang) {
       const cLon = (box[0][1] + box[1][1]) / 2;
       const farKm = haversineM(p.lat, p.lon, cLat, cLon) / 1000;
       return farKm > W.LOITER_FAR_KM;
-    }).length;
-    if (open >= W.LOITER_MIN_POS) add(W.LOITER_MAX, L.loiterMax);
-    else if (open >= 1) add(W.LOITER_PARTIAL, L.loiterPartial);
+    });
+    const open = openPos.length;
+    // Measure how long the stationary-offshore fixes actually span. Counting
+    // positions alone let a burst of high-frequency Class-A reports (3 fixes in
+    // 30s) trip the MAX; require a real dwell for the top score.
+    const spanMin = open >= 2
+      ? (new Date(openPos[open - 1].received_at) - new Date(openPos[0].received_at)) / 60000
+      : 0;
+    if (open >= W.LOITER_MIN_POS && spanMin >= R.LOITER_MIN_SPAN_MIN) { localLoiterPts = W.LOITER_MAX; add(localLoiterPts, L.loiterMax); }
+    else if (open >= 1) { localLoiterPts = W.LOITER_PARTIAL; add(localLoiterPts, L.loiterPartial); }
   }
 
   // 4. Draught load — significant increase in declared draught across a stop
@@ -372,9 +388,14 @@ function computeRiskScore(ship, lang) {
   if (maxLoad >= W.DRAUGHT_MIN_DELTA) add(clamp(maxLoad * W.DRAUGHT_FACTOR, 0, W.DRAUGHT_MAX), L.draughtLoad(maxLoad.toFixed(1)));
 
   // 5. Destination instability — frequent changes of declared destination.
+  //    Canonicalize each declared destination first (destinationLabel resolves
+  //    UN/LOCODE forms and known ports) so variants of the SAME port
+  //    ("ITGOA"/"IT GOA"/"GENOVA"/"GENOA") collapse to one entry instead of
+  //    counting as distinct changes. Unresolved values fall back to the trimmed
+  //    upper-cased raw string.
   const dests = new Set(
     [ship.destination, ...events.map((e) => e.destination)]
-      .map((d) => (d || '').trim().toUpperCase())
+      .map((d) => destinationLabel(d) || (d || '').trim().toUpperCase())
       .filter(Boolean)
   );
   if (dests.size >= 2) add(clamp((dests.size - 1) * W.DEST_PER_CHANGE, 0, W.DEST_MAX), L.destChange(dests.size));
@@ -513,9 +534,13 @@ function computeRiskScore(ship, lang) {
   //     gfwContributed; here we add the event factors.
   if (gfwData && gfwData.events) {
     const ev = gfwData.events;
-    if (ev.encounters?.length) addEnr(W.GFW_ENCOUNTER, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch');
-    if (ev.gaps?.length) addEnr(W.GFW_GAP, L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
-    if (ev.loitering?.length) addEnr(W.GFW_LOITERING, L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
+    // Cap against the local heuristic for the same behaviour: add only the
+    // excess over what blocks 1/3 already scored, so a blackout/loiter confirmed
+    // by BOTH sources counts once at max(local, GFW), never local+GFW. Encounter
+    // is recorded in gfwRdvPts so the local proximity block (12) can do the same.
+    if (ev.encounters?.length) { gfwRdvPts = W.GFW_ENCOUNTER; addEnr(gfwRdvPts, L.gfwEncounter(ev.encounters.length), 'Global Fishing Watch'); }
+    if (ev.gaps?.length) addEnr(Math.max(0, W.GFW_GAP - localDarkPts), L.gfwGap(ev.gaps.length), 'Global Fishing Watch');
+    if (ev.loitering?.length) addEnr(Math.max(0, W.GFW_LOITERING - localLoiterPts), L.gfwLoiter(ev.loitering.length), 'Global Fishing Watch');
     const highRiskCall = (ev.portVisits || []).find((pv) =>
       hasHighRiskToken(`${pv.port || ''} ${pv.country || ''}`.toUpperCase())
     );
@@ -533,7 +558,9 @@ function computeRiskScore(ship, lang) {
   if (W.PROXIMITY > 0) {
     const sinceIso = new Date(Date.now() - W.PROXIMITY_WINDOW_DAYS * 86400000).toISOString();
     const partners = new Set(db.getProximityForShip(mmsi, sinceIso).map((r) => r.other));
-    if (partners.size) add(W.PROXIMITY, L.proximity(partners.size));
+    // Cap against a GFW at-sea encounter for the same rendezvous (see block 11):
+    // add only the excess so the two sources total max(local, GFW), not both.
+    if (partners.size) add(Math.max(0, W.PROXIMITY - gfwRdvPts), L.proximity(partners.size));
   }
 
   // ── Geopolitical context multiplier ────────────────────────────────────────

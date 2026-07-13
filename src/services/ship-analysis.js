@@ -40,7 +40,7 @@ function computeDirection(ship) {
   if (ns === '1' || ns === '5') return 'ferma'; // at anchor / moored
   if (ship.last_sog == null || ship.last_sog < SOG_FERMA) return 'ferma';
   const cog = ship.last_cog;
-  if (cog == null || cog > 360) return null; // COG not available
+  if (cog == null || cog >= 360) return null; // COG not available (AIS 360 = "not available")
   if (ship.last_latitude == null || ship.last_longitude == null) return null;
   const dLon = ((state.centerLon - ship.last_longitude) * Math.PI) / 180;
   const lat1r = (ship.last_latitude * Math.PI) / 180;

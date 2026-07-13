@@ -315,6 +315,7 @@ router.get('/ships/search/recover', async (req, res) => {
       if (mmsi) {
         const data = mtDataFromInfo(info);
         db.setScrapedData(mmsi, 'mt', data);
+        invalidateRiskCache(mmsi);
         mtFetched = true;
         send('source', { source: 'mt', ok: true, data });
       }
@@ -376,6 +377,7 @@ router.get('/ships/search/recover', async (req, res) => {
       try {
         const data = await crawlVesselFinder(ship.imo_number || mmsi);
         db.setScrapedData(mmsi, 'vf', data);
+        invalidateRiskCache(mmsi);
         const flagHit = psc.matchFlag(flagFromData(data));
         send('source', { source: 'vf', ok: true, data, flagPerf: flagHit ? flagHit.perf : null });
       } catch (e) {
@@ -389,6 +391,7 @@ router.get('/ships/search/recover', async (req, res) => {
         const { data, shipId } = await crawlMarineTraffic(ship);
         if (shipId) db.setMtShipId(mmsi, shipId);
         db.setScrapedData(mmsi, 'mt', data);
+        invalidateRiskCache(mmsi);
         const flagHit = psc.matchFlag(flagFromData(data));
         send('source', { source: 'mt', ok: true, data, flagPerf: flagHit ? flagHit.perf : null });
       } catch (e) {
@@ -402,6 +405,7 @@ router.get('/ships/search/recover', async (req, res) => {
         const data = await crawlGfw(ship);
         if (data && data.found) {
           db.setScrapedData(mmsi, 'gfw', data);
+          invalidateRiskCache(mmsi);
           send('source', { source: 'gfw', ok: true, data });
         } else {
           send('source', { source: 'gfw', ok: true, notFound: true });

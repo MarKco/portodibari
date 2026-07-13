@@ -298,6 +298,7 @@ async function loadFromDisk() {
   index.byImo.clear();
   index.byCallSign.clear();
   index.byName.clear();
+  let total = 0; // true vessel count (rows parsed), not index-key count
   for (const key of activeKeys()) {
     const src = SOURCES[key];
     if (!fs.existsSync(src.file)) continue;
@@ -305,12 +306,14 @@ async function loadFromDisk() {
       const entries = await src.parse(src.file);
       for (const e of entries) indexEntry(e);
       meta[key] = { vesselCount: entries.length, lastRefreshed: fs.statSync(src.file).mtime.toISOString() };
+      total += entries.length;
     } catch (e) {
       console.error(`[SANCTIONS:${key}] parse cached file failed: ${e.message}`);
     }
   }
-  const total = index.byImo.size;
-  if (total) console.log(`[SANCTIONS] Loaded ${total} listed vessels (by IMO) from cache`);
+  // Count every parsed vessel, not just those with an IMO: a list indexed only
+  // by name/call sign would otherwise return 0 and trigger a needless refresh.
+  if (total) console.log(`[SANCTIONS] Loaded ${total} listed vessels from cache`);
   return total;
 }
 
@@ -375,7 +378,9 @@ function getStatus() {
   const vesselCount = sources.reduce((sum, s) => sum + s.vesselCount, 0);
   const lastRefreshed = sources.map((s) => s.lastRefreshed).filter(Boolean).sort().pop() || null;
   return {
-    loaded: index.byImo.size > 0,
+    // A list indexed only by name/call sign (no IMO column) would otherwise
+    // read as "not loaded" and skip screening entirely — count every index.
+    loaded: index.byImo.size + index.byName.size + index.byCallSign.size > 0,
     vesselCount,
     lastRefreshed,
     source: sources.map((s) => s.label).join(', '),

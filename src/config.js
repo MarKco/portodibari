@@ -421,6 +421,9 @@ const RISK = {
   LOITER_PARTIAL:    num('RISK_LOITERING_PARTIAL', 7),
   LOITER_MIN_POS:    num('RISK_LOITERING_MIN_POSITIONS', 3),
   LOITER_FAR_KM:     num('RISK_LOITERING_FAR_KM', 10),
+  // Minimum minutes the stationary-offshore fixes must span for the MAX score:
+  // guards against a burst of high-frequency Class-A reports over seconds.
+  LOITER_MIN_SPAN_MIN: num('RISK_LOITERING_MIN_SPAN_MIN', 20),
   DRAUGHT_MAX:       num('RISK_DRAUGHT_MAX', 20),
   DRAUGHT_FACTOR:    num('RISK_DRAUGHT_FACTOR', 12),
   DRAUGHT_MIN_DELTA: num('RISK_DRAUGHT_MIN_DELTA_M', 0.5),

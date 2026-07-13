@@ -1910,15 +1910,22 @@ function getRecentPositions(mmsi, minutes = 30) {
 // Recent positions for risk scoring (dark-activity gaps, speed-jump spoofing,
 // loitering). Time-bounded and oldest-first so consecutive-pair analysis works.
 function getShipPositions(mmsi, hours = 168, limit = 2000) {
+  // Keep the MOST RECENT `limit` positions (inner DESC + LIMIT), then hand them
+  // back oldest-first for chronological processing. Ordering ASC before the
+  // LIMIT would truncate from the wrong end — dropping recent blackouts/spoofing
+  // and keeping stale positions once a ship exceeds `limit` readings in-window.
   return db
     .prepare(
       `
-    SELECT received_at, latitude AS lat, longitude AS lon, sog, navigational_status AS ns
-    FROM readings
-    WHERE mmsi = ? AND received_at > datetime('now', ?)
-      AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'
+    SELECT received_at, lat, lon, sog, ns FROM (
+      SELECT received_at, latitude AS lat, longitude AS lon, sog, navigational_status AS ns
+      FROM readings
+      WHERE mmsi = ? AND received_at > datetime('now', ?)
+        AND latitude IS NOT NULL AND longitude IS NOT NULL AND source = 'ais'
+      ORDER BY received_at DESC
+      LIMIT ?
+    )
     ORDER BY received_at ASC
-    LIMIT ?
   `
     )
     .all(mmsi, `-${hours} hours`, limit);
