@@ -5,11 +5,12 @@ const { broadcastLog } = require('../realtime');
 const { MAX_BODY } = require('../config');
 
 // Paths (relative to the /api mount) whose request/response bodies must NOT be
-// persisted: they carry sensitive content (Equasis ownership data) or bulky
-// payloads (base64 databases in backup/restore/bundle). The log line itself
-// (method, path, status, duration) is still recorded — only the bodies are
-// dropped, so the audit trail stays without leaking/bloating.
-const NO_BODY_LOG = /^\/(equasis-log|bundle|restore|backups|settings|auth|admin\/users)\b/;
+// persisted: they carry secrets (webhook `secret`, Telegram link code/deeplink),
+// sensitive content (Equasis ownership data) or bulky payloads (base64 databases
+// in backup/restore/bundle). The log line itself (method, path, status,
+// duration) is still recorded — only the bodies are dropped, so the audit trail
+// stays without leaking/bloating.
+const NO_BODY_LOG = /^\/(equasis-log|bundle|restore|backups|settings|auth|admin\/users|webhooks|telegram)\b/;
 
 // Records every /api request (method, path, status, duration, bodies) to the
 // api_log table and broadcasts it to the live SSE log stream. The log stream

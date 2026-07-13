@@ -120,7 +120,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `ADMIN_USERNAME` | Username dell'amministratore predefinito, ri-seedato all'avvio se assente (vedi [Autenticazione](#-autenticazione-multi-utente)) | `admin` |
 | `ADMIN_EMAIL` | Email dell'amministratore predefinito | `admin@local` |
 | `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app | *(default incluso)* |
-| `COOKIE_SECURE` | Invia il cookie di sessione solo su HTTPS — impostare a `true` dietro TLS (`true`/`false`) | `false` |
+| `COOKIE_SECURE` | Forza sempre il flag `Secure` sul cookie di sessione. **Di norma non serve**: il flag è applicato **automaticamente** quando la richiesta arriva in HTTPS (`X-Forwarded-Proto`). Impostare a `true` solo se il proxy termina il TLS ma **non** inoltra `X-Forwarded-Proto`. Lasciare `false` per deploy in chiaro/locali, altrimenti il browser scarta il cookie e il login non funziona (`true`/`false`) | `false` |
 | `SESSION_TTL_DAYS` | Durata in giorni della sessione di login | `30` |
 | `HEATMAP_AIS_API_KEY` | API key di un **account AISStream separato** per la Mappa delle zone coperte (vedi [sezione dedicata](#-mappa-delle-zone-coperte-copertura-aisstream)). Vuota = funzione disattivata. Valore nudo, niente commenti inline. | *(vuota)* |
 
@@ -849,6 +849,19 @@ Il login accetta indifferentemente **lo username oppure l'email**. Cambia la pas
 
 Gli endpoint pubblici di autenticazione sono protetti da un **rate limiter** (per IP) contro brute-force e credential stuffing: **login** e **richiesta di reset** max **10 tentativi ogni 15 minuti**, **registrazione** max **10 all'ora**. Superata la soglia l'endpoint risponde `429` con un messaggio di attesa finché la finestra non si libera.
 
+La **registrazione non rivela** se un'email o uno username sono già registrati: un valore duplicato riceve **la stessa risposta generica** (`pending`) di una registrazione nuova, senza creare né toccare alcun account (l'evento è comunque annotato nel log operativo per l'admin). Impedisce l'**enumerazione degli account**. Login e richiesta di reset erano già generici.
+
+### Header di sicurezza e protezione CSRF
+
+Ogni risposta HTTP porta un set di **header di sicurezza** ([`src/middleware/security.js`](src/middleware/security.js), montato per primo così coprono anche la pagina di login, gli asset statici e il service worker):
+
+- **`Content-Security-Policy`** — `default-src 'self'` con allowlist esplicita delle sole origini realmente usate: Leaflet + immagini dei marker da `unpkg.com`, tile raster OSM/OpenSeaMap, Google Fonts, e l'API **Overpass** interrogata lato client da `seamarks.js`. Blocca `frame-ancestors` (clickjacking), `object-src` (plugin/embed), `base-uri` (hijack del `<base>`) e qualsiasi script/connect verso origini non in lista. *(`'unsafe-inline'` è per ora necessario su `script-src`/`style-src` perché `index.html` e la pagina di login contengono blocchi inline; rimuoverlo — insieme alle voci `unpkg` — dipende dal self-hosting di Leaflet e dalla de-inlinizzazione degli script, previsto in un batch di hardening successivo.)*
+- **`X-Frame-Options: DENY`** — no framing (difesa clickjacking ridondante alla CSP).
+- **`X-Content-Type-Options: nosniff`**, **`Referrer-Policy: no-referrer`**, **`Permissions-Policy: camera=(), microphone=()`**.
+- **`Strict-Transport-Security`** (1 anno, `includeSubDomains`) — emesso **solo sulle richieste HTTPS**, così non "pinna" mai un deploy in chiaro.
+
+Le **mutazioni** (`POST`/`PATCH`/`PUT`/`DELETE` su `/api`) passano da una **guardia CSRF** (`csrfGuard`): una richiesta cross-site da browser porta sempre un header `Origin` (e di solito `Referer`) con host diverso dal nostro → viene **rifiutata con `403`**. È difesa in profondità in aggiunta al cookie `SameSite=Lax` e al body parser solo-JSON. Le richieste senza `Origin` né `Referer` passano (un browser non può omettere `Origin` su una mutazione cross-origin: sono XHR same-origin o client non-browser, già coperti da `SameSite`).
+
 ### Dati per-utente vs globali
 
 Ogni utente ha **i propri** dati:
@@ -981,7 +994,7 @@ sudo ufw allow 3000
 PORT=8080 pm2 start src/server.js --name tracker-porti
 ```
 
-> ⚠️ Aprire la porta espone l'app a chiunque raggiunga il server. L'app è comunque protetta da login (vedi [Autenticazione](#-autenticazione-multi-utente)): **cambia la password dell'amministratore predefinito** (`ADMIN_PASSWORD`) prima e imposta `COOKIE_SECURE=true`, idealmente con TLS davanti.
+> ⚠️ Aprire la porta espone l'app a chiunque raggiunga il server. L'app è comunque protetta da login (vedi [Autenticazione](#-autenticazione-multi-utente)): **cambia la password dell'amministratore predefinito** (`ADMIN_PASSWORD`) prima e metti **TLS davanti** — con HTTPS il cookie di sessione riceve il flag `Secure` **automaticamente** (imposta `COOKIE_SECURE=true` solo se il proxy non inoltra `X-Forwarded-Proto`).
 
 ### Nginx come reverse proxy (opzionale, consigliato)
 
@@ -1001,6 +1014,10 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        # Necessari: X-Forwarded-Proto abilita il cookie Secure automatico su
+        # HTTPS; X-Forwarded-For dà a rate limiting e audit l'IP reale del client.
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_cache_bypass $http_upgrade;
     }
 }

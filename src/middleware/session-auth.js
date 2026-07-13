@@ -35,6 +35,18 @@ function parseCookies(header) {
   return out;
 }
 
+/**
+ * Whether to mark the session cookie Secure. On by default whenever the request
+ * arrived over HTTPS (req.secure reflects X-Forwarded-Proto behind the trusted
+ * proxy), so a TLS deploy never sends the cookie in clear — no manual config
+ * needed. COOKIE_SECURE=true forces it on always (e.g. a proxy that doesn't set
+ * X-Forwarded-Proto). Over plain HTTP it stays off so local/no-TLS deploys can
+ * still log in (a Secure cookie would be dropped by the browser).
+ */
+function useSecureCookie(res) {
+  return COOKIE_SECURE || !!(res.req && res.req.secure);
+}
+
 /** Serialize + send the signed session cookie on the response. */
 function setSessionCookie(res, sessionId) {
   const signed = auth.signCookie(sessionId, db.getSessionSecret());
@@ -45,14 +57,14 @@ function setSessionCookie(res, sessionId) {
     'SameSite=Lax',
     `Max-Age=${Math.floor(TTL_MS / 1000)}`,
   ];
-  if (COOKIE_SECURE) parts.push('Secure');
+  if (useSecureCookie(res)) parts.push('Secure');
   res.append('Set-Cookie', parts.join('; '));
 }
 
 /** Clear the session cookie. */
 function clearSessionCookie(res) {
   const parts = [`${SESSION_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];
-  if (COOKIE_SECURE) parts.push('Secure');
+  if (useSecureCookie(res)) parts.push('Secure');
   res.append('Set-Cookie', parts.join('; '));
 }
 

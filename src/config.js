@@ -135,8 +135,11 @@ const maskKey = (k) => (k ? `…${String(k).slice(-4)}` : 'none');
 const DEFAULT_ADMIN_USERNAME = props.ADMIN_USERNAME || process.env.ADMIN_USERNAME || 'admin';
 const DEFAULT_ADMIN_EMAIL = props.ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@local';
 const DEFAULT_ADMIN_PASSWORD = props.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'v*ZG!S@GE2^yK^';
-// Session cookie name + flags. COOKIE_SECURE should be 'true' when served over
-// HTTPS (the cookie is then withheld on plain HTTP). Default off for local dev.
+// Session cookie name + flags. The Secure flag is applied automatically on any
+// HTTPS request (see useSecureCookie in middleware/session-auth), so a TLS
+// deploy is protected without configuration. COOKIE_SECURE=true is an override
+// that forces Secure on always — use it when the proxy terminates TLS but does
+// not forward X-Forwarded-Proto. Leave it off for plain-HTTP/local deploys.
 const SESSION_COOKIE = 'tp_session';
 const COOKIE_SECURE = (props.COOKIE_SECURE || process.env.COOKIE_SECURE) === 'true';
 // Session lifetime in days.

@@ -3,6 +3,7 @@
 const path = require('path');
 const express = require('express');
 const apiLogger = require('./middleware/api-logger');
+const { securityHeaders, csrfGuard } = require('./middleware/security');
 const sessionAuth = require('./middleware/session-auth');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -16,6 +17,9 @@ function createApp() {
   const app = express();
   // Behind a reverse proxy: trust X-Forwarded-* so req.ip / secure cookies work.
   app.set('trust proxy', true);
+
+  // Security response headers on everything (login page + static assets too).
+  app.use(securityHeaders);
 
   app.use(express.json());
 
@@ -33,6 +37,10 @@ function createApp() {
   // Log + broadcast every API call (auth endpoints included; their bodies are
   // suppressed by the logger's NO_BODY_LOG list so passwords never persist).
   app.use('/api', apiLogger);
+
+  // Reject cross-origin state changes (CSRF defense-in-depth). After the logger
+  // so a blocked attempt is still recorded in the audit trail.
+  app.use('/api', csrfGuard);
 
   // Public auth surface (login/register/reset pages + /api/auth/*). Mounted
   // BEFORE the gate — the only routes reachable without a session.

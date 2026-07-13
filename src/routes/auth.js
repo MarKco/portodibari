@@ -93,7 +93,11 @@ router.post('/api/auth/register', registerLimiter, (req, res) => {
     res.json({ ok: true, status: 'pending' });
   } catch (e) {
     if (String(e.message).includes('UNIQUE') || String(e.message).includes('constraint')) {
-      return res.status(409).json({ error: 'Email o username già in uso' });
+      // Do NOT reveal that the email/username already exists (account
+      // enumeration). Return the SAME generic pending response as a fresh
+      // sign-up; the real owner's account is untouched. Logged for the admin.
+      appLog.info('AUTH', `Registrazione ignorata: email o username già esistente (${String(email).trim()})`);
+      return res.json({ ok: true, status: 'pending' });
     }
     res.status(500).json({ error: 'Registrazione non riuscita' });
   }
