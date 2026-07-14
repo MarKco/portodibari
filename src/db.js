@@ -373,18 +373,27 @@ db.exec(`
     PRIMARY KEY (user_id, key)
   );
 
-  -- Per-user "reset" of the ship detail track: hides movements at-or-before
-  -- reset_at in that user's track view (non-destructive — readings are shared
-  -- and untouched). Lets a user clear a followed ship's previous trips without
-  -- affecting other users, the risk score or port events.
-  CREATE TABLE IF NOT EXISTS user_track_resets (
+  -- Per-user track "cuts" for the ship detail replay. Each cut is a timestamp
+  -- that splits that user timeline into segments (trips): N cuts produce N+1
+  -- segments [data start..C1], [C1..C2], ... [Cn..now]. Non-destructive: the
+  -- shared readings rows are untouched, so the risk score, port events and other
+  -- users views are unaffected. The detail view lists the segments in a dropdown.
+  CREATE TABLE IF NOT EXISTS user_track_cuts (
     user_id INTEGER NOT NULL,
     mmsi INTEGER NOT NULL,
-    reset_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, mmsi)
+    cut_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, mmsi, cut_at)
   );
-  CREATE INDEX IF NOT EXISTS idx_user_track_resets_user ON user_track_resets(user_id);
+  CREATE INDEX IF NOT EXISTS idx_user_track_cuts_user ON user_track_cuts(user_id, mmsi);
 `);
+
+// One-time migration from the earlier single-cut design (user_track_resets, one
+// row per user+ship): fold each reset into a cut, then drop the old table.
+if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_track_resets'").get()) {
+  db.exec(`INSERT OR IGNORE INTO user_track_cuts (user_id, mmsi, cut_at)
+           SELECT user_id, mmsi, reset_at FROM user_track_resets`);
+  db.exec('DROP TABLE user_track_resets');
+}
 
 // Each catalog area carries whether its live stream is meant to be running. This
 // is the ONLY persisted record of "monitoraggi attivi": the in-memory streams map
@@ -1142,24 +1151,20 @@ function setUserFlag(userId, mmsi, on) {
   else removeUserFlagStmt.run(userId, mmsi);
 }
 
-// ── Per-user track reset (ship detail) ──────────────────────────────────────
-// Non-destructive: stores a cutoff timestamp so the user's track view hides
-// movements at-or-before it. Readings stay shared/untouched.
-const getTrackResetStmt = db.prepare('SELECT reset_at FROM user_track_resets WHERE user_id = ? AND mmsi = ?');
-function getTrackReset(userId, mmsi) {
-  const row = getTrackResetStmt.get(userId, mmsi);
-  return row ? row.reset_at : null;
+// ── Per-user track cuts (ship detail replay segments) ───────────────────────
+// Non-destructive: each cut is a timestamp splitting the user's timeline into
+// segments. Shared `readings` are never touched.
+const getTrackCutsStmt = db.prepare('SELECT cut_at FROM user_track_cuts WHERE user_id = ? AND mmsi = ? ORDER BY cut_at ASC');
+function getTrackCuts(userId, mmsi) {
+  return getTrackCutsStmt.all(userId, mmsi).map((r) => r.cut_at);
 }
-const setTrackResetStmt = db.prepare(
-  `INSERT INTO user_track_resets (user_id, mmsi, reset_at) VALUES (?, ?, ?)
-   ON CONFLICT(user_id, mmsi) DO UPDATE SET reset_at = excluded.reset_at`
-);
-function setTrackReset(userId, mmsi, iso) {
-  setTrackResetStmt.run(userId, mmsi, iso);
+const addTrackCutStmt = db.prepare('INSERT OR IGNORE INTO user_track_cuts (user_id, mmsi, cut_at) VALUES (?, ?, ?)');
+function addTrackCut(userId, mmsi, iso) {
+  addTrackCutStmt.run(userId, mmsi, iso);
 }
-const clearTrackResetStmt = db.prepare('DELETE FROM user_track_resets WHERE user_id = ? AND mmsi = ?');
-function clearTrackReset(userId, mmsi) {
-  clearTrackResetStmt.run(userId, mmsi);
+const deleteTrackCutStmt = db.prepare('DELETE FROM user_track_cuts WHERE user_id = ? AND mmsi = ? AND cut_at = ?');
+function deleteTrackCut(userId, mmsi, iso) {
+  deleteTrackCutStmt.run(userId, mmsi, iso);
 }
 
 const getUserMuteSetStmt = db.prepare('SELECT mmsi FROM user_mutes WHERE user_id = ?');
@@ -2787,7 +2792,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'user_track_resets'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'user_track_cuts'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3126,9 +3131,9 @@ module.exports = {
   getVisibleAreaKeys,
   getUserFlaggedMmsis,
   setUserFlag,
-  getTrackReset,
-  setTrackReset,
-  clearTrackReset,
+  getTrackCuts,
+  addTrackCut,
+  deleteTrackCut,
   getUserMutedMmsis,
   isUserMuted,
   setUserMute,

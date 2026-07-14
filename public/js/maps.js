@@ -252,37 +252,115 @@ function initTrackControls() {
     loadTrack(S.detailMmsi, _lastTrackOpts || {});
   });
 
-  // "Azzera replay spostamenti" ↔ "Ripristina" — per-user, non-destructive
-  // cutoff. When no reset is active it sets one (hides everything up to now,
-  // with confirm); when active it clears it (restores the full history). Reloads
-  // the track after either so the change shows immediately.
-  const resetBtn = document.getElementById('track-reset');
-  if (resetBtn) resetBtn.addEventListener('click', async () => {
-    if (resetBtn.disabled || S.detailMmsi == null) return;
-    const active = resetBtn.dataset.active === '1';
-    if (!active && !confirm(t('track.resetConfirm'))) return;
-    resetBtn.disabled = true;
+  // "Azzera replay" — add a per-user cut at now (starts a new segment). The old
+  // trips stay available as earlier segments in the interval dropdown.
+  const cutAddBtn = document.getElementById('track-cut-add');
+  if (cutAddBtn) cutAddBtn.addEventListener('click', async () => {
+    if (cutAddBtn.disabled || S.detailMmsi == null) return;
+    if (!confirm(t('track.cutConfirm'))) return;
+    cutAddBtn.disabled = true;
     try {
-      await api(`/api/ships/${S.detailMmsi}/track-reset`, active ? 'DELETE' : 'POST');
-      await loadTrack(S.detailMmsi, _lastTrackOpts || {});
+      await api(`/api/ships/${S.detailMmsi}/track-cut`, 'POST');
+      _trackSelKey = null; // fall to the new most-recent segment
+      await loadTrack(S.detailMmsi, {});
     } catch (e) {
       showAlert(t('error.action'), escHtml(e.message || String(e)));
     } finally {
-      resetBtn.disabled = false;
+      cutAddBtn.disabled = false;
     }
+  });
+
+  // "Elimina taglio" — remove the cut at the START of the selected segment,
+  // merging it with the previous one (only shown for a deletable segment).
+  const cutDelBtn = document.getElementById('track-cut-del');
+  if (cutDelBtn) cutDelBtn.addEventListener('click', async () => {
+    if (cutDelBtn.disabled || S.detailMmsi == null) return;
+    const seg = _trackSegments.find((s) => s.key === _trackSelKey);
+    if (!seg || !seg.cutAt) return;
+    if (!confirm(t('track.cutDeleteConfirm'))) return;
+    cutDelBtn.disabled = true;
+    try {
+      await api(`/api/ships/${S.detailMmsi}/track-cut?cut=${encodeURIComponent(seg.cutAt)}`, 'DELETE');
+      _trackSelKey = null; // segments changed → fall back to most-recent
+      await loadTrack(S.detailMmsi, {});
+    } catch (e) {
+      showAlert(t('error.action'), escHtml(e.message || String(e)));
+    } finally {
+      cutDelBtn.disabled = false;
+    }
+  });
+
+  // Interval dropdown — pick a segment (or "all history") to replay.
+  const intervalSel = document.getElementById('track-interval');
+  if (intervalSel) intervalSel.addEventListener('change', () => {
+    const seg = _trackSegments.find((s) => s.key === intervalSel.value);
+    if (!seg) return;
+    _trackSelKey = seg.key;
+    winBtns.forEach((x) => x.classList.remove('active')); // interval = custom range
+    updateCutDelBtn();
+    loadTrack(S.detailMmsi, { from: seg.from, to: seg.to });
   });
 }
 
-// Reflect the per-user track-reset state on the toggle button (label + title +
-// active flag). Driven by data.resetAt from the track endpoint.
-function updateTrackResetBtn(resetAt) {
-  const btn = document.getElementById('track-reset');
+// ── Per-user track segments (interval dropdown) ─────────────────────────────
+// Built from the user's cuts + the ship's data range. N cuts → N+1 segments,
+// newest first, plus an "all history" entry. See db.user_track_cuts.
+let _trackSegments = [];
+let _trackSelKey = null;
+let _trackSelMmsi = null;
+
+function computeSegments(cuts) {
+  const segs = [];
+  const n = cuts.length;
+  // seg k (0..n): from = k===0 ? start-of-data (null) : cuts[k-1]; to = k===n ?
+  // now (null) : cuts[k]. cutAt = the cut that OPENS the segment (deletable when
+  // present — the first segment opens at the data start, so it has none).
+  for (let k = 0; k <= n; k++) {
+    const from = k === 0 ? null : cuts[k - 1];
+    const to = k === n ? null : cuts[k];
+    const startLabel = k === 0 ? t('track.dataStart') : formatTime(from);
+    const endLabel = k === n ? t('track.now') : formatTime(to);
+    segs.push({ key: `seg${k}`, from, to, cutAt: from, label: `${startLabel} → ${endLabel}` });
+  }
+  segs.reverse(); // newest first
+  segs.push({ key: 'all', from: null, to: null, cutAt: null, label: t('track.allHistory') });
+  return segs;
+}
+
+function updateCutDelBtn() {
+  const btn = document.getElementById('track-cut-del');
   if (!btn) return;
-  const active = !!resetAt;
-  btn.dataset.active = active ? '1' : '0';
-  btn.classList.toggle('active', active);
-  btn.textContent = active ? `↩ ${t('track.restore')}` : `🧹 ${t('track.reset')}`;
-  btn.title = active ? t('track.restoreTitle', { time: formatTime(resetAt) }) : t('track.resetTitle');
+  const seg = _trackSegments.find((s) => s.key === _trackSelKey);
+  const deletable = !!(seg && seg.cutAt);
+  btn.classList.toggle('hidden', !deletable);
+}
+
+// Rebuild the interval dropdown from the server's cut list + data range. Returns
+// the segment to auto-load on a fresh open (most-recent), or null when no cuts.
+function buildIntervalUI(mmsi, cuts) {
+  const sel = document.getElementById('track-interval');
+  const addBtn = document.getElementById('track-cut-add');
+  if (mmsi !== _trackSelMmsi) { _trackSelKey = null; _trackSelMmsi = mmsi; } // reset on ship change
+
+  if (!cuts || !cuts.length) {
+    _trackSegments = [];
+    if (sel) { sel.classList.add('hidden'); sel.innerHTML = ''; }
+    updateCutDelBtn();
+    if (addBtn) addBtn.title = t('track.cutTitle');
+    return null;
+  }
+
+  _trackSegments = computeSegments(cuts);
+  if (sel) {
+    sel.innerHTML = _trackSegments.map((s) => `<option value="${s.key}">${escHtml(s.label)}</option>`).join('');
+    sel.classList.remove('hidden');
+    if (!_trackSelKey || !_trackSegments.some((s) => s.key === _trackSelKey)) {
+      _trackSelKey = _trackSegments[0].key; // most-recent segment
+    }
+    sel.value = _trackSelKey;
+  }
+  updateCutDelBtn();
+  return _trackSegments.find((s) => s.key === _trackSelKey) || null;
 }
 
 // Remembers the last loadTrack options so the SF/MST toggle can reload the same
@@ -305,14 +383,29 @@ export async function loadTrack(mmsi, opts = {}) {
   _lastTrackOpts = { from: opts.from, to: opts.to, window: opts.window };
 
   const q = new URLSearchParams();
-  if (opts.from && opts.to) { q.set('from', opts.from); q.set('to', opts.to); }
-  else if (opts.window)     { q.set('window', opts.window); }
+  if (opts.from || opts.to) { // segment / custom range — either bound may be open
+    if (opts.from) q.set('from', opts.from);
+    if (opts.to)   q.set('to', opts.to);
+  } else if (opts.window) { q.set('window', opts.window); }
   // Ask the server to fold in SF/MST scraped positions when the toggle is on.
   if (S.trackUseScraped) q.set('scraped', '1');
   const qs = q.toString() ? `?${q}` : '';
 
   try {
     const data = await api(`/api/ships/${mmsi}/track${qs}`);
+
+    // Build the interval dropdown from the user's cuts + data range. On a fresh
+    // open (no explicit range/window/segment) with cuts present, jump straight to
+    // the most-recent segment instead of rendering the full history first.
+    const autoSeg = buildIntervalUI(mmsi, data.cuts);
+    if (autoSeg && autoSeg.from != null && !opts._seg && !opts.from && !opts.to && !opts.window) {
+      return loadTrack(mmsi, { from: autoSeg.from, to: autoSeg.to, _seg: true });
+    }
+    // A segment/custom range is not a preset — clear the 6h/24h/… active state.
+    if (opts.from || opts.to) {
+      document.querySelectorAll('.track-win').forEach((x) => x.classList.remove('active'));
+    }
+
     const pts = data.points || [];
 
     // Show the "Includi SF/MST" toggle only when the ship has scraped positions
@@ -321,9 +414,6 @@ export async function loadTrack(mmsi, opts = {}) {
     const scrapedToggle = document.getElementById('track-use-scraped');
     if (scrapedWrap) scrapedWrap.classList.toggle('hidden', !data.extraAvailable);
     if (scrapedToggle) scrapedToggle.checked = S.trackUseScraped;
-
-    // Reflect the per-user track-reset state on the toggle button.
-    updateTrackResetBtn(data.resetAt);
 
     // Pre-fill date inputs with the ship's full data range on first open.
     if (!opts.from && !opts.window && data.range && data.range.lo) {

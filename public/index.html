@@ -487,9 +487,17 @@
               <option value="geojson">GeoJSON</option>
               <option value="kml">KML</option>
             </select>
-            <button id="track-reset" class="btn btn-secondary btn-sm" type="button"
-                    title="Nascondi gli spostamenti precedenti a ora: il replay mostrerà solo i movimenti da adesso. Reversibile, non cancella dati.">
-              🧹 Azzera replay
+            <select id="track-interval" class="list-band hidden" data-i18n-title="track.intervalTitle"
+                    title="Scegli quale intervallo di spostamenti vedere nel replay"></select>
+            <button id="track-cut-add" class="btn btn-secondary btn-sm" type="button"
+                    data-i18n-title="track.cutTitle"
+                    title="Segna un taglio a ora: gli spostamenti successivi diventano un nuovo intervallo. Reversibile, non cancella dati.">
+              🧹 <span data-i18n="track.cut">Azzera replay</span>
+            </button>
+            <button id="track-cut-del" class="btn btn-secondary btn-sm hidden" type="button"
+                    data-i18n-title="track.cutDeleteTitle"
+                    title="Elimina il taglio all'inizio dell'intervallo selezionato: lo unisce all'intervallo precedente.">
+              🗑 <span data-i18n="track.cutDelete">Elimina taglio</span>
             </button>
           </div>
         </div>

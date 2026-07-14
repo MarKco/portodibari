@@ -553,9 +553,11 @@ router.get('/ships/:mmsi/track', (req, res) => {
   const sources = useScraped ? ['ais', ...extras] : ['ais'];
 
   let fromIso = null, toIso = null;
-  if (req.query.from && req.query.to) {
-    fromIso = String(req.query.from);
-    toIso   = String(req.query.to);
+  if (req.query.from || req.query.to) {
+    // Segment / custom range — either bound may be open (a segment's first has no
+    // start cut, its last has no end).
+    fromIso = req.query.from ? String(req.query.from) : null;
+    toIso   = req.query.to ? String(req.query.to) : null;
   } else if (req.query.window && req.query.window !== 'all') {
     const range = db.getShipTrackRange(mmsi, sources);
     if (range && range.hi) {
@@ -565,35 +567,33 @@ router.get('/ships/:mmsi/track', (req, res) => {
     }
   }
 
-  // Per-user, non-destructive track reset: hide movements at-or-before the
-  // cutoff by raising the effective lower bound. Never touches the shared data.
-  const resetAt = db.getTrackReset(req.user.id, mmsi);
-  if (resetAt && (!fromIso || resetAt > fromIso)) fromIso = resetAt;
-
   const range = db.getShipTrackRange(mmsi, sources);
-  // Clamp the reported range start to the cutoff so the picker/labels reflect
-  // the visible span (the data before it still exists, just hidden for this user).
-  if (range && resetAt && (!range.lo || resetAt > range.lo)) range.lo = resetAt;
   // Whether the ship has any SF/MST fix at all (regardless of toggle) — the
   // client shows the toggle only when there is scraped data to add.
   const extraAvailable = extras.length > 0 && db.hasShipScrapedPositions(mmsi, extras);
-  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso, sources), range, extraAvailable, resetAt });
+  // Per-user track cuts: the client builds the segment dropdown from these + the
+  // data range, then requests each segment via from/to. The server does NOT clamp
+  // here — segment selection is a plain custom range chosen client-side.
+  const cuts = db.getTrackCuts(req.user.id, mmsi);
+  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso, sources), range, extraAvailable, cuts });
 });
 
-// Per-user track reset toggle (non-destructive; see db.user_track_resets).
-// POST sets the cutoff to "now"; DELETE clears it (restores full history).
-router.post('/ships/:mmsi/track-reset', (req, res) => {
+// Per-user track cuts (non-destructive replay segments; see db.user_track_cuts).
+// POST adds a cut at "now" (starts a new segment); DELETE removes a given cut
+// (merges the segment with the previous one). Both return the updated cut list.
+router.post('/ships/:mmsi/track-cut', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
-  const resetAt = new Date().toISOString();
-  db.setTrackReset(req.user.id, mmsi, resetAt);
-  res.json({ ok: true, resetAt });
+  db.addTrackCut(req.user.id, mmsi, new Date().toISOString());
+  res.json({ ok: true, cuts: db.getTrackCuts(req.user.id, mmsi) });
 });
-router.delete('/ships/:mmsi/track-reset', (req, res) => {
+router.delete('/ships/:mmsi/track-cut', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
-  db.clearTrackReset(req.user.id, mmsi);
-  res.json({ ok: true, resetAt: null });
+  const cut = String(req.query.cut || (req.body && req.body.cut) || '');
+  if (!cut) return res.status(400).json({ error: 'Missing cut' });
+  db.deleteTrackCut(req.user.id, mmsi, cut);
+  res.json({ ok: true, cuts: db.getTrackCuts(req.user.id, mmsi) });
 });
 
 // Historical replay: all positions inside an area's bbox over a time window,
