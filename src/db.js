@@ -372,6 +372,18 @@ db.exec(`
     value TEXT,
     PRIMARY KEY (user_id, key)
   );
+
+  -- Per-user "reset" of the ship detail track: hides movements at-or-before
+  -- reset_at in that user's track view (non-destructive — readings are shared
+  -- and untouched). Lets a user clear a followed ship's previous trips without
+  -- affecting other users, the risk score or port events.
+  CREATE TABLE IF NOT EXISTS user_track_resets (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    reset_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, mmsi)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_track_resets_user ON user_track_resets(user_id);
 `);
 
 // Each catalog area carries whether its live stream is meant to be running. This
@@ -1128,6 +1140,26 @@ const removeUserFlagStmt = db.prepare('DELETE FROM user_flags WHERE user_id = ? 
 function setUserFlag(userId, mmsi, on) {
   if (on) addUserFlagStmt.run(userId, mmsi, new Date().toISOString());
   else removeUserFlagStmt.run(userId, mmsi);
+}
+
+// ── Per-user track reset (ship detail) ──────────────────────────────────────
+// Non-destructive: stores a cutoff timestamp so the user's track view hides
+// movements at-or-before it. Readings stay shared/untouched.
+const getTrackResetStmt = db.prepare('SELECT reset_at FROM user_track_resets WHERE user_id = ? AND mmsi = ?');
+function getTrackReset(userId, mmsi) {
+  const row = getTrackResetStmt.get(userId, mmsi);
+  return row ? row.reset_at : null;
+}
+const setTrackResetStmt = db.prepare(
+  `INSERT INTO user_track_resets (user_id, mmsi, reset_at) VALUES (?, ?, ?)
+   ON CONFLICT(user_id, mmsi) DO UPDATE SET reset_at = excluded.reset_at`
+);
+function setTrackReset(userId, mmsi, iso) {
+  setTrackResetStmt.run(userId, mmsi, iso);
+}
+const clearTrackResetStmt = db.prepare('DELETE FROM user_track_resets WHERE user_id = ? AND mmsi = ?');
+function clearTrackReset(userId, mmsi) {
+  clearTrackResetStmt.run(userId, mmsi);
 }
 
 const getUserMuteSetStmt = db.prepare('SELECT mmsi FROM user_mutes WHERE user_id = ?');
@@ -2755,7 +2787,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'user_track_resets'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3094,6 +3126,9 @@ module.exports = {
   getVisibleAreaKeys,
   getUserFlaggedMmsis,
   setUserFlag,
+  getTrackReset,
+  setTrackReset,
+  clearTrackReset,
   getUserMutedMmsis,
   isUserMuted,
   setUserMute,

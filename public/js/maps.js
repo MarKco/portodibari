@@ -9,6 +9,7 @@ import {
   escHtml,
 } from './helpers.js';
 import { showView } from './views.js';
+import { showAlert } from './toast.js';
 import { t } from './i18n.js';
 import { addBaseLayers } from './tiles.js';
 import { renderSeamarkBerths } from './seamarks.js';
@@ -250,6 +251,38 @@ function initTrackControls() {
     S.trackUseScraped = scrapedToggle.checked;
     loadTrack(S.detailMmsi, _lastTrackOpts || {});
   });
+
+  // "Azzera replay spostamenti" ↔ "Ripristina" — per-user, non-destructive
+  // cutoff. When no reset is active it sets one (hides everything up to now,
+  // with confirm); when active it clears it (restores the full history). Reloads
+  // the track after either so the change shows immediately.
+  const resetBtn = document.getElementById('track-reset');
+  if (resetBtn) resetBtn.addEventListener('click', async () => {
+    if (resetBtn.disabled || S.detailMmsi == null) return;
+    const active = resetBtn.dataset.active === '1';
+    if (!active && !confirm(t('track.resetConfirm'))) return;
+    resetBtn.disabled = true;
+    try {
+      await api(`/api/ships/${S.detailMmsi}/track-reset`, active ? 'DELETE' : 'POST');
+      await loadTrack(S.detailMmsi, _lastTrackOpts || {});
+    } catch (e) {
+      showAlert(t('error.action'), escHtml(e.message || String(e)));
+    } finally {
+      resetBtn.disabled = false;
+    }
+  });
+}
+
+// Reflect the per-user track-reset state on the toggle button (label + title +
+// active flag). Driven by data.resetAt from the track endpoint.
+function updateTrackResetBtn(resetAt) {
+  const btn = document.getElementById('track-reset');
+  if (!btn) return;
+  const active = !!resetAt;
+  btn.dataset.active = active ? '1' : '0';
+  btn.classList.toggle('active', active);
+  btn.textContent = active ? `↩ ${t('track.restore')}` : `🧹 ${t('track.reset')}`;
+  btn.title = active ? t('track.restoreTitle', { time: formatTime(resetAt) }) : t('track.resetTitle');
 }
 
 // Remembers the last loadTrack options so the SF/MST toggle can reload the same
@@ -288,6 +321,9 @@ export async function loadTrack(mmsi, opts = {}) {
     const scrapedToggle = document.getElementById('track-use-scraped');
     if (scrapedWrap) scrapedWrap.classList.toggle('hidden', !data.extraAvailable);
     if (scrapedToggle) scrapedToggle.checked = S.trackUseScraped;
+
+    // Reflect the per-user track-reset state on the toggle button.
+    updateTrackResetBtn(data.resetAt);
 
     // Pre-fill date inputs with the ship's full data range on first open.
     if (!opts.from && !opts.window && data.range && data.range.lo) {

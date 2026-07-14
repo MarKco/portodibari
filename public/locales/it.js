@@ -133,6 +133,11 @@ export default {
   'track.useScraped':        'Includi SF/MST',
   'track.useScrapedTitle':   'Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata',
   'track.srcScraped':        '📡 posizione da {src}',
+  'track.reset':             'Azzera replay',
+  'track.restore':           'Ripristina replay',
+  'track.resetTitle':        'Nascondi gli spostamenti precedenti a ora: il replay mostrerà solo i movimenti da adesso. Reversibile, non cancella dati.',
+  'track.restoreTitle':      'Spostamenti precedenti al {time} nascosti. Clic per ripristinare tutto lo storico.',
+  'track.resetConfirm':      'Nascondere gli spostamenti precedenti a ora? Il replay mostrerà solo i movimenti da adesso. È reversibile e non cancella dati.',
 
   // ── Event badges ───────────────────────────────────────────────────────────
   'event.arrived':  '↙ Arrivo',

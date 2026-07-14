@@ -133,6 +133,11 @@ export default {
   'track.useScraped':        'Include SF/MST',
   'track.useScrapedTitle':   'Also use ShipFinder and MyShipTracking scraped positions when drawing the animated route',
   'track.srcScraped':        '📡 position from {src}',
+  'track.reset':             'Reset replay',
+  'track.restore':           'Restore replay',
+  'track.resetTitle':        'Hide movements before now: the replay will show only movements from now on. Reversible, deletes nothing.',
+  'track.restoreTitle':      'Movements before {time} are hidden. Click to restore the full history.',
+  'track.resetConfirm':      'Hide movements before now? The replay will show only movements from now on. Reversible and deletes no data.',
 
   // ── Event badges ───────────────────────────────────────────────────────────
   'event.arrived':  '↙ Arrival',

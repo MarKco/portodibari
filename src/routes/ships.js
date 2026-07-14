@@ -565,11 +565,35 @@ router.get('/ships/:mmsi/track', (req, res) => {
     }
   }
 
+  // Per-user, non-destructive track reset: hide movements at-or-before the
+  // cutoff by raising the effective lower bound. Never touches the shared data.
+  const resetAt = db.getTrackReset(req.user.id, mmsi);
+  if (resetAt && (!fromIso || resetAt > fromIso)) fromIso = resetAt;
+
   const range = db.getShipTrackRange(mmsi, sources);
+  // Clamp the reported range start to the cutoff so the picker/labels reflect
+  // the visible span (the data before it still exists, just hidden for this user).
+  if (range && resetAt && (!range.lo || resetAt > range.lo)) range.lo = resetAt;
   // Whether the ship has any SF/MST fix at all (regardless of toggle) — the
   // client shows the toggle only when there is scraped data to add.
   const extraAvailable = extras.length > 0 && db.hasShipScrapedPositions(mmsi, extras);
-  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso, sources), range, extraAvailable });
+  res.json({ points: db.getShipTrack(mmsi, limit, fromIso, toIso, sources), range, extraAvailable, resetAt });
+});
+
+// Per-user track reset toggle (non-destructive; see db.user_track_resets).
+// POST sets the cutoff to "now"; DELETE clears it (restores full history).
+router.post('/ships/:mmsi/track-reset', (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const resetAt = new Date().toISOString();
+  db.setTrackReset(req.user.id, mmsi, resetAt);
+  res.json({ ok: true, resetAt });
+});
+router.delete('/ships/:mmsi/track-reset', (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  db.clearTrackReset(req.user.id, mmsi);
+  res.json({ ok: true, resetAt: null });
 });
 
 // Historical replay: all positions inside an area's bbox over a time window,
