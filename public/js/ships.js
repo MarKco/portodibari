@@ -812,10 +812,13 @@ export function renderDetailInfoBar(ship, latestArrival) {
 }
 
 // ── Clickable destination + info popover ────────────────────────────────────
-// The destination in the info bar is a button; clicking it opens a popover with
-// the expanded LOCODE meaning (code, port, country) and a link to OpenStreetMap
-// (exact marker when we have the destination's coordinates, otherwise a name
-// search). See src/services/locode.js + data/locode-coords.json.
+// A destination string, wherever it's shown (info bar, SF/MST scraped panels…),
+// is a button; clicking it opens a popover with the expanded LOCODE meaning
+// (code, port, country) and a link to OpenStreetMap — exact marker when we have
+// the destination's coordinates, otherwise a name search. Coordinates/name are
+// resolved: reused from the current ship's already-mapped AIS destination when
+// it's the same value, else fetched from /api/locode/resolve. See
+// src/services/locode.js + data/locode-coords.json.
 const LOCODE_RE = /^([A-Z]{2})\s?([A-Z0-9]{3})$/;
 function parseDest(raw) {
   const m = LOCODE_RE.exec((raw || '').trim().toUpperCase());
@@ -828,41 +831,80 @@ function destCountryName(cc) {
     return n && n !== cc ? n : null;
   } catch { return null; }
 }
+// Normalize a destination for equality ("IT GOA" === "ITGOA").
+const destNorm = (s) => (s || '').trim().toUpperCase().replace(/\s+/g, '');
 
-// Build the destination cell: a clickable button (carrying raw/label/coords in
-// data-*), or a plain "—" when there's no declared destination.
+// Generic clickable destination cell (data-dest carries the raw string; the
+// popover resolves name/coords on open). `display` is what's shown.
+function destBtnHtml(raw, display) {
+  if (!raw) return escHtml(display || '') || '—';
+  return `<button type="button" class="dest-clickable" data-dest="${escHtml(raw)}" title="${escHtml(t('dest.clickHint'))}">${escHtml(display || raw)} <span class="dest-caret">ⓘ</span></button>`;
+}
+// Info-bar destination: show the resolved label, click resolves the rest.
 function destClickableHtml(ship) {
-  const raw = ship.destination;
-  if (!raw) return '—';
-  const label = ship.destination_label || raw;
-  const c = ship.destination_coords; // [lat, lon] | null
-  const lat = Array.isArray(c) ? c[0] : '';
-  const lon = Array.isArray(c) ? c[1] : '';
-  return `<button type="button" class="dest-clickable" data-dest="${escHtml(raw)}" data-label="${escHtml(label)}" data-lat="${lat}" data-lon="${lon}" title="${escHtml(t('dest.clickHint'))}">${escHtml(label)} <span class="dest-caret">ⓘ</span></button>`;
+  if (!ship.destination) return '—';
+  return destBtnHtml(ship.destination, ship.destination_label || ship.destination);
+}
+// Destination-field labels used by the scraped panels (SF/MST) → made clickable.
+const DEST_LABELS = new Set(['Destinazione', 'Destination', 'Porto di destinazione']);
+
+// Resolve a raw destination to { name, coords }. Fast path: the open ship's AIS
+// destination is usually the same declared value → reuse its already-mapped
+// label/coords (no request). Otherwise ask the server (cached).
+const _destCache = new Map();
+async function fetchResolve(raw) {
+  const key = destNorm(raw);
+  if (_destCache.has(key)) return _destCache.get(key);
+  let r = null;
+  try { r = await api(`/api/locode/resolve?q=${encodeURIComponent(raw)}`); } catch { r = null; }
+  _destCache.set(key, r);
+  return r;
+}
+async function resolveDest(raw) {
+  const ds = S.detailShipData;
+  let name = null, coords = null;
+  if (ds && ds.destination && destNorm(ds.destination) === destNorm(raw)) {
+    // destination_label is the RESOLVED port name, or the raw string when the
+    // code wasn't in the dictionary — treat the latter as "no name" so a plain
+    // 5-char word (e.g. "GENOA") isn't mistaken for a LOCODE.
+    const lbl = ds.destination_label;
+    if (lbl && destNorm(lbl) !== destNorm(raw)) name = lbl;
+    if (Array.isArray(ds.destination_coords)) coords = ds.destination_coords;
+  }
+  if (!name || !coords) {
+    const r = await fetchResolve(raw); // r.name is null unless a known LOCODE
+    if (r) { if (!name) name = r.name; if (!coords && Array.isArray(r.coords)) coords = r.coords; }
+  }
+  return { name, coords };
 }
 
 let _destPopover = null;
+let _destToken = 0;
 function closeDestPopover() {
+  _destToken++; // abort any in-flight open
   if (_destPopover) { _destPopover.remove(); _destPopover = null; }
 }
-function openDestPopover(btn) {
+async function openDestPopover(btn) {
   closeDestPopover();
+  const token = _destToken;
   const raw = btn.dataset.dest || '';
-  const label = btn.dataset.label || raw;
-  const lat = btn.dataset.lat !== '' ? Number(btn.dataset.lat) : null;
-  const lon = btn.dataset.lon !== '' ? Number(btn.dataset.lon) : null;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  const { name, coords } = await resolveDest(raw);
+  if (token !== _destToken) return; // superseded or closed while resolving
+
   const info = parseDest(raw);
-  const cn = info.isLocode ? destCountryName(info.cc) : null;
-  const hasName = info.isLocode && label && label.trim().toUpperCase() !== info.code;
+  const hasCoords = Array.isArray(coords) && Number.isFinite(coords[0]) && Number.isFinite(coords[1]);
+  const hasName = !!name && (!info.isLocode || name.trim().toUpperCase() !== info.code);
+  // Treat as a LOCODE only when it actually resolved (known name or coordinates)
+  // — a bare 5-char word matches the format but isn't a real code.
+  const isLocode = info.isLocode && (hasName || hasCoords);
+  const cn = isLocode ? destCountryName(info.cc) : null;
 
   const rows = [];
-  if (info.isLocode) {
+  if (isLocode) {
     rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.code')}</span><span class="dp-v">${escHtml(info.code)}</span></div>`);
-    if (hasName) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.port')}</span><span class="dp-v">${escHtml(label)}</span></div>`);
+    if (hasName) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.port')}</span><span class="dp-v">${escHtml(name)}</span></div>`);
     if (cn) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.country')}</span><span class="dp-v">${escHtml(cn)}</span></div>`);
-    if (hasCoords) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.coords')}</span><span class="dp-v">${lat.toFixed(4)}°, ${lon.toFixed(4)}°</span></div>`);
-    if (!hasName && !hasCoords) rows.push(`<div class="dp-note">${t('dest.locodeUnknown')}</div>`);
+    if (hasCoords) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.coords')}</span><span class="dp-v">${coords[0].toFixed(4)}°, ${coords[1].toFixed(4)}°</span></div>`);
   } else {
     rows.push(`<div class="dp-row"><span class="dp-v">${escHtml(raw)}</span></div>`);
     rows.push(`<div class="dp-note">${t('dest.notLocode')}</div>`);
@@ -872,16 +914,17 @@ function openDestPopover(btn) {
   // recognized port (no button for free-text non-places).
   let osm = '';
   if (hasCoords) {
-    const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=12/${lat}/${lon}`;
+    const url = `https://www.openstreetmap.org/?mlat=${coords[0]}&mlon=${coords[1]}#map=12/${coords[0]}/${coords[1]}`;
     osm = `<a class="dp-osm" href="${url}" target="_blank" rel="noopener">🗺 ${t('dest.openOsm')}</a>`;
   } else if (hasName) {
-    const q = encodeURIComponent(cn ? `${label}, ${cn}` : label);
+    const q = encodeURIComponent(cn ? `${name}, ${cn}` : name);
     osm = `<a class="dp-osm" href="https://www.openstreetmap.org/search?query=${q}" target="_blank" rel="noopener">🗺 ${t('dest.openOsmSearch')}</a>`;
   }
 
   const pop = document.createElement('div');
   pop.className = 'dest-popover';
   pop.innerHTML = rows.join('') + osm;
+  pop._forBtn = btn;
   document.body.appendChild(pop);
 
   const r = btn.getBoundingClientRect();
@@ -895,19 +938,17 @@ function openDestPopover(btn) {
   _destPopover = pop;
 }
 
-// Event delegation: one listener on the info bar toggles the popover; outside
-// click / Escape close it. Set up once at module load.
-if (el.detailInfoBar) {
-  el.detailInfoBar.addEventListener('click', (e) => {
-    const btn = e.target.closest('.dest-clickable');
-    if (!btn) return;
-    e.stopPropagation();
-    if (_destPopover) closeDestPopover();
-    else openDestPopover(btn);
-  });
-}
+// One document-level delegate: toggles the popover for any .dest-clickable
+// (info bar, scraped panels, …); an outside click or Escape closes it.
 document.addEventListener('click', (e) => {
-  if (_destPopover && !_destPopover.contains(e.target) && !e.target.closest('.dest-clickable')) closeDestPopover();
+  const btn = e.target.closest('.dest-clickable');
+  if (btn) {
+    e.stopPropagation();
+    if (_destPopover && _destPopover._forBtn === btn) closeDestPopover();
+    else openDestPopover(btn);
+    return;
+  }
+  if (_destPopover && !_destPopover.contains(e.target)) closeDestPopover();
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDestPopover(); });
 
@@ -1682,7 +1723,7 @@ function renderScrapedData(container, data) {
       ([label, value]) => `
     <tr>
       <td class="vf-td-label">${escHtml(label)}${scrapeLabelInfo(label)}</td>
-      <td class="vf-td-val">${escHtml(value)}${eqValueInfo(value)}</td>
+      <td class="vf-td-val">${DEST_LABELS.has(label) && value ? destBtnHtml(value, value) : `${escHtml(value)}${eqValueInfo(value)}`}</td>
     </tr>`
     )
     .join('');

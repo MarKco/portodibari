@@ -166,7 +166,6 @@ export default {
   'dest.coords':     'Coordinates',
   'dest.openOsm':    'Open in OpenStreetMap',
   'dest.openOsmSearch': 'Search on OpenStreetMap',
-  'dest.locodeUnknown': 'Valid UN/LOCODE but not in our port list.',
   'dest.notLocode':  'Not a recognized UN/LOCODE (free text declared via AIS).',
   'info.eta':        'ETA',
   'info.maxDraught': 'Max draught',

@@ -267,14 +267,14 @@ Il flag "visto" (★/☆) è disponibile in tutte e tre le viste: colonna nella 
 
 ### 🧭 Destinazione cliccabile
 
-Nella info bar del dettaglio nave la **destinazione è cliccabile** e apre un piccolo popover con la spiegazione estesa del nominativo dichiarato via AIS:
+Ovunque compaia una **destinazione** — la info bar del dettaglio nave **e i pannelli scraped ShipFinder / MyShipTracking** — il valore è **cliccabile** e apre un piccolo popover con la spiegazione estesa del nominativo dichiarato via AIS:
 
 - **Codice** UN/LOCODE normalizzato (es. `ITGOA`), **Porto** (nome esteso risolto da [`locode.js`](src/services/locode.js)) e **Paese** (ricavato client-side dal prefisso di 2 lettere via `Intl.DisplayNames`, localizzato).
-- Quando disponibili, le **Coordinate** del porto e un pulsante **🗺 Apri su OpenStreetMap** che centra la mappa sul punto esatto (marker `?mlat=&mlon=`). Le coordinate vengono da `data/locode-coords.json` (dataset UN/LOCODE, ~75% dei codici) e sono servite al client solo per la nave aperta (campo `destination_coords` nel payload del dettaglio) — nessun file grande spedito al browser.
+- Quando disponibili, le **Coordinate** del porto e un pulsante **🗺 Apri su OpenStreetMap** che centra la mappa sul punto esatto (marker `?mlat=&mlon=`). Le coordinate vengono da `data/locode-coords.json` (dataset UN/LOCODE, ~75% dei codici).
 - Per i codici LOCODE **senza coordinate** (il restante ~25%) il pulsante ricade su una **ricerca per nome** su OpenStreetMap (`/search?query=Porto, Paese`).
-- Per destinazioni in **testo libero** non-LOCODE (es. `FOR ORDERS`, `PILOT`) il popover mostra il testo grezzo con una nota e **nessun pulsante** mappa (non è un luogo geocodabile).
+- Per destinazioni in **testo libero** non-LOCODE (es. `FOR ORDERS`, `PILOT`, o un semplice nome di porto) il popover mostra il testo grezzo con una nota e **nessun pulsante** mappa.
 
-Il link OSM apre in una nuova scheda (navigazione, non una richiesta di rete): nessuna chiamata esterna e nessuna modifica alla CSP.
+**Risoluzione di nome/coordinate** (client, all'apertura del popover): se la destinazione coincide con quella **già mappata** della nave aperta (stesso valore del campo AIS, confronto normalizzato), si **riusano** `destination_label`/`destination_coords` già presenti — nessuna richiesta, stesso link OSM. Altrimenti si interroga `GET /api/locode/resolve?q=<dest>` (risultati in cache client-side). Così i pannelli SF/MST aprono lo **stesso** punto OSM del dettaglio quando la destinazione è la stessa. Il link OSM apre in una nuova scheda (navigazione, non una richiesta di rete): nessuna chiamata esterna e nessuna modifica alla CSP.
 
 ## ☢️ Evidenziazione tipo nave (Hazmat)
 

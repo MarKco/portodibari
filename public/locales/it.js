@@ -166,7 +166,6 @@ export default {
   'dest.coords':     'Coordinate',
   'dest.openOsm':    'Apri su OpenStreetMap',
   'dest.openOsmSearch': 'Cerca su OpenStreetMap',
-  'dest.locodeUnknown': 'Codice UN/LOCODE valido ma non presente nel nostro elenco porti.',
   'dest.notLocode':  'Non è un codice UN/LOCODE riconosciuto (testo libero dichiarato via AIS).',
   'info.eta':        'ETA',
   'info.maxDraught': 'Pescaggio max',

@@ -18,7 +18,7 @@ const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY, TESTER_MAX_FOLLOWS, FOLLOW_FRESH_MS } = require('../config');
-const { destinationLabel, resolveLocodeCoords } = require('../services/locode');
+const { destinationLabel, resolveLocode, resolveLocodeCoords, normalizeCode } = require('../services/locode');
 
 const router = express.Router();
 
@@ -520,6 +520,15 @@ router.get('/ships/:mmsi', (req, res) => {
     // name search. Coordinates live server-side (data/locode-coords.json).
     destination_coords: resolveLocodeCoords(ship.destination),
   });
+});
+
+// Resolve an arbitrary declared-destination string (LOCODE) to its normalized
+// code, port name and coordinates. Drives the clickable-destination popover
+// wherever a destination is shown but not pre-resolved (e.g. the SF/MST scraped
+// panels). Pure dictionary lookup — no ship data, so no canSeeShip needed.
+router.get('/locode/resolve', (req, res) => {
+  const q = String(req.query.q || '');
+  res.json({ code: normalizeCode(q), name: resolveLocode(q), coords: resolveLocodeCoords(q) });
 });
 
 router.get('/ships/:mmsi/risk-history', (req, res) => {
