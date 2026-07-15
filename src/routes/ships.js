@@ -18,7 +18,7 @@ const groupSync = require('../services/group-sync');
 const appLog = require('../services/app-log');
 const { clampLimit, clampOffset } = require('../lib/params');
 const { state, currentKeyword, SCRAPE_CACHE_TTL, SCRAPE_NEG_CACHE_DAYS, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT, EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN, SEARCH_LOOKUP_TIMEOUT_MS, REPLAY, TESTER_MAX_FOLLOWS, FOLLOW_FRESH_MS } = require('../config');
-const { destinationLabel } = require('../services/locode');
+const { destinationLabel, resolveLocodeCoords } = require('../services/locode');
 
 const router = express.Router();
 
@@ -515,6 +515,10 @@ router.get('/ships/:mmsi', (req, res) => {
     mst_last_at: mstBadgeAt(mmsi, ship.last_seen_at),
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
     destination_label: destinationLabel(ship.destination),
+    // [lat, lon] of the declared destination when it's a LOCODE we have
+    // coordinates for (≈75%), else null → the client falls back to an OSM
+    // name search. Coordinates live server-side (data/locode-coords.json).
+    destination_coords: resolveLocodeCoords(ship.destination),
   });
 });
 

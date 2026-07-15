@@ -783,7 +783,7 @@ export function renderDetailInfoBar(ship, latestArrival) {
     [t('info.loadState') + eqInfoIcon(t('info.loadState'), t('info.loadStateHelp')),  loadStateHtml(ship.risk?.cargo?.loadState)],
     [t('info.callSign'),   escHtml(ship.call_sign) || '—'],
     [t('info.imo'),        ship.imo_number || '—'],
-    [t('info.dest'),       escHtml(ship.destination_label || ship.destination) || '—'],
+    [t('info.dest'),       destClickableHtml(ship)],
     [t('info.eta'),        escHtml(ship.eta) || '—'],
     [t('info.maxDraught'), ship.max_draught != null ? ship.max_draught.toFixed(1) + ' m' : '—'],
     [t('info.length'),     dimLen],
@@ -810,6 +810,106 @@ export function renderDetailInfoBar(ship, latestArrival) {
       )
       .join('') + riskFactorsHtml(ship.risk);
 }
+
+// ── Clickable destination + info popover ────────────────────────────────────
+// The destination in the info bar is a button; clicking it opens a popover with
+// the expanded LOCODE meaning (code, port, country) and a link to OpenStreetMap
+// (exact marker when we have the destination's coordinates, otherwise a name
+// search). See src/services/locode.js + data/locode-coords.json.
+const LOCODE_RE = /^([A-Z]{2})\s?([A-Z0-9]{3})$/;
+function parseDest(raw) {
+  const m = LOCODE_RE.exec((raw || '').trim().toUpperCase());
+  return m ? { isLocode: true, cc: m[1], code: m[1] + m[2] } : { isLocode: false };
+}
+function destCountryName(cc) {
+  try {
+    const dn = new Intl.DisplayNames([getLang() === 'en' ? 'en' : 'it'], { type: 'region' });
+    const n = dn.of(cc);
+    return n && n !== cc ? n : null;
+  } catch { return null; }
+}
+
+// Build the destination cell: a clickable button (carrying raw/label/coords in
+// data-*), or a plain "—" when there's no declared destination.
+function destClickableHtml(ship) {
+  const raw = ship.destination;
+  if (!raw) return '—';
+  const label = ship.destination_label || raw;
+  const c = ship.destination_coords; // [lat, lon] | null
+  const lat = Array.isArray(c) ? c[0] : '';
+  const lon = Array.isArray(c) ? c[1] : '';
+  return `<button type="button" class="dest-clickable" data-dest="${escHtml(raw)}" data-label="${escHtml(label)}" data-lat="${lat}" data-lon="${lon}" title="${escHtml(t('dest.clickHint'))}">${escHtml(label)} <span class="dest-caret">ⓘ</span></button>`;
+}
+
+let _destPopover = null;
+function closeDestPopover() {
+  if (_destPopover) { _destPopover.remove(); _destPopover = null; }
+}
+function openDestPopover(btn) {
+  closeDestPopover();
+  const raw = btn.dataset.dest || '';
+  const label = btn.dataset.label || raw;
+  const lat = btn.dataset.lat !== '' ? Number(btn.dataset.lat) : null;
+  const lon = btn.dataset.lon !== '' ? Number(btn.dataset.lon) : null;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  const info = parseDest(raw);
+  const cn = info.isLocode ? destCountryName(info.cc) : null;
+  const hasName = info.isLocode && label && label.trim().toUpperCase() !== info.code;
+
+  const rows = [];
+  if (info.isLocode) {
+    rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.code')}</span><span class="dp-v">${escHtml(info.code)}</span></div>`);
+    if (hasName) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.port')}</span><span class="dp-v">${escHtml(label)}</span></div>`);
+    if (cn) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.country')}</span><span class="dp-v">${escHtml(cn)}</span></div>`);
+    if (hasCoords) rows.push(`<div class="dp-row"><span class="dp-k">${t('dest.coords')}</span><span class="dp-v">${lat.toFixed(4)}°, ${lon.toFixed(4)}°</span></div>`);
+    if (!hasName && !hasCoords) rows.push(`<div class="dp-note">${t('dest.locodeUnknown')}</div>`);
+  } else {
+    rows.push(`<div class="dp-row"><span class="dp-v">${escHtml(raw)}</span></div>`);
+    rows.push(`<div class="dp-note">${t('dest.notLocode')}</div>`);
+  }
+
+  // OSM link: exact marker when we have coordinates, else a name search for a
+  // recognized port (no button for free-text non-places).
+  let osm = '';
+  if (hasCoords) {
+    const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=12/${lat}/${lon}`;
+    osm = `<a class="dp-osm" href="${url}" target="_blank" rel="noopener">🗺 ${t('dest.openOsm')}</a>`;
+  } else if (hasName) {
+    const q = encodeURIComponent(cn ? `${label}, ${cn}` : label);
+    osm = `<a class="dp-osm" href="https://www.openstreetmap.org/search?query=${q}" target="_blank" rel="noopener">🗺 ${t('dest.openOsmSearch')}</a>`;
+  }
+
+  const pop = document.createElement('div');
+  pop.className = 'dest-popover';
+  pop.innerHTML = rows.join('') + osm;
+  document.body.appendChild(pop);
+
+  const r = btn.getBoundingClientRect();
+  let left = window.scrollX + r.left;
+  const top = window.scrollY + r.bottom + 6;
+  const pw = pop.offsetWidth;
+  if (left + pw > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - pw - 8;
+  if (left < window.scrollX + 8) left = window.scrollX + 8;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+  _destPopover = pop;
+}
+
+// Event delegation: one listener on the info bar toggles the popover; outside
+// click / Escape close it. Set up once at module load.
+if (el.detailInfoBar) {
+  el.detailInfoBar.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dest-clickable');
+    if (!btn) return;
+    e.stopPropagation();
+    if (_destPopover) closeDestPopover();
+    else openDestPopover(btn);
+  });
+}
+document.addEventListener('click', (e) => {
+  if (_destPopover && !_destPopover.contains(e.target) && !e.target.closest('.dest-clickable')) closeDestPopover();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDestPopover(); });
 
 // ── Risk-score history chart ───────────────────────────────────────────────────
 function renderRiskHistory(history) {

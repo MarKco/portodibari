@@ -53,7 +53,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── webhooks.js        # Webhook in uscita per-utente (Slack/Discord/SIEM/custom; formati, firma HMAC, SSRF guard)
 │   │   ├── group-sync.js      # Gruppi di utenti: unione + sincronizzazione write-through di aree/follow/flag/mute + preferenze condivise
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
-│   │   ├── locode.js          # Lookup UN/LOCODE → nome porto leggibile (carica data/locode.json a richiesta)
+│   │   ├── locode.js          # Lookup UN/LOCODE → nome porto + coordinate (carica data/locode.json e locode-coords.json a richiesta)
 │   │   └── scrapers/
 │   │       ├── http.js        # Helper HTTP/node-libcurl + parsing HTML
 │   │       ├── vesselfinder.js
@@ -86,10 +86,11 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   ├── un-sanctions.csv      # Lista sanzioni ONU navi designate (cache su disco)
 │   ├── paris-mou-*.json/csv  # Liste Paris MoU (flag + banned)
 │   ├── tokyo-mou-flags.json  # Liste Tokyo MoU
-│   └── locode.json           # Lookup compatto UN/LOCODE → nome porto (104 k voci, ~2.2 MB; generato da scripts/build-locode.js)
+│   ├── locode.json           # Lookup compatto UN/LOCODE → nome porto (104 k voci, ~2.2 MB; generato da scripts/build-locode.js)
+│   └── locode-coords.json    # Lookup UN/LOCODE → [lat, lon] (78 k voci, ~1.8 MB; coordinate del porto di destinazione, ~75% dei codici)
 ├── scripts/
 │   ├── gen-icons.js          # Rigenera le icone PWA da public/icons/source.png (sips, macOS)
-│   └── build-locode.js       # Genera data/locode.json dal pacchetto npm un-locode (una-tantum)
+│   └── build-locode.js       # Genera data/locode.json + locode-coords.json dal pacchetto npm un-locode (una-tantum; `npm i --no-save un-locode`)
 ├── local.properties          # Config + API key (gitignored)
 ├── local.properties.example  # Template di configurazione
 └── ais_data.db               # Database SQLite (creato al primo avvio, gitignored)
@@ -254,7 +255,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | --------------------| -----------------------------------------------------------------------------------|
 | **Navi presenti**  | Navi viste negli ultimi **6 ore**, **oppure** navi "in porto" viste nelle ultime **24 ore**. Toolbar con **ricerca** (nome/MMSI/IMO/destinazione) e **filtri** (fascia di rischio, solo in porto, solo segnalate) + **export CSV della vista filtrata** (vedi [Ricerca, filtri ed export](#-ricerca-filtri-ed-export-liste)) |
 | **Navi passate**   | Navi che non rientrano nel criterio "presenti" (complemento). Stessa toolbar di ricerca/filtri/export (senza il filtro "in porto") |
-| **Dettaglio nave** | Info statiche nave (tipo, IMO, callsign, dimensioni, destinazione…) + dati VesselFinder/MarineTraffic (se abilitati, sopra alla mappa) + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track (con soste collassate) + letture paginate + note + storico visite porto. Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
+| **Dettaglio nave** | Info statiche nave (tipo, IMO, callsign, dimensioni, destinazione…) + dati VesselFinder/MarineTraffic (se abilitati, sopra alla mappa) + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track (con soste collassate) + letture paginate + note + storico visite porto. La **destinazione è cliccabile** (vedi sotto). Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
@@ -263,6 +264,17 @@ Modali accessori: **Impostazioni**, organizzate in tab: **Generali** (toggle imp
 Una nave "entra" nella lista presenti appena riceve la prima lettura. La finestra è ampia (6 ore) perché le navi in sosta trasmettono di rado: una nave ormeggiata può aggiornare la posizione anche solo ogni 3 ore (standard AIS classe A). Le navi **in porto** (vedi sotto) hanno una retention ancora più larga (24 ore), così restano visibili anche dopo un riavvio del server prima della successiva trasmissione.
 
 Il flag "visto" (★/☆) è disponibile in tutte e tre le viste: colonna nella tabella presenti, colonna nella tabella passate (★ sposta la nave in fondo alla lista), e bottone nell'header del dettaglio nave.
+
+### 🧭 Destinazione cliccabile
+
+Nella info bar del dettaglio nave la **destinazione è cliccabile** e apre un piccolo popover con la spiegazione estesa del nominativo dichiarato via AIS:
+
+- **Codice** UN/LOCODE normalizzato (es. `ITGOA`), **Porto** (nome esteso risolto da [`locode.js`](src/services/locode.js)) e **Paese** (ricavato client-side dal prefisso di 2 lettere via `Intl.DisplayNames`, localizzato).
+- Quando disponibili, le **Coordinate** del porto e un pulsante **🗺 Apri su OpenStreetMap** che centra la mappa sul punto esatto (marker `?mlat=&mlon=`). Le coordinate vengono da `data/locode-coords.json` (dataset UN/LOCODE, ~75% dei codici) e sono servite al client solo per la nave aperta (campo `destination_coords` nel payload del dettaglio) — nessun file grande spedito al browser.
+- Per i codici LOCODE **senza coordinate** (il restante ~25%) il pulsante ricade su una **ricerca per nome** su OpenStreetMap (`/search?query=Porto, Paese`).
+- Per destinazioni in **testo libero** non-LOCODE (es. `FOR ORDERS`, `PILOT`) il popover mostra il testo grezzo con una nota e **nessun pulsante** mappa (non è un luogo geocodabile).
+
+Il link OSM apre in una nuova scheda (navigazione, non una richiesta di rete): nessuna chiamata esterna e nessuna modifica alla CSP.
 
 ## ☢️ Evidenziazione tipo nave (Hazmat)
 

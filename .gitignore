@@ -16,3 +16,4 @@ data/*
 !data/paris-mou-flags.json
 !data/tokyo-mou-flags.json
 !data/locode.json
+!data/locode-coords.json

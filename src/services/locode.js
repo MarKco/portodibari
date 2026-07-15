@@ -42,4 +42,26 @@ function destinationLabel(raw) {
   return resolveLocode(raw) || raw.trim();
 }
 
-module.exports = { resolveLocode, destinationLabel, normalizeCode };
+// Coordinate lookup (CODE → [lat, lon]), built by scripts/build-locode.js from
+// the UN/LOCODE Coordinates column. Present for ~75% of codes (degrees+minutes
+// precision, ≈1–2 km — a locality centroid). Loaded lazily, like the names.
+let _coords = null;
+function getCoords() {
+  if (!_coords) {
+    const f = path.join(__dirname, '../../data/locode-coords.json');
+    _coords = JSON.parse(fs.readFileSync(f, 'utf8'));
+  }
+  return _coords;
+}
+
+/**
+ * Resolve an AIS destination string to [lat, lon] (decimal degrees), or null
+ * when it isn't a known LOCODE or has no coordinates in the dataset.
+ */
+function resolveLocodeCoords(raw) {
+  const code = normalizeCode(raw);
+  if (!code) return null;
+  return getCoords()[code] || null;
+}
+
+module.exports = { resolveLocode, resolveLocodeCoords, destinationLabel, normalizeCode };
