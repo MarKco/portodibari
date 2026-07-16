@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manuale Utente — Tracker Porti</title>
+  <style>
+    :root{
+      --bg:#0f1620; --panel:#151f2b; --panel2:#1b2836; --text:#e7edf4; --muted:#9fb0c3;
+      --border:#26374a; --accent:#3b82f6; --accent2:#60a5fa; --code-bg:#0b1119;
+      --shadow:0 8px 30px rgba(0,0,0,.35); --sidebar:300px;
+      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f5f7fa; --panel:#ffffff; --panel2:#eef2f7; --text:#16202c; --muted:#5b6b7d;
+        --border:#d7dfe8; --accent:#2563eb; --accent2:#1d4ed8; --code-bg:#f0f3f7; --shadow:0 6px 24px rgba(20,40,70,.10); }
+    }
+    :root[data-theme="dark"]{
+      --bg:#0f1620; --panel:#151f2b; --panel2:#1b2836; --text:#e7edf4; --muted:#9fb0c3;
+      --border:#26374a; --accent:#3b82f6; --accent2:#60a5fa; --code-bg:#0b1119; --shadow:0 8px 30px rgba(0,0,0,.35);
+    }
+    :root[data-theme="light"]{
+      --bg:#f5f7fa; --panel:#ffffff; --panel2:#eef2f7; --text:#16202c; --muted:#5b6b7d;
+      --border:#d7dfe8; --accent:#2563eb; --accent2:#1d4ed8; --code-bg:#f0f3f7; --shadow:0 6px 24px rgba(20,40,70,.10);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    /* Layout */
+    .layout{display:flex; min-height:100vh}
+    .sidebar{
+      width:var(--sidebar); flex:0 0 var(--sidebar); position:sticky; top:0; align-self:flex-start;
+      height:100vh; overflow-y:auto; background:var(--panel); border-right:1px solid var(--border); padding:20px 0;
+    }
+    .brand{display:flex; align-items:center; gap:10px; padding:0 20px 14px; margin-bottom:8px; border-bottom:1px solid var(--border)}
+    .brand .logo{font-size:26px}
+    .brand b{font-size:17px; letter-spacing:.2px}
+    .brand small{display:block; color:var(--muted); font-size:12px; font-weight:400}
+    nav#toc{padding:12px 8px 40px}
+    nav#toc ul{list-style:none; margin:0; padding:0}
+    nav#toc li{margin:1px 0}
+    nav#toc a{
+      display:block; padding:6px 12px; color:var(--muted); text-decoration:none; border-radius:8px;
+      font-size:14px; line-height:1.35; border-left:3px solid transparent;
+    }
+    nav#toc a:hover{background:var(--panel2); color:var(--text)}
+    nav#toc a.active{color:var(--text); background:var(--panel2); border-left-color:var(--accent)}
+    nav#toc > ul > li > ul{margin-left:6px; border-left:1px solid var(--border); padding-left:4px}
+    nav#toc > ul > li > ul a{font-size:13px; padding:4px 10px}
+    nav#toc > ul > li > ul ul a{font-size:12.5px; padding-left:18px; color:var(--muted)}
+    nav#toc > ul > li > a{font-weight:600; color:var(--text)}
+    /* Content */
+    main{flex:1 1 auto; min-width:0}
+    .content{max-width:900px; margin:0 auto; padding:48px 40px 120px}
+    h1,h2,h3,h4{line-height:1.25; scroll-margin-top:24px}
+    h1{font-size:30px; margin:0 0 8px}
+    h2{font-size:24px; margin:52px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--border)}
+    h3{font-size:19px; margin:34px 0 10px}
+    h4{font-size:16px; margin:24px 0 8px; color:var(--accent2)}
+    p{margin:12px 0}
+    a{color:var(--accent2)}
+    code{background:var(--code-bg); padding:.12em .4em; border-radius:5px; font-size:.88em;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    pre{background:var(--code-bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px; overflow-x:auto}
+    pre code{background:none; padding:0}
+    blockquote{
+      margin:16px 0; padding:12px 16px; background:var(--panel2); border-left:4px solid var(--accent);
+      border-radius:0 10px 10px 0; color:var(--text);
+    }
+    blockquote p{margin:6px 0}
+    ul,ol{padding-left:22px}
+    li{margin:5px 0}
+    hr{border:none; border-top:1px solid var(--border); margin:40px 0}
+    /* Tables */
+    .table-wrap{overflow-x:auto; margin:16px 0}
+    table{border-collapse:collapse; width:100%; font-size:14.5px; background:var(--panel); border-radius:10px; overflow:hidden}
+    th,td{border:1px solid var(--border); padding:9px 12px; text-align:left; vertical-align:top}
+    th{background:var(--panel2); font-weight:600}
+    tbody tr:nth-child(even){background:var(--panel2)}
+    /* Images */
+    .content img{
+      max-width:100%; height:auto; display:block; margin:20px auto; border:1px solid var(--border);
+      border-radius:12px; box-shadow:var(--shadow); cursor:zoom-in;
+    }
+    figure{margin:24px 0}
+    figcaption{color:var(--muted); font-size:13px; text-align:center; margin-top:6px; font-style:italic}
+    /* Theme toggle */
+    #theme{
+      position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;
+      border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:20px; cursor:pointer;
+      box-shadow:var(--shadow);
+    }
+    #menu-btn{display:none}
+    /* Lightbox */
+    #lb{position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:100; display:none; align-items:center; justify-content:center; cursor:zoom-out}
+    #lb.open{display:flex}
+    #lb img{max-width:96vw; max-height:96vh; border-radius:8px; box-shadow:0 10px 50px rgba(0,0,0,.6)}
+    /* Responsive */
+    @media (max-width:900px){
+      #menu-btn{display:flex; align-items:center; justify-content:center; position:fixed; top:14px; left:14px; z-index:60;
+        width:44px; height:44px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:20px; cursor:pointer; box-shadow:var(--shadow)}
+      .sidebar{position:fixed; z-index:55; transform:translateX(-100%); transition:transform .25s ease; box-shadow:var(--shadow)}
+      .sidebar.open{transform:translateX(0)}
+      .content{padding:70px 20px 100px}
+    }
+    /* Print / PDF */
+    @media print{
+      :root{--bg:#fff; --text:#000; --panel:#fff; --panel2:#f3f3f3; --border:#bbb; --muted:#444}
+      .sidebar,#theme,#menu-btn,#lb{display:none !important}
+      .layout{display:block}
+      .content{max-width:none; margin:0; padding:0}
+      .content img{cursor:default; box-shadow:none; page-break-inside:avoid; max-height:78vh}
+      h2{page-break-after:avoid}
+      h3,h4{page-break-after:avoid}
+      table,blockquote,figure{page-break-inside:avoid}
+      a{color:#000; text-decoration:underline}
+      body{font-size:11pt}
+    }
+  </style>
+</head>
+<body>
+  <button id="menu-btn" aria-label="Menu">☰</button>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="logo">⚓</span>
+        <span><b>Tracker Porti</b><small>Manuale utente</small></span>
+      </div>
+      <nav id="toc">
+        <ul>
+        <li><a href="#manuale-utente-tracker-porti">Manuale Utente —
+        Tracker Porti</a>
+        <ul>
+        <li><a href="#cosè-tracker-porti">Cos’è Tracker Porti</a></li>
+        <li><a href="#avvio-rapido">Avvio rapido</a></li>
+        <li><a href="#account-e-accesso">Account e accesso</a>
+        <ul>
+        <li><a href="#registrarsi">Registrarsi</a></li>
+        <li><a href="#accedere">Accedere</a></li>
+        <li><a href="#disconnettersi">Disconnettersi</a></li>
+        <li><a href="#password-dimenticata">Password
+        dimenticata</a></li>
+        <li><a href="#i-tuoi-dati">I tuoi dati</a></li>
+        </ul></li>
+        <li><a href="#interfaccia-principale">Interfaccia principale</a>
+        <ul>
+        <li><a href="#barra-laterale-sinistra">Barra laterale
+        (sinistra)</a></li>
+        <li><a href="#barra-di-stato-in-alto">Barra di stato (in
+        alto)</a></li>
+        <li><a href="#cambio-tema">Cambio tema</a></li>
+        </ul></li>
+        <li><a href="#le-tre-schede-principali">Le tre schede
+        principali</a>
+        <ul>
+        <li><a href="#navi-presenti">1. Navi presenti</a></li>
+        <li><a href="#navi-passate">2. Navi passate</a></li>
+        <li><a href="#traffico">3. Traffico</a></li>
+        </ul></li>
+        <li><a href="#navi-seguite">Navi seguite</a>
+        <ul>
+        <li><a href="#cerca-e-segui-una-nave">Cerca e segui una
+        nave</a></li>
+        <li><a
+        href="#ri-seguire-una-nave-dalle-seguite-in-passato">Ri-seguire
+        una nave dalle “Seguite in passato”</a></li>
+        </ul></li>
+        <li><a href="#dettaglio-nave">Dettaglio nave</a>
+        <ul>
+        <li><a href="#intestazione-e-azioni">Intestazione e
+        azioni</a></li>
+        <li><a href="#griglia-informazioni">Griglia
+        informazioni</a></li>
+        <li><a href="#fattori-di-rischio">Fattori di rischio</a></li>
+        <li><a href="#dati-vesselfinder-marinetraffic">Dati VesselFinder
+        / MarineTraffic</a></li>
+        <li><a
+        href="#dati-shipfinder-e-myshiptracking-ri-localizzazione-delle-navi-seguite">Dati
+        ShipFinder e MyShipTracking (ri-localizzazione delle navi
+        seguite)</a></li>
+        <li><a href="#proprietà-gestione-equasis">Proprietà / gestione
+        (Equasis)</a></li>
+        <li><a href="#global-fishing-watch">Global Fishing
+        Watch</a></li>
+        <li><a href="#sanzioni">Sanzioni</a></li>
+        <li><a href="#rendezvous-in-mare">Rendezvous in mare</a></li>
+        <li><a href="#mappa-posizione">Mappa posizione</a></li>
+        <li><a href="#letture-ais">Letture AIS</a></li>
+        <li><a href="#note-operative">Note operative</a></li>
+        <li><a href="#storico-visite-in-porto">Storico visite in
+        porto</a></li>
+        </ul></li>
+        <li><a href="#gestione-aree">Gestione aree</a>
+        <ul>
+        <li><a href="#aggiungere-unarea">Aggiungere un’area</a></li>
+        <li><a href="#rimuovere-unarea">Rimuovere un’area</a></li>
+        </ul></li>
+        <li><a href="#mappa-delle-zone-coperte">Mappa delle zone
+        coperte</a></li>
+        <li><a href="#impostazioni">Impostazioni</a>
+        <ul>
+        <li><a href="#scheda-generali">Scheda Generali</a></li>
+        <li><a href="#scheda-aree">Scheda Aree</a></li>
+        <li><a
+        href="#scheda-integrazioni-esterne-telegram-webhook">Scheda
+        Integrazioni esterne (Telegram + webhook)</a></li>
+        <li><a href="#scheda-parametri">Scheda Parametri</a></li>
+        <li><a href="#scheda-backup-ripristino">Scheda Backup /
+        Ripristino</a></li>
+        <li><a href="#scheda-diagnostica-ais">Scheda Diagnostica
+        AIS</a></li>
+        </ul></li>
+        <li><a href="#punteggio-di-rischio">Punteggio di
+        rischio</a></li>
+        <li><a href="#notifiche">Notifiche</a></li>
+        <li><a href="#esportare-i-dati">Esportare i dati</a></li>
+        <li><a href="#installare-lapp-pwa">Installare l’app
+        (PWA)</a></li>
+        <li><a href="#domande-frequenti">Domande frequenti</a></li>
+        </ul></li>
+        </ul>
+      </nav>
+    </aside>
+    <main>
+      <div class="content">
+        <h1 id="manuale-utente-tracker-porti">Manuale Utente — Tracker
+        Porti</h1>
+        <p>Guida completa all’uso di <strong>Tracker Porti</strong> per
+        l’utente. Spiega cosa puoi fare e come farlo, schermata per
+        schermata.</p>
+        <blockquote>
+        <p>Questo manuale copre l’uso quotidiano dell’applicazione. Le
+        funzioni di amministrazione (gestione utenti, ruoli, log di
+        sistema) non sono trattate.</p>
+        </blockquote>
+        <hr />
+        <h2 id="cosè-tracker-porti">Cos’è Tracker Porti</h2>
+        <p><strong>Tracker Porti</strong> monitora in tempo reale il
+        traffico navale AIS in una o più aree geografiche a tua scelta.
+        Raccoglie i dati che le navi trasmettono via AIS, li analizza,
+        calcola per ogni imbarcazione un <strong>punteggio di
+        rischio</strong> e presenta il tutto su mappe e tabelle
+        interattive.</p>
+        <p>Puoi:</p>
+        <ul>
+        <li><strong>monitorare più porti/aree</strong>
+        contemporaneamente, ciascuno con il proprio flusso dati;</li>
+        <li><strong>vedere le navi presenti</strong>, quelle
+        <strong>passate</strong> e le <strong>statistiche di
+        traffico</strong>;</li>
+        <li><strong>seguire singole navi</strong> ovunque vadano, anche
+        fuori dalle aree monitorate;</li>
+        <li>consultare il <strong>dettaglio completo</strong> di ogni
+        nave (identità, rotta, sanzioni, comportamenti sospetti…);</li>
+        <li><strong>ricevere notifiche</strong> in-app e su Telegram su
+        eventi rilevanti;</li>
+        <li><strong>esportare</strong> i dati (CSV, GeoJSON, KML) e fare
+        <strong>backup</strong>.</li>
+        </ul>
+        <p>Non servono conoscenze tecniche per usarlo.</p>
+        <hr />
+        <h2 id="avvio-rapido">Avvio rapido</h2>
+        <ol type="1">
+        <li>Apri il browser all’indirizzo del server (es.
+        <code>http://localhost:3000</code>).</li>
+        <li><strong>Accedi</strong> con le tue credenziali (vedi <a
+        href="#account-e-accesso">Account e accesso</a>).</li>
+        <li>Nella barra laterale sinistra scegli l’<strong>area</strong>
+        da visualizzare nel menu a tendina <strong>Area:</strong>.</li>
+        <li>Premi <strong>▶ Avvia il monitoraggio</strong> per iniziare
+        a ricevere dati per quell’area.</li>
+        <li>Le navi compaiono automaticamente sulla mappa e nella
+        tabella.</li>
+        </ol>
+        <hr />
+        <h2 id="account-e-accesso">Account e accesso</h2>
+        <p>L’applicazione è protetta da <strong>login</strong>: per
+        usarla devi autenticarti. Ogni utente ha i propri dati (aree,
+        navi seguite, notifiche, impostazioni), separati da quelli degli
+        altri.</p>
+        <figure>
+        <img src="images/01-login.png"
+        alt="Schermata di accesso: campi Email o username e Password, con i link Registrati e Password dimenticata." />
+        <figcaption aria-hidden="true">Schermata di accesso: campi Email
+        o username e Password, con i link Registrati e Password
+        dimenticata.</figcaption>
+        </figure>
+        <h3 id="registrarsi">Registrarsi</h3>
+        <p>Dalla pagina di accesso segui il link
+        <strong>Registrati</strong> e inserisci <strong>nome, cognome,
+        email e password</strong>. Il nuovo account viene creato in
+        stato <em>“in attesa”</em>: potrai accedere <strong>solo dopo
+        l’approvazione di un amministratore</strong>. Una volta
+        approvato, effettui il login normalmente.</p>
+        <h3 id="accedere">Accedere</h3>
+        <p>Nella pagina di login inserisci la password e, come
+        identificativo, <strong>lo username oppure l’email</strong>
+        (vanno bene entrambi). La sessione resta valida per diversi
+        giorni: di norma non devi reinserire le credenziali a ogni
+        visita.</p>
+        <blockquote>
+        <p>Dopo troppi tentativi falliti ravvicinati (10 in 15 minuti)
+        l’accesso viene <strong>bloccato temporaneamente</strong> per
+        qualche minuto, come protezione anti-bot. Attendi e riprova.</p>
+        </blockquote>
+        <h3 id="disconnettersi">Disconnettersi</h3>
+        <p>Usa il widget account <strong>in alto a destra</strong> e
+        scegli <strong>Esci</strong> (logout).</p>
+        <h3 id="password-dimenticata">Password dimenticata</h3>
+        <p>Nella pagina di login c’è il link <strong>Password
+        dimenticata?</strong>. Al momento l’invio via email non è
+        attivo: per reimpostare la password <strong>rivolgiti a un
+        amministratore</strong>, che genererà per te un <strong>link
+        monouso</strong> (valido 24 ore) con cui impostarne una
+        nuova.</p>
+        <h3 id="i-tuoi-dati">I tuoi dati</h3>
+        <p>Ogni utente ha <strong>i propri</strong>:</p>
+        <ul>
+        <li><strong>aree</strong> di monitoraggio;</li>
+        <li><strong>impostazioni</strong> (preferenze notifiche, opzioni
+        mappa, lingua, area di default);</li>
+        <li><strong>navi segnalate</strong> ★ e <strong>navi
+        seguite</strong>;</li>
+        <li><strong>notifiche</strong>.</li>
+        </ul>
+        <p>Vedi i dati AIS delle navi che si trovano <strong>dentro le
+        tue aree</strong>. Le sorgenti di arricchimento (VesselFinder,
+        MarineTraffic, sanzioni, ecc.) e la configurazione dello score
+        di rischio sono invece <strong>condivise</strong> e gestite
+        dagli amministratori.</p>
+        <blockquote>
+        <p>Se un amministratore ti inserisce in un <strong>gruppo di
+        utenti</strong>, alcune cose (aree, navi
+        seguite/segnalate/silenziate, preferenze di notifica e mappa)
+        vengono <strong>condivise con gli altri membri</strong>: ciò che
+        aggiungi tu compare a loro e viceversa. Restano personali il
+        <strong>collegamento Telegram</strong> e la
+        <strong>lingua</strong> dell’interfaccia.</p>
+        </blockquote>
+        <hr />
+        <h2 id="interfaccia-principale">Interfaccia principale</h2>
+        <figure>
+        <img src="images/02-home_page.png"
+        alt="Home page: barra laterale a sinistra, mappa con le navi al centro, tabella delle navi in basso e lista notifiche." />
+        <figcaption aria-hidden="true">Home page: barra laterale a
+        sinistra, mappa con le navi al centro, tabella delle navi in
+        basso e lista notifiche.</figcaption>
+        </figure>
+        <h3 id="barra-laterale-sinistra">Barra laterale (sinistra)</h3>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Elemento</th>
+        <th>Funzione</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>🏠 Monitoraggi</strong></td>
+        <td>Torna alla home (schede Navi presenti / passate /
+        Traffico)</td>
+        </tr>
+        <tr class="even">
+        <td><strong>▶ Avvia il monitoraggio</strong></td>
+        <td>Avvia la ricezione dati AIS in tempo reale per l’area
+        visualizzata</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>■ Ferma</strong></td>
+        <td>Interrompe la ricezione per l’area corrente (i dati già
+        raccolti restano)</td>
+        </tr>
+        <tr class="even">
+        <td><strong>🗑 Cancella dati</strong></td>
+        <td>Elimina le letture dell’area visualizzata —
+        <strong>irreversibile</strong></td>
+        </tr>
+        <tr class="odd">
+        <td><strong>🗺 Aree</strong></td>
+        <td>Gestione aree: elenco, mappa, aggiunta e rimozione (vedi <a
+        href="#gestione-aree">Gestione aree</a>)</td>
+        </tr>
+        <tr class="even">
+        <td><strong>🌐 Mappa zone coperte</strong></td>
+        <td>Mappa mondiale della copertura AIS (vedi <a
+        href="#mappa-delle-zone-coperte">Mappa delle zone
+        coperte</a>)</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>⚙ Impostazioni</strong></td>
+        <td>Impostazioni dell’app, incluse le schede tecniche</td>
+        </tr>
+        <tr class="even">
+        <td><strong>🔔 Notifiche</strong></td>
+        <td>Mostra/nasconde la lista notifiche; un badge rosso conta
+        quelle da leggere</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Area:</strong></td>
+        <td>Seleziona la zona da visualizzare. Non avvia né ferma lo
+        stream — ogni area ha il suo. 🟢 = stream attivo, ⚪ =
+        spento</td>
+        </tr>
+        <tr class="even">
+        <td><strong>N letture</strong></td>
+        <td>Contatore in basso: posizioni ricevute nella sessione</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3 id="barra-di-stato-in-alto">Barra di stato (in alto)</h3>
+        <p>Il badge <strong>● ATTIVO</strong> (punto verde pulsante)
+        indica che lo stream dell’area visualizzata è in funzione.
+        <strong>INATTIVO</strong> indica che la ricezione per quell’area
+        è ferma.</p>
+        <h3 id="cambio-tema">Cambio tema</h3>
+        <p>Il pulsante <strong>🌙 / ☀️</strong> in basso a destra
+        alterna tema scuro (predefinito) e chiaro.</p>
+        <hr />
+        <h2 id="le-tre-schede-principali">Le tre schede principali</h2>
+        <p>La home mostra tre schede: <strong>Navi presenti</strong>,
+        <strong>Navi passate</strong> e <strong>Traffico</strong>.</p>
+        <h3 id="navi-presenti">1. Navi presenti</h3>
+        <p>Le navi rilevate nell’area nelle ultime ore, con mappa e
+        tabella in tempo reale.</p>
+        <figure>
+        <img src="images/06-monitoraggio_navi_presenti.png"
+        alt="Scheda Navi presenti: mappa con i marker delle navi colorati per rischio e tabella dettagliata sotto." />
+        <figcaption aria-hidden="true">Scheda Navi presenti: mappa con i
+        marker delle navi colorati per rischio e tabella dettagliata
+        sotto.</figcaption>
+        </figure>
+        <p><strong>Mappa:</strong> le navi sono indicatori colorati per
+        fascia di rischio. Puoi trascinare il bordo inferiore della
+        mappa per ridimensionarla.</p>
+        <p><strong>Tabella — colonne:</strong></p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Colonna</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Icone azione</td>
+        <td>Segnala ★, marca come vista ✓, apri su VesselFinder ⧉</td>
+        </tr>
+        <tr class="even">
+        <td>Ultimo avv.</td>
+        <td>Data e ora dell’ultima posizione ricevuta</td>
+        </tr>
+        <tr class="odd">
+        <td>Nome nave</td>
+        <td>Nome dell’imbarcazione</td>
+        </tr>
+        <tr class="even">
+        <td>MMSI</td>
+        <td>Codice identificativo univoco</td>
+        </tr>
+        <tr class="odd">
+        <td>Tipo nave</td>
+        <td>Categoria (cargo, tanker, passeggeri…)</td>
+        </tr>
+        <tr class="even">
+        <td>Destinazione</td>
+        <td>Porto dichiarato. I codici UN/LOCODE (es.
+        <code>ITTAR</code>) sono tradotti nel nome del porto (es.
+        “Taranto”)</td>
+        </tr>
+        <tr class="odd">
+        <td>SOG</td>
+        <td>Velocità sul fondo (nodi)</td>
+        </tr>
+        <tr class="even">
+        <td>Direzione</td>
+        <td>↙ In entrata / ↗ In uscita / ⚓ Ferma</td>
+        </tr>
+        <tr class="odd">
+        <td>Rischio (0–100)</td>
+        <td>Punteggio (verde/giallo/rosso)</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>Ordinamento:</strong> clicca l’intestazione di una
+        colonna per ordinare; un secondo clic inverte l’ordine (▲/▼).
+        L’ordinamento persiste durante gli aggiornamenti automatici.</p>
+        <p><strong>Pulsanti per riga:</strong></p>
+        <ul>
+        <li><strong>☆ / ★ Segnala</strong> — evidenzia la nave in viola
+        come “da esaminare”. Clicca di nuovo per togliere.</li>
+        <li><strong>✓ Vista</strong> — segna la nave come già esaminata
+        (la riga si attenua). Utile per non perdere le novità.</li>
+        <li><strong>⧉ VesselFinder</strong> — apre la scheda della nave
+        sul sito VesselFinder.</li>
+        </ul>
+        <p><strong>Colori delle righe:</strong></p>
+        <table>
+        <thead>
+        <tr class="header">
+        <th>Colore</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Rosso 🪖</td>
+        <td>Nave militare (segnalata automaticamente)</td>
+        </tr>
+        <tr class="even">
+        <td>Rosso</td>
+        <td>Punteggio di rischio alto (71–100)</td>
+        </tr>
+        <tr class="odd">
+        <td>Viola</td>
+        <td>Nave segnalata manualmente</td>
+        </tr>
+        <tr class="even">
+        <td>Attenuata</td>
+        <td>Nave marcata come “vista”</td>
+        </tr>
+        <tr class="odd">
+        <td>Badge ⚓ In porto</td>
+        <td>Nave attualmente ormeggiata</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>Clicca su una riga</strong> per aprire il <a
+        href="#dettaglio-nave">dettaglio completo</a>.</p>
+        <p><strong>Filtri (barra sopra la tabella):</strong> ricerca per
+        nome/MMSI/IMO/destinazione, filtro per fascia di rischio,
+        <strong>Solo in porto</strong>, <strong>Solo segnalate</strong>,
+        <strong>Navi segnate come viste</strong>, e la casella
+        <strong>Banchine</strong> per l’overlay degli attracchi. A
+        destra i pulsanti <strong>⚓ Banchine</strong>, <strong>⬇
+        Esporta…</strong> e <strong>▶ Replay</strong>.</p>
+        <h4
+        id="banchine-caratterizzazione-automatica-degli-attracchi">Banchine
+        (caratterizzazione automatica degli attracchi)</h4>
+        <figure>
+        <img src="images/09-monitoraggio_banchine.png"
+        alt="Scheda Banchine: poligoni colorati sulla mappa che rappresentano gli attracchi caratterizzati per categoria di nave." />
+        <figcaption aria-hidden="true">Scheda Banchine: poligoni
+        colorati sulla mappa che rappresentano gli attracchi
+        caratterizzati per categoria di nave.</figcaption>
+        </figure>
+        <p>Attivando l’overlay <strong>Banchine</strong> il sistema
+        mostra dove le navi attraccano e di che tipo sono, imparandolo
+        da solo.</p>
+        <p><strong>Come funziona:</strong></p>
+        <ol type="1">
+        <li><strong>Rilevamento attracchi</strong> — a ogni sosta in
+        porto il sistema registra un punto di attracco (centroide delle
+        posizioni della nave ferma nell’area).</li>
+        <li><strong>Raggruppamento</strong> — i punti vicini vengono
+        raggruppati in <strong>banchine</strong> (il contorno è
+        l’inviluppo dei punti del gruppo).</li>
+        <li><strong>Caratterizzazione</strong> — per ogni banchina si
+        contano le categorie di nave. Quando una categoria supera il
+        <strong>60%</strong> degli attracchi (su almeno
+        <strong>10</strong> attracchi), la banchina viene
+        <strong>colorata</strong> con quella categoria; sotto soglia è
+        <strong>“mista”</strong> (grigia). Con meno di 10 attracchi
+        resta tratteggiata.</li>
+        </ol>
+        <p><strong>Usare l’overlay:</strong></p>
+        <ul>
+        <li>Spunta <strong>Banchine</strong> nella barra dei filtri per
+        mostrarlo/nasconderlo (la scelta è ricordata).</li>
+        <li>Ogni banchina ha un poligono colorato e un <strong>pallino
+        centrale</strong> sempre visibile.</li>
+        <li><strong>Clicca una banchina</strong> per vedere nome,
+        caratterizzazione, numero di attracchi, distribuzione per
+        categoria, distribuzione per tipo di carico ed eventuale quota
+        di merci pericolose (☢).</li>
+        </ul>
+        <p><strong>Correggere a mano</strong> (pulsante <strong>⚓
+        Banchine</strong>): apre il pannello di gestione, dove puoi
+        <strong>rinominare</strong>, <strong>forzare la
+        categoria</strong>, <strong>unire</strong> più banchine,
+        <strong>eliminare</strong> una banchina o
+        <strong>ricalcolare</strong> subito. Cliccando una riga della
+        lista la mappa si centra su quella banchina.</p>
+        <blockquote>
+        <p>Le banchine modificate a mano (geometria, nome, categoria
+        forzata) <strong>sopravvivono ai ricalcoli automatici</strong>:
+        le correzioni non vengono mai sovrascritte.</p>
+        </blockquote>
+        <p><strong>Overlay OpenSeaMap.</strong> Nelle impostazioni (→
+        Generali, attivo di default) ci sono due interruttori
+        indipendenti: il <strong>Livello nautico (tile)</strong> disegna
+        i simboli nautici OpenSeaMap (boe, fari, luci, segnali,
+        ancoraggi) come immagine unica; i <strong>Marcatori
+        (selezionabili)</strong> disegnano marcatori ⚓ con
+        ormeggi/banchine/porti ufficiali da OpenStreetMap, filtrabili
+        per categoria. I dati sono gratuiti (nessuna chiave API) e nei
+        porti commerciali possono essere incompleti.</p>
+        <h4 id="replay-storico-rivedere-il-traffico-passato">Replay
+        storico (rivedere il traffico passato)</h4>
+        <figure>
+        <img src="images/10-monitoraggio_replay.png"
+        alt="Modalità Replay: barra di controllo con play/pausa, scorrimento temporale e selezione velocità, navi che si muovono con scie." />
+        <figcaption aria-hidden="true">Modalità Replay: barra di
+        controllo con play/pausa, scorrimento temporale e selezione
+        velocità, navi che si muovono con scie.</figcaption>
+        </figure>
+        <p>Il pulsante <strong>▶ Replay</strong> rivede come si è mosso
+        il traffico dell’area in un intervallo passato. In modalità
+        replay i marker live vengono nascosti e compare una barra di
+        controllo:</p>
+        <ul>
+        <li><strong>Area</strong> — quale delle tue aree rivedere.</li>
+        <li><strong>Finestra</strong> — preset <strong>1h / 6h / 24h /
+        tutto</strong>, oppure un intervallo
+        <strong>personalizzato</strong>. Si aggancia automaticamente al
+        dato più recente disponibile.</li>
+        <li><strong>▶ / ⏸</strong>, la <strong>barra di
+        scorrimento</strong> e le <strong>velocità</strong> (1× / 5× /
+        20× / 60×).</li>
+        </ul>
+        <p>Ogni nave si muove interpolata tra le sue posizioni reali,
+        lascia una <strong>scia che sfuma</strong> ed è colorata per
+        rischio; cliccala per il dettaglio. In un <strong>buco di
+        segnale</strong> lungo la nave viene <strong>nascosta</strong>
+        invece di “teletrasportarsi”. Premi <strong>✕ Esci</strong> per
+        tornare al live.</p>
+        <blockquote>
+        <p>Se hai attive le integrazioni ShipFinder/MyShipTracking
+        compare il toggle <strong>Includi SF/MST</strong> (acceso di
+        default), che usa anche quelle posizioni per riempire i tratti
+        in cui l’AIS è muto.</p>
+        </blockquote>
+        <h3 id="navi-passate">2. Navi passate</h3>
+        <figure>
+        <img src="images/07-monitoraggio_navi_passate.png"
+        alt="Scheda Navi passate: tabella delle navi che hanno visitato l’area, con primo contatto e durata sosta." />
+        <figcaption aria-hidden="true">Scheda Navi passate: tabella
+        delle navi che hanno visitato l’area, con primo contatto e
+        durata sosta.</figcaption>
+        </figure>
+        <p>Le navi che hanno visitato l’area in precedenza. Tabella
+        simile a “Navi presenti”, con in più:</p>
+        <ul>
+        <li><strong>Primo contatto</strong> — quando la nave è stata
+        vista per la prima volta;</li>
+        <li><strong>Durata sosta</strong> — per quanto è rimasta
+        nell’area.</li>
+        </ul>
+        <p>L’ordinamento per colonna funziona come per le navi
+        presenti.</p>
+        <h3 id="traffico">3. Traffico</h3>
+        <figure>
+        <img src="images/08-monitoraggio_traffico.png"
+        alt="Scheda Traffico: schede statistiche in alto e grafici su arrivi per ora, tipo nave, distribuzione rischio e andamento giornaliero." />
+        <figcaption aria-hidden="true">Scheda Traffico: schede
+        statistiche in alto e grafici su arrivi per ora, tipo nave,
+        distribuzione rischio e andamento giornaliero.</figcaption>
+        </figure>
+        <p>Pannello statistico con indicatori e grafici aggregati.</p>
+        <p><strong>Schede in alto:</strong> Arrivi oggi · Arrivi ultimi
+        7 giorni · Arrivi totali · Durata media sosta.</p>
+        <p><strong>Grafici:</strong></p>
+        <table>
+        <thead>
+        <tr class="header">
+        <th>Grafico</th>
+        <th>Cosa mostra</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Arrivi per ora del giorno</td>
+        <td>Barre orarie (00–23)</td>
+        </tr>
+        <tr class="even">
+        <td>Arrivi per tipo nave</td>
+        <td>Navi per categoria</td>
+        </tr>
+        <tr class="odd">
+        <td>Distribuzione score rischio</td>
+        <td>Ripartizione basso/medio/alto</td>
+        </tr>
+        <tr class="even">
+        <td>Principali fattori di rischio</td>
+        <td>Quali fattori pesano di più</td>
+        </tr>
+        <tr class="odd">
+        <td>Arrivi giornalieri (ultimi 30 gg)</td>
+        <td>Andamento del mese</td>
+        </tr>
+        <tr class="even">
+        <td>Navi con score più alto</td>
+        <td>Le imbarcazioni più a rischio</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>Pannelli inferiori:</strong> <strong>Navi
+        attese</strong> (dirette verso l’area, per parola chiave nella
+        destinazione) e <strong>Ultimi eventi porto</strong>
+        (arrivi/partenze recenti).</p>
+        <hr />
+        <h2 id="navi-seguite">Navi seguite</h2>
+        <p>La sezione <strong>🗺 Navi seguite</strong> raccoglie le navi
+        che segui <strong>ovunque vadano</strong>, anche fuori dalle
+        aree monitorate, tramite uno stream AIS dedicato. Una nave
+        seguita che esce dalla copertura AIS <strong>non viene
+        persa</strong>: resta agganciata a una rete di ri-acquisizione
+        mondiale e torna tracciata appena ri-trasmette.</p>
+        <figure>
+        <img src="images/03-navi_seguite.png"
+        alt="Sezione Navi seguite, sotto-scheda Seguite: elenco delle navi attualmente tracciate con badge di stato." />
+        <figcaption aria-hidden="true">Sezione Navi seguite,
+        sotto-scheda Seguite: elenco delle navi attualmente tracciate
+        con badge di stato.</figcaption>
+        </figure>
+        <p>Due sotto-schede: <strong>Seguite</strong> (attualmente
+        tracciate) e <strong>Seguite in passato</strong> (storico; una
+        nave ci finisce solo dopo un silenzio molto lungo — default ~6
+        mesi — o quando smetti di seguirla).</p>
+        <figure>
+        <img src="images/05-seguite_in_passato.png"
+        alt="Sotto-scheda Seguite in passato: storico delle navi non più tracciate." />
+        <figcaption aria-hidden="true">Sotto-scheda Seguite in passato:
+        storico delle navi non più tracciate.</figcaption>
+        </figure>
+        <h3 id="cerca-e-segui-una-nave">Cerca e segui una nave</h3>
+        <p>In cima alla sezione c’è una <strong>barra di
+        ricerca</strong>: digita <strong>nome</strong> o
+        <strong>MMSI</strong> e premi <strong>🔍 Cerca</strong>.</p>
+        <figure>
+        <img src="images/04-risultati_ricerca_nave.png"
+        alt="Finestra dei risultati di ricerca nave: identità, dati dalle fonti esterne e posizione live in arrivo." />
+        <figcaption aria-hidden="true">Finestra dei risultati di ricerca
+        nave: identità, dati dalle fonti esterne e posizione live in
+        arrivo.</figcaption>
+        </figure>
+        <ol type="1">
+        <li>Si apre una finestra dei risultati che resta aperta mentre
+        raccogliamo i dati. Se il nome corrisponde a più navi, scegli
+        quella giusta.</li>
+        <li>La scheda si riempie <strong>man mano</strong>: identità e
+        dati da VesselFinder / MarineTraffic / Global Fishing Watch (con
+        un’icona che indica dove è stata trovata), eventuali avvisi di
+        <strong>sanzioni</strong> o <strong>PSC</strong>, e la
+        <strong>posizione live</strong> su una mini-mappa.</li>
+        <li>La posizione viene recuperata in tempo reale da AISstream:
+        può richiedere fino a ~90 s. Se la nave non trasmette compare un
+        avviso con <strong>↻ Riprova</strong>.</li>
+        <li>Quando la posizione è disponibile si abilita <strong>🗺 Segui
+        nave</strong>: cliccalo per aggiungerla alle seguite.</li>
+        </ol>
+        <p>Chiudere la finestra (<strong>Annulla</strong>,
+        <strong>✕</strong>, clic fuori o <strong>Esc</strong>)
+        interrompe la ricerca senza seguire nulla.</p>
+        <h3 id="ri-seguire-una-nave-dalle-seguite-in-passato">Ri-seguire
+        una nave dalle “Seguite in passato”</h3>
+        <p>Quando ri-segui una nave che era tra le <strong>Seguite in
+        passato</strong> (apri il dettaglio e premi <strong>🗺 Segui
+        nave</strong>), l’app la rimette <strong>subito</strong> tra le
+        seguite e avvia in background la ricerca della posizione:</p>
+        <ul>
+        <li>se la nave sta trasmettendo, resta tra le seguite e la
+        posizione si aggiorna;</li>
+        <li>se entro ~90 secondi <strong>non</strong> trasmette,
+        <strong>torna tra le “Seguite in passato”</strong> e ricevi una
+        <strong>notifica</strong> di mancato ritrovamento.</li>
+        </ul>
+        <hr />
+        <h2 id="dettaglio-nave">Dettaglio nave</h2>
+        <p>Cliccando qualsiasi riga della tabella (o una notifica di una
+        nave) si apre la scheda completa.</p>
+        <figure>
+        <img src="images/11-monitoraggio_dettagli_nave_1.png"
+        alt="Dettaglio nave — intestazione, griglia informazioni, fattori di rischio e pannello dati VesselFinder con mappa della traccia." />
+        <figcaption aria-hidden="true">Dettaglio nave — intestazione,
+        griglia informazioni, fattori di rischio e pannello dati
+        VesselFinder con mappa della traccia.</figcaption>
+        </figure>
+        <h3 id="intestazione-e-azioni">Intestazione e azioni</h3>
+        <ul>
+        <li><strong>← Indietro</strong> — torna alla lista</li>
+        <li><strong>★ Segnala</strong> / <strong>✓ Vista</strong> —
+        segnalazione / marca come esaminata</li>
+        <li><strong>🪖 Segna come nave militare</strong> — classifica la
+        nave come militare (riga rossa, rischio massimo)</li>
+        <li><strong>🔔 / 🔕</strong> — silenzia o riabilita le notifiche
+        automatiche per questa nave</li>
+        <li><strong>⧉ VesselFinder / MarineTraffic / ShipFinder /
+        MyShipTracking</strong> — apri la scheda esterna</li>
+        <li><strong>Report</strong> — genera un report della nave</li>
+        </ul>
+        <h3 id="griglia-informazioni">Griglia informazioni</h3>
+        <p>Tutti i dati disponibili della nave:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Campo</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Score rischio</td>
+        <td>Badge colorato 0–100</td>
+        </tr>
+        <tr class="even">
+        <td>Tipo nave</td>
+        <td>Categoria; “☢ Hazmat” se trasporta merci pericolose</td>
+        </tr>
+        <tr class="odd">
+        <td>Tipo carico</td>
+        <td>Classe merceologica (portacontainer, petroliera,
+        chimichiera, gasiera, rinfusiera…) con la fonte tra
+        parentesi</td>
+        </tr>
+        <tr class="even">
+        <td>Stato carico</td>
+        <td>Stima carica / parziale / in zavorra dal pescaggio
+        dichiarato</td>
+        </tr>
+        <tr class="odd">
+        <td>Nominativo</td>
+        <td>Indicativo radio (call sign)</td>
+        </tr>
+        <tr class="even">
+        <td>IMO</td>
+        <td>Numero IMO di registrazione</td>
+        </tr>
+        <tr class="odd">
+        <td>Destinazione</td>
+        <td>Porto dichiarato</td>
+        </tr>
+        <tr class="even">
+        <td>ETA</td>
+        <td>Orario stimato di arrivo</td>
+        </tr>
+        <tr class="odd">
+        <td>Pescaggio max</td>
+        <td>Profondità dello scafo in acqua (m)</td>
+        </tr>
+        <tr class="even">
+        <td>Lunghezza / Larghezza</td>
+        <td>Dimensioni fisiche</td>
+        </tr>
+        <tr class="odd">
+        <td>SOG / Rotta</td>
+        <td>Velocità e direzione corrente</td>
+        </tr>
+        <tr class="even">
+        <td>Stato navigazione</td>
+        <td>Ormeggiata, in navigazione, ecc.</td>
+        </tr>
+        <tr class="odd">
+        <td>Direzione</td>
+        <td>In entrata / in uscita / ferma</td>
+        </tr>
+        <tr class="even">
+        <td>Posizione</td>
+        <td>Ultima latitudine e longitudine</td>
+        </tr>
+        <tr class="odd">
+        <td>Durata sosta</td>
+        <td>Tempo trascorso dall’arrivo</td>
+        </tr>
+        <tr class="even">
+        <td>Primo / Ultimo contatto</td>
+        <td>Timestamp del primo e ultimo dato ricevuto</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3 id="fattori-di-rischio">Fattori di rischio</h3>
+        <figure>
+        <img src="images/12-monitoraggio_dettagli_nave_2.png"
+        alt="Dettaglio nave — elenco dei fattori di rischio con i punti assegnati da ciascuno." />
+        <figcaption aria-hidden="true">Dettaglio nave — elenco dei
+        fattori di rischio con i punti assegnati da
+        ciascuno.</figcaption>
+        </figure>
+        <p>Lista dei fattori che hanno contribuito al punteggio, con i
+        punti di ciascuno. Se non ci sono anomalie compare “Nessuna
+        anomalia rilevata”.</p>
+        <h3 id="dati-vesselfinder-marinetraffic">Dati VesselFinder /
+        MarineTraffic</h3>
+        <p>Se abilitati nelle impostazioni, mostrano informazioni
+        aggiuntive recuperate da questi servizi (bandiera, stazza, anno
+        di costruzione…), con indicazione se sono in cache. Il recupero
+        è automatico in background per le navi viste di recente.</p>
+        <h3
+        id="dati-shipfinder-e-myshiptracking-ri-localizzazione-delle-navi-seguite">Dati
+        ShipFinder e MyShipTracking (ri-localizzazione delle navi
+        seguite)</h3>
+        <figure>
+        <img src="images/13-monitoraggio_dettagli_nave_3.png"
+        alt="Dettaglio nave — pannelli delle fonti esterne aggiuntive (ShipFinder / MyShipTracking) con l’ultima posizione nota." />
+        <figcaption aria-hidden="true">Dettaglio nave — pannelli delle
+        fonti esterne aggiuntive (ShipFinder / MyShipTracking) con
+        l’ultima posizione nota.</figcaption>
+        </figure>
+        <p>Se abiliti <strong>Import ShipFinder</strong> e/o
+        <strong>Import MyShipTracking</strong>, compaiono i relativi
+        pannelli. Oltre ai dati statici, queste fonti offrono la
+        <strong>posizione dell’ultimo avvistamento</strong>, che serve a
+        <strong>ritrovare le navi seguite che l’AIS non vede
+        più</strong>:</p>
+        <ul>
+        <li><strong>Automatico</strong> — per ogni nave seguita che non
+        trasmette da un po’, l’app interroga periodicamente queste fonti
+        in background. Se trova una posizione, compare sulla mini-mappa
+        come marker distinto (<strong>arancione</strong> = ShipFinder,
+        <strong>teal/ciano</strong> = MyShipTracking), senza alterare la
+        traccia AIS, lo score o il replay.</li>
+        <li><strong>Badge dedicato</strong> — quando esiste una
+        posizione compare accanto al nome un badge <strong>📍 vista su
+        ShipFinder/MyShipTracking · <data></strong>, distinto dal badge
+        giallo <strong>🔍 in ricerca</strong> (che riflette lo stato
+        AIS). Il badge “in ricerca” si spegne <strong>solo</strong> con
+        un segnale AIS reale.</li>
+        <li><strong>Manuale</strong> — il pulsante <strong>📍 Localizza
+        via ShipFinder / MyShipTracking</strong> recupera
+        <strong>subito</strong> la posizione corrente.</li>
+        </ul>
+        <blockquote>
+        <p>I pannelli compaiono <strong>solo se l’integrazione è
+        attiva</strong> (Impostazioni → Import…). Di default sono
+        spenti. Sulla mappa delle Navi seguite, una nave che l’AIS non
+        vede più viene mostrata sulla sua posizione SF/MST più recente
+        (marker grigio) e torna sull’AIS live appena ri-trasmette.</p>
+        </blockquote>
+        <h3 id="proprietà-gestione-equasis">Proprietà / gestione
+        (Equasis)</h3>
+        <figure>
+        <img src="images/14-monitoraggio_dettagli_nave_4.png"
+        alt="Dettaglio nave — pannello Proprietà / gestione (Equasis) e Global Fishing Watch con gli eventi comportamentali." />
+        <figcaption aria-hidden="true">Dettaglio nave — pannello
+        Proprietà / gestione (Equasis) e Global Fishing Watch con gli
+        eventi comportamentali.</figcaption>
+        </figure>
+        <p>Se il lookup Equasis è abilitato, compare il pannello
+        <strong>Proprietà / gestione (Equasis)</strong> con il pulsante
+        <strong>Recupera informazioni Equasis</strong>. <strong>Non
+        parte mai in automatico</strong>: la ricerca avviene solo al
+        clic e interroga Equasis per <strong>numero IMO</strong>.
+        Restituisce dati nave, <strong>proprietà e gestione</strong>
+        (proprietario, gestore ISM, operatore), classificazione,
+        copertura P&amp;I, indicatori di performance/rischio e posizioni
+        recenti. Il risultato viene memorizzato una sola volta e
+        mostrato senza scadenza.</p>
+        <h3 id="global-fishing-watch">Global Fishing Watch</h3>
+        <p>Se l’arricchimento GFW è abilitato (di default lo è), compare
+        il pannello <strong>Global Fishing Watch</strong> con
+        l’<strong>identità</strong> della nave e le tabelle degli
+        <strong>eventi comportamentali</strong> ricavati dal flusso AIS
+        globale:</p>
+        <ul>
+        <li><strong>Incontri</strong> — due navi che si incontrano in
+        mare aperto (firma di un trasbordo).</li>
+        <li><strong>Loitering</strong> — sosta prolungata in mare
+        aperto.</li>
+        <li><strong>Port visit</strong> — scali in porto
+        ricostruiti.</li>
+        <li><strong>AIS spento (gap)</strong> — transponder spento in
+        navigazione (“dark activity”).</li>
+        </ul>
+        <p>L’arricchimento è <strong>proattivo</strong> (nessun
+        pulsante). GFW traccia soprattutto navi da pesca, di supporto e
+        reefer/carrier: molte mercantili non sono presenti (nota “non
+        trovata in GFW”). Questi eventi <strong>alimentano lo score di
+        rischio</strong>.</p>
+        <h3 id="sanzioni">Sanzioni</h3>
+        <figure>
+        <img src="images/15-monitoraggio_dettagli_nave_5.png"
+        alt="Dettaglio nave — pannello Sanzioni con bordo rosso: lista, programma e campo di corrispondenza del match." />
+        <figcaption aria-hidden="true">Dettaglio nave — pannello
+        Sanzioni con bordo rosso: lista, programma e campo di
+        corrispondenza del match.</figcaption>
+        </figure>
+        <p>Quando una nave corrisponde a una lista sanzioni, in cima al
+        dettaglio compare — con bordo rosso — il pannello
+        <strong>Sanzioni</strong>:</p>
+        <ul>
+        <li><strong>Lista</strong> — il regime del match: OFAC SDN
+        (USA), lista consolidata UE, UK OFSI o ONU.</li>
+        <li><strong>Programma</strong> — il programma sanzionatorio
+        specifico, se disponibile.</li>
+        <li><strong>Corrispondenza per</strong> — il campo su cui è
+        avvenuto il match: <strong>IMO</strong> o <strong>call
+        sign</strong> (alta affidabilità) oppure <strong>nome</strong>
+        (più debole, possibile omonimia).</li>
+        <li><strong>Nome in lista</strong>, <strong>bandiera</strong>,
+        <strong>proprietario</strong> e <strong>alias</strong>
+        dell’entità, quando presenti.</li>
+        </ul>
+        <p>Un avviso ricorda di verificare sempre sulla fonte ufficiale
+        (un match <strong>solo per nome</strong> può essere un falso
+        positivo). Quando l’identificativo è disponibile, <strong>Apri
+        scheda ufficiale</strong> apre la pagina pubblica. Il pannello
+        compare <strong>solo</strong> per le navi in lista.</p>
+        <h3 id="rendezvous-in-mare">Rendezvous in mare</h3>
+        <p>Se la nave ha avuto un <strong>rendezvous</strong> confermato
+        con un’altra (rimaste vicine, lente e al largo abbastanza a
+        lungo — firma di un trasbordo nave-nave), compare la sezione
+        <strong>Rendezvous in mare</strong> con l’elenco degli incontri
+        (altra nave, data/ora, distanza minima, area). Ogni riga è
+        cliccabile e apre la nave coinvolta. Un rendezvous confermato fa
+        scattare una <strong>notifica</strong> e <strong>aggiunge punti
+        al rischio di entrambe</strong> le navi.</p>
+        <h3 id="mappa-posizione">Mappa posizione</h3>
+        <p>Mappa con la traccia della nave e controlli di riproduzione
+        animata.</p>
+        <ul>
+        <li><strong>Finestra temporale</strong> — preset <strong>6h /
+        24h / 7gg / tutto</strong>, oppure intervallo
+        <strong>personalizzato</strong> (Da → A, poi
+        <strong>Applica</strong>).</li>
+        <li><strong>▶ / ⏸</strong> — riproduce/pausa l’animazione della
+        traccia.</li>
+        <li><strong>Scrubber</strong> — salta a un punto qualsiasi della
+        traccia.</li>
+        <li><strong>Velocità</strong> — <strong>1× / 5× / 20× /
+        60×</strong> (default 20×), cambiabili durante la
+        riproduzione.</li>
+        <li><strong>Includi SF/MST</strong> — se le integrazioni sono
+        attive e la nave ha posizioni scrapate, le include nella traccia
+        (nodi ambra = ShipFinder, teal = MyShipTracking).</li>
+        </ul>
+        <h3 id="letture-ais">Letture AIS</h3>
+        <figure>
+        <img src="images/16-monitoraggio_dettagli_nave_6.png"
+        alt="Dettaglio nave — tabella paginata delle letture AIS e sezione note operative." />
+        <figcaption aria-hidden="true">Dettaglio nave — tabella paginata
+        delle letture AIS e sezione note operative.</figcaption>
+        </figure>
+        <p>Tabella paginata con tutte le posizioni ricevute in ordine
+        cronologico. Clicca una riga per il dettaglio. I dati grezzi
+        JSON completi sono mostrati solo per i messaggi statici (nome,
+        dimensioni, destinazione…); per i semplici messaggi di posizione
+        i campi utili sono già nella griglia. Naviga con <strong>←
+        Prec</strong> e <strong>Succ →</strong>.</p>
+        <h3 id="note-operative">Note operative</h3>
+        <p>Area di testo libero: scrivi qualsiasi annotazione sulla nave
+        e premi <strong>Salva note</strong>. Le note sono persistenti
+        nel database.</p>
+        <h3 id="storico-visite-in-porto">Storico visite in porto</h3>
+        <p>Registro di tutti gli arrivi (↙) e partenze (↗) rilevati per
+        la nave, con destinazione, pescaggio e durata della sosta. I
+        codici UN/LOCODE nella destinazione sono risolti nel nome del
+        porto (es. <code>ITNAP</code> → “Napoli”).</p>
+        <hr />
+        <h2 id="gestione-aree">Gestione aree</h2>
+        <p>Apri con <strong>🗺 Aree</strong>. Qui aggiungi e rimuovi le
+        aree monitorate <strong>senza riavviare l’app</strong>.</p>
+        <figure>
+        <img src="images/17-aree.png"
+        alt="Schermata Aree: pannello Aggiungi area, mappa con i rettangoli delle aree e tabella con coordinate e stato." />
+        <figcaption aria-hidden="true">Schermata Aree: pannello Aggiungi
+        area, mappa con i rettangoli delle aree e tabella con coordinate
+        e stato.</figcaption>
+        </figure>
+        <p>La schermata contiene:</p>
+        <ul>
+        <li>un <strong>pannello “Aggiungi area”</strong> (in alto a
+        sinistra);</li>
+        <li>una <strong>mappa</strong> con tutte le aree come rettangoli
+        (verde = stream attivo, viola = area in vista, blu =
+        altre);</li>
+        <li>una <strong>tabella</strong> con nome, coordinate SW e NE,
+        parola chiave, stato stream, dati salvati e pulsante di
+        eliminazione.</li>
+        </ul>
+        <h3 id="aggiungere-unarea">Aggiungere un’area</h3>
+        <ol type="1">
+        <li>Scrivi un <strong>nome</strong> (obbligatorio) e, se vuoi,
+        una <strong>parola chiave</strong> (per il filtro “Navi
+        attese”).</li>
+        <li>Indica i confini in <strong>uno</strong> di due modi:
+        <ul>
+        <li><strong>Coordinate GPS</strong> — inserisci a mano
+        latitudine e longitudine in <strong>gradi decimali</strong> dei
+        due angoli SW (Sud-Ovest) e NE (Nord-Est). Es.: SW
+        <code>40.95, 16.60</code> — NE <code>41.30, 17.10</code>.
+        Durante la digitazione compare un rettangolo di anteprima.</li>
+        <li><strong>Da mappa</strong> — inquadra l’area
+        spostando/zoomando la mappa, poi premi <strong>🎯 Cattura vista
+        corrente</strong>: le coordinate si compilano da sole.</li>
+        </ul></li>
+        <li>Premi <strong>＋ Aggiungi area</strong>. L’area viene
+        salvata e il suo stream parte subito.</li>
+        </ol>
+        <blockquote>
+        <p>La latitudine va da -90 a 90 (positiva a Nord), la
+        longitudine da -180 a 180 (positiva a Est). Gli angoli possono
+        essere inseriti in qualsiasi ordine: vengono riordinati
+        automaticamente.</p>
+        </blockquote>
+        <h3 id="rimuovere-unarea">Rimuovere un’area</h3>
+        <p>Premi 🗑 sulla riga dell’area. <strong>Insieme all’area viene
+        eliminato tutto lo storico correlato</strong> (letture, navi ed
+        eventi porto). Per sicurezza la cancellazione <strong>non è
+        immediata</strong>: compare un avviso con un conto alla rovescia
+        e un pulsante <strong>↶ Annulla</strong> per <strong>10
+        secondi</strong>. Diventa definitiva allo scadere del tempo o
+        quando lasci la pagina Aree.</p>
+        <blockquote>
+        <p>Deve restare <strong>almeno un’area</strong>: il pulsante di
+        eliminazione è disabilitato quando ne resta una sola.</p>
+        </blockquote>
+        <hr />
+        <h2 id="mappa-delle-zone-coperte">Mappa delle zone coperte</h2>
+        <figure>
+        <img src="images/18_mappa_zone_coperte.png"
+        alt="Mappa mondiale delle zone coperte: griglia colorata dal blu (pochi messaggi AIS) al rosso (molti)." />
+        <figcaption aria-hidden="true">Mappa mondiale delle zone
+        coperte: griglia colorata dal blu (pochi messaggi AIS) al rosso
+        (molti).</figcaption>
+        </figure>
+        <p>Si apre da <strong>🌐 Mappa zone coperte</strong>. Mostra una
+        <strong>mappa del mondo</strong> dove ogni cella è colorata in
+        base a <strong>quanti messaggi AIS si ricevono</strong> in
+        quella zona: dal <strong>blu</strong> (pochi) al
+        <strong>rosso</strong> (molti). Serve a capire a colpo d’occhio
+        dove la copertura AIS è buona e dove ci sono “buchi”.</p>
+        <p>Come utente puoi <strong>aprire la mappa e vedere i dati
+        correnti</strong> (per te è in sola lettura). La mappa è
+        disponibile anche <strong>senza login</strong> all’indirizzo
+        <code>/heatmap</code>. L’avvio e lo stop della raccolta dati
+        sono riservati agli amministratori.</p>
+        <hr />
+        <h2 id="impostazioni">Impostazioni</h2>
+        <p>Apri con <strong>⚙ Impostazioni</strong>. Le impostazioni
+        sono organizzate in <strong>schede</strong>:
+        <strong>Generali</strong>, <strong>Aree</strong>,
+        <strong>Integrazioni esterne</strong>,
+        <strong>Parametri</strong>, <strong>Backup / Ripristino</strong>
+        e la scheda tecnica <strong>📡 Diagnostica AIS</strong>.</p>
+        <h3 id="scheda-generali">Scheda Generali</h3>
+        <figure>
+        <img src="images/19-impostazioni-generali.png"
+        alt="Impostazioni — scheda Generali: toggle delle sorgenti dati, screening sanzioni/PSC, notifiche e overlay mappa." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Generali:
+        toggle delle sorgenti dati, screening sanzioni/PSC, notifiche e
+        overlay mappa.</figcaption>
+        </figure>
+        <p>In alto il pannello <strong>Monitoraggio aree</strong> mostra
+        tutte le aree con un toggle per avviare/fermare lo stream di
+        ciascuna (🟢 attivo / ⚪ spento): così monitori più aree
+        insieme.</p>
+        <p>Sotto, i toggle delle <strong>sorgenti dati e delle
+        funzioni</strong>:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Opzione</th>
+        <th>Funzione</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>VesselFinder</strong> /
+        <strong>MarineTraffic</strong></td>
+        <td>Recupera dati aggiuntivi nel dettaglio nave. Cache 6
+        ore.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Import ShipFinder</strong></td>
+        <td>Dati + <strong>ultima posizione</strong> per ri-localizzare
+        le navi seguite (marker arancioni). Spento di default.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Import MyShipTracking</strong></td>
+        <td>Seconda fonte di posizione indipendente (marker teal).
+        Spento di default.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Screening sanzioni</strong></td>
+        <td>Confronta ogni nave con la lista OFAC SDN (match per
+        IMO/nome/call sign). Aggiornata ogni 24 h; <strong>Aggiorna
+        lista</strong> forza il download.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Liste sanzioni aggiuntive (UE / UK /
+        ONU)</strong></td>
+        <td>Aggiunge le liste UE, UK OFSI e ONU (via OpenSanctions).
+        Attiva solo con lo screening sanzioni acceso. Default
+        attivo.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Screening Port State Control (Paris/Tokyo
+        MoU)</strong></td>
+        <td>Performance bandiera white/grey/black + navi bandite dal
+        Paris MoU.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Lookup Equasis (proprietà)</strong></td>
+        <td>Abilita il pulsante on-demand nel dettaglio. Mai
+        automatico.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Global Fishing Watch</strong></td>
+        <td>Identità + eventi comportamentali (proattivo). Attivo di
+        default.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Notifiche</strong></td>
+        <td>Interruttore generale delle notifiche in-app.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Notifica rientro nave / cambio area / score alto /
+        nuova banchina / caratterizzazione banchina</strong></td>
+        <td>Attiva le singole categorie di notifica in-app.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Escludi tanker</strong></td>
+        <td>Non assegna il punteggio “tipo nave” agli scafi tanker
+        (utile monitorando il trasporto di armi).</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Controlla salto di posizione</strong> /
+        <strong>Controlla blackout AIS</strong></td>
+        <td>Includono nel rischio i relativi segnali. Disattivali in
+        aree con copertura AIS scarsa (falsi positivi). Default
+        attivi.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Livello nautico OpenSeaMap (tile)</strong></td>
+        <td>Simboli nautici come immagine unica (tutto o niente).
+        Default attivo.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Marcatori OpenSeaMap (selezionabili)</strong> +
+        <strong>Elementi da mostrare</strong></td>
+        <td>Marcatori ⚓ filtrabili per categoria (porti, ormeggi,
+        ancoraggi, marine, fari, boe, pericoli…). Default attivi.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Pesi rischio per tipo di carico</strong></td>
+        <td>Punti assegnati a ogni classe merceologica. Modifica e
+        <strong>💾 Salva pesi</strong> (effetto immediato).</td>
+        </tr>
+        <tr class="even">
+        <td><strong>⬇ Esporta CSV</strong></td>
+        <td>Scarica tutte le letture in CSV.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>⬇ Scarica backup</strong> / <strong>⬆
+        Ripristina</strong></td>
+        <td>Scarica/ricarica il file del database.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Lingua</strong></td>
+        <td>Italiano / English.</td>
+        </tr>
+        </tbody>
+        </table>
+        <blockquote>
+        <p><strong>Attenzione:</strong> il <strong>ripristino</strong>
+        del database sostituisce <strong>tutti</strong> i dati attuali
+        ed è irreversibile. Scarica un backup prima di procedere. Dopo
+        il ripristino i dati vengono riassegnati all’area corretta in
+        base alle coordinate.</p>
+        </blockquote>
+        <h3 id="scheda-aree">Scheda Aree</h3>
+        <figure>
+        <img src="images/20-impostazioni-aree.png"
+        alt="Impostazioni — scheda Aree: elenco delle aree con toggle di monitoraggio." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Aree:
+        elenco delle aree con toggle di monitoraggio.</figcaption>
+        </figure>
+        <p>Mostra le aree configurate con i toggle di monitoraggio
+        (equivalente al pannello in cima ai Generali) e i collegamenti
+        alla gestione aree.</p>
+        <h3 id="scheda-integrazioni-esterne-telegram-webhook">Scheda
+        Integrazioni esterne (Telegram + webhook)</h3>
+        <figure>
+        <img src="images/21-impostazioni_integrazioni_esterne.png"
+        alt="Impostazioni — scheda Integrazioni esterne: collegamento Telegram e configurazione dei webhook in uscita." />
+        <figcaption aria-hidden="true">Impostazioni — scheda
+        Integrazioni esterne: collegamento Telegram e configurazione dei
+        webhook in uscita.</figcaption>
+        </figure>
+        <p>Qui colleghi i canali esterni a cui inviare le notifiche:
+        <strong>Telegram</strong> (in alto) e i <strong>webhook in
+        uscita</strong> (in fondo).</p>
+        <p><strong>Collegare Telegram</strong> (funziona se
+        l’amministratore ha configurato il bot):</p>
+        <ol type="1">
+        <li>Premi <strong>Collega</strong>. Compare un link (e un
+        codice).</li>
+        <li>Apri il link su Telegram (o invia al bot
+        <code>/start &lt;codice&gt;</code>) e avvia il bot.</li>
+        <li>Il bot risponde “Account collegato” e il tab si aggiorna:
+        ora ricevi le notifiche su Telegram.</li>
+        </ol>
+        <p>Per smettere premi <strong>Scollega</strong> (o
+        <code>/stop</code>). Con <strong>Invia prova</strong> verifichi
+        il collegamento.</p>
+        <p><strong>Quali notifiche ricevere</strong> — l’interruttore
+        <strong>Notifiche Telegram</strong> accende/spegne tutto; sotto,
+        un toggle per categoria: <strong>Score alto</strong>,
+        <strong>Rientro nave</strong>, <strong>Cambio area</strong>,
+        <strong>Nuova banchina</strong>, <strong>Caratterizzazione
+        banchina</strong>, <strong>Disservizio AIS</strong>,
+        <strong>Avvio/stop monitoraggio area</strong>. Il toggle
+        <strong>Mappa del punto</strong> allega alle notifiche con
+        posizione un’<strong>immagine della mappa</strong> più un
+        segnaposto toccabile. I toggle Telegram sono
+        <strong>indipendenti</strong> da quelli in-app.</p>
+        <blockquote>
+        <p>Le notifiche di una nave (Score alto, Rientro, Cambio area)
+        mostrano su Telegram i pulsanti <strong>🛰️ Segui</strong> e
+        <strong>⭐ Segnala</strong> per agire direttamente dal
+        messaggio.</p>
+        </blockquote>
+        <p><strong>🔗 Webhook in uscita</strong> — inoltra gli eventi
+        delle tue aree a un indirizzo web (Slack, Discord, un SIEM o un
+        tuo servizio):</p>
+        <ol type="1">
+        <li>Incolla l’<strong>URL</strong> del webhook.</li>
+        <li>Scegli il <strong>formato</strong>: <em>Generic</em> (JSON
+        grezzo), <em>Slack</em> o <em>Discord</em>.</li>
+        <li>Spunta <strong>quali eventi</strong> inviare (alto rischio,
+        rendezvous, cambio area, rientro, banchine, disservizio
+        AIS).</li>
+        <li>(Facoltativo) imposta un <strong>secret</strong>: aggiunge
+        una firma <code>X-Tracker-Signature</code> verificabile dal
+        destinatario.</li>
+        <li><strong>Aggiungi webhook</strong>. <strong>Prova</strong>
+        invia un evento di test; l’interruttore lo attiva/disattiva;
+        <strong>Elimina</strong> lo rimuove.</li>
+        </ol>
+        <blockquote>
+        <p>I webhook sono <strong>personali</strong> (solo per le tue
+        aree). Non sono ammessi indirizzi interni/privati. Massimo 10
+        per utente.</p>
+        </blockquote>
+        <h3 id="scheda-parametri">Scheda Parametri</h3>
+        <figure>
+        <img src="images/22-impostazioni-parametri.png"
+        alt="Impostazioni — scheda Parametri: campi di configurazione raggruppati per categoria con descrizione." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Parametri:
+        campi di configurazione raggruppati per categoria con
+        descrizione.</figcaption>
+        </figure>
+        <p>Permette di modificare dall’interfaccia <strong>i parametri
+        di funzionamento</strong> dell’app (soglie di stato nave,
+        finestre temporali, retention, banchine, pesi dello score…).
+        Ogni campo ha una descrizione. Modifica i valori e premi
+        <strong>💾 Salva parametri</strong>.</p>
+        <blockquote>
+        <p><strong>⚠️ Importante:</strong> questi parametri vengono
+        letti dal server <strong>solo all’avvio</strong>. Dopo il
+        salvataggio è <strong>necessario riavviare il server</strong>
+        perché le modifiche abbiano effetto — ricaricare il browser non
+        basta. I <strong>segreti</strong> (chiavi API, password) non
+        sono modificabili da qui per sicurezza.</p>
+        </blockquote>
+        <h3 id="scheda-backup-ripristino">Scheda Backup /
+        Ripristino</h3>
+        <figure>
+        <img src="images/23-impostazioni-backup.png"
+        alt="Impostazioni — scheda Backup: scarica ed esporta i dati, ripristina un backup." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Backup:
+        scarica ed esporta i dati, ripristina un backup.</figcaption>
+        </figure>
+        <p>Da qui <strong>scarichi un backup</strong> del database,
+        <strong>ripristini</strong> un backup salvato ed
+        <strong>esporti</strong> i dati. I dati della <a
+        href="#mappa-delle-zone-coperte">Mappa delle zone coperte</a>
+        sono in un database separato, esportabile/importabile a parte e
+        comunque incluso nel backup completo.</p>
+        <h3 id="scheda-diagnostica-ais">Scheda Diagnostica AIS</h3>
+        <figure>
+        <img src="images/26-impostazioni-diagnostica.png"
+        alt="Impostazioni — scheda Diagnostica AIS: stato della connessione, uptime, frame ricevuti e riconnessioni." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Diagnostica
+        AIS: stato della connessione, uptime, frame ricevuti e
+        riconnessioni.</figcaption>
+        </figure>
+        <p>Mostra lo stato della connessione al flusso dati (si aggiorna
+        ogni 5 s):</p>
+        <ul>
+        <li><strong>Connessione</strong> — Connesso / Disconnesso</li>
+        <li><strong>Uptime sessione</strong> — da quanto il flusso è
+        attivo</li>
+        <li><strong>Frame WS ricevuti</strong> / <strong>Messaggi
+        nave</strong> / <strong>Velocità messaggi</strong></li>
+        <li><strong>Riconnessioni</strong> — quante volte la connessione
+        è stata ripristinata</li>
+        <li><strong>Ultimo errore</strong> — l’eventuale ultimo
+        errore</li>
+        </ul>
+        <h4 id="banner-di-disservizio-ais">Banner di disservizio
+        AIS</h4>
+        <p>Se per alcuni minuti un monitoraggio attivo non riceve
+        <strong>nessun segnale AIS</strong>, l’app verifica lo stato del
+        servizio con un monitor di uptime indipendente. Solo se anche
+        quello conferma il disservizio, in cima alle pagine di
+        monitoraggio compare un avviso giallo. Puoi chiuderlo con
+        <strong>✕</strong>; scompare da solo quando i segnali tornano.
+        Se l’area è semplicemente silenziosa ma il servizio è attivo,
+        non compare alcun avviso.</p>
+        <hr />
+        <h2 id="punteggio-di-rischio">Punteggio di rischio</h2>
+        <p>Ogni nave riceve un punteggio da 0 a 100, calcolato
+        automaticamente. È indicativo e non sostituisce una valutazione
+        esperta.</p>
+        <table>
+        <thead>
+        <tr class="header">
+        <th>Colore</th>
+        <th>Fascia</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Verde</td>
+        <td>0–30</td>
+        <td>Rischio basso</td>
+        </tr>
+        <tr class="even">
+        <td>Giallo</td>
+        <td>31–70</td>
+        <td>Rischio medio — monitorare</td>
+        </tr>
+        <tr class="odd">
+        <td>Rosso</td>
+        <td>71–100</td>
+        <td>Rischio alto — esaminare</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>Indicatori fonte sul badge:</strong></p>
+        <ul>
+        <li>Punto <strong>magenta</strong>: calcolato con dati
+        VesselFinder</li>
+        <li>Punto <strong>oro</strong>: dati MarineTraffic</li>
+        <li>Punto <strong>arancione</strong>: entrambe le fonti</li>
+        <li>Punto <strong>rosso</strong> (con alone): nave in una lista
+        sanzioni (OFAC / UE / UK / ONU)</li>
+        <li>Etichetta <strong>blu</strong> (Paris/Tokyo MoU ⚓): segnale
+        dalle liste Port State Control</li>
+        <li>Punto <strong>verde acqua</strong>: dati Global Fishing
+        Watch</li>
+        </ul>
+        <p>Passa il cursore sul badge per i dettagli dei fattori e le
+        fonti.</p>
+        <p><strong>Peso per tipo di carico:</strong> un fattore dipende
+        dalla classe merceologica della nave, con pesi configurabili in
+        <strong>⚙ Impostazioni → “Pesi rischio per tipo di
+        carico”</strong> (effetto immediato). Con <strong>“Escludi
+        tanker”</strong> attivo le classi su scafo tanker non assegnano
+        punti.</p>
+        <p><strong>Navi militari:</strong> automaticamente a rischio
+        massimo (riga rossa).</p>
+        <hr />
+        <h2 id="notifiche">Notifiche</h2>
+        <p>Oltre agli avvisi temporanei in sovrimpressione, l’app tiene
+        uno <strong>storico delle notifiche</strong> nella barra
+        laterale, che si apre/chiude con <strong>🔔 Notifiche</strong>
+        (lo stato viene ricordato).</p>
+        <p><strong>Quando viene generata una notifica</strong> (ogni
+        categoria è abilitabile a parte dalle <a
+        href="#impostazioni">Impostazioni</a>):</p>
+        <p>Eventi nave:</p>
+        <ul>
+        <li><strong>Rientro nave</strong> — una nave già vista in
+        un’area torna a essere rilevata nella stessa area.</li>
+        <li><strong>Cambio area</strong> — una nave vista in un’area
+        viene rilevata in un’<strong>altra</strong> area.</li>
+        <li><strong>Score alto</strong> — una nave arriva con score in
+        fascia rossa (71–100).</li>
+        </ul>
+        <p>Eventi banchina:</p>
+        <ul>
+        <li><strong>Nuova banchina</strong> — durante il ricalcolo viene
+        rilevata una nuova banchina.</li>
+        <li><strong>Caratterizzazione banchina</strong> — una banchina
+        viene caratterizzata per la prima volta.</li>
+        </ul>
+        <p>Altri eventi:</p>
+        <ul>
+        <li><strong>Rendezvous in mare</strong> — due navi sostano
+        vicine, lente e al largo abbastanza a lungo (possibile
+        trasbordo). La notifica include una mappa con i due punti uniti
+        da una linea.</li>
+        </ul>
+        <p><strong>Lettura di una notifica:</strong></p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Elemento</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Bollino 🟢 / 🟡 / 🔴</td>
+        <td>Colore per fascia di rischio (notifiche nave); le notifiche
+        banchina hanno un bollino dedicato</td>
+        </tr>
+        <tr class="even">
+        <td>Testo</td>
+        <td>Nome nave e area, o area di partenza/arrivo (cambio area), o
+        nome/categoria banchina</td>
+        </tr>
+        <tr class="odd">
+        <td>Pulsante ✓</td>
+        <td>Segna come letta</td>
+        </tr>
+        <tr class="even">
+        <td>Pulsante 🗑</td>
+        <td>Elimina (avviso con <strong>↶ Annulla</strong> per 5 s)</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>Clicca sulla notifica</strong> (fuori dai pulsanti):
+        per una nave apre la sua scheda; per una banchina passa alla
+        mappa dell’area e centra la banchina.</p>
+        <p><strong>Silenziare una singola nave:</strong> nel dettaglio,
+        il pulsante <strong>🔔</strong> (attive → clicca per silenziare)
+        / <strong>🔕</strong> (silenziate → clicca per riabilitare). Una
+        nave silenziata non genera notifiche di rientro né di cambio
+        area.</p>
+        <p>Le notifiche <strong>da leggere</strong> sono in grassetto e
+        contano nel badge rosso. Si conservano le <strong>ultime
+        100</strong>; le più vecchie vengono eliminate. Cancellando i
+        dati di un’area si rimuovono anche le sue notifiche.</p>
+        <hr />
+        <h2 id="esportare-i-dati">Esportare i dati</h2>
+        <p>Tutti gli export vengono scaricati direttamente dal
+        browser:</p>
+        <ul>
+        <li><strong>CSV</strong> — <strong>⬇ CSV filtrato</strong> nella
+        toolbar Navi presenti/passate esporta la vista corrente
+        (filtrata e ordinata); <strong>⚙ Impostazioni → Esporta
+        CSV</strong> esporta invece tutte le letture grezze.</li>
+        <li><strong>GeoJSON / KML</strong> (per <strong>QGIS</strong> o
+        <strong>Google Earth</strong>) — accanto al CSV trovi <strong>⬇
+        GeoJSON</strong> e <strong>⬇ KML</strong>. Quattro sorgenti: la
+        <strong>lista navi</strong> filtrata (punti), la
+        <strong>traccia</strong> di una nave (dal dettaglio), il
+        <strong>replay</strong> di un’area (una linea per nave) e le
+        <strong>banchine</strong> (poligoni).</li>
+        </ul>
+        <hr />
+        <h2 id="installare-lapp-pwa">Installare l’app (PWA)</h2>
+        <p>Tracker Porti è una <strong>app installabile</strong> (PWA):
+        puoi aggiungerla alla schermata home del telefono o installarla
+        sul desktop, e si apre a tutto schermo.</p>
+        <ul>
+        <li><strong>Su telefono</strong> — browser → menu →
+        <strong>“Aggiungi a Home”</strong> (iPhone/Safari) o
+        <strong>“Installa app”</strong> (Android/Chrome).</li>
+        <li><strong>Su desktop</strong> — in Chrome/Edge, icona di
+        installazione nella barra degli indirizzi, o menu →
+        <strong>“Installa Tracker Porti”</strong>.</li>
+        </ul>
+        <p>Se manca la connessione, l’app mostra una schermata
+        <strong>“Sei offline”</strong> con un pulsante <em>Riprova</em>
+        (i dati AIS sono in tempo reale e richiedono la rete). L’accesso
+        resta protetto: serve sempre il login.</p>
+        <hr />
+        <h2 id="domande-frequenti">Domande frequenti</h2>
+        <p><strong>La tabella è vuota — cosa faccio?</strong> Verifica
+        che il monitoraggio per l’area sia avviato (badge <strong>●
+        ATTIVO</strong> in alto) e che l’area contenga traffico navale.
+        Controlla le aree in monitoraggio dal pannello “Monitoraggio
+        aree” nelle Impostazioni, e la connessione dalla
+        <strong>Diagnostica AIS</strong>.</p>
+        <p><strong>Come faccio a non perdere le navi già
+        controllate?</strong> Usa <strong>✓ Vista</strong> su ogni riga:
+        la nave si attenua e la distingui dalle non ancora
+        esaminate.</p>
+        <p><strong>Ho cambiato area e le navi sono scomparse — è
+        normale?</strong> Sì. Ogni area ha dati e stream indipendenti.
+        Cambiare area nel menu è solo un cambio di vista: non avvia né
+        ferma alcuno stream. I dati della precedente area restano;
+        tornandoci li rivedi.</p>
+        <p><strong>Posso monitorare più aree
+        contemporaneamente?</strong> Sì. <strong>⚙ Impostazioni →
+        Monitoraggio aree</strong> e attiva il toggle di ogni area. Poi
+        passi da una all’altra con il menu a tendina.</p>
+        <p><strong>Le navi militari sono sempre rosse?</strong> Sì.
+        Vengono contrassegnate automaticamente con punteggio massimo e
+        riga rossa.</p>
+        <p><strong>Posso esportare i dati?</strong> Sì: CSV, GeoJSON e
+        KML — vedi <a href="#esportare-i-dati">Esportare i dati</a>.</p>
+      </div>
+    </main>
+  </div>
+  <button id="theme" aria-label="Cambia tema">🌙</button>
+  <div id="lb"><img src="" alt=""></div>
+
+  <script>
+    // Wrap tables for horizontal scroll
+    document.querySelectorAll('main table').forEach(function(t){
+      if(t.parentElement.classList.contains('table-wrap')) return;
+      var w=document.createElement('div'); w.className='table-wrap';
+      t.parentNode.insertBefore(w,t); w.appendChild(t);
+    });
+    // Theme
+    var root=document.documentElement, btn=document.getElementById('theme');
+    function applyTheme(t){ root.setAttribute('data-theme',t); btn.textContent = t==='dark'?'☀️':'🌙'; try{localStorage.setItem('tp-manual-theme',t)}catch(e){} }
+    (function(){ var s=null; try{s=localStorage.getItem('tp-manual-theme')}catch(e){}
+      if(!s){ s = window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; }
+      applyTheme(s);
+    })();
+    btn.addEventListener('click',function(){ applyTheme(root.getAttribute('data-theme')==='dark'?'light':'dark'); });
+    // Mobile menu
+    var mb=document.getElementById('menu-btn'), sb=document.getElementById('sidebar');
+    mb && mb.addEventListener('click',function(){ sb.classList.toggle('open'); });
+    document.querySelectorAll('#toc a').forEach(function(a){ a.addEventListener('click',function(){ sb.classList.remove('open'); }); });
+    // Lightbox
+    var lb=document.getElementById('lb'), lbimg=lb.querySelector('img');
+    document.querySelectorAll('main img').forEach(function(im){
+      im.addEventListener('click',function(){ lbimg.src=im.src; lbimg.alt=im.alt||''; lb.classList.add('open'); });
+    });
+    lb.addEventListener('click',function(){ lb.classList.remove('open'); lbimg.src=''; });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') lb.classList.remove('open'); });
+    // Active section in TOC (scroll spy)
+    var links=[].slice.call(document.querySelectorAll('#toc a[href^="#"]'));
+    var map={}; links.forEach(function(a){ var id=decodeURIComponent(a.getAttribute('href').slice(1)); if(id) map[id]=a; });
+    var heads=[].slice.call(document.querySelectorAll('main h1[id],main h2[id],main h3[id]'));
+    var obs=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          links.forEach(function(l){l.classList.remove('active')});
+          var a=map[en.target.id]; if(a){ a.classList.add('active');
+            a.scrollIntoView({block:'nearest'}); }
+        }
+      });
+    },{rootMargin:'-10% 0px -80% 0px', threshold:0});
+    heads.forEach(function(h){ obs.observe(h); });
+  </script>
+</body>
+</html>

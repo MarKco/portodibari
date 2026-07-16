@@ -211,6 +211,7 @@ body {
   overflow: hidden;
   gap: 0.65rem;
 }
+a.sb-btn { text-decoration: none; }
 #sidebar.collapsed .sb-btn {
   justify-content: center !important;
   padding: 0.65rem 0;

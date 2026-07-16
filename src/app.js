@@ -67,6 +67,10 @@ function createApp() {
   // Public heatmap page + data — no session required.
   app.use(heatmapPublicRoutes);
 
+  // User manual (static HTML + screenshots + PDF) — public so it is linkable from
+  // the login page and shareable externally. Documentation only, no user data.
+  app.use('/manuale', express.static(path.join(__dirname, '..', 'docs', 'manuale')));
+
   // Global gate: everything past here requires an active session.
   app.use(sessionAuth.gate);
 
@@ -79,6 +83,14 @@ function createApp() {
 
   // Admin-only global coverage heatmap (page + /api/heatmap/*); self-gated.
   app.use(heatmapRoutes);
+
+  // Admin manual (static HTML + screenshots + PDF). Gated to admins: reachable
+  // only by the session owner with the admin role; everyone else is bounced to
+  // the public user manual. The sidebar link is likewise admin-only.
+  app.use('/manuale_admin', (req, res, next) => {
+    if (req.realUser && req.realUser.role === 'admin') return next();
+    return res.redirect('/manuale/');
+  }, express.static(path.join(__dirname, '..', 'docs', 'manuale_admin')));
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
   app.use('/api', apiRoutes);

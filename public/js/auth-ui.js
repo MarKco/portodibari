@@ -51,6 +51,10 @@ async function init() {
   // (the server enforces this too — this just keeps the UI honest).
   if (!me.isAdmin) hideAdminControls();
 
+  // Admins additionally get the admin-manual link in the sidebar (above the
+  // user-manual link, which stays visible for everyone).
+  if (me.isAdmin) document.getElementById('link-manual-admin')?.style.setProperty('display', '');
+
   if (me.isImpersonating) {
     document.body.classList.add('impersonating');
     const banner = document.createElement('div');

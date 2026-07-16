@@ -15,6 +15,8 @@ export default {
   'sidebar.areas':    'Areas',
   'sidebar.settings': 'Settings',
   'sidebar.notifications': 'Notifications',
+  'sidebar.manual':   'User manual',
+  'sidebar.manualAdmin': 'Admin manual',
   'sidebar.area':     'Area:',
   'sidebar.readings': '{n} readings',
 

@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manuale Amministratore — Tracker Porti</title>
+  <style>
+    :root{
+      --bg:#0f1620; --panel:#151f2b; --panel2:#1b2836; --text:#e7edf4; --muted:#9fb0c3;
+      --border:#26374a; --accent:#3b82f6; --accent2:#60a5fa; --code-bg:#0b1119;
+      --shadow:0 8px 30px rgba(0,0,0,.35); --sidebar:300px;
+      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f5f7fa; --panel:#ffffff; --panel2:#eef2f7; --text:#16202c; --muted:#5b6b7d;
+        --border:#d7dfe8; --accent:#2563eb; --accent2:#1d4ed8; --code-bg:#f0f3f7; --shadow:0 6px 24px rgba(20,40,70,.10); }
+    }
+    :root[data-theme="dark"]{
+      --bg:#0f1620; --panel:#151f2b; --panel2:#1b2836; --text:#e7edf4; --muted:#9fb0c3;
+      --border:#26374a; --accent:#3b82f6; --accent2:#60a5fa; --code-bg:#0b1119; --shadow:0 8px 30px rgba(0,0,0,.35);
+    }
+    :root[data-theme="light"]{
+      --bg:#f5f7fa; --panel:#ffffff; --panel2:#eef2f7; --text:#16202c; --muted:#5b6b7d;
+      --border:#d7dfe8; --accent:#2563eb; --accent2:#1d4ed8; --code-bg:#f0f3f7; --shadow:0 6px 24px rgba(20,40,70,.10);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    /* Layout */
+    .layout{display:flex; min-height:100vh}
+    .sidebar{
+      width:var(--sidebar); flex:0 0 var(--sidebar); position:sticky; top:0; align-self:flex-start;
+      height:100vh; overflow-y:auto; background:var(--panel); border-right:1px solid var(--border); padding:20px 0;
+    }
+    .brand{display:flex; align-items:center; gap:10px; padding:0 20px 14px; margin-bottom:8px; border-bottom:1px solid var(--border)}
+    .brand .logo{font-size:26px}
+    .brand b{font-size:17px; letter-spacing:.2px}
+    .brand small{display:block; color:var(--muted); font-size:12px; font-weight:400}
+    nav#toc{padding:12px 8px 40px}
+    nav#toc ul{list-style:none; margin:0; padding:0}
+    nav#toc li{margin:1px 0}
+    nav#toc a{
+      display:block; padding:6px 12px; color:var(--muted); text-decoration:none; border-radius:8px;
+      font-size:14px; line-height:1.35; border-left:3px solid transparent;
+    }
+    nav#toc a:hover{background:var(--panel2); color:var(--text)}
+    nav#toc a.active{color:var(--text); background:var(--panel2); border-left-color:var(--accent)}
+    nav#toc > ul > li > ul{margin-left:6px; border-left:1px solid var(--border); padding-left:4px}
+    nav#toc > ul > li > ul a{font-size:13px; padding:4px 10px}
+    nav#toc > ul > li > ul ul a{font-size:12.5px; padding-left:18px; color:var(--muted)}
+    nav#toc > ul > li > a{font-weight:600; color:var(--text)}
+    /* Content */
+    main{flex:1 1 auto; min-width:0}
+    .content{max-width:900px; margin:0 auto; padding:48px 40px 120px}
+    h1,h2,h3,h4{line-height:1.25; scroll-margin-top:24px}
+    h1{font-size:30px; margin:0 0 8px}
+    h2{font-size:24px; margin:52px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--border)}
+    h3{font-size:19px; margin:34px 0 10px}
+    h4{font-size:16px; margin:24px 0 8px; color:var(--accent2)}
+    p{margin:12px 0}
+    a{color:var(--accent2)}
+    code{background:var(--code-bg); padding:.12em .4em; border-radius:5px; font-size:.88em;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    pre{background:var(--code-bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px; overflow-x:auto}
+    pre code{background:none; padding:0}
+    blockquote{
+      margin:16px 0; padding:12px 16px; background:var(--panel2); border-left:4px solid var(--accent);
+      border-radius:0 10px 10px 0; color:var(--text);
+    }
+    blockquote p{margin:6px 0}
+    ul,ol{padding-left:22px}
+    li{margin:5px 0}
+    hr{border:none; border-top:1px solid var(--border); margin:40px 0}
+    /* Tables */
+    .table-wrap{overflow-x:auto; margin:16px 0}
+    table{border-collapse:collapse; width:100%; font-size:14.5px; background:var(--panel); border-radius:10px; overflow:hidden}
+    th,td{border:1px solid var(--border); padding:9px 12px; text-align:left; vertical-align:top}
+    th{background:var(--panel2); font-weight:600}
+    tbody tr:nth-child(even){background:var(--panel2)}
+    /* Images */
+    .content img{
+      max-width:100%; height:auto; display:block; margin:20px auto; border:1px solid var(--border);
+      border-radius:12px; box-shadow:var(--shadow); cursor:zoom-in;
+    }
+    figure{margin:24px 0}
+    figcaption{color:var(--muted); font-size:13px; text-align:center; margin-top:6px; font-style:italic}
+    /* Theme toggle */
+    #theme{
+      position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;
+      border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:20px; cursor:pointer;
+      box-shadow:var(--shadow);
+    }
+    #menu-btn{display:none}
+    /* Lightbox */
+    #lb{position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:100; display:none; align-items:center; justify-content:center; cursor:zoom-out}
+    #lb.open{display:flex}
+    #lb img{max-width:96vw; max-height:96vh; border-radius:8px; box-shadow:0 10px 50px rgba(0,0,0,.6)}
+    /* Responsive */
+    @media (max-width:900px){
+      #menu-btn{display:flex; align-items:center; justify-content:center; position:fixed; top:14px; left:14px; z-index:60;
+        width:44px; height:44px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:20px; cursor:pointer; box-shadow:var(--shadow)}
+      .sidebar{position:fixed; z-index:55; transform:translateX(-100%); transition:transform .25s ease; box-shadow:var(--shadow)}
+      .sidebar.open{transform:translateX(0)}
+      .content{padding:70px 20px 100px}
+    }
+    /* Print / PDF */
+    @media print{
+      :root{--bg:#fff; --text:#000; --panel:#fff; --panel2:#f3f3f3; --border:#bbb; --muted:#444}
+      .sidebar,#theme,#menu-btn,#lb{display:none !important}
+      .layout{display:block}
+      .content{max-width:none; margin:0; padding:0}
+      .content img{cursor:default; box-shadow:none; page-break-inside:avoid; max-height:78vh}
+      h2{page-break-after:avoid}
+      h3,h4{page-break-after:avoid}
+      table,blockquote,figure{page-break-inside:avoid}
+      a{color:#000; text-decoration:underline}
+      body{font-size:11pt}
+    }
+  </style>
+</head>
+<body>
+  <button id="menu-btn" aria-label="Menu">☰</button>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="logo">⚓</span>
+        <span><b>Tracker Porti</b><small>Manuale amministratore</small></span>
+      </div>
+      <nav id="toc">
+        <ul>
+        <li><a href="#manuale-amministratore-tracker-porti">Manuale
+        Amministratore — Tracker Porti</a>
+        <ul>
+        <li><a href="#ruolo-amministratore">Ruolo
+        amministratore</a></li>
+        <li><a href="#gruppi-di-utenti">Gruppi di utenti</a></li>
+        <li><a
+        href="#mappa-delle-zone-coperte-controlli-amministratore">Mappa
+        delle zone coperte — controlli amministratore</a></li>
+        <li><a href="#modello-di-rischio-pesi-dei-segnali">Modello di
+        rischio (pesi dei segnali)</a></li>
+        <li><a href="#log-di-sistema">Log di sistema</a>
+        <ul>
+        <li><a href="#log-attività">Log attività</a></li>
+        <li><a href="#log-api">Log API</a></li>
+        </ul></li>
+        <li><a href="#modifica-dei-file-di-configurazione">Modifica dei
+        file di configurazione</a>
+        <ul>
+        <li><a
+        href="#local.properties-chiavi-e-segreti"><code>local.properties</code>
+        — chiavi e segreti</a></li>
+        <li><a
+        href="#app.config.properties-parametri-di-funzionamento"><code>app.config.properties</code>
+        — parametri di funzionamento</a></li>
+        <li><a
+        href="#bounding-boxes.json-definizione-delle-aree"><code>bounding-boxes.json</code>
+        — definizione delle aree</a></li>
+        </ul></li>
+        <li><a href="#backup-ripristino-e-deploy">Backup, ripristino e
+        deploy</a></li>
+        <li><a href="#crediti">Crediti</a></li>
+        </ul></li>
+        </ul>
+      </nav>
+    </aside>
+    <main>
+      <div class="content">
+        <h1 id="manuale-amministratore-tracker-porti">Manuale
+        Amministratore — Tracker Porti</h1>
+        <p>Guida alle funzioni riservate agli
+        <strong>amministratori</strong> di Tracker Porti: gestione
+        utenti e gruppi, controlli della mappa di copertura, modello di
+        rischio, log di sistema e modifica dei file di
+        configurazione.</p>
+        <blockquote>
+        <p>Questo manuale <strong>integra</strong> il <a
+        href="../manuale/index.html">Manuale utente</a>, che copre l’uso
+        quotidiano dell’app. Qui trovi <strong>solo</strong> ciò che è
+        riservato agli amministratori. Per le funzioni comuni
+        (monitoraggio, navi seguite, dettaglio nave, notifiche, export…)
+        fai riferimento al manuale utente.</p>
+        </blockquote>
+        <hr />
+        <h2 id="ruolo-amministratore">Ruolo amministratore</h2>
+        <p>Gli amministratori vedono in alto a destra il link
+        <strong>Admin</strong>, che apre la <strong>pagina di
+        amministrazione</strong> (<code>/admin</code>). Un
+        amministratore può:</p>
+        <ul>
+        <li><strong>approvare</strong> le nuove registrazioni in
+        attesa;</li>
+        <li><strong>abilitare o disabilitare</strong> un account;</li>
+        <li><strong>cambiare il ruolo</strong> di un utente (utente
+        normale ↔︎ amministratore ↔︎ tester);</li>
+        <li><strong>reimpostare la password</strong> di un utente —
+        genera un <strong>link monouso</strong> (valido 24 ore) da
+        consegnargli;</li>
+        <li><strong>eliminare</strong> un utente;</li>
+        <li><strong>creare e gestire i gruppi di utenti</strong> (vedi
+        sotto);</li>
+        <li><strong>impersonare</strong> un utente — visualizzarne aree,
+        monitoraggi e navi seguite in <strong>sola lettura</strong>, con
+        un banner in evidenza e l’uscita con un click;</li>
+        <li>consultare i <strong>log</strong> (log attività e log API),
+        condivisi e visibili solo agli amministratori.</li>
+        </ul>
+        <p>Le impostazioni gestite dagli amministratori (sorgenti dati,
+        screening sanzioni/PSC, pesi dello score di rischio) sono
+        <strong>globali</strong> per tutti gli utenti. Nell’interfaccia
+        delle Impostazioni, le schede e i toggle riservati agli
+        amministratori sono <strong>nascosti</strong> agli utenti
+        normali (e comunque protetti anche lato server).</p>
+        <hr />
+        <h2 id="gruppi-di-utenti">Gruppi di utenti</h2>
+        <p>Un amministratore può inserire più utenti in un
+        <strong>gruppo</strong>. Quando un utente fa parte di un gruppo,
+        <strong>condivide con gli altri membri</strong> (come
+        <strong>unione</strong> di ciò che ognuno aveva):</p>
+        <ul>
+        <li>le <strong>aree</strong> di monitoraggio;</li>
+        <li>le <strong>navi seguite</strong>, le <strong>navi
+        segnalate</strong> ★ e le <strong>navi silenziate</strong>
+        🔕;</li>
+        <li>le <strong>preferenze di notifica</strong> (app e Telegram)
+        e di <strong>visualizzazione mappa</strong>, oltre
+        all’<strong>area di default</strong>.</li>
+        </ul>
+        <p>In pratica: se un membro aggiunge un’area, segue una nave o
+        abilita una notifica, <strong>gli altri membri se la
+        ritrovano</strong> al loro prossimo accesso — e viceversa
+        (sincronizzazione <em>write-through</em>). Restano invece
+        <strong>personali</strong> di ciascun utente: il
+        <strong>collegamento Telegram</strong> (la propria chat) e la
+        <strong>lingua</strong> dell’interfaccia.</p>
+        <p><strong>Gestione (dalla pagina Admin):</strong> un gruppo ha
+        un <strong>nome</strong>, una <strong>descrizione</strong> e
+        <strong>almeno 2 membri</strong>. Alla creazione si sceglie
+        l’<strong>utente modello</strong> da cui prendere le
+        impostazioni iniziali. Si possono
+        <strong>aggiungere/rimuovere</strong> membri o
+        <strong>sciogliere</strong> il gruppo.</p>
+        <blockquote>
+        <p>Una rimozione che lascerebbe <strong>1 solo membro</strong> è
+        bloccata: in quel caso si <strong>scioglie</strong> il gruppo.
+        Se un amministratore toglie un utente dal gruppo, quell’utente
+        <strong>mantiene</strong> tutto ciò che nel frattempo era stato
+        condiviso (aree, navi, impostazioni): semplicemente smette di
+        sincronizzarsi con gli altri.</p>
+        </blockquote>
+        <hr />
+        <h2 id="mappa-delle-zone-coperte-controlli-amministratore">Mappa
+        delle zone coperte — controlli amministratore</h2>
+        <figure>
+        <img src="images/18_mappa_zone_coperte.png"
+        alt="Mappa mondiale delle zone coperte: griglia colorata per densità di messaggi AIS." />
+        <figcaption aria-hidden="true">Mappa mondiale delle zone
+        coperte: griglia colorata per densità di messaggi
+        AIS.</figcaption>
+        </figure>
+        <p>La <a
+        href="../manuale/index.html#mappa-delle-zone-coperte">Mappa
+        delle zone coperte</a> è visibile in sola lettura a tutti gli
+        utenti (e anche senza login su <code>/heatmap</code>). Solo gli
+        <strong>amministratori</strong> possono inoltre:</p>
+        <ul>
+        <li><strong>avviare</strong> e <strong>fermare</strong> la
+        raccolta dei dati (pulsanti <strong>Avvia/Ferma
+        raccolta</strong>);</li>
+        <li>vedere le <strong>statistiche di connessione in tempo
+        reale</strong> (banda usata, messaggi al secondo, celle
+        popolate…);</li>
+        <li><strong>Aggiorna mappa</strong> e <strong>Cancella
+        dati</strong> (svuota la griglia raccolta).</li>
+        </ul>
+        <p><strong>Come funziona la raccolta:</strong> una volta
+        avviata, gira <strong>in background</strong> sul server — anche
+        se nessuno ha la pagina aperta — finché un amministratore non la
+        ferma. Riprende da sola dopo un riavvio del server. Per
+        sicurezza si <strong>spegne automaticamente</strong> se nessun
+        utente è attivo per <strong>10 minuti</strong>.</p>
+        <blockquote>
+        <p><strong>Attenzione:</strong> mentre la raccolta è attiva
+        l’app <strong>scarica dati da tutto il mondo</strong> in
+        continuazione (circa <strong>200–400 MB l’ora</strong>). La
+        funzione richiede una <strong>chiave AISStream di un account
+        separato</strong> (diverso da quello del monitoraggio normale),
+        impostata in <code>local.properties</code> come
+        <code>HEATMAP_AIS_API_KEY</code>. Senza quella chiave la
+        funzione resta spenta.</p>
+        </blockquote>
+        <hr />
+        <h2 id="modello-di-rischio-pesi-dei-segnali">Modello di rischio
+        (pesi dei segnali)</h2>
+        <p>Oltre ai <strong>pesi per tipo di carico</strong>
+        (modificabili da tutti in Impostazioni), gli amministratori
+        possono regolare <strong>quanti punti vale ogni segnale di
+        rischio</strong> (blackout AIS, spoofing/salto di posizione,
+        sosta, aumento pescaggio, sanzioni, PSC, eventi GFW, rendezvous,
+        ecc.) da <strong>⚙ Impostazioni → sezione “⚖ Modello di
+        rischio”</strong>.</p>
+        <ul>
+        <li>Una <strong>griglia</strong> con un campo per segnale:
+        cambia i valori e premi <strong>💾 Salva pesi</strong>. Effetto
+        <strong>immediato</strong>, senza riavvio. <strong>Ripristina
+        default</strong> riporta i valori di fabbrica.</li>
+        <li>Mettere un peso a <strong>0</strong> disattiva quel
+        segnale.</li>
+        <li>Puoi salvare configurazioni complete come <strong>profili di
+        rischio</strong> (menu <em>Profilo di rischio</em> → <em>Salva
+        come…</em>) e richiamarle con <em>Applica</em> — utile per
+        passare al volo tra impostazioni diverse (es. un profilo più
+        aggressivo, o uno tarato per aree con copertura AIS
+        scarsa).</li>
+        </ul>
+        <blockquote>
+        <p>Le <strong>soglie di rilevamento</strong> e i
+        <strong>moltiplicatori</strong> dei segnali non stanno nella UI:
+        restano nel file <a
+        href="#app.config.properties-parametri-di-funzionamento"><code>app.config.properties</code></a>
+        (chiavi <code>RISK_*</code>).</p>
+        </blockquote>
+        <hr />
+        <h2 id="log-di-sistema">Log di sistema</h2>
+        <p>I log sono <strong>condivisi</strong> e visibili <strong>solo
+        agli amministratori</strong>, come schede nelle
+        Impostazioni.</p>
+        <h3 id="log-attività">Log attività</h3>
+        <figure>
+        <img src="images/24-impostazioni-log.png"
+        alt="Impostazioni — Log attività: registro cronologico delle operazioni dell’app." />
+        <figcaption aria-hidden="true">Impostazioni — Log attività:
+        registro cronologico delle operazioni dell’app.</figcaption>
+        </figure>
+        <p>Registra le operazioni significative dell’app (stream,
+        recupero dati, sanzioni, backup, errori) in un file con
+        <strong>rotazione automatica</strong> (max ~5 MB). Attivo per
+        impostazione predefinita (toggle <strong>Log attività</strong>
+        nel tab Generali, admin). Il registro è consultabile anche
+        dall’overlay <strong>🪵 Log attività</strong> nella barra
+        laterale e si può <strong>svuotare</strong>.</p>
+        <h3 id="log-api">Log API</h3>
+        <figure>
+        <img src="images/25-impostazioni-log-api.png"
+        alt="Impostazioni — Log API: elenco delle chiamate /api con metodo, percorso ed esito." />
+        <figcaption aria-hidden="true">Impostazioni — Log API: elenco
+        delle chiamate /api con metodo, percorso ed esito.</figcaption>
+        </figure>
+        <p>Elenca in tempo reale le chiamate alle API dell’applicazione
+        (metodo, percorso, stato, tempo), utile per la diagnostica. I
+        corpi delle richieste sensibili (login, ecc.) sono
+        <strong>soppressi</strong>: le password non vengono mai
+        registrate.</p>
+        <hr />
+        <h2 id="modifica-dei-file-di-configurazione">Modifica dei file
+        di configurazione</h2>
+        <p>Alcune impostazioni avanzate non sono nell’interfaccia ma in
+        file di testo nella cartella del progetto. Aprili con un editor
+        di testo, modifica i valori e <strong>riavvia
+        l’applicazione</strong> per applicarli. Le righe che iniziano
+        con <code>#</code> (o <code>//</code>) sono commenti e vengono
+        ignorate.</p>
+        <h3
+        id="local.properties-chiavi-e-segreti"><code>local.properties</code>
+        — chiavi e segreti</h3>
+        <p>Contiene la API key e le preferenze iniziali. Formato
+        <code>CHIAVE=valore</code>, una per riga. <strong>Non va
+        condiviso</strong> (contiene la API key) ed è in
+        <code>.gitignore</code>. Se non esiste, copialo da
+        <code>local.properties.example</code>.</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Chiave</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><code>AIS_API_KEY</code></td>
+        <td>Chiave AISStream.io (obbligatoria) — usata dagli stream
+        delle <strong>aree di monitoraggio</strong></td>
+        </tr>
+        <tr class="even">
+        <td><code>FOLLOW_AIS_API_KEY</code></td>
+        <td>Chiave AISStream.io per lo stream delle <strong>navi
+        seguite</strong>. Meglio da un <strong>account separato</strong>
+        (vedi nota). Vuota = riusa <code>AIS_API_KEY</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>HEATMAP_AIS_API_KEY</code></td>
+        <td>Chiave di un account AISStream <strong>separato</strong>,
+        usata <strong>solo</strong> per la Mappa delle zone coperte.
+        Vuota = funzione disattivata. Va scritta “nuda”, <strong>senza
+        commenti sulla stessa riga</strong></td>
+        </tr>
+        <tr class="even">
+        <td><code>BBOX_PRESET</code></td>
+        <td>Area mostrata all’avvio (chiave di un’area, es.
+        <code>bari</code>)</td>
+        </tr>
+        <tr class="odd">
+        <td><code>IMPORT_VF_DATA</code> /
+        <code>IMPORT_MT_DATA</code></td>
+        <td><code>true</code>/<code>false</code> — abilitano l’import
+        VesselFinder / MarineTraffic</td>
+        </tr>
+        <tr class="even">
+        <td><code>IMPORT_SF_DATA</code></td>
+        <td><code>true</code>/<code>false</code> — import ShipFinder +
+        posizione per ri-localizzare le navi seguite perse</td>
+        </tr>
+        <tr class="odd">
+        <td><code>IMPORT_MST_DATA</code></td>
+        <td><code>true</code>/<code>false</code> — import MyShipTracking
+        (seconda fonte di posizione di backup)</td>
+        </tr>
+        <tr class="even">
+        <td><code>IMPORT_SANCTIONS</code></td>
+        <td><code>true</code>/<code>false</code> — screening contro la
+        lista OFAC SDN</td>
+        </tr>
+        <tr class="odd">
+        <td><code>IMPORT_SANCTIONS_EXTRA</code></td>
+        <td><code>true</code>/<code>false</code> — liste UE / UK OFSI /
+        ONU (solo con <code>IMPORT_SANCTIONS</code>); default
+        <code>true</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>IMPORT_PSC</code></td>
+        <td><code>true</code>/<code>false</code> — screening Port State
+        Control (bandiere Paris/Tokyo MoU + navi bandite)</td>
+        </tr>
+        <tr class="odd">
+        <td><code>IMPORT_EQUASIS</code></td>
+        <td><code>true</code>/<code>false</code> — lookup Equasis
+        on-demand nel dettaglio nave</td>
+        </tr>
+        <tr class="even">
+        <td><code>EQUASIS_USER</code> /
+        <code>EQUASIS_PASSWORD</code></td>
+        <td>Credenziali dell’account Equasis (registrazione gratuita su
+        equasis.org)</td>
+        </tr>
+        <tr class="odd">
+        <td><code>IMPORT_GFW</code></td>
+        <td><code>true</code>/<code>false</code> — arricchimento Global
+        Fishing Watch; <strong>default <code>true</code></strong></td>
+        </tr>
+        <tr class="even">
+        <td><code>GLOBAL_FISHING_WATCH_TOKEN</code></td>
+        <td>Token API (Bearer) di Global Fishing Watch. Dati gratuiti
+        solo per uso non commerciale</td>
+        </tr>
+        <tr class="odd">
+        <td><code>ADMIN_USERNAME</code> / <code>ADMIN_EMAIL</code> /
+        <code>ADMIN_PASSWORD</code></td>
+        <td>Amministratore predefinito (ri-creato all’avvio se manca).
+        <strong>Cambia la password</strong> su un server raggiungibile
+        da altri</td>
+        </tr>
+        <tr class="even">
+        <td><code>COOKIE_SECURE</code></td>
+        <td><code>true</code>/<code>false</code> — invia il cookie di
+        sessione solo su HTTPS; impostare a <code>true</code> dietro
+        TLS</td>
+        </tr>
+        <tr class="odd">
+        <td><code>SESSION_TTL_DAYS</code></td>
+        <td>Durata in giorni della sessione di login. Default
+        <code>30</code></td>
+        </tr>
+        </tbody>
+        </table>
+        <blockquote>
+        <p><strong>💡 Consigliato: tre chiavi da tre account AISStream
+        separati.</strong> AISStream limita le connessioni <strong>per
+        account, non per chiave</strong>. L’app apre tre stream
+        indipendenti — <strong>monitoraggio aree</strong>
+        (<code>AIS_API_KEY</code>), <strong>navi seguite</strong>
+        (<code>FOLLOW_AIS_API_KEY</code>) e <strong>mappa di
+        copertura</strong> (<code>HEATMAP_AIS_API_KEY</code>). Se due
+        usano chiavi dello <strong>stesso account</strong>, competono
+        per lo stesso slot e uno viene continuamente rifiutato. Dai a
+        ciascuna funzione una chiave di un <strong>account
+        dedicato</strong>.</p>
+        </blockquote>
+        <h3
+        id="app.config.properties-parametri-di-funzionamento"><code>app.config.properties</code>
+        — parametri di funzionamento</h3>
+        <figure>
+        <img src="images/22-impostazioni-parametri.png"
+        alt="Impostazioni — Parametri: campi di configurazione raggruppati per categoria con descrizione." />
+        <figcaption aria-hidden="true">Impostazioni — Parametri: campi
+        di configurazione raggruppati per categoria con
+        descrizione.</figcaption>
+        </figure>
+        <p>Contiene soglie e parametri (finestre temporali, raggi,
+        retention, banchine, pesi dello score). Formato
+        <code>CHIAVE=valore</code>, ogni parametro documentato da un
+        commento nel file. <strong>Puoi modificarli anche
+        dall’interfaccia</strong> in <strong>⚙ Impostazioni →
+        Parametri</strong> (più comodo). In entrambi i casi serve
+        <strong>riavviare il server</strong> per applicarli (vengono
+        letti solo all’avvio). Esempi:</p>
+        <table>
+        <colgroup>
+        <col style="width: 33%" />
+        <col style="width: 33%" />
+        <col style="width: 33%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Chiave</th>
+        <th>Significato</th>
+        <th>Default</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><code>SOG_FERMA_KN</code></td>
+        <td>Velocità (nodi) sotto cui una nave è “ferma”</td>
+        <td><code>0.5</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>ACTIVE_WINDOW_HOURS</code></td>
+        <td>Ore entro cui una nave in movimento resta tra le
+        “presenti”</td>
+        <td><code>6</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>PORT_WINDOW_HOURS</code></td>
+        <td>Ore di permanenza tra le “presenti” per una nave in
+        porto</td>
+        <td><code>24</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>POLL_INTERVAL_MS</code></td>
+        <td>Intervallo di aggiornamento dell’interfaccia (ms)</td>
+        <td><code>300000</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AIS_OUTAGE_CHECK</code></td>
+        <td>Attiva il rilevamento dei disservizi AIS</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AIS_OUTAGE_SILENCE_MIN</code></td>
+        <td>Minuti senza segnali prima di interrogare il monitor di
+        uptime</td>
+        <td><code>10</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AIS_UPTIME_SELFHOST_URL</code></td>
+        <td>URL di una tua istanza self-hosted del monitor (interrogata
+        per prima)</td>
+        <td><em>(vuoto)</em></td>
+        </tr>
+        <tr class="even">
+        <td><code>AIS_UPTIME_URL</code></td>
+        <td>URL del monitor di uptime pubblico, usato come ripiego</td>
+        <td><code>https://aisuptime.buttermilkgreen.fyi</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>MAX_READINGS_PER_TYPE</code></td>
+        <td>Numero massimo di letture conservate per tipo di
+        messaggio</td>
+        <td><code>10000</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>BERTH_CLUSTER_EPS_M</code></td>
+        <td>Raggio di clustering attracchi → banchine (metri)</td>
+        <td><code>80</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>BERTH_MIN_PTS</code></td>
+        <td>Attracchi minimi vicini per formare una banchina</td>
+        <td><code>3</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>BERTH_MIN_MOORINGS</code></td>
+        <td>Attracchi minimi prima di caratterizzare una banchina</td>
+        <td><code>10</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>BERTH_DOMINANT_PCT</code></td>
+        <td>Percentuale che una categoria deve superare per dare il nome
+        alla banchina</td>
+        <td><code>60</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>BERTH_RECOMPUTE_MIN</code></td>
+        <td>Minuti tra un ricalcolo automatico delle banchine e il
+        successivo</td>
+        <td><code>30</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>HEATMAP_GRID_DEG</code></td>
+        <td>Dimensione delle celle della mappa di copertura, in gradi
+        (~28 km)</td>
+        <td><code>0.25</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>HEATMAP_FLUSH_SEC</code></td>
+        <td>Ogni quanti secondi i conteggi vengono scritti su disco</td>
+        <td><code>10</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>RISK_*</code></td>
+        <td>Pesi e soglie dello score di rischio (vedi commenti nel
+        file)</td>
+        <td>vari</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3
+        id="bounding-boxes.json-definizione-delle-aree"><code>bounding-boxes.json</code>
+        — definizione delle aree</h3>
+        <p>Elenca le aree di monitoraggio. <strong>Il modo consigliato
+        per gestirle è la schermata 🗺 Aree</strong> (che riscrive questo
+        file da sola). Puoi modificarlo a mano per il provisioning
+        iniziale; in tal caso <strong>riavvia</strong> l’app.</p>
+        <p>Ogni area:</p>
+        <div class="sourceCode" id="cb1"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;bari&quot;:</span> <span class="fu">{</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Porto di Bari&quot;</span><span class="fu">,</span> <span class="dt">&quot;keyword&quot;</span><span class="fu">:</span> <span class="st">&quot;BARI&quot;</span><span class="fu">,</span> <span class="dt">&quot;sw&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fl">40.95</span><span class="ot">,</span> <span class="fl">16.60</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;ne&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fl">41.30</span><span class="ot">,</span> <span class="fl">17.10</span><span class="ot">]</span> <span class="fu">}</span></span></code></pre></div>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Campo</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>chiave (<code>bari</code>)</td>
+        <td>Identificatore interno dell’area (usato anche da
+        <code>BBOX_PRESET</code>)</td>
+        </tr>
+        <tr class="even">
+        <td><code>name</code></td>
+        <td>Nome mostrato nell’interfaccia</td>
+        </tr>
+        <tr class="odd">
+        <td><code>keyword</code></td>
+        <td>(Facoltativa, può essere <code>null</code>) filtra le “Navi
+        attese” per destinazione</td>
+        </tr>
+        <tr class="even">
+        <td><code>sw</code></td>
+        <td>Angolo Sud-Ovest <code>[lat, lon]</code> in gradi
+        decimali</td>
+        </tr>
+        <tr class="odd">
+        <td><code>ne</code></td>
+        <td>Angolo Nord-Est <code>[lat, lon]</code> in gradi
+        decimali</td>
+        </tr>
+        </tbody>
+        </table>
+        <blockquote>
+        <p>Modifiche fatte a mano a questo file mentre l’app è in
+        esecuzione si applicano solo dopo un riavvio. Se usi la
+        schermata Aree, la formattazione del file viene normalizzata
+        (resta valido, ma cambia l’indentazione).</p>
+        </blockquote>
+        <hr />
+        <h2 id="backup-ripristino-e-deploy">Backup, ripristino e
+        deploy</h2>
+        <ul>
+        <li>Il <strong>ripristino</strong> di un database sostituisce
+        <strong>tutti</strong> i dati attuali (irreversibile): scarica
+        un backup prima. Dopo il ripristino i dati vengono riassegnati
+        all’area corretta in base alle coordinate. Il ripristino
+        <strong>non</strong> rilancia lo scraping
+        VesselFinder/MarineTraffic (i dati sono già nel DB
+        ripristinato).</li>
+        <li>I dati della <strong>Mappa delle zone coperte</strong>
+        stanno in un <strong>database separato</strong>,
+        esportabile/importabile a parte e comunque incluso nel backup
+        completo.</li>
+        <li><strong>Auto-ripristino dopo un deploy:</strong> il database
+        viene cancellato quando si aggiorna l’applicazione. Se all’avvio
+        il DB <strong>non esiste</strong> e sono presenti degli
+        <strong>auto-backup</strong> (cartella
+        <code>data/backups/</code>), l’app ripristina automaticamente
+        l’ultimo backup. Richiede che la cartella dei backup sopravviva
+        al deploy. Non scatta se il DB esiste ma è stato solo svuotato
+        con “Cancella dati”. Disattivabile con
+        <code>AUTO_RESTORE_ON_DEPLOY=false</code> in
+        <code>app.config.properties</code>.</li>
+        </ul>
+        <hr />
+        <h2 id="crediti">Crediti</h2>
+        <p>Il rilevamento dei disservizi AIS (il banner di disservizio)
+        si appoggia al progetto <strong><a
+        href="https://github.com/buttermilkgreen/AISStream-Uptime">AISStream-Uptime</a></strong>
+        di buttermilkgreen, un monitor di uptime per il servizio
+        AISStream. L’app non ne incorpora il codice: consulta soltanto
+        la API pubblica della sua istanza ospitata
+        (<code>https://aisuptime.buttermilkgreen.fyi</code>) per capire
+        se l’eventuale silenzio dei dati dipende da un guasto del
+        servizio o semplicemente da un’area poco trafficata. Il progetto
+        è open source (licenza MIT) e puoi <strong>ospitarlo tu
+        stesso</strong>: indica l’URL della tua istanza in
+        <code>AIS_UPTIME_SELFHOST_URL</code>.</p>
+      </div>
+    </main>
+  </div>
+  <button id="theme" aria-label="Cambia tema">🌙</button>
+  <div id="lb"><img src="" alt=""></div>
+
+  <script>
+    // Wrap tables for horizontal scroll
+    document.querySelectorAll('main table').forEach(function(t){
+      if(t.parentElement.classList.contains('table-wrap')) return;
+      var w=document.createElement('div'); w.className='table-wrap';
+      t.parentNode.insertBefore(w,t); w.appendChild(t);
+    });
+    // Theme
+    var root=document.documentElement, btn=document.getElementById('theme');
+    function applyTheme(t){ root.setAttribute('data-theme',t); btn.textContent = t==='dark'?'☀️':'🌙'; try{localStorage.setItem('tp-manual-theme',t)}catch(e){} }
+    (function(){ var s=null; try{s=localStorage.getItem('tp-manual-theme')}catch(e){}
+      if(!s){ s = window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; }
+      applyTheme(s);
+    })();
+    btn.addEventListener('click',function(){ applyTheme(root.getAttribute('data-theme')==='dark'?'light':'dark'); });
+    // Mobile menu
+    var mb=document.getElementById('menu-btn'), sb=document.getElementById('sidebar');
+    mb && mb.addEventListener('click',function(){ sb.classList.toggle('open'); });
+    document.querySelectorAll('#toc a').forEach(function(a){ a.addEventListener('click',function(){ sb.classList.remove('open'); }); });
+    // Lightbox
+    var lb=document.getElementById('lb'), lbimg=lb.querySelector('img');
+    document.querySelectorAll('main img').forEach(function(im){
+      im.addEventListener('click',function(){ lbimg.src=im.src; lbimg.alt=im.alt||''; lb.classList.add('open'); });
+    });
+    lb.addEventListener('click',function(){ lb.classList.remove('open'); lbimg.src=''; });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') lb.classList.remove('open'); });
+    // Active section in TOC (scroll spy)
+    var links=[].slice.call(document.querySelectorAll('#toc a[href^="#"]'));
+    var map={}; links.forEach(function(a){ var id=decodeURIComponent(a.getAttribute('href').slice(1)); if(id) map[id]=a; });
+    var heads=[].slice.call(document.querySelectorAll('main h1[id],main h2[id],main h3[id]'));
+    var obs=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){
+          links.forEach(function(l){l.classList.remove('active')});
+          var a=map[en.target.id]; if(a){ a.classList.add('active');
+            a.scrollIntoView({block:'nearest'}); }
+        }
+      });
+    },{rootMargin:'-10% 0px -80% 0px', threshold:0});
+    heads.forEach(function(h){ obs.observe(h); });
+  </script>
+</body>
+</html>
