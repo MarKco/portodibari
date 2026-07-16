@@ -88,6 +88,26 @@
     }
     figure{margin:24px 0}
     figcaption{color:var(--muted); font-size:13px; text-align:center; margin-top:6px; font-style:italic}
+    /* Tutorial "getting started" callout — visually set apart from the rest */
+    .tutorial{
+      position:relative; margin:28px 0 40px; padding:8px 26px 26px;
+      background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--panel)), var(--panel));
+      border:1px solid var(--accent); border-radius:16px; box-shadow:var(--shadow);
+    }
+    .tutorial::before{
+      content:"▶ INIZIA QUI"; position:absolute; top:-12px; left:22px;
+      background:var(--accent); color:#fff; font-size:12px; font-weight:700; letter-spacing:.5px;
+      padding:3px 12px; border-radius:20px;
+    }
+    .tutorial > h2{border-bottom:none; margin-top:26px}
+    .tutorial > h3{color:var(--text); background:color-mix(in srgb, var(--accent) 10%, transparent);
+      border-left:3px solid var(--accent); padding:6px 12px; border-radius:8px; font-size:17px}
+    /* TOC: make the tutorial entry stand out */
+    nav#toc a[href="#tutorial"]{
+      font-weight:700; color:var(--text); background:color-mix(in srgb, var(--accent) 16%, transparent);
+      border-left-color:var(--accent); border-radius:8px; margin:4px 0;
+    }
+    nav#toc a[href="#tutorial"]:hover{background:color-mix(in srgb, var(--accent) 26%, transparent)}
     /* Theme toggle */
     #theme{
       position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;
@@ -145,6 +165,18 @@
         <li><a href="#password-dimenticata">Password
         dimenticata</a></li>
         <li><a href="#i-tuoi-dati">I tuoi dati</a></li>
+        </ul></li>
+        <li><a href="#tutorial">🚀 Primi passi (tutorial)</a>
+        <ul>
+        <li><a href="#passo-1-definisci-la-tua-prima-area">Passo 1 —
+        Definisci la tua prima area</a></li>
+        <li><a
+        href="#passo-2-avvia-il-monitoraggio-e-guarda-le-navi">Passo 2 —
+        Avvia il monitoraggio e guarda le navi</a></li>
+        <li><a href="#passo-3-cerca-e-segui-una-nave">Passo 3 — Cerca e
+        segui una nave</a></li>
+        <li><a href="#passo-4-personalizza-facoltativo">Passo 4 —
+        Personalizza (facoltativo)</a></li>
         </ul></li>
         <li><a href="#interfaccia-principale">Interfaccia principale</a>
         <ul>
@@ -341,6 +373,102 @@
         <strong>collegamento Telegram</strong> e la
         <strong>lingua</strong> dell’interfaccia.</p>
         </blockquote>
+        <hr />
+        <section id="tutorial" class="tutorial">
+        <h2>🚀 Primi passi (tutorial)</h2>
+        <p><strong>Hai appena effettuato il primo accesso? Parti da
+        qui.</strong> Questa guida rapida ti porta dalle prime cose da
+        fare — definire un’area, avviare il monitoraggio, cercare e
+        seguire una nave — al resto dell’app. Ogni passo rimanda alla
+        sezione dettagliata più avanti nel manuale. Fatto questo, sei
+        operativo; il resto del manuale è la consultazione di
+        dettaglio.</p>
+        <h3 id="passo-1-definisci-la-tua-prima-area">Passo 1 — Definisci
+        la tua prima area</h3>
+        <p>Un’<strong>area</strong> è il riquadro geografico che vuoi
+        sorvegliare (un porto, un tratto di mare). Al primo accesso
+        potresti non averne ancora una tua.</p>
+        <ol type="1">
+        <li>Nella barra laterale premi <strong>🗺 Aree</strong>.</li>
+        <li>Dai un <strong>nome</strong> all’area (es. “Porto di
+        Bari”).</li>
+        <li>Definisci i confini nel modo più semplice: sposta e
+        ingrandisci la mappa finché inquadri la zona, poi premi
+        <strong>🎯 Cattura vista corrente</strong> (in alternativa
+        inserisci a mano le coordinate SW e NE).</li>
+        <li>Premi <strong>＋ Aggiungi area</strong>: l’area viene
+        salvata e inizia subito a ricevere dati.</li>
+        </ol>
+        <figure>
+        <img src="images/17-aree.png"
+        alt="Schermata Aree: pannello Aggiungi area, mappa con i rettangoli delle aree e tabella con coordinate e stato." />
+        <figcaption aria-hidden="true">Schermata Aree: pannello Aggiungi
+        area, mappa con i rettangoli delle aree e tabella con coordinate
+        e stato.</figcaption>
+        </figure>
+        <p>→ Dettagli completi in <a href="#gestione-aree">Gestione
+        aree</a>.</p>
+        <h3 id="passo-2-avvia-il-monitoraggio-e-guarda-le-navi">Passo 2
+        — Avvia il monitoraggio e guarda le navi</h3>
+        <ol type="1">
+        <li>Torna ai monitoraggi con <strong>🏠
+        Monitoraggi</strong>.</li>
+        <li>Seleziona l’area nel menu a tendina <strong>Area:</strong>
+        in basso nella barra laterale.</li>
+        <li>Premi <strong>▶ Avvia il monitoraggio</strong>: in alto
+        compare il badge <strong>● ATTIVO</strong>.</li>
+        <li>Nel giro di poco le navi appaiono sulla
+        <strong>mappa</strong> (colorate per rischio) e nella
+        <strong>tabella</strong> sotto. Clicca una riga per aprire il
+        <strong>dettaglio</strong> della nave.</li>
+        </ol>
+        <figure>
+        <img src="images/06-monitoraggio_navi_presenti.png"
+        alt="Scheda Navi presenti: mappa con i marker delle navi e tabella dettagliata sotto." />
+        <figcaption aria-hidden="true">Scheda Navi presenti: mappa con i
+        marker delle navi e tabella dettagliata sotto.</figcaption>
+        </figure>
+        <p>→ Dettagli in <a href="#le-tre-schede-principali">Le tre
+        schede principali</a> e <a href="#dettaglio-nave">Dettaglio
+        nave</a>.</p>
+        <h3 id="passo-3-cerca-e-segui-una-nave">Passo 3 — Cerca e segui
+        una nave</h3>
+        <p>Le <strong>navi seguite</strong> le tieni d’occhio ovunque
+        vadano, anche fuori dalle tue aree.</p>
+        <ol type="1">
+        <li>Barra laterale → <strong>🗺 Navi seguite</strong>.</li>
+        <li>Nella barra di ricerca digita il <strong>nome</strong> o
+        l’<strong>MMSI</strong> della nave e premi <strong>🔍
+        Cerca</strong>.</li>
+        <li>Aspetta che la finestra dei risultati recuperi identità e
+        <strong>posizione live</strong> (fino a ~90 s).</li>
+        <li>Quando si abilita <strong>🗺 Segui nave</strong>, premilo: la
+        nave entra tra le tue seguite.</li>
+        </ol>
+        <figure>
+        <img src="images/04-risultati_ricerca_nave.png"
+        alt="Finestra dei risultati di ricerca nave: identità, dati dalle fonti esterne e posizione live in arrivo." />
+        <figcaption aria-hidden="true">Finestra dei risultati di ricerca
+        nave: identità, dati dalle fonti esterne e posizione live in
+        arrivo.</figcaption>
+        </figure>
+        <p>→ Dettagli in <a href="#navi-seguite">Navi seguite</a>.</p>
+        <h3 id="passo-4-personalizza-facoltativo">Passo 4 — Personalizza
+        (facoltativo)</h3>
+        <ul>
+        <li><strong>★ Segnala</strong> una nave per evidenziarla;
+        <strong>✓ Vista</strong> per marcare quelle già
+        controllate.</li>
+        <li>Attiva le <strong>🔔 Notifiche</strong> (rientro nave, score
+        alto, ecc.) e, se vuoi, collega <strong>Telegram</strong>.</li>
+        <li>Cambia <strong>tema</strong> chiaro/scuro con il pulsante 🌙
+        / ☀️ in basso a destra.</li>
+        </ul>
+        <p>→ Vedi <a href="#notifiche">Notifiche</a> e <a
+        href="#impostazioni">Impostazioni</a>.</p>
+        <p><strong>Tutto qui per iniziare.</strong> Da adesso in poi il
+        manuale entra nel dettaglio di ogni funzione.</p>
+        </section>
         <hr />
         <h2 id="interfaccia-principale">Interfaccia principale</h2>
         <figure>

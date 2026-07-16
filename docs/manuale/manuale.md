@@ -72,6 +72,63 @@ Vedi i dati AIS delle navi che si trovano **dentro le tue aree**. Le sorgenti di
 
 ---
 
+::: {.tutorial}
+
+## 🚀 Primi passi (tutorial) {#tutorial}
+
+**Hai appena effettuato il primo accesso? Parti da qui.** Questa guida rapida ti porta dalle prime cose da fare — definire un'area, avviare il monitoraggio, cercare e seguire una nave — al resto dell'app. Ogni passo rimanda alla sezione dettagliata più avanti nel manuale. Fatto questo, sei operativo; il resto del manuale è la consultazione di dettaglio.
+
+### Passo 1 — Definisci la tua prima area
+
+Un'**area** è il riquadro geografico che vuoi sorvegliare (un porto, un tratto di mare). Al primo accesso potresti non averne ancora una tua.
+
+1. Nella barra laterale premi **🗺 Aree**.
+2. Dai un **nome** all'area (es. "Porto di Bari").
+3. Definisci i confini nel modo più semplice: sposta e ingrandisci la mappa finché inquadri la zona, poi premi **🎯 Cattura vista corrente** (in alternativa inserisci a mano le coordinate SW e NE).
+4. Premi **＋ Aggiungi area**: l'area viene salvata e inizia subito a ricevere dati.
+
+![Schermata Aree: pannello Aggiungi area, mappa con i rettangoli delle aree e tabella con coordinate e stato.](images/17-aree.png)
+
+→ Dettagli completi in [Gestione aree](#gestione-aree).
+
+### Passo 2 — Avvia il monitoraggio e guarda le navi
+
+1. Torna ai monitoraggi con **🏠 Monitoraggi**.
+2. Seleziona l'area nel menu a tendina **Area:** in basso nella barra laterale.
+3. Premi **▶ Avvia il monitoraggio**: in alto compare il badge **● ATTIVO**.
+4. Nel giro di poco le navi appaiono sulla **mappa** (colorate per rischio) e nella **tabella** sotto. Clicca una riga per aprire il **dettaglio** della nave.
+
+![Scheda Navi presenti: mappa con i marker delle navi e tabella dettagliata sotto.](images/06-monitoraggio_navi_presenti.png)
+
+→ Dettagli in [Le tre schede principali](#le-tre-schede-principali) e [Dettaglio nave](#dettaglio-nave).
+
+### Passo 3 — Cerca e segui una nave
+
+Le **navi seguite** le tieni d'occhio ovunque vadano, anche fuori dalle tue aree.
+
+1. Barra laterale → **🗺 Navi seguite**.
+2. Nella barra di ricerca digita il **nome** o l'**MMSI** della nave e premi **🔍 Cerca**.
+3. Aspetta che la finestra dei risultati recuperi identità e **posizione live** (fino a ~90 s).
+4. Quando si abilita **🗺 Segui nave**, premilo: la nave entra tra le tue seguite.
+
+![Finestra dei risultati di ricerca nave: identità, dati dalle fonti esterne e posizione live in arrivo.](images/04-risultati_ricerca_nave.png)
+
+→ Dettagli in [Navi seguite](#navi-seguite).
+
+### Passo 4 — Personalizza (facoltativo)
+
+- **★ Segnala** una nave per evidenziarla; **✓ Vista** per marcare quelle già controllate.
+- Attiva le **🔔 Notifiche** (rientro nave, score alto, ecc.) e, se vuoi, collega **Telegram**.
+- Cambia **tema** chiaro/scuro con il pulsante 🌙 / ☀️ in basso a destra.
+
+→ Vedi [Notifiche](#notifiche) e [Impostazioni](#impostazioni).
+
+**Tutto qui per iniziare.** Da adesso in poi il manuale entra nel dettaglio di ogni funzione.
+
+:::
+
+---
+
 ## Interfaccia principale
 
 ![Home page: barra laterale a sinistra, mappa con le navi al centro, tabella delle navi in basso e lista notifiche.](images/02-home_page.png)
