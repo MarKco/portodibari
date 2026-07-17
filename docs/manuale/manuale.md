@@ -414,6 +414,8 @@ Mappa con la traccia della nave e controlli di riproduzione animata.
 - **Velocità** — **1× / 5× / 20× / 60×** (default 20×), cambiabili durante la riproduzione.
 - **Includi SF/MST** — se le integrazioni sono attive e la nave ha posizioni scrapate, le include nella traccia (nodi ambra = ShipFinder, teal = MyShipTracking).
 
+> I marker dell'**ultima posizione nota** ShipFinder/MyShipTracking mostrati sulla mappa seguono la **stessa finestra temporale** selezionata per la traccia (preset, intervallo personalizzato o segmento di replay): restringendo la finestra vengono mostrati solo i rilevamenti che vi ricadono, esattamente come per le posizioni AIS. Il pulsante **📍 Localizza via …** mostra comunque sempre la posizione appena recuperata.
+
 ### Letture AIS
 
 ![Dettaglio nave — tabella paginata delle letture AIS e sezione note operative.](images/16-monitoraggio_dettagli_nave_6.png)

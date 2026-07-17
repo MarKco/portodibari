@@ -91,6 +91,9 @@ export function showView(v, mmsi, shipData) {
     renderDetailInfoBar(shipData, null);
     renderSanctionsSection(shipData?.risk);
     loadDetail();
+    // Reset the scraped-scatter cache + track window so the previous ship's
+    // SF/MST markers/window never bleed into this one before loadTrack resolves.
+    S.sfPositions = null; S.mstPositions = null; S.trackFrom = null; S.trackTo = null;
     loadTrack(mmsi);
     // VF/MT/GFW are proactive enrichment and can shift the risk score, so
     // refresh the detail (score + factors) once they resolve.

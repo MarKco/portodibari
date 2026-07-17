@@ -44,6 +44,20 @@ function initMap() {
   ro.observe(document.getElementById('detail-map'));
 }
 
+// Clamp scraped (SF/MST) scatter points to the track's active time window
+// (S.trackFrom/S.trackTo — set by loadTrack for the chosen segment/cut/preset).
+// Without this the scatter layers keep drawing the WHOLE scraped history and
+// "Azzera replay" (a per-user cut) appears not to work: the AIS track trims but
+// the SF/MST markers reappear in full on the next poll. `focus` (manual "Localizza
+// via …") bypasses the clamp so a freshly requested fix always shows.
+function clampToTrackWindow(positions, focus) {
+  let pts = (positions || []).filter((p) => p.lat != null && p.lon != null);
+  if (focus) return pts;
+  if (S.trackFrom) pts = pts.filter((p) => p.received_at >= S.trackFrom);
+  if (S.trackTo) pts = pts.filter((p) => p.received_at <= S.trackTo);
+  return pts;
+}
+
 // Draw ShipFinder scraped positions as distinct amber markers on their own layer,
 // un-connected (no polyline) so they read clearly as "last known, scraped" fixes
 // rather than part of the live AIS track. The newest fix is emphasised. When the
@@ -53,7 +67,7 @@ export function renderSfPositions(positions, { focus = false } = {}) {
   initMap();
   if (!S.sfLayer) return;
   S.sfLayer.clearLayers();
-  const pts = (positions || []).filter((p) => p.lat != null && p.lon != null);
+  const pts = clampToTrackWindow(positions, focus);
   if (!pts.length) return;
   pts.forEach((p, i) => {
     const isLast = i === pts.length - 1;
@@ -87,7 +101,7 @@ export function renderMstPositions(positions, { focus = false } = {}) {
   initMap();
   if (!S.mstLayer) return;
   S.mstLayer.clearLayers();
-  const pts = (positions || []).filter((p) => p.lat != null && p.lon != null);
+  const pts = clampToTrackWindow(positions, focus);
   if (!pts.length) return;
   pts.forEach((p, i) => {
     const isLast = i === pts.length - 1;
@@ -407,6 +421,21 @@ export async function loadTrack(mmsi, opts = {}) {
     }
 
     const pts = data.points || [];
+
+    // Resolve the effective time window actually shown (mirrors the server's
+    // window math) and clamp the SF/MST scraped scatter to it, so a segment/cut/
+    // preset trims those markers exactly like the AIS track. Re-render from the
+    // already-fetched scatter cache (no refetch) for an immediate update.
+    let effFrom = opts.from || null, effTo = opts.to || null;
+    if (!effFrom && !effTo && opts.window && opts.window !== 'all' && data.range && data.range.hi) {
+      const hours = opts.window === '7d' ? 168 : opts.window === '24h' ? 24 : 6;
+      effTo = data.range.hi;
+      effFrom = new Date(new Date(data.range.hi).getTime() - hours * 3600000).toISOString();
+    }
+    S.trackFrom = effFrom;
+    S.trackTo = effTo;
+    if (S.sfPositions) renderSfPositions(S.sfPositions);
+    if (S.mstPositions) renderMstPositions(S.mstPositions);
 
     // Show the "Includi SF/MST" toggle only when the ship has scraped positions
     // and the integrations are on (server reports extraAvailable).

@@ -1141,7 +1141,7 @@ export async function loadSfData(mmsi) {
       el.sfDataSection.classList.add('hidden');
       return;
     }
-    if (S.detailMmsi === mmsi) renderSfPositions(result.positions);
+    if (S.detailMmsi === mmsi) { S.sfPositions = result.positions || []; renderSfPositions(result.positions); }
     if (result.error && !result.data) {
       el.sfDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
       return;
@@ -1200,6 +1200,7 @@ export async function locateSf(mmsi) {
     }
     const p = result.position;
     if (S.detailMmsi === mmsi) {
+      S.sfPositions = result.positions || [];
       renderSfPositions(result.positions, { focus: true });
       renderSfPositionBlock(result.positions);
     }
@@ -1235,7 +1236,7 @@ export async function loadMstData(mmsi) {
       el.mstDataSection.classList.add('hidden');
       return;
     }
-    if (S.detailMmsi === mmsi) renderMstPositions(result.positions);
+    if (S.detailMmsi === mmsi) { S.mstPositions = result.positions || []; renderMstPositions(result.positions); }
     if (result.error && !result.data) {
       el.mstDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
       return;
@@ -1291,6 +1292,7 @@ export async function locateMst(mmsi) {
     }
     const p = result.position;
     if (S.detailMmsi === mmsi) {
+      S.mstPositions = result.positions || [];
       renderMstPositions(result.positions, { focus: true });
       renderMstPositionBlock(result.positions);
     }

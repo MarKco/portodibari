@@ -76,6 +76,10 @@ export const S = {
   trackLayer: null,
   sfLayer: null, // ShipFinder scraped last-known position markers (see maps.js)
   mstLayer: null, // MyShipTracking scraped last-known position markers (see maps.js)
+  sfPositions: null, // last-fetched SF scraped positions (cached so the scatter can be re-clamped to the track window without a refetch)
+  mstPositions: null, // last-fetched MST scraped positions (same purpose)
+  trackFrom: null, // active track window lower bound (ISO) — SF/MST scatter is clamped to it so "Azzera replay"/segments trim it too
+  trackTo: null, // active track window upper bound (ISO), or null for open-ended
   trackAnim: null, // active track-playback state (see maps.js)
   activeMap: null,
   activeMarkersLayer: null,
