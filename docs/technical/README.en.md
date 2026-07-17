@@ -1,9 +1,9 @@
-# 🚢 Tracker Porti
+# 🚢 Tracker Porti — Technical documentation
 
-> 📖 Italian documentation: [README.md](README.md)
+> 📖 Documentazione in italiano: [README.it.md](README.it.md) · Project overview: [root README](../../README.md)
 
 <p align="center">
-  <img src="public/icons/icon-512.png" alt="Tracker Porti" width="160">
+  <img src="../../public/icons/icon-512.png" alt="Tracker Porti" width="160">
 </p>
 
 App for tracking ships via [AISStream.io](https://aisstream.io). The monitoring area can be selected at runtime from multiple presets (Bari, Taranto, North Adriatic, Puglia — see [Bounding box](#bounding-box)) and is configurable with arbitrary bounding boxes, making it usable for any port. Areas can be **added and removed at runtime** from the **🗺 Areas** screen (no app restart). **Multiple areas can be monitored simultaneously**: each area has its own independent AIS stream.
@@ -281,7 +281,7 @@ AIS messages **do not describe hold contents**: they transmit only kinematics (p
 
 ### Calculation model
 
-Implemented server-side in [`src/services/risk-score.js`](src/services/risk-score.js) — `computeRiskScore(ship, lang)`. For each ship it queries (read-only) the history via `db.getShipPositions` (positions last 168h), `db.getShipEvents` (port events), `db.getDistinctShipNames`. If VF/MT import is enabled, it also reads registry data **already in cache** via `db.getScrapedData` (see [Score enrichment from VF/MT](#score-enrichment-from-vfmt)) — read-only, no live scraping during calculation.
+Implemented server-side in [`src/services/risk-score.js`](../../src/services/risk-score.js) — `computeRiskScore(ship, lang)`. For each ship it queries (read-only) the history via `db.getShipPositions` (positions last 168h), `db.getShipEvents` (port events), `db.getDistinctShipNames`. If VF/MT import is enabled, it also reads registry data **already in cache** via `db.getScrapedData` (see [Score enrichment from VF/MT](#score-enrichment-from-vfmt)) — read-only, no live scraping during calculation.
 
 Each detected signature adds weighted points to an **anomaly subtotal**:
 
@@ -321,7 +321,7 @@ score = clamp( round( anomalySubtotal × multiplier ), 0, 100 )
 The values in the table above are the **defaults** (from `app.config.properties`, `RISK_*` keys), but the **point weights** of the ~24 signals are also **editable at runtime** from Settings → the **⚖ Risk model** section, with no restart — the same mechanism as the [per-cargo-type weights](#cargo-type-and-load-state). Admins only. The **detection thresholds** (blackout hours, spoofing kn, loitering km/positions, draught Δ, vessel age, rendezvous window days) and the **geopolitical multipliers** stay boot-only in `app.config.properties`.
 
 - **Live override**: the override is saved as a single JSON property `RISK_WEIGHTS` in `local.properties`, layered over the `RISK` defaults; `risk-score.js` always reads `state.riskWeights` (which carries the full `RISK` set with only the point weights overridable). Editing a weight invalidates the score cache so recomputation is immediate.
-- **Risk profiles (presets)**: like the cargo "weight classes" — a built-in **Default** profile plus operator-saved profiles, stored as a JSON row in the `meta` table (key `risk_weight_presets`, included in backups). Endpoints: `POST /api/settings/risk-weights`, `GET|POST /api/settings/risk-presets`, `POST /api/settings/risk-presets/apply`, `DELETE /api/settings/risk-presets/:id` (all `requireAdmin`). Service in [`src/services/risk-presets.js`](src/services/risk-presets.js); the editable weights are listed in `config.EDITABLE_RISK_WEIGHTS`.
+- **Risk profiles (presets)**: like the cargo "weight classes" — a built-in **Default** profile plus operator-saved profiles, stored as a JSON row in the `meta` table (key `risk_weight_presets`, included in backups). Endpoints: `POST /api/settings/risk-weights`, `GET|POST /api/settings/risk-presets`, `POST /api/settings/risk-presets/apply`, `DELETE /api/settings/risk-presets/:id` (all `requireAdmin`). Service in [`src/services/risk-presets.js`](../../src/services/risk-presets.js); the editable weights are listed in `config.EDITABLE_RISK_WEIGHTS`.
 
 ### Score enrichment from VF/MT
 
@@ -343,7 +343,7 @@ Rules:
 
 ### Port State Control screening (Paris/Tokyo MoU)
 
-Enabled by `IMPORT_PSC`, implemented in [`src/services/psc.js`](src/services/psc.js) with the same **dataset** pattern as sanctions (`sanctions.js`): lists preloaded in memory, matched locally per ship, **no per-ship network call**. Two complementary signals:
+Enabled by `IMPORT_PSC`, implemented in [`src/services/psc.js`](../../src/services/psc.js) with the same **dataset** pattern as sanctions (`sanctions.js`): lists preloaded in memory, matched locally per ship, **no per-ship network call**. Two complementary signals:
 
 | Level | Signal | Source | Match | Points |
 |---|---|---|---|---|
@@ -399,7 +399,7 @@ A `shown / total` counter appears when a filter is active. The overview map refl
 
 ### Geospatial export (GeoJSON / KML)
 
-To take the data into **QGIS** or **Google Earth**, next to the CSV there are **⬇ GeoJSON** and **⬇ KML** buttons, all **client-side** (built in the browser from data already loaded, like the CSV). Coordinates are emitted in `[lon, lat]` order. Implemented in [`public/js/geoexport.js`](public/js/geoexport.js). Four sources:
+To take the data into **QGIS** or **Google Earth**, next to the CSV there are **⬇ GeoJSON** and **⬇ KML** buttons, all **client-side** (built in the browser from data already loaded, like the CSV). Coordinates are emitted in `[lon, lat]` order. Implemented in [`public/js/geoexport.js`](../../public/js/geoexport.js). Four sources:
 
 - **Filtered ship list** (active/past toolbar) → one **Point** per positioned ship, with MMSI/name/type/destination/SOG/COG/score/band/flagged/military/IMO/call-sign properties.
 - **Single ship track** (ship detail, under the map) → a **LineString** along the fixes + one **Point** per fix (with timestamp), from `/api/ships/:mmsi/track`.
@@ -438,7 +438,7 @@ Hysteresis prevents anchor swing from causing the ship to "flicker" in and out o
 
 ## ⏯️ Historical replay (time-scrubber on the area map)
 
-The **single ship track** in the detail view (`setupTrackAnim`) now also has time filters (**6h / 24h / 7d / all**, or a custom from/to range) and **speed multipliers** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` or `?from=ISO&to=ISO`. Here too, when ShipFinder/MyShipTracking are enabled and the ship has scraped positions, an **Include SF/MST** toggle appears (under the detail map, on by default, `?scraped=1` → `db.getShipTrack`/`getShipTrackRange` with widened `sources`, `extraAvailable` via `db.hasShipScrapedPositions`, state `S.trackUseScraped`): the SF/MST fixes enter the animated route, with distinctly coloured nodes (amber SF / teal MST) and a source note in the popup. The **active-ships** map has a separate **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](public/js/replay.js); endpoint `GET /api/replay`.
+The **single ship track** in the detail view (`setupTrackAnim`) now also has time filters (**6h / 24h / 7d / all**, or a custom from/to range) and **speed multipliers** (1× / 5× / 20× / 60×); endpoint `GET /api/ships/:mmsi/track?window=6h|24h|7d|all` or `?from=ISO&to=ISO`. Here too, when ShipFinder/MyShipTracking are enabled and the ship has scraped positions, an **Include SF/MST** toggle appears (under the detail map, on by default, `?scraped=1` → `db.getShipTrack`/`getShipTrackRange` with widened `sources`, `extraAvailable` via `db.hasShipScrapedPositions`, state `S.trackUseScraped`): the SF/MST fixes enter the animated route, with distinctly coloured nodes (amber SF / teal MST) and a source note in the popup. The **active-ships** map has a separate **area-wide historical replay**: review the traffic of every ship in an area over a chosen time window. Frontend in [`public/js/replay.js`](../../public/js/replay.js); endpoint `GET /api/replay`.
 
 The **▶ Replay** button in the toolbar enters replay mode (hides the live markers, shows the controls bar). You pick:
 
@@ -481,7 +481,7 @@ The system infers by itself **where** vessels moor and **what type** they are, h
 
 ## 🌐 Coverage map (AISStream coverage)
 
-A **worldwide** AISStream subscription aggregates incoming position messages into a **lat/lon grid** (per-cell message count) to show where AIS coverage is dense and where the holes are. It is its own sidebar view (🌐): a world Leaflet map whose cells are coloured by density on a **log scale** (blue → red), drawn with the **canvas renderer** for performance. Frontend in [`public/js/coverage.js`](public/js/coverage.js).
+A **worldwide** AISStream subscription aggregates incoming position messages into a **lat/lon grid** (per-cell message count) to show where AIS coverage is dense and where the holes are. It is its own sidebar view (🌐): a world Leaflet map whose cells are coloured by density on a **log scale** (blue → red), drawn with the **canvas renderer** for performance. Frontend in [`public/js/coverage.js`](../../public/js/coverage.js).
 
 **Privacy by design** — each cell stores **only** the per-cell message count and last-seen timestamp (`msg_count`, `last_seen`). **No** ship names, **no** positions, no MMSIs are persisted.
 
@@ -511,11 +511,11 @@ Collection is an **admin-controlled background task**: pressing **Start** runs t
 
 ### Separate database
 
-The coverage data lives in a **separate** database, `data/db/heatmap_data.db` (module [`src/heatmap-db.js`](src/heatmap-db.js)) — **not** in the main DB and **not** in `BACKUP_TABLES`. It can be **exported/imported on its own** from **Settings → Backup** (`GET /api/heatmap/export` / `POST /api/heatmap/import`, **replace** semantics), and it is also embedded in the **full bundle** (v3 format `TPB3`: header + main DB + heatmap DB, both length-prefixed and streamed). Older **v1/v2** bundles still restore (they simply carry no heatmap section).
+The coverage data lives in a **separate** database, `data/db/heatmap_data.db` (module [`src/heatmap-db.js`](../../src/heatmap-db.js)) — **not** in the main DB and **not** in `BACKUP_TABLES`. It can be **exported/imported on its own** from **Settings → Backup** (`GET /api/heatmap/export` / `POST /api/heatmap/import`, **replace** semantics), and it is also embedded in the **full bundle** (v3 format `TPB3`: header + main DB + heatmap DB, both length-prefixed and streamed). Older **v1/v2** bundles still restore (they simply carry no heatmap section).
 
 **Grid** — `HEATMAP_GRID_DEG` in `app.config.properties` (default **0.25°** ≈ 28 km). Smaller cells are more precise but the cost grows **quadratically** (render, payload, DB rows). Changing the grid **invalidates** stored cells (a cell index is `floor(coord/grid)`) → use **Clear data** after a change.
 
-**Key files**: [`src/services/heatmap-stream.js`](src/services/heatmap-stream.js), [`src/heatmap-db.js`](src/heatmap-db.js), [`src/routes/heatmap.js`](src/routes/heatmap.js), [`public/js/coverage.js`](public/js/coverage.js).
+**Key files**: [`src/services/heatmap-stream.js`](../../src/services/heatmap-stream.js), [`src/heatmap-db.js`](../../src/heatmap-db.js), [`src/routes/heatmap.js`](../../src/routes/heatmap.js), [`public/js/coverage.js`](../../public/js/coverage.js).
 
 ## 🔗 MarineTraffic / VesselFinder Integration
 
@@ -530,9 +530,9 @@ In the ship detail view, two panels enrich AIS data with data downloaded (scrape
 
 > ℹ️ **Deploy**: no system `curl` needed on the host. `node-libcurl` bundles its own libcurl (prebuilt binaries downloaded at `npm install`; source build as fallback). Note: the TLS fingerprint can vary between libcurl builds and Cloudflare may treat them differently — verify in production.
 
-**ShipFinder** — server-rendered page; HTML scraping (`crawlShipfinder` in [`src/services/scrapers/shipfinder.js`](src/services/scrapers/shipfinder.js)) via `fetchHttp` (no Cloudflare, no libcurl). Fields are keyed by `<label id="ais-…">`; the flag is the filename of the `<img>` (ISO code). Unlike VF/MT (whose free pages carry **no** coordinates), ShipFinder exposes the vessel's **last-seen position** in plain HTML (lat/lon in degrees-decimal-minutes, e.g. `44-35.056 N`, converted to decimals by [`src/lib/coords.js`](src/lib/coords.js) `parseDdm`), plus SOG/COG/status/destination/ETA. The static fields (flag/type/dimensions) mostly duplicate VF/MT and serve only as a fallback: **the unique value is the position**.
+**ShipFinder** — server-rendered page; HTML scraping (`crawlShipfinder` in [`src/services/scrapers/shipfinder.js`](../../src/services/scrapers/shipfinder.js)) via `fetchHttp` (no Cloudflare, no libcurl). Fields are keyed by `<label id="ais-…">`; the flag is the filename of the `<img>` (ISO code). Unlike VF/MT (whose free pages carry **no** coordinates), ShipFinder exposes the vessel's **last-seen position** in plain HTML (lat/lon in degrees-decimal-minutes, e.g. `44-35.056 N`, converted to decimals by [`src/lib/coords.js`](../../src/lib/coords.js) `parseDdm`), plus SOG/COG/status/destination/ETA. The static fields (flag/type/dimensions) mostly duplicate VF/MT and serve only as a fallback: **the unique value is the position**.
 
-**MyShipTracking** — server-rendered page; HTML scraping (`crawlMyshiptracking` in [`src/services/scrapers/myshiptracking.js`](src/services/scrapers/myshiptracking.js)) via `fetchHttp` (no Cloudflare). Same role as ShipFinder: a **second, independent position backup**. Particulars/speed/course/AIS status come from the `<th>label</th><td>value</td>` tables; the **last-seen position** (lat/lon in **signed decimal degrees**, lat/lon order) and the report timestamp come from the page's SEO sentence (the table blanks lat/lon to `---` for stale vessels, while the sentence always carries the last fix). Coverage is **terrestrial** AIS (T-AIS): good near coasts/ports, weak offshore — fine for the monitored port areas.
+**MyShipTracking** — server-rendered page; HTML scraping (`crawlMyshiptracking` in [`src/services/scrapers/myshiptracking.js`](../../src/services/scrapers/myshiptracking.js)) via `fetchHttp` (no Cloudflare). Same role as ShipFinder: a **second, independent position backup**. Particulars/speed/course/AIS status come from the `<th>label</th><td>value</td>` tables; the **last-seen position** (lat/lon in **signed decimal degrees**, lat/lon order) and the report timestamp come from the page's SEO sentence (the table blanks lat/lon to `---` for stale vessels, while the sentence always carries the last fix). Coverage is **terrestrial** AIS (T-AIS): good near coasts/ports, weak offshore — fine for the monitored port areas.
 
 MT/VF/SF/MST integration can be enabled/disabled via the `IMPORT_MT_DATA` / `IMPORT_VF_DATA` / `IMPORT_SF_DATA` / `IMPORT_MST_DATA` properties in `local.properties` (or from the toggle switches in the UI settings, which persist them).
 
@@ -550,8 +550,8 @@ Unlike VF/MT, the ShipFinder position is used to **find followed ships our AIS s
 
 On the **Followed ships** map, a ship whose AIS stream has gone dark — but which has been **re-located via ShipFinder or MyShipTracking** — is shown at its **most recent scraped position** instead of sticking to a stale AIS position (or vanishing). The marker stays **grey** (as for ships "in search"), so it's clear it isn't a live AIS fix.
 
-- **Trigger rule** — identical to the "seen on…" badges: the scraped fix is plotted **only** when AIS is **not fresh** (older than `FOLLOW_FRESH_MS`, default 60 min) **and** the scrape is **newer** than the last AIS fix (`scrapeBadgeAt` in [`src/routes/ships.js`](src/routes/ships.js)). A fresh AIS fix **always wins**: the marker **snaps back** to the AIS position the moment the stream re-acquires the ship (the backend stops emitting the `fallback_*` fields).
-- **Source** — if both SF and MST have a valid fix, the **most recent** is plotted. The backend (`scrapeFallbackFix`, endpoint `GET /api/ships/followed/active`) attaches `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`; `renderFollowedMap` ([`public/js/maps.js`](public/js/maps.js)) prefers them over a stale AIS position. The popup shows the **scrape time** and **source** ("📡 via ShipFinder/MyShipTracking"), without SOG/COG (scrapes don't carry them reliably).
+- **Trigger rule** — identical to the "seen on…" badges: the scraped fix is plotted **only** when AIS is **not fresh** (older than `FOLLOW_FRESH_MS`, default 60 min) **and** the scrape is **newer** than the last AIS fix (`scrapeBadgeAt` in [`src/routes/ships.js`](../../src/routes/ships.js)). A fresh AIS fix **always wins**: the marker **snaps back** to the AIS position the moment the stream re-acquires the ship (the backend stops emitting the `fallback_*` fields).
+- **Source** — if both SF and MST have a valid fix, the **most recent** is plotted. The backend (`scrapeFallbackFix`, endpoint `GET /api/ships/followed/active`) attaches `fallback_lat`/`fallback_lon`/`fallback_at`/`fallback_source`; `renderFollowedMap` ([`public/js/maps.js`](../../public/js/maps.js)) prefers them over a stale AIS position. The popup shows the **scrape time** and **source** ("📡 via ShipFinder/MyShipTracking"), without SOG/COG (scrapes don't carry them reliably).
 - **No impact on track/risk** — the fallback position is purely for **display**: it stays in `readings` with `source='sf'/'mst'`, never touches the `ships` row or the AIS freshness signal, and the track/risk queries still filter `source='ais'`. (The **replay** can optionally include it via the *Include SF/MST* toggle.)
 
 ##### Architecture: "Followed ships" map rendering & position sources
@@ -575,7 +575,7 @@ On the **Followed ships** map, a ship whose AIS stream has gone dark — but whi
 
 In addition to on-demand loading in the detail view, enrichment starts **automatically when a new ship appears** on the AIS stream, so the [risk score](#score-enrichment-from-vfmt) can immediately use registry data without waiting for the detail view to be opened.
 
-Flow ([`src/services/enrichment.js`](src/services/enrichment.js)):
+Flow ([`src/services/enrichment.js`](../../src/services/enrichment.js)):
 
 1. `db.insert` signals the first appearance of an MMSI by returning `{ arrivedFlagged, newShip }` (`newShip` = mmsi if the MMSI had never been seen before).
 2. In `ais-stream.js`, on `newShip`, `enrichment.enrichNewShip(mmsi)` is called.
@@ -596,7 +596,7 @@ Guarantees:
 
 ### Equasis lookup (ownership/management, on-demand)
 
-[Equasis](https://www.equasis.org/) is a free EU/US database exposing a ship's **ownership and management** data (registered owner, ISM manager, operator, DOC company) which AIS never broadcasts and VF/MT don't offer for free. The scraper [`src/services/scrapers/equasis.js`](src/services/scrapers/equasis.js) (`crawlEquasis(imo)`) is deliberately **outside** the proactive enrichment path: it runs **only** when the user presses **Fetch Equasis information** in the detail view.
+[Equasis](https://www.equasis.org/) is a free EU/US database exposing a ship's **ownership and management** data (registered owner, ISM manager, operator, DOC company) which AIS never broadcasts and VF/MT don't offer for free. The scraper [`src/services/scrapers/equasis.js`](../../src/services/scrapers/equasis.js) (`crawlEquasis(imo)`) is deliberately **outside** the proactive enrichment path: it runs **only** when the user presses **Fetch Equasis information** in the detail view.
 
 Differences from VF/MT:
 
@@ -607,11 +607,11 @@ Differences from VF/MT:
 
 Flow (`crawlEquasis`, reverse-engineered): `POST /EquasisWeb/authen/HomePage` (`j_email`+`j_password`) → session cookie → `POST /EquasisWeb/restricted/ShipInfo` (`P_IMO`) → detail HTML. Cookies live in a throwaway jar for the lifetime of the two calls. Like MarineTraffic, it **uses `node-libcurl`** (no system `curl` dependency). The detail page is split into commented sections (`<!-- Overview -->`, `<!-- MGT DET -->`, `<!-- Classification -->`, `<!-- PI -->`, `<!-- Geo -->`, …), each duplicated as desktop (`<table>`) and mobile (`hidden-md hidden-lg`) markup: the parser always reads the desktop copy and ignores the duplicate. It extracts six blocks: `particulars` (name/IMO from the `<h4>` plus flag, call sign, MMSI, tonnages, type, year, status from the `<b>label</b>` blocks), `management` (`parseManagement`, the *Management detail(s)* table mapped by column header so it survives Equasis reordering its columns), `classification` (society, status, date), `pi` (P&I club + inception), `risk` (36-month detention rate, IACS class, Paris/Tokyo MOU performance, USCG targeting from the *Overview* section) and `positions` (most recent areas the ship was seen in).
 
-**Audit log**: every lookup (success or error) is appended to a plain-text file `equasis.log` (project root, gitignored) by [`src/services/equasis-log.js`](src/services/equasis-log.js): timestamp, MMSI, IMO, ship name and the retrieved data (or the error message). The log is viewable from the UI via the **View Equasis log** button in Settings (endpoint `GET /api/equasis-log`, read tail-truncated to 256 KB; `DELETE /api/equasis-log` clears it).
+**Audit log**: every lookup (success or error) is appended to a plain-text file `equasis.log` (project root, gitignored) by [`src/services/equasis-log.js`](../../src/services/equasis-log.js): timestamp, MMSI, IMO, ship name and the retrieved data (or the error message). The log is viewable from the UI via the **View Equasis log** button in Settings (endpoint `GET /api/equasis-log`, read tail-truncated to 256 KB; `DELETE /api/equasis-log` clears it).
 
 ### Global Fishing Watch enrichment
 
-[Global Fishing Watch](https://globalfishingwatch.org/) (GFW) enriches each ship with its **identity** (flag, IMO, MMSI, call sign, type, year) and with the **behavioural events** that GFW derives and classifies from the global AIS feed: **encounters** (two vessels meeting at sea = ship-to-ship transshipment signature), **loitering** (a prolonged stop in open sea), **port visits** (reconstructed port calls) and **gaps** (AIS switched off while underway = "dark activity"). Because these events are already AIS-derived and classified by GFW, they are **authoritative confirmations** of the behavioural signals the app otherwise infers heuristically from raw positions, and they feed the [risk score](#-risk-score-potential-arms-transport) directly. Implemented in [`src/services/gfw.js`](src/services/gfw.js).
+[Global Fishing Watch](https://globalfishingwatch.org/) (GFW) enriches each ship with its **identity** (flag, IMO, MMSI, call sign, type, year) and with the **behavioural events** that GFW derives and classifies from the global AIS feed: **encounters** (two vessels meeting at sea = ship-to-ship transshipment signature), **loitering** (a prolonged stop in open sea), **port visits** (reconstructed port calls) and **gaps** (AIS switched off while underway = "dark activity"). Because these events are already AIS-derived and classified by GFW, they are **authoritative confirmations** of the behavioural signals the app otherwise infers heuristically from raw positions, and they feed the [risk score](#-risk-score-potential-arms-transport) directly. Implemented in [`src/services/gfw.js`](../../src/services/gfw.js).
 
 Unlike VF/MT/Equasis/PSC, GFW is **on by default** (`IMPORT_GFW=true`). Like VF/MT, the enrichment is **proactive**: it runs in the background on the ship's first detection and backfills existing ships when first enabled, cached in the same `ship_scrape_cache` (source code `gfw`). **Restoring** a backup does **not** re-fetch the data (it is already in the restored DB), exactly like VF/MT.
 
@@ -623,9 +623,9 @@ In the ship detail view a new **Global Fishing Watch** panel appears (when enabl
 
 ## 🤝 Ship-to-ship rendezvous detection
 
-A rendezvous on the open sea — two distinct vessels lingering side by side offshore — is the classic signature of a **ship-to-ship transfer** (transshipment). Unlike the encounters reported by Global Fishing Watch (which only enriches the ships it is queried for), this detection is **local and free**: it uses our own AISStream feed, with no external API. Implemented in [`src/services/proximity.js`](src/services/proximity.js).
+A rendezvous on the open sea — two distinct vessels lingering side by side offshore — is the classic signature of a **ship-to-ship transfer** (transshipment). Unlike the encounters reported by Global Fishing Watch (which only enriches the ships it is queried for), this detection is **local and free**: it uses our own AISStream feed, with no external API. Implemented in [`src/services/proximity.js`](../../src/services/proximity.js).
 
-**Scan.** A periodic job ([`proximity.init`](src/services/proximity.js), started by `src/server.js`) runs every `PROXIMITY_SCAN_MIN` minutes (default 10; `0` disables it). For each area it considers ships with a recent fix (`PROXIMITY_FRESH_MIN`) and keeps only the pairs that satisfy **all** of these — deliberately conservative to cut false positives:
+**Scan.** A periodic job ([`proximity.init`](../../src/services/proximity.js), started by `src/server.js`) runs every `PROXIMITY_SCAN_MIN` minutes (default 10; `0` disables it). For each area it considers ships with a recent fix (`PROXIMITY_FRESH_MIN`) and keeps only the pairs that satisfy **all** of these — deliberately conservative to cut false positives:
 
 - both **slow**: SOG < `PROXIMITY_MAX_SOG_KN` (default 3 kn — a fast ship is just passing through);
 - both **not** moored/anchored (nav status ≠ 1, 5);
@@ -634,7 +634,7 @@ A rendezvous on the open sea — two distinct vessels lingering side by side off
 
 **State machine (table `proximity_events`, canonical pair `mmsi_a < mmsi_b`).** A contact **opens** when a pair first comes within `PROXIMITY_DIST_M`; it **stays open** while the pair is within `PROXIMITY_DIST_M × PROXIMITY_CLOSE_MULT` (hysteresis: a single noisy fix can't flap it shut); it **closes** when the pair separates or a ship leaves the area / goes silent. On the first scan where the contact's dwell reaches `PROXIMITY_MIN_MINUTES` (default 10) it fires **a single** notification and the contact is marked confirmed (`alerted`).
 
-**Notification** (type `proximity`, see [Notifications](#-port-events-statistics-and-alerts)) — in-app + Telegram, with a **two-pin static map** joined by a line (server-rendered, [`static-map.js`](src/services/static-map.js) extended for multiple points) centred on the midpoint, plus the "open in map" link. Controlled by `notifyProximity` (in-app) and `telegramNotifyProximity` (Telegram), independent of each other.
+**Notification** (type `proximity`, see [Notifications](#-port-events-statistics-and-alerts)) — in-app + Telegram, with a **two-pin static map** joined by a line (server-rendered, [`static-map.js`](../../src/services/static-map.js) extended for multiple points) centred on the midpoint, plus the "open in map" link. Controlled by `notifyProximity` (in-app) and `telegramNotifyProximity` (Telegram), independent of each other.
 
 **Risk score** — a confirmed rendezvous adds `RISK_PROXIMITY_POINTS` (default 18) to the score of **both** ships, for rendezvous within the `RISK_PROXIMITY_WINDOW_DAYS` window (default 7 days); the factor counts distinct partner ships. `RISK_PROXIMITY_POINTS=0` disables the factor while leaving the scan running (so the history still accrues). See [Risk score](#-risk-score-potential-arms-transport).
 
@@ -683,7 +683,7 @@ The token lives only in `local.properties` (gitignored, **not** in backups, stay
 
 ### 🔗 Outbound webhooks
 
-Besides Telegram, each user can forward the events of their **own areas** to an **arbitrary URL** (Slack, Discord, a SIEM or a custom endpoint). Per-user like the Telegram link: a webhook only fires for events visible to that user. Backend in [`src/services/webhooks.js`](src/services/webhooks.js), routes in [`src/routes/webhooks.js`](src/routes/webhooks.js), UI in the Settings **External integrations** tab ([`public/js/webhooks.js`](public/js/webhooks.js)).
+Besides Telegram, each user can forward the events of their **own areas** to an **arbitrary URL** (Slack, Discord, a SIEM or a custom endpoint). Per-user like the Telegram link: a webhook only fires for events visible to that user. Backend in [`src/services/webhooks.js`](../../src/services/webhooks.js), routes in [`src/routes/webhooks.js`](../../src/routes/webhooks.js), UI in the Settings **External integrations** tab ([`public/js/webhooks.js`](../../public/js/webhooks.js)).
 
 - **Per webhook**: URL, **format** (`generic` = raw event JSON for SIEM/custom · `slack` = `{text}` · `discord` = `{content}`), **subscribed events** (any subset of `high_risk`, `revisit`, `area_change`, `berth_new`, `berth_characterized`, `proximity`, `outage`), **enabled** on/off, and an optional **secret**.
 - **HMAC signature**: if the webhook has a secret, the POST includes `X-Tracker-Signature: sha256=<HMAC-SHA256(body)>` so the receiver can verify authenticity.
@@ -843,10 +843,10 @@ When upgrading from a previous (single-user) version: when an **old database** (
 
 The app is a **Progressive Web App**: it installs to the home screen (Android/iOS) or as a desktop app (Chrome/Edge) and opens **standalone** (no browser chrome). No store, no build step — these are static files served from `public/`.
 
-- **Manifest** ([`public/manifest.webmanifest`](public/manifest.webmanifest)) — name, icons, `display: standalone`, theme/background colour `#0a0d13`.
-- **Icons** ([`public/icons/`](public/icons/)) — derived from the brand logo [`public/icons/source.png`](public/icons/source.png) (blue tile, white anchor over a map): [`scripts/gen-icons.js`](scripts/gen-icons.js) detects the blue tile, crops it full-bleed (no white corners) and resizes it with `sips` (macOS) into 192/512, 512 *maskable*, `apple-touch-icon` 180, favicon 32. To regenerate after replacing `source.png`: `node scripts/gen-icons.js` (requires macOS; the PNGs are committed, production never runs it).
-- **Service worker** ([`public/sw.js`](public/sw.js)) — registered by `index.html`. Strategy tuned for a **live** tracker: `/api/*` and external origins (Leaflet CDN, OSM/OpenSeaMap tiles) are **never** intercepted or cached (no authenticated or live data lands in the browser cache); the **shell** (HTML/CSS/JS, locales, icons) is *stale-while-revalidate* so the app opens fast and even offline; navigations are *network-first* with a fallback to the cached shell or [`offline.html`](public/offline.html). Bump `CACHE` in `sw.js` to invalidate everything.
-- **Access without a session** — `manifest.webmanifest`, `/sw.js`, `/icons/*` and `/offline.html` are served **before the auth gate** ([`src/app.js`](src/app.js)): the browser loads them on the login page too and registers the SW at scope `/`. The app and data (`/index.html`, `/api/*`) stay protected.
+- **Manifest** ([`public/manifest.webmanifest`](../../public/manifest.webmanifest)) — name, icons, `display: standalone`, theme/background colour `#0a0d13`.
+- **Icons** ([`public/icons/`](../../public/icons/)) — derived from the brand logo [`public/icons/source.png`](../../public/icons/source.png) (blue tile, white anchor over a map): [`scripts/gen-icons.js`](../../scripts/gen-icons.js) detects the blue tile, crops it full-bleed (no white corners) and resizes it with `sips` (macOS) into 192/512, 512 *maskable*, `apple-touch-icon` 180, favicon 32. To regenerate after replacing `source.png`: `node scripts/gen-icons.js` (requires macOS; the PNGs are committed, production never runs it).
+- **Service worker** ([`public/sw.js`](../../public/sw.js)) — registered by `index.html`. Strategy tuned for a **live** tracker: `/api/*` and external origins (Leaflet CDN, OSM/OpenSeaMap tiles) are **never** intercepted or cached (no authenticated or live data lands in the browser cache); the **shell** (HTML/CSS/JS, locales, icons) is *stale-while-revalidate* so the app opens fast and even offline; navigations are *network-first* with a fallback to the cached shell or [`offline.html`](../../public/offline.html). Bump `CACHE` in `sw.js` to invalidate everything.
+- **Access without a session** — `manifest.webmanifest`, `/sw.js`, `/icons/*` and `/offline.html` are served **before the auth gate** ([`src/app.js`](../../src/app.js)): the browser loads them on the login page too and registers the SW at scope `/`. The app and data (`/index.html`, `/api/*`) stay protected.
 
 To install: open the site → browser menu → "Install app" / "Add to Home Screen".
 
@@ -1120,6 +1120,6 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 
 ## 🙏 Credits / third-party sources
 
-AIS outage detection relies on the **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** project by [buttermilkgreen](https://github.com/buttermilkgreen) (**MIT** license) — an uptime monitor for `stream.aisstream.io`. None of its source code is bundled: the app only consumes the **REST API** (`GET /api/v1/status`) through a client written for this project ([`src/services/ais-uptime.js`](src/services/ais-uptime.js)). Being MIT-licensed, the monitor can be **self-hosted**: set your instance's URL in `AIS_UPTIME_SELFHOST_URL` (queried first) and the [public instance](https://aisuptime.buttermilkgreen.fyi) stays only as a fallback. Configurable/disableable via `AIS_UPTIME_SELFHOST_URL` / `AIS_UPTIME_URL` / `AIS_OUTAGE_CHECK`.
+AIS outage detection relies on the **[AISStream-Uptime](https://github.com/buttermilkgreen/AISStream-Uptime)** project by [buttermilkgreen](https://github.com/buttermilkgreen) (**MIT** license) — an uptime monitor for `stream.aisstream.io`. None of its source code is bundled: the app only consumes the **REST API** (`GET /api/v1/status`) through a client written for this project ([`src/services/ais-uptime.js`](../../src/services/ais-uptime.js)). Being MIT-licensed, the monitor can be **self-hosted**: set your instance's URL in `AIS_UPTIME_SELFHOST_URL` (queried first) and the [public instance](https://aisuptime.buttermilkgreen.fyi) stays only as a fallback. Configurable/disableable via `AIS_UPTIME_SELFHOST_URL` / `AIS_UPTIME_URL` / `AIS_OUTAGE_CHECK`.
 
 Other third-party data sources used by the app, each under its own terms: [AISStream.io](https://aisstream.io) (AIS feed), [VesselFinder](https://www.vesselfinder.com) / [MarineTraffic](https://www.marinetraffic.com) (ship enrichment), [Equasis](https://www.equasis.org) (ownership/management), [Global Fishing Watch](https://globalfishingwatch.org) (behavioural events, **free for non-commercial use only**), [OpenSeaMap](https://www.openseamap.org) / [OpenStreetMap](https://www.openstreetmap.org) (nautical layer), and the sanctions/PSC lists (OFAC, EU, UK OFSI, UN, Paris/Tokyo MoU).
