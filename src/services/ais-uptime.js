@@ -153,15 +153,24 @@ async function evaluate() {
 // Follow/heatmap message silence is normal (a followed ship or a quiet grid cell
 // can go silent for a long time without anything being wrong), so — unlike the
 // area/monitoring stream above — we can't use frame silence + external cross-check
-// for them. Instead: a sustained failure to hold a healthy connection for
-// AIS_OUTAGE_SILENCE_MIN minutes is unambiguous on its own, no cross-check needed.
+// for them. Two unambiguous signals instead, either one flags trouble:
+//   - sustained: failed to hold ANY healthy connection for AIS_OUTAGE_SILENCE_MIN
+//     minutes straight (disconnectedSince keeps growing).
+//   - flapping: keeps reconnecting every minute or so — each attempt briefly
+//     clears disconnectedSince (it gets past the healthy mark) so it never
+//     accumulates, but the connection is clearly not stable. Caught by counting
+//     reconnects within the same window instead of their continuous duration.
+const FLAP_RECONNECTS = 3; // reconnects within the window = flapping, not a one-off blip
 function stuckStreams() {
   const stuck = [];
-  const thresholdMs = AIS_OUTAGE_SILENCE_MIN * 60 * 1000;
+  const windowMs = AIS_OUTAGE_SILENCE_MIN * 60 * 1000;
   const now = Date.now();
   for (const [name, mod] of [['follow', shipFollow], ['heatmap', heatmapStream]]) {
     const c = mod.getConnTrouble();
-    if (c.active && c.disconnectedSince && now - c.disconnectedSince >= thresholdMs) stuck.push(name);
+    if (!c.active) continue;
+    const sustained = c.disconnectedSince && now - c.disconnectedSince >= windowMs;
+    const recentReconnects = (c.reconnectLog || []).filter((t) => now - t <= windowMs).length;
+    if (sustained || recentReconnects >= FLAP_RECONNECTS) stuck.push(name);
   }
   return stuck;
 }

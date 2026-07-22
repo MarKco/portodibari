@@ -110,6 +110,7 @@ const s = {
   lastAisError: null,
   lastAisErrorAt: null,
   disconnectedSince: null, // epoch ms since the last time we lost a HEALTHY connection (null when healthy/inactive) — see getConnTrouble
+  reconnectLog: [], // epoch ms of recent reconnect-scheduled events (bounded) — flapping detection, see getConnTrouble
 };
 
 // A followed ship is "stale" once we haven't heard it for FOLLOW_FRESH_MS: its
@@ -325,6 +326,8 @@ function connect() {
     s.wsClient = null;
     if (s.active) {
       if (!s.disconnectedSince) s.disconnectedSince = Date.now();
+      s.reconnectLog.push(Date.now());
+      if (s.reconnectLog.length > 20) s.reconnectLog.shift();
       s.connFailCount++;
       appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec, key: KEY_TAG, ...(s.abuseReason ? { problema: s.abuseReason } : {}) });
       traceKey(FOLLOW_API_KEY, 'follow', 'RECONNECT', { delaySec });
@@ -355,6 +358,7 @@ function connect() {
 function stop() {
   s.active = false;
   s.disconnectedSince = null; // no longer desired-active: not an error state
+  s.reconnectLog = [];
   clearTimeout(s.reconnectTimer);
   clearInterval(s.heartbeatTimer);
   clearTimeout(s.healthyTimer);
@@ -619,10 +623,13 @@ function getStatus() {
 // Cheap, synchronous connectivity signal for the outage banner (services/ais-uptime.js).
 // Unlike the area streams, followed-ship message silence is NORMAL (a ship can be
 // legitimately quiet for months — see FOLLOW_STALE_HOURS), so we can't use frame
-// silence as a stuck signal here. A sustained failure to (re)establish a HEALTHY
-// connection is unambiguous though, so we track `disconnectedSince` instead.
+// silence as a stuck signal here. Two unambiguous signals instead: `disconnectedSince`
+// (a sustained failure to hold a healthy connection at all) and `reconnectLog` (a
+// FLAPPING connection — briefly recovers past the healthy mark each time, so
+// disconnectedSince keeps resetting, but it keeps dropping every minute or so; ais-uptime
+// counts recent entries in a time window to catch this pattern too).
 function getConnTrouble() {
-  return { active: s.active, connected: !!s.wsClient, disconnectedSince: s.disconnectedSince };
+  return { active: s.active, connected: !!s.wsClient, disconnectedSince: s.disconnectedSince, reconnectLog: s.reconnectLog };
 }
 
 function getHealth() {
