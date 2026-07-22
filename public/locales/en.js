@@ -433,6 +433,7 @@ export default {
 
   // ── AIS outage banner ────────────────────────────────────────────────────────
   'outage.banner':  'Possible AISStream outage: no incoming signals and the public monitor reports “{state}” (checked at {time}). Data may not be updating.',
+  'outage.streamBanner': 'AIS connection problem ({stream}): reconnecting for several minutes. Data may not be updating.',
   'outage.dismiss': 'Hide',
 
   // ── Log panel ──────────────────────────────────────────────────────────────

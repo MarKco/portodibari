@@ -433,6 +433,7 @@ export default {
 
   // ── Banner disservizio AIS ───────────────────────────────────────────────────
   'outage.banner':  'Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «{state}» (controllato alle {time}). I dati potrebbero non aggiornarsi.',
+  'outage.streamBanner': 'Problema di connessione AIS ({stream}): la riconnessione è in corso da diversi minuti. I dati potrebbero non aggiornarsi.',
   'outage.dismiss': 'Nascondi',
 
   // ── Log panel ──────────────────────────────────────────────────────────────

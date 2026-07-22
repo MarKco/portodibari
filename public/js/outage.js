@@ -3,8 +3,15 @@
 // The server (services/ais-uptime.js) sets `outage` on the /api/stream/status
 // payload that updateStatus() polls. We show a slim, dismissible banner only
 // when an outage is asserted AND the user is on a monitoring page — never on
-// Settings/Aree. Dismissal is keyed to the outage's `since` timestamp, so a new
-// distinct outage re-shows the banner even after the user closed a previous one.
+// Settings/Aree. Two independent triggers, either one shows the banner:
+//   - `serviceDown` — the area/monitoring stream is silent AND an external
+//     AISStream uptime monitor confirms a real outage.
+//   - `streamIssues` — the follow and/or heatmap stream has been stuck failing
+//     to reconnect for a while (see services/ais-uptime.js — message silence is
+//     normal for those two, so they use a different, unambiguous signal).
+// Dismissal is keyed to the current issue's identity (`since` for serviceDown,
+// the sorted stream list for streamIssues), so a new/different issue re-shows
+// the banner even after the user closed a previous one.
 
 import { el } from './dom.js';
 import { S } from './store.js';
@@ -12,7 +19,8 @@ import { t } from './i18n.js';
 import { formatTime } from './helpers.js';
 
 const MONITORING_VIEWS = new Set(['active', 'past', 'traffico', 'followed', 'detail']);
-let dismissedSince = null;
+const STREAM_LABEL_KEY = { follow: 'sidebar.followed', heatmap: 'settings.group.heatmap' };
+let dismissedKey = null;
 
 /** Store the latest outage verdict from the server and refresh the banner. */
 export function setOutage(outage) {
@@ -20,19 +28,33 @@ export function setOutage(outage) {
   applyOutageBanner();
 }
 
+function currentKey(o) {
+  const streamIssues = o?.streamIssues || [];
+  if (o?.serviceDown) return o.since;
+  if (streamIssues.length) return `streams:${streamIssues.join(',')}`;
+  return null;
+}
+
 /** Show/hide the banner from the current outage state + active view. */
 export function applyOutageBanner() {
   const banner = el.outageBanner;
   if (!banner) return;
   const o = S.outage;
-  const show =
-    !!o && o.serviceDown && MONITORING_VIEWS.has(S.view) && dismissedSince !== o.since;
+  const streamIssues = o?.streamIssues || [];
+  const active = !!o && (o.serviceDown || streamIssues.length > 0);
+  const key = currentKey(o);
+  const show = active && MONITORING_VIEWS.has(S.view) && dismissedKey !== key;
   if (!show) {
     banner.classList.add('hidden');
     return;
   }
-  const when = o.checkedAt ? formatTime(o.checkedAt) : '—';
-  el.outageBannerText.textContent = t('outage.banner', { state: o.monitorState || '—', time: when });
+  if (o.serviceDown) {
+    const when = o.checkedAt ? formatTime(o.checkedAt) : '—';
+    el.outageBannerText.textContent = t('outage.banner', { state: o.monitorState || '—', time: when });
+  } else {
+    const names = streamIssues.map((k) => t(STREAM_LABEL_KEY[k] || k)).join(', ');
+    el.outageBannerText.textContent = t('outage.streamBanner', { stream: names });
+  }
   banner.classList.remove('hidden');
 }
 
@@ -40,7 +62,7 @@ export function applyOutageBanner() {
 export function initOutageBanner() {
   if (el.outageBannerClose) {
     el.outageBannerClose.addEventListener('click', () => {
-      dismissedSince = S.outage ? S.outage.since : null;
+      dismissedKey = currentKey(S.outage);
       applyOutageBanner();
     });
   }

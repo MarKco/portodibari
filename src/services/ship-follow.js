@@ -109,6 +109,7 @@ const s = {
   staleCount: 0, // followed ships currently re-acquired via the worldwide box
   lastAisError: null,
   lastAisErrorAt: null,
+  disconnectedSince: null, // epoch ms since the last time we lost a HEALTHY connection (null when healthy/inactive) — see getConnTrouble
 };
 
 // A followed ship is "stale" once we haven't heard it for FOLLOW_FRESH_MS: its
@@ -200,7 +201,7 @@ function connect() {
     // infinite reconnect loop. Reset only once the connection proves healthy — a
     // grace period elapses, or the first real ship message arrives.
     clearTimeout(s.healthyTimer);
-    s.healthyTimer = setTimeout(() => { if (s.wsClient === ws) s.connFailCount = 0; }, 30000);
+    s.healthyTimer = setTimeout(() => { if (s.wsClient === ws) { s.connFailCount = 0; s.disconnectedSince = null; } }, 30000);
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
 
@@ -240,6 +241,7 @@ function connect() {
       }
       if (!parsed.MessageType) return;
       s.connFailCount = 0; // subscription accepted & delivering: healthy
+      s.disconnectedSince = null;
 
       const t0 = Date.now();
       const lat = parsed.MetaData?.latitude ?? null;
@@ -322,6 +324,7 @@ function connect() {
     );
     s.wsClient = null;
     if (s.active) {
+      if (!s.disconnectedSince) s.disconnectedSince = Date.now();
       s.connFailCount++;
       appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'follow', upSec, delaySec, key: KEY_TAG, ...(s.abuseReason ? { problema: s.abuseReason } : {}) });
       traceKey(FOLLOW_API_KEY, 'follow', 'RECONNECT', { delaySec });
@@ -351,6 +354,7 @@ function connect() {
 // Tear down the connection and stop reconnecting (used when nothing is followed).
 function stop() {
   s.active = false;
+  s.disconnectedSince = null; // no longer desired-active: not an error state
   clearTimeout(s.reconnectTimer);
   clearInterval(s.heartbeatTimer);
   clearTimeout(s.healthyTimer);
@@ -612,6 +616,15 @@ function getStatus() {
   return { active: s.active, connected: !!s.wsClient, followedCount: s.followedCount, staleCount: s.staleCount, lookupCount: lookups.size, reacquireCount: reacquires.size, totalReceived: s.totalReceived };
 }
 
+// Cheap, synchronous connectivity signal for the outage banner (services/ais-uptime.js).
+// Unlike the area streams, followed-ship message silence is NORMAL (a ship can be
+// legitimately quiet for months — see FOLLOW_STALE_HOURS), so we can't use frame
+// silence as a stuck signal here. A sustained failure to (re)establish a HEALTHY
+// connection is unambiguous though, so we track `disconnectedSince` instead.
+function getConnTrouble() {
+  return { active: s.active, connected: !!s.wsClient, disconnectedSince: s.disconnectedSince };
+}
+
 function getHealth() {
   const uptimeSec = s.connectedAt ? Math.round((Date.now() - s.connectedAt) / 1000) : 0;
   const msgPerMin = uptimeSec > 0 ? Math.round((s.sessionMessages / uptimeSec) * 60) : null;
@@ -635,4 +648,4 @@ function getHealth() {
   };
 }
 
-module.exports = { init, refresh, stop, addLookup, removeLookup, startReacquire, cancelReacquire, applyFollow, getStatus, getHealth };
+module.exports = { init, refresh, stop, addLookup, removeLookup, startReacquire, cancelReacquire, applyFollow, getStatus, getHealth, getConnTrouble };

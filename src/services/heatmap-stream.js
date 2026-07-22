@@ -66,6 +66,7 @@ const s = {
   lastErrorAt: null,
   abuseReason: null, // human reason when the last failure is a key over-use (429) problem
   lastSample: null, // { t, bytes, msgs } rolling sample for instantaneous rate
+  disconnectedSince: null, // epoch ms since the last time we lost a HEALTHY connection (null when healthy/inactive) — see getConnTrouble
 };
 
 function isEnabled() {
@@ -182,8 +183,13 @@ function connect() {
     );
     s.wsClient = null;
     if (s.active) {
-      if (s.msgReceived === 0) s.consecutiveFailures++;
-      else s.consecutiveFailures = 0;
+      if (s.msgReceived === 0) {
+        s.consecutiveFailures++;
+        if (!s.disconnectedSince) s.disconnectedSince = Date.now();
+      } else {
+        s.consecutiveFailures = 0;
+        s.disconnectedSince = null;
+      }
       // Share the exponential backoff + 429 floor with the other two streams: a
       // 429/over-use failure (s.abuseReason set) raises the floor to
       // RECONNECT_429_DELAY_MS so we stop reconnecting INTO AISStream's not-yet-freed
@@ -257,6 +263,7 @@ function startCollection() {
 function stopCollection() {
   db.setMeta(META_KEY, '0');
   s.active = false;
+  s.disconnectedSince = null; // no longer desired-active: not an error state
   clearTimeout(s.reconnectTimer);
   clearInterval(s.heartbeatTimer);
   s.reconnectTimer = null;
@@ -392,6 +399,13 @@ function getHealth() {
   };
 }
 
+// Cheap, synchronous connectivity signal for the outage banner (services/ais-uptime.js).
+// See ship-follow.getConnTrouble for why we track `disconnectedSince` (sustained
+// failure to hold a healthy connection) instead of message silence.
+function getConnTrouble() {
+  return { active: s.active, connected: !!s.wsClient, disconnectedSince: s.disconnectedSince };
+}
+
 /** Wipe all computed data (pending deltas + persisted cells). */
 function reset() {
   cells.clear();
@@ -411,6 +425,7 @@ module.exports = {
   removeViewer,
   getLiveStats,
   getHealth,
+  getConnTrouble,
   getCells: () => heatmapDb.getCells(),
   getCellsAgg: (opts) => heatmapDb.getCellsAgg(opts),
   reset,

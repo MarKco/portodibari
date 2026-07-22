@@ -24,6 +24,8 @@
 
 const appLog = require('./app-log');
 const stream = require('./ais-stream');
+const shipFollow = require('./ship-follow');
+const heatmapStream = require('./heatmap-stream');
 const {
   AIS_OUTAGE_CHECK,
   AIS_OUTAGE_SILENCE_MIN,
@@ -148,9 +150,27 @@ async function evaluate() {
   }
 }
 
-/** Current outage verdict (cheap; served on every status poll). */
+// Follow/heatmap message silence is normal (a followed ship or a quiet grid cell
+// can go silent for a long time without anything being wrong), so — unlike the
+// area/monitoring stream above — we can't use frame silence + external cross-check
+// for them. Instead: a sustained failure to hold a healthy connection for
+// AIS_OUTAGE_SILENCE_MIN minutes is unambiguous on its own, no cross-check needed.
+function stuckStreams() {
+  const stuck = [];
+  const thresholdMs = AIS_OUTAGE_SILENCE_MIN * 60 * 1000;
+  const now = Date.now();
+  for (const [name, mod] of [['follow', shipFollow], ['heatmap', heatmapStream]]) {
+    const c = mod.getConnTrouble();
+    if (c.active && c.disconnectedSince && now - c.disconnectedSince >= thresholdMs) stuck.push(name);
+  }
+  return stuck;
+}
+
+/** Current outage verdict (cheap; served on every status poll). Recomputes the
+ *  follow/heatmap connectivity signal fresh on every call (no interval needed —
+ *  it's a plain state read, not a network probe). */
 function getOutage() {
-  return outage;
+  return { ...outage, streamIssues: stuckStreams() };
 }
 
 /** Start the periodic silence/uptime evaluation. No-op when disabled. */
