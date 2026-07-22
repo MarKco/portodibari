@@ -601,6 +601,8 @@ select:focus { outline: none; border-color: var(--border-focus); }
 #table-wrap-active,
 #table-wrap-past,
 #table-wrap-detail,
+#table-wrap-foll-active,
+#table-wrap-foll-past,
 #table-wrap {
   overflow-x: auto;
   border-radius: var(--r-md);
