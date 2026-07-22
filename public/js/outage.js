@@ -19,7 +19,7 @@ import { t } from './i18n.js';
 import { formatTime } from './helpers.js';
 
 const MONITORING_VIEWS = new Set(['active', 'past', 'traffico', 'followed', 'detail']);
-const STREAM_LABEL_KEY = { follow: 'sidebar.followed', heatmap: 'settings.group.heatmap' };
+const STREAM_LABEL_KEY = { monitoring: 'health.streamMonitoring', follow: 'sidebar.followed', heatmap: 'settings.group.heatmap' };
 let dismissedKey = null;
 
 /** Store the latest outage verdict from the server and refresh the banner. */

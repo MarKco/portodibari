@@ -571,7 +571,7 @@ Mostra lo stato della connessione al flusso dati (si aggiorna ogni 5 s):
 
 Se per alcuni minuti un monitoraggio attivo non riceve **nessun segnale AIS**, l'app verifica lo stato del servizio con un monitor di uptime indipendente. Solo se anche quello conferma il disservizio, in cima alle pagine di monitoraggio compare un avviso giallo. Se l'area è semplicemente silenziosa ma il servizio è attivo, non compare alcun avviso.
 
-Lo stesso avviso compare anche se lo stream delle **navi seguite** resta bloccato nel tentativo di riconnettersi per alcuni minuti (in questo caso senza bisogno di conferma esterna, perché una nostra connessione che non riparte è un segnale inequivocabile). In entrambi i casi puoi chiudere l'avviso con **✕**; scompare da solo quando la connessione torna stabile.
+Lo stesso avviso compare anche se un monitoraggio o lo stream delle **navi seguite** resta bloccato a riconnettersi ripetutamente per alcuni minuti — senza mai stabilizzarsi, anche quando ogni singolo tentativo dura solo pochi secondi (in questo caso senza bisogno di conferma esterna, perché una nostra connessione che non si stabilizza è un segnale inequivocabile). In entrambi i casi puoi chiudere l'avviso con **✕**; scompare da solo quando la connessione torna stabile.
 
 ---
 

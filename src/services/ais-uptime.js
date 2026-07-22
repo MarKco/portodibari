@@ -151,9 +151,18 @@ async function evaluate() {
 }
 
 // Follow/heatmap message silence is normal (a followed ship or a quiet grid cell
-// can go silent for a long time without anything being wrong), so — unlike the
-// area/monitoring stream above — we can't use frame silence + external cross-check
-// for them. Two unambiguous signals instead, either one flags trouble:
+// can go silent for a long time without anything being wrong), so they can't use
+// evaluate()'s frame-silence + external cross-check above. But there's a SEPARATE
+// failure mode that affects all three streams equally, monitoring included: never
+// managing to hold a connection long enough to even become silent (or silent-and-
+// data-flowing) in the first place — it keeps closing (503 / socket hang up / 1006)
+// within seconds of connecting, over and over. evaluate()'s silentMs is computed
+// from connectedAt when no frame has ever arrived, and connectedAt resets on every
+// single reconnect — so pure flapping NEVER accumulates enough silence to even
+// reach the external-monitor cross-check. That's unambiguous on its own (repeatedly
+// failing to hold OUR OWN socket open has nothing to do with area traffic being
+// quiet), so it doesn't need the cross-check either. Two signals, either flags
+// trouble:
 //   - sustained: failed to hold ANY healthy connection for AIS_OUTAGE_SILENCE_MIN
 //     minutes straight (disconnectedSince keeps growing).
 //   - flapping: keeps reconnecting every minute or so — each attempt briefly
@@ -165,7 +174,7 @@ function stuckStreams() {
   const stuck = [];
   const windowMs = AIS_OUTAGE_SILENCE_MIN * 60 * 1000;
   const now = Date.now();
-  for (const [name, mod] of [['follow', shipFollow], ['heatmap', heatmapStream]]) {
+  for (const [name, mod] of [['monitoring', stream], ['follow', shipFollow], ['heatmap', heatmapStream]]) {
     const c = mod.getConnTrouble();
     if (!c.active) continue;
     const sustained = c.disconnectedSince && now - c.disconnectedSince >= windowMs;

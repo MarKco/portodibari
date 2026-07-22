@@ -16,7 +16,7 @@
  *
  * Bump CACHE to invalidate everything on the next visit.
  */
-const CACHE = 'tp-shell-v6';
+const CACHE = 'tp-shell-v7';
 const PRECACHE = [
   '/',
   '/index.html',

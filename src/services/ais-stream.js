@@ -45,6 +45,8 @@ const conn = {
   sessionMessages: 0,
   lastAisError: null,
   lastAisErrorAt: null,
+  disconnectedSince: null, // epoch ms since the last time we lost a HEALTHY connection (null when healthy/inactive) — see getConnTrouble
+  reconnectLog: [], // epoch ms of recent reconnect-scheduled events (bounded) — flapping detection, see getConnTrouble
 };
 
 // Per-area bookkeeping (the desired-active flag + a lifetime message counter for
@@ -168,7 +170,7 @@ function connect() {
     // reconnect loop that never backed off. Reset only once the connection proves
     // healthy — a grace period elapses, or the first real ship message arrives.
     clearTimeout(conn.healthyTimer);
-    conn.healthyTimer = setTimeout(() => { if (conn.wsClient === ws) conn.connFailCount = 0; }, 30000);
+    conn.healthyTimer = setTimeout(() => { if (conn.wsClient === ws) { conn.connFailCount = 0; conn.disconnectedSince = null; } }, 30000);
     if (conn.isFirstConnect) conn.isFirstConnect = false;
     else conn.reconnectCount++;
 
@@ -227,6 +229,7 @@ function connect() {
       if (parsed.MessageType) {
         lastFrameAt = Date.now(); // a real ship message: the pipe is alive
         conn.connFailCount = 0; // subscription accepted & delivering: healthy
+        conn.disconnectedSince = null;
         const t0 = Date.now();
         // Attribute the message to the (tightest) active area covering its
         // position — replaces the old "one socket per area knows its own key".
@@ -374,6 +377,9 @@ function connect() {
     );
     conn.wsClient = null;
     if (conn.active && activeKeys().length) {
+      if (!conn.disconnectedSince) conn.disconnectedSince = Date.now();
+      conn.reconnectLog.push(Date.now());
+      if (conn.reconnectLog.length > 20) conn.reconnectLog.shift();
       conn.connFailCount++;
       console.log(`[AIS:monitoring] Riconnessione in ${delaySec}s...`);
       appLog.warn('AIS', appLog.t('ais.conn_closed_reconnect', { code, delaySec }), { area: 'monitoring', upSec, delaySec, key: KEY_TAG, ...(conn.abuseReason ? { problema: conn.abuseReason } : {}) });
@@ -411,6 +417,8 @@ function connect() {
 // Tear the shared connection down and stop reconnecting (no area is active).
 function teardown() {
   conn.active = false;
+  conn.disconnectedSince = null; // no longer desired-active: not an error state
+  conn.reconnectLog = [];
   clearTimeout(conn.reconnectTimer);
   clearInterval(conn.heartbeatTimer);
   clearTimeout(conn.healthyTimer);
@@ -481,6 +489,16 @@ function getSilenceInfo() {
   if (!activeKeys().length) return { active: false, silentMs: 0, lastFrameAt };
   const ref = lastFrameAt || conn.connectedAt || Date.now();
   return { active: true, silentMs: Date.now() - ref, lastFrameAt };
+}
+
+// Cheap, synchronous connectivity signal for the outage banner (services/ais-uptime.js).
+// getSilenceInfo() above is ambiguous on its own — a connected-but-quiet area looks
+// identical to a dead pipe, hence the external-monitor cross-check. But a stream that
+// can't even hold a connection (repeatedly closes right after connecting, before any
+// ship message resets connectedAt) is unambiguous: `disconnectedSince`/`reconnectLog`
+// catch that case directly, no cross-check needed — same signal used for follow/heatmap.
+function getConnTrouble() {
+  return { active: conn.active, connected: !!conn.wsClient, disconnectedSince: conn.disconnectedSince, reconnectLog: conn.reconnectLog };
 }
 
 function getStatus() {
@@ -565,6 +583,7 @@ module.exports = {
   getStatus,
   getHealth,
   getSilenceInfo,
+  getConnTrouble,
   syncActiveStreams,
   resumeActiveStreams,
 };
