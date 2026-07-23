@@ -571,13 +571,29 @@ On the **Followed ships** map, a ship whose AIS stream has gone dark — but whi
 
 **In short**: AIS is the **primary** source for ship state (risk, current position), and exclusive for risk. SF and MST are **display-only fallbacks**: they show as amber/teal breadcrumbs in the detail view, as a **grey marker on the followed-ships map** when AIS has gone dark, and — optionally, via the *Include SF/MST* toggle — in the **single-ship track** and the area **historical replay**; never overwriting the AIS position.
 
-#### Followed-ships map: name labels + recent trail
+#### Map overlay buttons: name labels, recent trail, crowding threshold
 
-Two Leaflet buttons in the top-right corner of the followed-ships map (`public/js/maps.js` → `addFollowedMapToggleControl()`) independently toggle a **name label** next to each marker (permanent Leaflet tooltip, `.ship-name-label` class) and a **small recent-trail breadcrumb** (thin polyline, same colour as the marker, drawn behind it).
+The followed-ships and area ("Navi presenti") maps share a small Leaflet button factory (`public/js/maps.js` → `createMapToggleControl(map, buttons)`): a top-right control bar with one icon per toggle, each bound to a persisted `S[key]` boolean. Each button is **icon-only** (🏷/〰): the explanation of what it does is a **hover overlay**, not visible text next to the icon nor the browser's native `title` — a short "Names"-style caption next to the icon turned out too terse to be clear. The button carries `data-tip="<explanation>"` and reuses the **glossary-tooltip system already built for the Equasis "ⓘ" icons** (`initGlossaryTooltip()` in `public/js/main.js`, selector extended to `.map-toggle-buttons a[data-tip]`): a fixed div positioned below/above the element on `mouseover`, no new component.
 
-- **Data source** — `GET /api/ships/followed/active` attaches a `trail` field to each ship: the last `FOLLOWED_TRAIL_LIMIT` (12) positions within the last `FOLLOWED_TRAIL_HOURS` (6h), computed in **one batch query** with `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` (`db.getFollowedTrails`, [`src/db.js`](../../src/db.js)) instead of N per-ship round trips. Sources: `ais` always, plus `sf`/`mst` when those integrations are enabled (same rule as the single-ship track).
-- **Persistence** — both toggle states live in `user_settings` (`showFollowedShipNames`/`showFollowedTrails`, both default `true`), managed by [`src/services/user-prefs.js`](../../src/services/user-prefs.js) and mirrored to group co-members like the other map-display toggles ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). No DB schema impact: plain key/value rows in the existing table, not new columns.
-- **No impact on track/risk** — the trail is purely illustrative: same `readings` queries used elsewhere, no new table, no extra network round trip (the data already rides inside the `/followed/active` response).
+- **Followed ships** (`initFollowedMap`) — two buttons: **🏷** (`showFollowedShipNames`) and **〰** (`showFollowedTrails`, small trail — thin polyline in the marker's own colour, drawn behind it). `syncFollowedMapToggleButtons()` re-syncs button state after `/api/settings` resolves.
+- **Area/current ships** (`initActiveMap`) — two buttons: **🏷** (`showActiveShipNames`, default **on**) and **〰** (`showActiveTrails`, default **off** — an area can hold far more ships than a hand-picked followed list, so the trail starts disabled). `syncActiveMapToggleButtons()` is the equivalent for this map.
+
+**Shared crowding threshold** (`ACTIVE_MAP_CROWD_THRESHOLD` = 20 plotted ships, in `maps.js`) governs both area-map toggles:
+
+| Below threshold (≤20 ships) | Above threshold (>20 ships) |
+|---|---|
+| Name: **permanent** Leaflet tooltip | Name: **hover-only** tooltip (`permanent:false`, Leaflet's default hover behaviour, no extra listeners) |
+| Trail: polyline drawn for **every** ship | Trail: **no** permanent polyline; drawn **only for the ship under the mouse** (`marker.on('mouseover'/'mouseout')`, a single transient polyline kept in `activeHoverTrail`, removed on `mouseout` or the next render) |
+
+Avoids unreadable overlap in busy ports without hiding the information outright: the user recovers it by hovering the individual ship.
+
+Both name labels share the `.ship-name-label` CSS class; the buttons share `.map-toggle-buttons`.
+
+- **Trail data source** — `db.getRecentTrails(mmsis, limit, sinceIso, sources)` ([`src/db.js`](../../src/db.js)) is a generic function (renamed from `getFollowedTrails`): one batch query with `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` for the whole ship group instead of N per-ship round trips. `TRAIL_LIMIT`/`TRAIL_HOURS` (12 points / 6h) and `trailSources()` (`['ais']` plus `sf`/`mst` when enabled) are shared in [`src/routes/ships.js`](../../src/routes/ships.js) by both routes:
+  - `GET /api/ships/followed/active` always attaches a `trail` field to each followed ship (small list, no cost worth avoiding).
+  - `GET /api/ships/active` computes `trail` **only if** the query string includes `?trails=1` — the client adds it when `S.showActiveTrails` is on (`ships.js` → `loadActive()`), so the extra batch query never runs while the toggle (default off) stays off.
+- **Persistence** — all four toggles (`showFollowedShipNames`, `showFollowedTrails`, `showActiveShipNames` default `true`; `showActiveTrails` default `false`) live in `user_settings`, managed by [`src/services/user-prefs.js`](../../src/services/user-prefs.js) and mirrored to group co-members like the other map-display toggles ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). No DB schema impact: plain key/value rows in the existing table, not new columns.
+- **No impact on track/risk** — purely illustrative: same `readings` queries used elsewhere, no new table.
 
 ### Proactive enrichment on first detection
 

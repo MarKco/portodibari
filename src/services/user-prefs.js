@@ -42,6 +42,11 @@ const DEFAULTS = {
   // its small recent-trail breadcrumb.
   showFollowedShipNames: true,
   showFollowedTrails: true,
+  // Area map overlay toggles: name label (see showFollowedShipNames) + trail,
+  // opt-in and off by default since an area can hold many more ships than a
+  // hand-picked followed list.
+  showActiveShipNames: true,
+  showActiveTrails: false,
   lang: 'it',
   defaultArea: null,
 };
@@ -49,7 +54,7 @@ const DEFAULTS = {
 const BOOL_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
   'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
-  'showFollowedShipNames', 'showFollowedTrails',
+  'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
   'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',

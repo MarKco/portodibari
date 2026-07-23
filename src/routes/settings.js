@@ -88,6 +88,8 @@ router.get('/settings', (req, res) => {
     openSeaMapHidden: prefs.openSeaMapHidden,
     showFollowedShipNames: prefs.showFollowedShipNames,
     showFollowedTrails: prefs.showFollowedTrails,
+    showActiveShipNames: prefs.showActiveShipNames,
+    showActiveTrails: prefs.showActiveTrails,
     // ── Global (admin-managed; shown read-only to non-admins) ──
     importVfData: state.importVfData,
     importMtData: state.importMtData,
@@ -382,7 +384,7 @@ router.post('/settings', (req, res) => {
   const personalKeys = [
     'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
     'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
-    'showFollowedShipNames', 'showFollowedTrails',
+    'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
   ];
   const personalPatch = {};
   for (const k of personalKeys) if (b[k] !== undefined) personalPatch[k] = b[k];
@@ -539,6 +541,8 @@ router.post('/settings', (req, res) => {
     openSeaMapHidden: prefs.openSeaMapHidden,
     showFollowedShipNames: prefs.showFollowedShipNames,
     showFollowedTrails: prefs.showFollowedTrails,
+    showActiveShipNames: prefs.showActiveShipNames,
+    showActiveTrails: prefs.showActiveTrails,
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSfData: state.importSfData,

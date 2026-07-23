@@ -586,13 +586,29 @@ Nella mappa delle **Navi seguite** una nave il cui stream AIS è andato silente 
 
 **In sintesi**: AIS è la fonte **primaria** per lo stato nave (rischio, posizione corrente) ed esclusiva per il rischio. SF e MST sono **fallback di sola visualizzazione**: appaiono come breadcrumb ambra/teal nel dettaglio, come **marker grigio sulla mappa delle navi seguite** quando l'AIS è andato silente, e — opzionalmente, col toggle *Includi SF/MST* — nella **traccia della singola nave** e nel **replay storico** dell'area; senza mai sovrascrivere la posizione AIS.
 
-#### Mappa "Navi seguite": nomi ed etichette + scia recente
+#### Pulsanti overlay mappa: etichette nome, scia recente, soglia di affollamento
 
-Due pulsanti Leaflet in alto a destra sulla mappa "Navi seguite" (`public/js/maps.js` → `addFollowedMapToggleControl()`) attivano/disattivano indipendentemente **l'etichetta col nome nave** accanto a ogni marker (tooltip Leaflet permanente, classe `.ship-name-label`) e una **piccola scia** del tragitto recente (polilinea sottile, stesso colore del marker, dietro di esso).
+Le mappe "Navi seguite" e "Navi presenti" condividono una piccola factory di pulsanti Leaflet (`public/js/maps.js` → `createMapToggleControl(map, buttons)`): un controllo in alto a destra con una icona per toggle, ogni bottone legato a un booleano `S[key]` persistito server-side. Ogni bottone è **solo icona** (🏷/〰): la spiegazione di cosa fa è un **overlay al passaggio del mouse**, non testo visibile accanto all'icona né il `title` nativo del browser — un'etichetta breve tipo "Nomi" accanto all'icona si era rivelata poco chiara. Il bottone porta `data-tip="<spiegazione>"` e riusa il **sistema di tooltip già esistente per le icone "ⓘ" di Equasis** (`initGlossaryTooltip()` in `public/js/main.js`, selettore esteso a `.map-toggle-buttons a[data-tip]`): un div fisso posizionato sotto/sopra l'elemento al `mouseover`, nessun nuovo componente.
 
-- **Sorgente dati** — `GET /api/ships/followed/active` allega a ogni nave un campo `trail`: le ultime `FOLLOWED_TRAIL_LIMIT` (12) posizioni entro le ultime `FOLLOWED_TRAIL_HOURS` (6h), calcolate in **un'unica query batch** con `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` (`db.getFollowedTrails`, [`src/db.js`](../../src/db.js)) invece di N round-trip per nave. Sorgenti: `ais` sempre, più `sf`/`mst` quando i rispettivi import sono abilitati (stesso criterio della traccia singola).
-- **Persistenza** — stato dei due toggle in `user_settings` (`showFollowedShipNames`/`showFollowedTrails`, default entrambi `true`), gestiti da [`src/services/user-prefs.js`](../../src/services/user-prefs.js) e propagati ai co-membri di gruppo come gli altri toggle di visualizzazione mappa ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). Nessun impatto sullo schema DB: sono righe key/value nella tabella esistente, non nuove colonne.
-- **Nessun impatto su traccia/rischio** — la scia è puramente illustrativa: stesse query `readings` già usate altrove, nessuna nuova tabella, nessuna richiesta di rete aggiuntiva (i dati viaggiano già dentro la risposta di `/followed/active`).
+- **Navi seguite** (`initFollowedMap`) — due pulsanti: **🏷** (`showFollowedShipNames`) e **〰** (`showFollowedTrails`, piccola scia — polilinea sottile dello stesso colore del marker, dietro di esso). `syncFollowedMapToggleButtons()` riallinea lo stato dei bottoni dopo il caricamento di `/api/settings`.
+- **Navi presenti/area** (`initActiveMap`) — due pulsanti: **🏷** (`showActiveShipNames`, default **ON**) e **〰** (`showActiveTrails`, default **OFF** — un'area può avere molte più navi di un elenco seguite scelto a mano, quindi la scia parte disattivata). `syncActiveMapToggleButtons()` è l'equivalente per quest'area.
+
+**Soglia di affollamento condivisa** (`ACTIVE_MAP_CROWD_THRESHOLD` = 20 navi plottate, in `maps.js`) governa entrambi i toggle dell'area map:
+
+| Sotto soglia (≤20 navi) | Sopra soglia (>20 navi) |
+|---|---|
+| Nome: tooltip Leaflet **permanente** | Nome: tooltip **on-hover** (`permanent:false`, comportamento hover di default di Leaflet, nessun listener aggiuntivo) |
+| Scia: polilinea disegnata per **tutte** le navi | Scia: **nessuna** polilinea fissa; disegnata **solo per la nave sotto il mouse** (`marker.on('mouseover'/'mouseout')`, un'unica polilinea transitoria tenuta in `activeHoverTrail`, rimossa al `mouseout` o al render successivo) |
+
+Evita sovrapposizioni illeggibili nei porti affollati senza nascondere del tutto l'informazione: l'utente la recupera passando il mouse sulla singola nave.
+
+Entrambe le etichette nome usano la stessa classe CSS `.ship-name-label`; i pulsanti condividono `.map-toggle-buttons`.
+
+- **Sorgente dati scia** — `db.getRecentTrails(mmsis, limit, sinceIso, sources)` ([`src/db.js`](../../src/db.js)) è una funzione generica (rinominata da `getFollowedTrails`): una query batch con `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` per l'intero gruppo di navi invece di N round-trip. `TRAIL_LIMIT`/`TRAIL_HOURS` (12 punti / 6h) e `trailSources()` (`['ais']` + `sf`/`mst` se abilitati) sono condivisi in [`src/routes/ships.js`](../../src/routes/ships.js) da entrambe le rotte:
+  - `GET /api/ships/followed/active` allega sempre un campo `trail` a ogni nave seguita (elenco piccolo, nessun costo da evitare).
+  - `GET /api/ships/active` calcola `trail` **solo se** la query string include `?trails=1` — il client la aggiunge quando `S.showActiveTrails` è attivo (`ships.js` → `loadActive()`), così la query batch extra non gira affatto quando il toggle (default off) resta spento.
+- **Persistenza** — tutti e quattro i toggle (`showFollowedShipNames`, `showFollowedTrails`, `showActiveShipNames` default `true`; `showActiveTrails` default `false`) in `user_settings`, gestiti da [`src/services/user-prefs.js`](../../src/services/user-prefs.js) e propagati ai co-membri di gruppo come gli altri toggle di visualizzazione mappa ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). Nessun impatto sullo schema DB: sono righe key/value nella tabella esistente, non nuove colonne.
+- **Nessun impatto su traccia/rischio** — puramente illustrativi: stesse query `readings` già usate altrove, nessuna nuova tabella.
 
 ### Arricchimento proattivo alla prima rilevazione
 

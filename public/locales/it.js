@@ -243,9 +243,7 @@ export default {
   'follow.staleTip': 'Nessun segnale AIS ricevuto. La nave viene cercata in tutto il mondo per un massimo di {months} mesi. Se riprende a trasmettere riceverai una notifica.',
   'follow.searchingNoPosOne': 'nave in ricerca senza posizione nota',
   'follow.searchingNoPosMany': 'navi in ricerca senza posizione nota',
-  'follow.toggleNames': 'Nomi',
   'follow.toggleNamesTip': 'Mostra/nascondi il nome accanto a ogni marker',
-  'follow.toggleTrails': 'Scie',
   'follow.toggleTrailsTip': 'Mostra/nascondi il tragitto recente di ogni nave',
   'ago.now':   'pochi istanti',
   'ago.min1':  '{n} minuto',
@@ -304,6 +302,8 @@ export default {
   'map.risk':     '🎯 Rischio:',
   'map.play':     'Riproduci percorso',
   'map.pause':    'Pausa',
+  'map.toggleNamesTip': 'Mostra il nome accanto a ogni nave (fisso se poche navi, al passaggio del mouse se tante)',
+  'map.toggleTrailsTip': 'Mostra il tragitto recente di ogni nave (fisso se poche navi, al passaggio del mouse sulla singola nave se tante). Spento di default.',
 
   // ── Pagination ─────────────────────────────────────────────────────────────
   'page.prev': '← Prec',

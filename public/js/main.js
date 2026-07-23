@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
 import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
-import { refreshTrack, syncFollowedMapToggleButtons } from './maps.js';
+import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay, exitReplay } from './replay.js';
@@ -205,6 +205,9 @@ async function loadSettings() {
     S.showFollowedShipNames = s.showFollowedShipNames !== false;
     S.showFollowedTrails = s.showFollowedTrails !== false;
     syncFollowedMapToggleButtons();
+    S.showActiveShipNames = s.showActiveShipNames !== false;
+    S.showActiveTrails = s.showActiveTrails === true;
+    syncActiveMapToggleButtons();
     applyOpenSeaMap(); // sync any maps already created before settings loaded
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;
@@ -1777,12 +1780,13 @@ function initGlossaryTooltip() {
     tip.style.left = left + 'px';
   }
 
+  const TIP_SELECTOR = '.eq-info[data-tip], .follow-search-badge[data-tip], .map-toggle-buttons a[data-tip]';
   document.addEventListener('mouseover', (e) => {
-    const icon = e.target.closest('.eq-info[data-tip], .follow-search-badge[data-tip]');
+    const icon = e.target.closest(TIP_SELECTOR);
     if (icon) show(icon);
   });
   document.addEventListener('mouseout', (e) => {
-    const icon = e.target.closest('.eq-info[data-tip], .follow-search-badge[data-tip]');
+    const icon = e.target.closest(TIP_SELECTOR);
     if (icon && !icon.contains(e.relatedTarget)) tip.classList.add('hidden');
   });
 }

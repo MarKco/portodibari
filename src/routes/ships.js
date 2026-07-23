@@ -135,6 +135,16 @@ router.param('mmsi', (req, res, next, val) => {
   next();
 });
 
+// Small recent-trail breadcrumb drawn under a map marker (navi seguite always,
+// area map opt-in via ?trails=1) — where a ship is coming from at a glance.
+// AIS-only by default, widened with SF/MST scraped fixes when those
+// integrations are enabled (same sources the single-ship track view offers).
+const TRAIL_LIMIT = 12;
+const TRAIL_HOURS = 6;
+function trailSources() {
+  return ['ais', ...(state.importSfData ? ['sf'] : []), ...(state.importMstData ? ['mst'] : [])];
+}
+
 // Literal sub-paths must be declared before the `:mmsi` parameter route.
 router.get('/ships/active', (req, res) => {
   const lang = req.query.lang || 'it';
@@ -143,6 +153,13 @@ router.get('/ships/active', (req, res) => {
     .getActiveShips(null, userScope(req))
     .map((s) => decorate(s, sets, lang, true))
     .sort(flaggedFirst);
+  // Trail data costs a batch query — only computed when the client actually
+  // wants it (area-map trail toggle is opt-in, default off).
+  if (req.query.trails === '1') {
+    const trailSince = new Date(Date.now() - TRAIL_HOURS * 3600000).toISOString();
+    const trails = db.getRecentTrails(ships.map((s) => s.mmsi), TRAIL_LIMIT, trailSince, trailSources());
+    for (const s of ships) s.trail = trails[s.mmsi] || [];
+  }
   res.json({ ships });
 });
 
@@ -161,13 +178,6 @@ router.get('/ships/past', (req, res) => {
   res.json({ ships });
 });
 
-// Small recent-trail breadcrumb drawn under each followed-map marker, so the
-// user can see where a ship is coming from at a glance. AIS-only by default,
-// widened with SF/MST scraped fixes when those integrations are enabled (same
-// sources the single-ship track view offers).
-const FOLLOWED_TRAIL_LIMIT = 12;
-const FOLLOWED_TRAIL_HOURS = 6;
-
 // Followed ships ("Navi seguite") — now per-user. Currently followed = "presenti";
 // ships followed in the past = "passate" (history).
 router.get('/ships/followed/active', (req, res) => {
@@ -175,9 +185,8 @@ router.get('/ships/followed/active', (req, res) => {
   const sets = userSets(req.user.id);
   const now = Date.now();
   const followed = db.getUserFollowedShips(req.user.id);
-  const trailSources = ['ais', ...(state.importSfData ? ['sf'] : []), ...(state.importMstData ? ['mst'] : [])];
-  const trailSince = new Date(now - FOLLOWED_TRAIL_HOURS * 3600000).toISOString();
-  const trails = db.getFollowedTrails(followed.map((s) => s.mmsi), FOLLOWED_TRAIL_LIMIT, trailSince, trailSources);
+  const trailSince = new Date(now - TRAIL_HOURS * 3600000).toISOString();
+  const trails = db.getRecentTrails(followed.map((s) => s.mmsi), TRAIL_LIMIT, trailSince, trailSources());
   const ships = followed.map((s) => {
     const decorated = decorate(s, sets, lang, true);
     decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;

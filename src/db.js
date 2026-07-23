@@ -2010,10 +2010,11 @@ function getShipTrack(mmsi, limit = 500, from = null, to = null, sources = ['ais
 }
 
 // Last `limit` positions per ship (within `sinceIso`) for a batch of mmsis, e.g.
-// the small recent-trail breadcrumb drawn under each "navi seguite" map marker.
-// One windowed query for the whole batch rather than N per-ship round trips.
-// Returns { [mmsi]: [{lat,lon,at}, ...] } ordered oldest→newest per ship.
-function getFollowedTrails(mmsis, limit, sinceIso, sources) {
+// the small recent-trail breadcrumb drawn under each map marker (navi seguite,
+// and optionally the area map). One windowed query for the whole batch rather
+// than N per-ship round trips. Returns { [mmsi]: [{lat,lon,at}, ...] } ordered
+// oldest→newest per ship.
+function getRecentTrails(mmsis, limit, sinceIso, sources) {
   if (!mmsis.length) return {};
   const mmsiPh = mmsis.map(() => '?').join(', ');
   const srcPh = sources.map(() => '?').join(', ');
@@ -3040,7 +3041,7 @@ module.exports = {
   getShipReadings,
   getShipTrackRange,
   getShipTrack,
-  getFollowedTrails,
+  getRecentTrails,
   hasShipScrapedPositions,
   getAreaReplayPositions,
   getAreaReplayRange,

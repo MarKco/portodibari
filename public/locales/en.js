@@ -243,9 +243,7 @@ export default {
   'follow.staleTip': 'No AIS signal received. The ship is being searched worldwide for up to {months} months. You will be notified if it starts transmitting again.',
   'follow.searchingNoPosOne': 'ship searching, position unknown',
   'follow.searchingNoPosMany': 'ships searching, position unknown',
-  'follow.toggleNames': 'Names',
   'follow.toggleNamesTip': 'Show/hide the name next to each marker',
-  'follow.toggleTrails': 'Trails',
   'follow.toggleTrailsTip': 'Show/hide each ship\'s recent track',
   'ago.now':   'moments',
   'ago.min1':  '{n} minute',
@@ -304,6 +302,8 @@ export default {
   'map.risk':    '🎯 Risk:',
   'map.play':    'Play track',
   'map.pause':   'Pause',
+  'map.toggleNamesTip': 'Show the name next to each ship (permanent if few ships, on hover if many)',
+  'map.toggleTrailsTip': "Show each ship's recent track (permanent if few ships, on hover over the single ship if many). Off by default.",
 
   // ── Pagination ─────────────────────────────────────────────────────────────
   'page.prev': '← Prev',

@@ -892,15 +892,16 @@ td.empty {
   min-height: 0;
   margin-bottom: 0.75rem;
 }
-.followed-map-toggles a {
+.map-toggle-buttons a {
   width: 28px;
   height: 28px;
   line-height: 28px;
   text-align: center;
   font-size: 0.95rem;
   background: #fff;
+  cursor: pointer;
 }
-.followed-map-toggles a.active {
+.map-toggle-buttons a.active {
   background: #dbeafe;
   box-shadow: inset 0 0 0 2px #2563eb;
 }

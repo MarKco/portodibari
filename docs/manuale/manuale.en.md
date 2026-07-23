@@ -170,7 +170,7 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 
 ![Current ships tab: map with markers colored by risk and detailed table below.](images/06-monitoraggio_navi_presenti.png)
 
-**Map:** ships are markers colored by risk band. You can drag the map's bottom edge to resize it.
+**Map:** ships are markers colored by risk band. You can drag the map's bottom edge to resize it. Two buttons in the top-right corner (hover over them to see what they do): **🏷** shows the name next to each ship — with few ships on screen it stays **always visible**, with many it only shows **on hover**; **〰** (off by default) shows each ship's **recent track**, with the same logic: permanent if few ships, on hover over the single ship if many. Your choices are remembered for future visits.
 
 **Table — columns:**
 
@@ -290,7 +290,7 @@ Two sub-tabs: **Followed** (currently tracked) and **Previously followed** (hist
 
 ![Previously followed sub-tab: history of ships no longer tracked.](images/05-seguite_in_passato.png)
 
-On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷 Names** and **〰 Trails**) show/hide the **name next to each marker** and a small **recent-track breadcrumb**, useful to see where a ship is coming from. Your choice is remembered for future visits.
+On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷** and **〰**, hover over them to see what they do) show/hide the **name next to each marker** and a small **recent-track breadcrumb**, useful to see where a ship is coming from. Your choice is remembered for future visits.
 
 ### Searching for and following a ship
 

@@ -85,6 +85,8 @@ export const S = {
   activeMarkersLayer: null,
   activeShipsCache: new Map(),
   currentBbox: null, // [[swLat, swLon], [neLat, neLon]]
+  showActiveShipNames: true, // name label on the area map; permanent below ACTIVE_MAP_NAME_THRESHOLD ships, hover-only above it; synced from server
+  showActiveTrails: false, // recent-trail breadcrumb on the area map; permanent below ACTIVE_MAP_NAME_THRESHOLD ships, per-marker hover above it; synced from server
   showOpenSeaMap: false, // OpenSeaMap seamark *tile* raster on all maps; default off, synced from server settings
   showOpenSeaMapMarkers: true, // OpenSeaMap Overpass *vector* markers on the active map; default on, synced from server
   openSeaMapHidden: [], // OpenSeaMap marker category keys the user hid (default none = show all); synced from server

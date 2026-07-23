@@ -317,9 +317,11 @@ function applyPastSortHeader() {
 // ── Active ships ─────────────────────────────────────────────────────────────
 export async function loadActive() {
   try {
-    const area = encodeURIComponent(S.currentPreset || '');
+    const qs = new URLSearchParams();
+    if (S.currentPreset) qs.set('area', S.currentPreset);
+    if (S.showActiveTrails) qs.set('trails', '1');
     const [data, alertsData] = await Promise.all([
-      api(`/api/ships/active${area ? `?area=${area}` : ''}`),
+      api(`/api/ships/active${qs.toString() ? `?${qs}` : ''}`),
       api('/api/alerts').catch(() => null),
     ]);
     if (alertsData?.alerts?.length) {

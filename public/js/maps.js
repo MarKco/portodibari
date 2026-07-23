@@ -18,6 +18,11 @@ import { renderSeamarkBerths } from './seamarks.js';
 // changes — not on every poll, which would fight the user's pan/zoom.
 let activeFitKey = null;
 
+// The single transient trail polyline shown on marker hover when the area map
+// is too crowded for permanent trails (see ACTIVE_MAP_CROWD_THRESHOLD). Reset
+// on every renderActiveMap() since clearLayers() already dropped it from the map.
+let activeHoverTrail = null;
+
 // Mark the current area bbox as already framed, so the next renderActiveMap
 // skips its fitBounds. Used when navigating to a berth: otherwise the area
 // fitBounds animation fights focusBerth's, and Leaflet drops the later one
@@ -630,7 +635,45 @@ export function initActiveMap() {
     const [[swLat, swLon], [neLat, neLon]] = S.currentBbox;
     S.activeMap.fitBounds([[swLat, swLon], [neLat, neLon]], { padding: [40, 40] });
   }
+  activeMapToggleBtns = createMapToggleControl(S.activeMap, [
+    { key: 'showActiveShipNames', icon: '🏷', tipKey: 'map.toggleNamesTip', onChange: () => renderActiveMap(Array.from(S.activeShipsCache.values())) },
+    { key: 'showActiveTrails', icon: '〰', tipKey: 'map.toggleTrailsTip', onChange: () => refreshActiveMapAfterTrailToggle() },
+  ]);
 }
+
+let activeMapToggleBtns = null;
+
+// Mirrors syncFollowedMapToggleButtons for the area map's name/trail toggles.
+export function syncActiveMapToggleButtons() {
+  if (!activeMapToggleBtns) return;
+  setToggleBtnState(activeMapToggleBtns.showActiveShipNames, S.showActiveShipNames);
+  setToggleBtnState(activeMapToggleBtns.showActiveTrails, S.showActiveTrails);
+}
+
+// Turning trails ON needs fresh data (the cache may not carry `.trail` yet, if
+// the toggle had never been on for this session) — refetch with ?trails=1 once
+// rather than waiting for the next poll. Turning OFF just re-renders from the
+// existing cache (cheap, no need to drop the cached trail data).
+async function refreshActiveMapAfterTrailToggle() {
+  if (!S.showActiveTrails) {
+    renderActiveMap(Array.from(S.activeShipsCache.values()));
+    return;
+  }
+  const qs = new URLSearchParams({ trails: '1' });
+  if (S.currentPreset) qs.set('area', S.currentPreset);
+  try {
+    const data = await api(`/api/ships/active?${qs}`);
+    renderActiveMap(data.ships || []);
+  } catch {
+    renderActiveMap(Array.from(S.activeShipsCache.values()));
+  }
+}
+
+// Below this many plotted ships, name labels/trails stay permanently visible
+// (like the followed-ships map); above it, showing all of them would overlap
+// into an unreadable mess: labels fall back to hover-only (Leaflet's default
+// non-permanent tooltip), trails only draw for the ship under the mouse.
+const ACTIVE_MAP_CROWD_THRESHOLD = 20;
 
 // Exposed globally for the inline onclick in map popups.
 window.openShipDetail = function (mmsi) {
@@ -638,6 +681,47 @@ window.openShipDetail = function (mmsi) {
   S.detailFrom = 'active';
   showView('detail', mmsi, S.activeShipsCache.get(mmsi) || null);
 };
+
+// ── On-map toggle buttons (shared by the followed + active maps) ────────────
+// Small Leaflet control bar of icon buttons, each bound to a boolean S[key]
+// that's persisted server-side (see user-prefs.js) and mirrored to group
+// co-members like the other map display toggles. `onChange` re-renders the
+// owning map from its ship cache after a click. Explanation is a hover overlay
+// (data-tip, same glossary-tooltip system as the "ⓘ" Equasis icons — see
+// initGlossaryTooltip in main.js), not a native title/visible label: a "Nomi"/
+// "Names" caption next to the icon was too terse to convey what it toggles.
+function setToggleBtnState(btn, on) {
+  if (btn) btn.classList.toggle('active', on);
+}
+
+function createMapToggleControl(map, buttons) {
+  const els = {};
+  const ToggleControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const div = L.DomUtil.create('div', 'leaflet-bar map-toggle-buttons');
+      L.DomEvent.disableClickPropagation(div);
+      for (const { key, icon, tipKey, onChange } of buttons) {
+        const btn = L.DomUtil.create('a', '', div);
+        btn.href = '#';
+        btn.dataset.tip = t(tipKey);
+        btn.textContent = icon;
+        setToggleBtnState(btn, S[key]);
+        L.DomEvent.on(btn, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          S[key] = !S[key];
+          setToggleBtnState(btn, S[key]);
+          onChange();
+          api('/api/settings', 'POST', { [key]: S[key] }).catch(() => {});
+        });
+        els[key] = btn;
+      }
+      return div;
+    },
+  });
+  new ToggleControl().addTo(map);
+  return els;
+}
 
 // ── Followed-ships overview map ──────────────────────────────────────────────
 // Followed ships are scattered across the open sea (not confined to one area),
@@ -647,63 +731,22 @@ export function initFollowedMap() {
   S.followedMap = L.map('followed-map', { zoomControl: true }).setView([41.138, 16.843], 6);
   addBaseLayers(S.followedMap);
   S.followedMarkersLayer = L.layerGroup().addTo(S.followedMap);
-  addFollowedMapToggleControl();
+  followedMapToggleBtns = createMapToggleControl(S.followedMap, [
+    { key: 'showFollowedShipNames', icon: '🏷', tipKey: 'follow.toggleNamesTip', onChange: () => renderFollowedMap(Array.from(S.followedShipsCache.values())) },
+    { key: 'showFollowedTrails', icon: '〰', tipKey: 'follow.toggleTrailsTip', onChange: () => renderFollowedMap(Array.from(S.followedShipsCache.values())) },
+  ]);
 }
 
-// On-map buttons (name labels / recent-trail breadcrumb) — per-user prefs,
-// synced to the server and mirrored to group co-members like the other map
-// display toggles (see user-prefs.js).
-let followedNamesBtn = null;
-let followedTrailsBtn = null;
-
-function setToggleBtnState(btn, on) {
-  if (btn) btn.classList.toggle('active', on);
-}
-
-function toggleFollowedMapPref(key, btn) {
-  S[key] = !S[key];
-  setToggleBtnState(btn, S[key]);
-  renderFollowedMap(Array.from(S.followedShipsCache.values()));
-  api('/api/settings', 'POST', { [key]: S[key] }).catch(() => {});
-}
+let followedMapToggleBtns = null;
 
 // Re-applies S.showFollowedShipNames/showFollowedTrails to the control buttons
 // once /api/settings resolves (called from main.js's loadSettings). No-op if
 // the followed map hasn't been created yet — initFollowedMap sets the initial
 // state itself.
 export function syncFollowedMapToggleButtons() {
-  setToggleBtnState(followedNamesBtn, S.showFollowedShipNames);
-  setToggleBtnState(followedTrailsBtn, S.showFollowedTrails);
-}
-
-function addFollowedMapToggleControl() {
-  const ToggleControl = L.Control.extend({
-    options: { position: 'topright' },
-    onAdd() {
-      const div = L.DomUtil.create('div', 'leaflet-bar followed-map-toggles');
-      followedNamesBtn = L.DomUtil.create('a', '', div);
-      followedNamesBtn.href = '#';
-      followedNamesBtn.title = t('follow.toggleNamesTip');
-      followedNamesBtn.textContent = '🏷';
-      followedTrailsBtn = L.DomUtil.create('a', '', div);
-      followedTrailsBtn.href = '#';
-      followedTrailsBtn.title = t('follow.toggleTrailsTip');
-      followedTrailsBtn.textContent = '〰';
-      L.DomEvent.disableClickPropagation(div);
-      L.DomEvent.on(followedNamesBtn, 'click', (e) => {
-        L.DomEvent.preventDefault(e);
-        toggleFollowedMapPref('showFollowedShipNames', followedNamesBtn);
-      });
-      L.DomEvent.on(followedTrailsBtn, 'click', (e) => {
-        L.DomEvent.preventDefault(e);
-        toggleFollowedMapPref('showFollowedTrails', followedTrailsBtn);
-      });
-      setToggleBtnState(followedNamesBtn, S.showFollowedShipNames);
-      setToggleBtnState(followedTrailsBtn, S.showFollowedTrails);
-      return div;
-    },
-  });
-  new ToggleControl().addTo(S.followedMap);
+  if (!followedMapToggleBtns) return;
+  setToggleBtnState(followedMapToggleBtns.showFollowedShipNames, S.showFollowedShipNames);
+  setToggleBtnState(followedMapToggleBtns.showFollowedTrails, S.showFollowedTrails);
 }
 
 window.openFollowedShipDetail = function (mmsi) {
@@ -817,6 +860,12 @@ export function renderActiveMap(ships) {
   if (!positioned.length) return;
 
   const latlngs = [];
+  // Below the threshold, labels/trails stay on (permanent); above it, names
+  // fall back to hover and trails only draw for the hovered ship — see
+  // ACTIVE_MAP_CROWD_THRESHOLD.
+  const crowded = positioned.length > ACTIVE_MAP_CROWD_THRESHOLD;
+  const namesPermanent = !crowded;
+  activeHoverTrail = null;
   positioned.forEach((s) => {
     const ll = [s.last_latitude, s.last_longitude];
     latlngs.push(ll);
@@ -830,7 +879,14 @@ export function renderActiveMap(ships) {
     const style = s.flagged
       ? { radius: 10, color: '#a78bfa', fillColor: '#7c3aed', weight: 3 }
       : RISK_STYLE[s.risk?.band] || RISK_STYLE.low;
-    L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
+    const hasTrail = S.showActiveTrails && s.trail && s.trail.length > 1;
+    if (hasTrail && !crowded) {
+      L.polyline(
+        s.trail.map((p) => [p.lat, p.lon]),
+        { color: style.color, weight: 2, opacity: 0.55 }
+      ).addTo(S.activeMarkersLayer);
+    }
+    const marker = L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
       .bindPopup(
         `<b style="font-size:1rem">${escHtml(s.ship_name || t('map.unknown'))}</b><br>` +
           `<span style="color:#9ca3af;font-size:0.8rem">MMSI: ${s.mmsi}</span><br><br>` +
@@ -847,6 +903,29 @@ export function renderActiveMap(ships) {
           `</div>`
       )
       .addTo(S.activeMarkersLayer);
+    if (S.showActiveShipNames) {
+      marker.bindTooltip(escHtml(s.ship_name || t('map.unknown')), {
+        permanent: namesPermanent,
+        direction: 'right',
+        offset: [8, 0],
+        className: 'ship-name-label',
+      });
+    }
+    // Crowded map: no permanent trail (too much visual noise), but still show
+    // this ship's trail while the mouse is over its marker.
+    if (hasTrail && crowded) {
+      const trailLatLngs = s.trail.map((p) => [p.lat, p.lon]);
+      marker.on('mouseover', () => {
+        if (activeHoverTrail) S.activeMap.removeLayer(activeHoverTrail);
+        activeHoverTrail = L.polyline(trailLatLngs, { color: style.color, weight: 2, opacity: 0.7 }).addTo(S.activeMap);
+      });
+      marker.on('mouseout', () => {
+        if (activeHoverTrail) {
+          S.activeMap.removeLayer(activeHoverTrail);
+          activeHoverTrail = null;
+        }
+      });
+    }
   });
 
   // Frame the selected area's bounding box, not the ships, so the view stays

@@ -170,7 +170,7 @@ Le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo reale.
 
 ![Scheda Navi presenti: mappa con i marker delle navi colorati per rischio e tabella dettagliata sotto.](images/06-monitoraggio_navi_presenti.png)
 
-**Mappa:** le navi sono indicatori colorati per fascia di rischio. Puoi trascinare il bordo inferiore della mappa per ridimensionarla.
+**Mappa:** le navi sono indicatori colorati per fascia di rischio. Puoi trascinare il bordo inferiore della mappa per ridimensionarla. In alto a destra due pulsanti (passaci sopra col mouse per vedere a cosa servono): **🏷** mostra il nome accanto a ogni nave — se sono poche resta **sempre visibile**, se sono tante compare **solo al passaggio del mouse**; **〰** (spento di default) mostra il **tragitto recente** di ogni nave, con la stessa logica: fisso se poche navi, solo al passaggio del mouse sulla singola nave se sono tante. Le scelte restano ricordate per i tuoi accessi successivi.
 
 **Tabella — colonne:**
 
@@ -290,7 +290,7 @@ Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (
 
 ![Sotto-scheda Seguite in passato: storico delle navi non più tracciate.](images/05-seguite_in_passato.png)
 
-Sulla mappa della sotto-scheda **Seguite**, due pulsanti in alto a destra (**🏷 Nomi** e **〰 Scie**) mostrano/nascondono rispettivamente il **nome accanto a ogni marker** e una piccola **scia del tragitto recente**, utile per capire da dove sta arrivando la nave. La scelta resta ricordata per i tuoi accessi successivi.
+Sulla mappa della sotto-scheda **Seguite**, due pulsanti in alto a destra (**🏷** e **〰**, passaci sopra col mouse per vedere a cosa servono) mostrano/nascondono rispettivamente il **nome accanto a ogni marker** e una piccola **scia del tragitto recente**, utile per capire da dove sta arrivando la nave. La scelta resta ricordata per i tuoi accessi successivi.
 
 ### Cerca e segui una nave
 
