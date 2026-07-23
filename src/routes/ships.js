@@ -161,13 +161,24 @@ router.get('/ships/past', (req, res) => {
   res.json({ ships });
 });
 
+// Small recent-trail breadcrumb drawn under each followed-map marker, so the
+// user can see where a ship is coming from at a glance. AIS-only by default,
+// widened with SF/MST scraped fixes when those integrations are enabled (same
+// sources the single-ship track view offers).
+const FOLLOWED_TRAIL_LIMIT = 12;
+const FOLLOWED_TRAIL_HOURS = 6;
+
 // Followed ships ("Navi seguite") — now per-user. Currently followed = "presenti";
 // ships followed in the past = "passate" (history).
 router.get('/ships/followed/active', (req, res) => {
   const lang = req.query.lang || 'it';
   const sets = userSets(req.user.id);
   const now = Date.now();
-  const ships = db.getUserFollowedShips(req.user.id).map((s) => {
+  const followed = db.getUserFollowedShips(req.user.id);
+  const trailSources = ['ais', ...(state.importSfData ? ['sf'] : []), ...(state.importMstData ? ['mst'] : [])];
+  const trailSince = new Date(now - FOLLOWED_TRAIL_HOURS * 3600000).toISOString();
+  const trails = db.getFollowedTrails(followed.map((s) => s.mmsi), FOLLOWED_TRAIL_LIMIT, trailSince, trailSources);
+  const ships = followed.map((s) => {
     const decorated = decorate(s, sets, lang, true);
     decorated.is_stale = (!s.last_seen_at || now - new Date(s.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0;
     decorated.search_mode = db.getUserFollowSearchMode(req.user.id, s.mmsi);
@@ -180,6 +191,7 @@ router.get('/ships/followed/active', (req, res) => {
       decorated.fallback_at = fb.at;
       decorated.fallback_source = fb.source;
     }
+    decorated.trail = trails[s.mmsi] || [];
     // Scrape-only follow (never AIS): hide the epoch sentinel from the UI — the
     // 🔍 "in ricerca" cell + scrape badge already convey its state.
     if (decorated.last_seen_at === db.NEVER_SEEN_AIS) decorated.last_seen_at = null;

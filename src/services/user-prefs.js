@@ -38,6 +38,10 @@ const DEFAULTS = {
   showOpenSeaMap: false,
   showOpenSeaMapMarkers: true,
   openSeaMapHidden: ['light', 'beacon', 'pilot'],
+  // "Navi seguite" map overlay toggles: ship name label next to each marker, and
+  // its small recent-trail breadcrumb.
+  showFollowedShipNames: true,
+  showFollowedTrails: true,
   lang: 'it',
   defaultArea: null,
 };
@@ -45,6 +49,7 @@ const DEFAULTS = {
 const BOOL_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
   'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
+  'showFollowedShipNames', 'showFollowedTrails',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
   'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',

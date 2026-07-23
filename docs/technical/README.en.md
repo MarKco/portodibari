@@ -571,6 +571,14 @@ On the **Followed ships** map, a ship whose AIS stream has gone dark — but whi
 
 **In short**: AIS is the **primary** source for ship state (risk, current position), and exclusive for risk. SF and MST are **display-only fallbacks**: they show as amber/teal breadcrumbs in the detail view, as a **grey marker on the followed-ships map** when AIS has gone dark, and — optionally, via the *Include SF/MST* toggle — in the **single-ship track** and the area **historical replay**; never overwriting the AIS position.
 
+#### Followed-ships map: name labels + recent trail
+
+Two Leaflet buttons in the top-right corner of the followed-ships map (`public/js/maps.js` → `addFollowedMapToggleControl()`) independently toggle a **name label** next to each marker (permanent Leaflet tooltip, `.ship-name-label` class) and a **small recent-trail breadcrumb** (thin polyline, same colour as the marker, drawn behind it).
+
+- **Data source** — `GET /api/ships/followed/active` attaches a `trail` field to each ship: the last `FOLLOWED_TRAIL_LIMIT` (12) positions within the last `FOLLOWED_TRAIL_HOURS` (6h), computed in **one batch query** with `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` (`db.getFollowedTrails`, [`src/db.js`](../../src/db.js)) instead of N per-ship round trips. Sources: `ais` always, plus `sf`/`mst` when those integrations are enabled (same rule as the single-ship track).
+- **Persistence** — both toggle states live in `user_settings` (`showFollowedShipNames`/`showFollowedTrails`, both default `true`), managed by [`src/services/user-prefs.js`](../../src/services/user-prefs.js) and mirrored to group co-members like the other map-display toggles ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). No DB schema impact: plain key/value rows in the existing table, not new columns.
+- **No impact on track/risk** — the trail is purely illustrative: same `readings` queries used elsewhere, no new table, no extra network round trip (the data already rides inside the `/followed/active` response).
+
 ### Proactive enrichment on first detection
 
 In addition to on-demand loading in the detail view, enrichment starts **automatically when a new ship appears** on the AIS stream, so the [risk score](#score-enrichment-from-vfmt) can immediately use registry data without waiting for the detail view to be opened.

@@ -647,6 +647,63 @@ export function initFollowedMap() {
   S.followedMap = L.map('followed-map', { zoomControl: true }).setView([41.138, 16.843], 6);
   addBaseLayers(S.followedMap);
   S.followedMarkersLayer = L.layerGroup().addTo(S.followedMap);
+  addFollowedMapToggleControl();
+}
+
+// On-map buttons (name labels / recent-trail breadcrumb) — per-user prefs,
+// synced to the server and mirrored to group co-members like the other map
+// display toggles (see user-prefs.js).
+let followedNamesBtn = null;
+let followedTrailsBtn = null;
+
+function setToggleBtnState(btn, on) {
+  if (btn) btn.classList.toggle('active', on);
+}
+
+function toggleFollowedMapPref(key, btn) {
+  S[key] = !S[key];
+  setToggleBtnState(btn, S[key]);
+  renderFollowedMap(Array.from(S.followedShipsCache.values()));
+  api('/api/settings', 'POST', { [key]: S[key] }).catch(() => {});
+}
+
+// Re-applies S.showFollowedShipNames/showFollowedTrails to the control buttons
+// once /api/settings resolves (called from main.js's loadSettings). No-op if
+// the followed map hasn't been created yet — initFollowedMap sets the initial
+// state itself.
+export function syncFollowedMapToggleButtons() {
+  setToggleBtnState(followedNamesBtn, S.showFollowedShipNames);
+  setToggleBtnState(followedTrailsBtn, S.showFollowedTrails);
+}
+
+function addFollowedMapToggleControl() {
+  const ToggleControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const div = L.DomUtil.create('div', 'leaflet-bar followed-map-toggles');
+      followedNamesBtn = L.DomUtil.create('a', '', div);
+      followedNamesBtn.href = '#';
+      followedNamesBtn.title = t('follow.toggleNamesTip');
+      followedNamesBtn.textContent = '🏷';
+      followedTrailsBtn = L.DomUtil.create('a', '', div);
+      followedTrailsBtn.href = '#';
+      followedTrailsBtn.title = t('follow.toggleTrailsTip');
+      followedTrailsBtn.textContent = '〰';
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.on(followedNamesBtn, 'click', (e) => {
+        L.DomEvent.preventDefault(e);
+        toggleFollowedMapPref('showFollowedShipNames', followedNamesBtn);
+      });
+      L.DomEvent.on(followedTrailsBtn, 'click', (e) => {
+        L.DomEvent.preventDefault(e);
+        toggleFollowedMapPref('showFollowedTrails', followedTrailsBtn);
+      });
+      setToggleBtnState(followedNamesBtn, S.showFollowedShipNames);
+      setToggleBtnState(followedTrailsBtn, S.showFollowedTrails);
+      return div;
+    },
+  });
+  new ToggleControl().addTo(S.followedMap);
 }
 
 window.openFollowedShipDetail = function (mmsi) {
@@ -708,7 +765,16 @@ export function renderFollowedMap(ships) {
       : `⚡ SOG: ${s.last_sog != null ? s.last_sog.toFixed(1) + ' kn' : '—'}` +
         `${s.last_cog != null && s.last_cog <= 360 ? `&nbsp;&nbsp;COG: ${s.last_cog.toFixed(0)}°` : ''}<br>` +
         `🕐 ${formatTime(s.last_seen_at)}<br>`;
-    L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
+    // Small recent-trail breadcrumb (where the ship is coming from) — behind the
+    // marker, same colour as its risk/status style, semi-transparent so it reads
+    // as a hint rather than a full track.
+    if (S.showFollowedTrails && s.trail && s.trail.length > 1) {
+      L.polyline(
+        s.trail.map((p) => [p.lat, p.lon]),
+        { color: style.color, weight: 2, opacity: 0.55 }
+      ).addTo(S.followedMarkersLayer);
+    }
+    const marker = L.circleMarker(ll, { ...style, fillOpacity: 0.9 })
       .bindPopup(
         `<b style="font-size:1rem">${escHtml(s.ship_name || t('map.unknown'))}</b><br>` +
           `<span style="color:#9ca3af;font-size:0.8rem">MMSI: ${s.mmsi}</span><br><br>` +
@@ -722,6 +788,14 @@ export function renderFollowedMap(ships) {
           `</div>`
       )
       .addTo(S.followedMarkersLayer);
+    if (S.showFollowedShipNames) {
+      marker.bindTooltip(escHtml(s.ship_name || t('map.unknown')), {
+        permanent: true,
+        direction: 'right',
+        offset: [8, 0],
+        className: 'ship-name-label',
+      });
+    }
   });
 
   const bounds = L.latLngBounds(latlngs);

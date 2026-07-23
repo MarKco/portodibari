@@ -586,6 +586,14 @@ Nella mappa delle **Navi seguite** una nave il cui stream AIS è andato silente 
 
 **In sintesi**: AIS è la fonte **primaria** per lo stato nave (rischio, posizione corrente) ed esclusiva per il rischio. SF e MST sono **fallback di sola visualizzazione**: appaiono come breadcrumb ambra/teal nel dettaglio, come **marker grigio sulla mappa delle navi seguite** quando l'AIS è andato silente, e — opzionalmente, col toggle *Includi SF/MST* — nella **traccia della singola nave** e nel **replay storico** dell'area; senza mai sovrascrivere la posizione AIS.
 
+#### Mappa "Navi seguite": nomi ed etichette + scia recente
+
+Due pulsanti Leaflet in alto a destra sulla mappa "Navi seguite" (`public/js/maps.js` → `addFollowedMapToggleControl()`) attivano/disattivano indipendentemente **l'etichetta col nome nave** accanto a ogni marker (tooltip Leaflet permanente, classe `.ship-name-label`) e una **piccola scia** del tragitto recente (polilinea sottile, stesso colore del marker, dietro di esso).
+
+- **Sorgente dati** — `GET /api/ships/followed/active` allega a ogni nave un campo `trail`: le ultime `FOLLOWED_TRAIL_LIMIT` (12) posizioni entro le ultime `FOLLOWED_TRAIL_HOURS` (6h), calcolate in **un'unica query batch** con `ROW_NUMBER() OVER (PARTITION BY mmsi ...)` (`db.getFollowedTrails`, [`src/db.js`](../../src/db.js)) invece di N round-trip per nave. Sorgenti: `ais` sempre, più `sf`/`mst` quando i rispettivi import sono abilitati (stesso criterio della traccia singola).
+- **Persistenza** — stato dei due toggle in `user_settings` (`showFollowedShipNames`/`showFollowedTrails`, default entrambi `true`), gestiti da [`src/services/user-prefs.js`](../../src/services/user-prefs.js) e propagati ai co-membri di gruppo come gli altri toggle di visualizzazione mappa ([`src/services/group-sync.js`](../../src/services/group-sync.js) `SHARED_SETTING_KEYS`). Nessun impatto sullo schema DB: sono righe key/value nella tabella esistente, non nuove colonne.
+- **Nessun impatto su traccia/rischio** — la scia è puramente illustrativa: stesse query `readings` già usate altrove, nessuna nuova tabella, nessuna richiesta di rete aggiuntiva (i dati viaggiano già dentro la risposta di `/followed/active`).
+
 ### Arricchimento proattivo alla prima rilevazione
 
 Oltre al caricamento on-demand nel dettaglio, l'arricchimento parte **automaticamente quando una nuova nave compare** sullo stream AIS, così lo [score di rischio](#arricchimento-dello-score-da-vfmt) può usare subito i dati di registro senza attendere l'apertura del dettaglio.

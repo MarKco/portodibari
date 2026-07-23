@@ -290,6 +290,8 @@ Two sub-tabs: **Followed** (currently tracked) and **Previously followed** (hist
 
 ![Previously followed sub-tab: history of ships no longer tracked.](images/05-seguite_in_passato.png)
 
+On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷 Names** and **〰 Trails**) show/hide the **name next to each marker** and a small **recent-track breadcrumb**, useful to see where a ship is coming from. Your choice is remembered for future visits.
+
 ### Searching for and following a ship
 
 At the top of the section there's a **search bar**: type **name** or **MMSI** and press **🔍 Search**.

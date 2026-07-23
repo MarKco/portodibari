@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
 import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
-import { refreshTrack } from './maps.js';
+import { refreshTrack, syncFollowedMapToggleButtons } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay, exitReplay } from './replay.js';
@@ -202,6 +202,9 @@ async function loadSettings() {
     if (el.toggleOpenSeaMapMarkers) el.toggleOpenSeaMapMarkers.checked = S.showOpenSeaMapMarkers;
     S.openSeaMapHidden = Array.isArray(s.openSeaMapHidden) ? s.openSeaMapHidden : [];
     renderSeamarkTypeToggles();
+    S.showFollowedShipNames = s.showFollowedShipNames !== false;
+    S.showFollowedTrails = s.showFollowedTrails !== false;
+    syncFollowedMapToggleButtons();
     applyOpenSeaMap(); // sync any maps already created before settings loaded
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;

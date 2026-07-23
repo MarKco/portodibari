@@ -31,6 +31,7 @@ const SHARED_SETTING_KEYS = new Set([
   'telegramNotifyBerthNew', 'telegramNotifyBerthChar', 'telegramNotifyProximity',
   'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
   'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
+  'showFollowedShipNames', 'showFollowedTrails',
   'defaultArea',
 ]);
 

@@ -98,6 +98,8 @@ export const S = {
   followedMap: null,
   followedMarkersLayer: null,
   followedShipsCache: new Map(),
+  showFollowedShipNames: true, // name label next to each followed-map marker; synced from server
+  showFollowedTrails: true, // recent-trail breadcrumb under each followed-map marker; synced from server
 
   // Coverage heatmap map (mappa delle zone coperte) — see coverage.js
   coverageMap: null,

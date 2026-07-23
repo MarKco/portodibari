@@ -2009,6 +2009,33 @@ function getShipTrack(mmsi, limit = 500, from = null, to = null, sources = ['ais
     .all(...params);
 }
 
+// Last `limit` positions per ship (within `sinceIso`) for a batch of mmsis, e.g.
+// the small recent-trail breadcrumb drawn under each "navi seguite" map marker.
+// One windowed query for the whole batch rather than N per-ship round trips.
+// Returns { [mmsi]: [{lat,lon,at}, ...] } ordered oldest→newest per ship.
+function getFollowedTrails(mmsis, limit, sinceIso, sources) {
+  if (!mmsis.length) return {};
+  const mmsiPh = mmsis.map(() => '?').join(', ');
+  const srcPh = sources.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `SELECT mmsi, received_at, latitude, longitude FROM (
+         SELECT mmsi, received_at, latitude, longitude,
+                ROW_NUMBER() OVER (PARTITION BY mmsi ORDER BY received_at DESC) AS rn
+         FROM readings
+         WHERE mmsi IN (${mmsiPh}) AND latitude IS NOT NULL AND longitude IS NOT NULL
+           AND source IN (${srcPh}) AND received_at >= ?
+       ) WHERE rn <= ?
+       ORDER BY mmsi, received_at ASC`
+    )
+    .all(...mmsis, ...sources, sinceIso, limit);
+  const out = {};
+  for (const r of rows) {
+    (out[r.mmsi] || (out[r.mmsi] = [])).push({ lat: r.latitude, lon: r.longitude, at: r.received_at });
+  }
+  return out;
+}
+
 // Whether this ship has any reading from one of `sources` (e.g. ['sf','mst']) —
 // drives the track "Includi SF/MST" toggle visibility (shown only when there is
 // scraped data to add). Cheap, indexed by mmsi.
@@ -3013,6 +3040,7 @@ module.exports = {
   getShipReadings,
   getShipTrackRange,
   getShipTrack,
+  getFollowedTrails,
   hasShipScrapedPositions,
   getAreaReplayPositions,
   getAreaReplayRange,

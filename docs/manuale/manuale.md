@@ -290,6 +290,8 @@ Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (
 
 ![Sotto-scheda Seguite in passato: storico delle navi non più tracciate.](images/05-seguite_in_passato.png)
 
+Sulla mappa della sotto-scheda **Seguite**, due pulsanti in alto a destra (**🏷 Nomi** e **〰 Scie**) mostrano/nascondono rispettivamente il **nome accanto a ogni marker** e una piccola **scia del tragitto recente**, utile per capire da dove sta arrivando la nave. La scelta resta ricordata per i tuoi accessi successivi.
+
 ### Cerca e segui una nave
 
 In cima alla sezione c'è una **barra di ricerca**: digita **nome** o **MMSI** e premi **🔍 Cerca**.
