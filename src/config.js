@@ -198,16 +198,18 @@ function loadBboxPresets(file) {
     }
     presets[key] = { box: [[v.sw, v.ne]], name: v.name || key, keyword: v.keyword || null };
   }
-  if (!Object.keys(presets).length) {
-    throw new Error(`Nessun preset valido in ${path.basename(file)}`);
-  }
   return presets;
 }
 
+// Empty on a fresh install (no areas pre-seeded) is a valid, fully-supported
+// state — same one you reach at runtime by deleting every area via the UI
+// (see removeArea). Only an EXPLICIT BBOX_PRESET pointing at a missing key is
+// a misconfiguration worth failing boot over.
 const BBOX_PRESETS = loadBboxPresets(BBOX_FILE);
 
-const INITIAL_PRESET = props.BBOX_PRESET || process.env.BBOX_PRESET || 'bari';
-if (!BBOX_PRESETS[INITIAL_PRESET]) {
+const INITIAL_PRESET =
+  props.BBOX_PRESET || process.env.BBOX_PRESET || Object.keys(BBOX_PRESETS)[0] || null;
+if (INITIAL_PRESET && !BBOX_PRESETS[INITIAL_PRESET]) {
   throw new Error(
     `Unknown BBOX_PRESET "${INITIAL_PRESET}". Valid: ${Object.keys(BBOX_PRESETS).join(', ')}`
   );
@@ -631,6 +633,17 @@ function parseOpenSeaMapHidden() {
 }
 
 function applyPreset(preset) {
+  // No areas configured yet (fresh install, or every area deleted) — leave the
+  // "active view" fields null rather than crashing; see removeArea for the
+  // same empty-catalog case at runtime.
+  if (!preset || !BBOX_PRESETS[preset]) {
+    state.preset = null;
+    state.boundingBox = null;
+    state.bboxName = null;
+    state.centerLat = null;
+    state.centerLon = null;
+    return;
+  }
   const box = BBOX_PRESETS[preset].box;
   state.preset = preset;
   state.boundingBox = box;
@@ -1003,9 +1016,10 @@ function exportAreas() {
 }
 
 /**
- * Remove an area. Refuses to drop the last remaining one. If the removed area
- * was the active view preset, switches to another and persists the change.
- * Returns `{ switched }` (the new preset key, or null).
+ * Remove an area. The catalog CAN end up empty (a valid, supported state — see
+ * applyPreset). If the removed area was the active view preset, switches to
+ * another and persists the change. Returns `{ switched }` (the new preset key,
+ * or null).
  */
 function removeArea(key) {
   if (!BBOX_PRESETS[key]) throw new Error(`Area sconosciuta: ${key}`);

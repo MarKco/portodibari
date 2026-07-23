@@ -6,7 +6,7 @@
   <img src="../../public/icons/icon-512.png" alt="Tracker Porti" width="160">
 </p>
 
-App for tracking ships via [AISStream.io](https://aisstream.io). The monitoring area can be selected at runtime from multiple presets (Bari, Taranto, North Adriatic, Puglia — see [Bounding box](#bounding-box)) and is configurable with arbitrary bounding boxes, making it usable for any port. Areas can be **added and removed at runtime** from the **🗺 Areas** screen (no app restart). **Multiple areas can be monitored simultaneously**: each area has its own independent AIS stream.
+App for tracking ships via [AISStream.io](https://aisstream.io). The monitoring area is configurable with arbitrary bounding boxes (see [Bounding box](#bounding-box)), making it usable for any port — no area ships pre-configured: areas are **added at runtime** from the **🗺 Areas** screen (no app restart). **Multiple areas can be monitored simultaneously**: each area has its own independent AIS stream.
 
 ## 🏗️ Architecture
 
@@ -102,7 +102,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 |---|---|---|
 | `AIS_API_KEY` | [AISStream.io](https://aisstream.io) API key (required) — used by the **monitoring-area** streams | — |
 | `FOLLOW_AIS_API_KEY` | API key from a **separate AISStream account** for the **followed-ships** stream (`services/ship-follow.js`). Empty = reuse `AIS_API_KEY`. A dedicated account is recommended: AISStream's connection limit is **per-account**, so sharing the key with the area streams gets the follow handshake rejected in a **429 loop** (see note below). | *(reuses `AIS_API_KEY`)* |
-| `BBOX_PRESET` | Initial area preset (`bari` \| `taranto` \| `nord_adriatico` \| `puglia`) | `bari` |
+| `BBOX_PRESET` | Key of the area active at startup, among those defined in `bounding-boxes.json`/DB catalog | *(empty — no area until you add one)* |
 | `IMPORT_VF_DATA` | Enable VesselFinder scraping (`true`/`false`) | `false` |
 | `IMPORT_MT_DATA` | Enable MarineTraffic scraping (`true`/`false`) | `false` |
 | `IMPORT_SF_DATA` | Enable ShipFinder scraping — static data + last-seen position to re-locate lost followed ships (`true`/`false`) | `false` |
@@ -130,8 +130,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 Example `local.properties`:
 
 ```properties
-AIS_API_KEY=la_tua_api_key
-BBOX_PRESET=taranto
+AIS_API_KEY=your_api_key
 IMPORT_VF_DATA=true
 IMPORT_MT_DATA=true
 ```
@@ -154,7 +153,7 @@ Each preset has this shape:
 | `sw` | South-West corner `[lat, lon]` |
 | `ne` | North-East corner `[lat, lon]` |
 
-Default presets: `bari`, `taranto`, `nord_adriatico`, `puglia`.
+The file **ships with no default presets**: on a fresh install `bounding-boxes.json` is empty (just `_comment`) and the Areas screen starts with no areas — add your own from there, or by hand in the file before the first boot.
 
 There are **two ways** to manage areas:
 

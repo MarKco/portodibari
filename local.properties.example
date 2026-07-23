@@ -21,9 +21,11 @@ FOLLOW_AIS_API_KEY=
 # Empty = the coverage map feature stays off. Write it bare — no inline comment.
 HEATMAP_AIS_API_KEY=
 
-# Initial bounding-box preset. Must match a key defined in `bounding-boxes.json`
-# (default keys: bari | nord_adriatico | taranto | puglia).
-BBOX_PRESET=bari
+# Initial bounding-box preset. Must match a key you've defined in
+# `bounding-boxes.json` — ships empty (no areas pre-configured), add your own
+# from the Aree screen (or by hand in that file) before setting this. Leave
+# unset to just use whichever area is added first.
+#BBOX_PRESET=
 
 # Enrich ship details by scraping VesselFinder / MarineTraffic (true | false).
 IMPORT_VF_DATA=false

@@ -57,7 +57,9 @@ setInterval(() => {
 const app = createApp();
 
 console.log(
-  `[AIS] Preset iniziale: ${state.bboxName} (${state.preset}) — [${state.boundingBox[0][0]}] → [${state.boundingBox[0][1]}]`
+  state.boundingBox
+    ? `[AIS] Preset iniziale: ${state.bboxName} (${state.preset}) — [${state.boundingBox[0][0]}] → [${state.boundingBox[0][1]}]`
+    : '[AIS] Nessuna area configurata al primo avvio'
 );
 
 app.listen(PORT, () => {
