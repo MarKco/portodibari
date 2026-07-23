@@ -2,6 +2,20 @@
 // while an admin impersonates a user — a top banner with a one-click exit.
 // Self-contained (its own DOM + styles); does not touch the rest of the SPA.
 
+import { getLang } from './i18n.js';
+
+// Manual links default to the Italian version (index.html); point them at the
+// English one when that's the active UI language, so the sidebar always opens
+// the guide in the user's language.
+function setManualLinksLang() {
+  if (getLang() !== 'en') return;
+  const manual = document.getElementById('link-manual');
+  const manualAdmin = document.getElementById('link-manual-admin');
+  if (manual) manual.href = '/manuale/index.en.html';
+  if (manualAdmin) manualAdmin.href = '/manuale_admin/index.en.html';
+}
+setManualLinksLang();
+
 async function init() {
   let me;
   try {

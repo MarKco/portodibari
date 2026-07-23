@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="$if(en)$en$else$it$endif$">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -128,7 +128,7 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <span class="logo">⚓</span>
-        <span><b>Tracker Porti</b><small>Manuale amministratore</small></span>
+        <span><b>Tracker Porti</b><small>$if(en)$Admin manual$else$Manuale amministratore$endif$</small></span>
       </div>
       <nav id="toc">
         $toc$
@@ -140,7 +140,7 @@
       </div>
     </main>
   </div>
-  <button id="theme" aria-label="Cambia tema">🌙</button>
+  <button id="theme" aria-label="$if(en)$Switch theme$else$Cambia tema$endif$">🌙</button>
   <div id="lb"><img src="" alt=""></div>
 
   <script>

@@ -1,5 +1,7 @@
 # Manuale Utente — Tracker Porti
 
+> 🇬🇧 English version: [manuale.en.md](manuale.en.md) · [index.en.html](index.en.html)
+
 Guida completa all'uso di **Tracker Porti** per l'utente. Spiega cosa puoi fare e come farlo, schermata per schermata.
 
 > Questo manuale copre l'uso quotidiano dell'applicazione. Le funzioni di amministrazione (gestione utenti, ruoli, log di sistema) non sono trattate.

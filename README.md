@@ -42,8 +42,8 @@ You need a free [AISStream.io](https://aisstream.io) API key in `local.propertie
 
 | Document | For whom |
 |---|---|
-| **User manual** — [Markdown](docs/manuale/manuale.md) · [HTML](docs/manuale/index.html) · [PDF](docs/manuale/manuale.pdf) | End users (everyday use). Also served in-app at `/manuale/`. |
-| **Admin manual** — [Markdown](docs/manuale_admin/manuale_admin.md) · [HTML](docs/manuale_admin/index.html) · [PDF](docs/manuale_admin/manuale_admin.pdf) | Administrators (users/groups, config files, risk model, logs). Served in-app at `/manuale_admin/` (admin only). |
+| **User manual** — 🇬🇧 [Markdown](docs/manuale/manuale.en.md) · [HTML](docs/manuale/index.en.html) · [PDF](docs/manuale/manuale.en.pdf) · 🇮🇹 [Markdown](docs/manuale/manuale.md) · [HTML](docs/manuale/index.html) · [PDF](docs/manuale/manuale.pdf) | End users (everyday use). Also served in-app at `/manuale/`. |
+| **Admin manual** — 🇬🇧 [Markdown](docs/manuale_admin/manuale_admin.en.md) · [HTML](docs/manuale_admin/index.en.html) · [PDF](docs/manuale_admin/manuale_admin.en.pdf) · 🇮🇹 [Markdown](docs/manuale_admin/manuale_admin.md) · [HTML](docs/manuale_admin/index.html) · [PDF](docs/manuale_admin/manuale_admin.pdf) | Administrators (users/groups, config files, risk model, logs). Served in-app at `/manuale_admin/` (admin only). |
 | **Technical documentation** — [English](docs/technical/README.en.md) · [Italiano](docs/technical/README.it.md) | Developers: architecture, data model, configuration, every feature in depth. |
 
 ## 🧰 Stack

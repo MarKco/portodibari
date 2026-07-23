@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="$if(en)$en$else$it$endif$">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -95,7 +95,7 @@
       border:1px solid var(--accent); border-radius:16px; box-shadow:var(--shadow);
     }
     .tutorial::before{
-      content:"▶ INIZIA QUI"; position:absolute; top:-12px; left:22px;
+      content:"$if(en)$▶ START HERE$else$▶ INIZIA QUI$endif$"; position:absolute; top:-12px; left:22px;
       background:var(--accent); color:#fff; font-size:12px; font-weight:700; letter-spacing:.5px;
       padding:3px 12px; border-radius:20px;
     }
@@ -148,7 +148,7 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <span class="logo">⚓</span>
-        <span><b>Tracker Porti</b><small>Manuale utente</small></span>
+        <span><b>Tracker Porti</b><small>$if(en)$User manual$else$Manuale utente$endif$</small></span>
       </div>
       <nav id="toc">
         $toc$
@@ -160,7 +160,7 @@
       </div>
     </main>
   </div>
-  <button id="theme" aria-label="Cambia tema">🌙</button>
+  <button id="theme" aria-label="$if(en)$Switch theme$else$Cambia tema$endif$">🌙</button>
   <div id="lb"><img src="" alt=""></div>
 
   <script>

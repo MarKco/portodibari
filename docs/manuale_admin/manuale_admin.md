@@ -1,5 +1,7 @@
 # Manuale Amministratore — Tracker Porti
 
+> 🇬🇧 English version: [manuale_admin.en.md](manuale_admin.en.md) · [index.en.html](index.en.html)
+
 Guida alle funzioni riservate agli **amministratori** di Tracker Porti: gestione utenti e gruppi, controlli della mappa di copertura, modello di rischio, log di sistema e modifica dei file di configurazione.
 
 > Questo manuale **integra** il [Manuale utente](../manuale/index.html), che copre l'uso quotidiano dell'app. Qui trovi **solo** ciò che è riservato agli amministratori. Per le funzioni comuni (monitoraggio, navi seguite, dettaglio nave, notifiche, export…) fai riferimento al manuale utente.
