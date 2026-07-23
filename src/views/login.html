@@ -11,7 +11,7 @@
   * { box-sizing:border-box; }
   body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
          background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:1rem; }
-  .card { width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border);
+  .card { position:relative; width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border);
           border-radius:14px; padding:2rem 1.75rem; box-shadow:0 12px 40px rgba(0,0,0,.4); }
   h1 { font-size:1.25rem; margin:0 0 .25rem; }
   .sub { color:var(--text-muted); font-size:.85rem; margin:0 0 1.5rem; }
@@ -33,27 +33,83 @@
                  text-align:center; font-size:.82rem; }
   .manual-link a { color:var(--text-muted); }
   .manual-link a:hover { color:var(--accent); }
+  .lang-switch { position:absolute; top:.9rem; right:1rem; display:flex; gap:.4rem; font-size:.78rem; }
+  .lang-switch button { all:unset; width:auto; margin:0; padding:.15rem .4rem; border-radius:5px;
+                         cursor:pointer; color:var(--text-muted); }
+  .lang-switch button:hover { color:var(--text); background:var(--surface-2); }
+  .lang-switch button.active { color:var(--accent); font-weight:600; }
 </style>
 </head>
 <body>
   <form class="card" id="form">
+    <div class="lang-switch" id="langSwitch">
+      <button type="button" data-lang="it">IT</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
     <h1>Tracker Porti</h1>
-    <p class="sub">Accedi al tuo account</p>
-    <label for="identifier">Email o username</label>
+    <p class="sub" id="sub">Accedi al tuo account</p>
+    <label for="identifier" id="labelId">Email o username</label>
     <input id="identifier" name="identifier" autocomplete="username" autofocus required />
-    <label for="password">Password</label>
+    <label for="password" id="labelPw">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required />
     <button type="submit" id="submit">Accedi</button>
     <div class="msg" id="msg"></div>
     <div class="links">
-      <a href="/register">Registrati</a>
-      <a href="/reset">Password dimenticata?</a>
+      <a href="/register" id="registerLink">Registrati</a>
+      <a href="/reset" id="resetLink">Password dimenticata?</a>
     </div>
     <div class="manual-link">
-      <a href="/manuale/" target="_blank" rel="noopener">📖 Manuale utente</a>
+      <a href="/manuale/" id="manualLink" target="_blank" rel="noopener">📖 Manuale utente</a>
     </div>
   </form>
 <script>
+  // Same 'lang' localStorage key as the app (public/js/i18n.js) — a choice made
+  // here carries over once the user logs in.
+  const STRINGS = {
+    it: {
+      sub: 'Accedi al tuo account',
+      labelId: 'Email o username', labelPw: 'Password', submit: 'Accedi',
+      register: 'Registrati', reset: 'Password dimenticata?',
+      manual: '📖 Manuale utente', manualHref: '/manuale/',
+      loginErr: 'Accesso non riuscito', netErr: 'Errore di rete',
+    },
+    en: {
+      sub: 'Sign in to your account',
+      labelId: 'Email or username', labelPw: 'Password', submit: 'Sign in',
+      register: 'Register', reset: 'Forgot password?',
+      manual: '📖 User manual', manualHref: '/manuale/index.en.html',
+      loginErr: 'Login failed', netErr: 'Network error',
+    },
+  };
+
+  function applyLang(lang) {
+    const s = STRINGS[lang] || STRINGS.it;
+    document.documentElement.lang = lang;
+    document.title = lang === 'en' ? 'Login — Tracker Porti' : 'Accesso — Tracker Porti';
+    document.getElementById('sub').textContent = s.sub;
+    document.getElementById('labelId').textContent = s.labelId;
+    document.getElementById('labelPw').textContent = s.labelPw;
+    document.getElementById('submit').textContent = s.submit;
+    document.getElementById('registerLink').textContent = s.register;
+    document.getElementById('resetLink').textContent = s.reset;
+    document.getElementById('manualLink').textContent = s.manual;
+    document.getElementById('manualLink').href = s.manualHref;
+    for (const b of langSwitch.querySelectorAll('button')) {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    }
+  }
+
+  const langSwitch = document.getElementById('langSwitch');
+  let currentLang = STRINGS[localStorage.getItem('lang')] ? localStorage.getItem('lang') : 'it';
+  applyLang(currentLang);
+  langSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-lang]');
+    if (!btn) return;
+    currentLang = btn.dataset.lang;
+    localStorage.setItem('lang', currentLang);
+    applyLang(currentLang);
+  });
+
   const form = document.getElementById('form');
   const msg = document.getElementById('msg');
   const btn = document.getElementById('submit');
@@ -72,9 +128,9 @@
       const data = await r.json().catch(() => ({}));
       if (r.ok) { window.location.href = '/'; return; }
       msg.className = 'msg err';
-      msg.textContent = data.error || 'Accesso non riuscito';
+      msg.textContent = data.error || STRINGS[currentLang].loginErr;
     } catch {
-      msg.className = 'msg err'; msg.textContent = 'Errore di rete';
+      msg.className = 'msg err'; msg.textContent = STRINGS[currentLang].netErr;
     } finally { btn.disabled = false; }
   });
 </script>
