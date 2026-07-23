@@ -515,7 +515,19 @@ The coverage data lives in a **separate** database, `data/db/heatmap_data.db` (m
 
 **Grid** — `HEATMAP_GRID_DEG` in `app.config.properties` (default **0.25°** ≈ 28 km). Smaller cells are more precise but the cost grows **quadratically** (render, payload, DB rows). Changing the grid **invalidates** stored cells (a cell index is `floor(coord/grid)`) → use **Clear data** after a change.
 
-**Key files**: [`src/services/heatmap-stream.js`](../../src/services/heatmap-stream.js), [`src/heatmap-db.js`](../../src/heatmap-db.js), [`src/routes/heatmap.js`](../../src/routes/heatmap.js), [`public/js/coverage.js`](../../public/js/coverage.js).
+### Noise filtering: (0,0) position and "singleton" cells
+
+Analyzing a real export surfaced two distinct forms of noise, both **external data** (AISStream/its feeders), not a parsing bug on our side (same `MetaData.latitude/longitude` extraction as `ais-stream.js`/`ship-follow.js`):
+
+- **"Null Island" (0°,0°)** — the classic "GPS not fixed" sentinel some feeders emit instead of the proper ITU-R M.1371 invalid-position code (91°/181°, already rejected by the existing lat/lon range check). It slipped through because 0 is a finite, in-range value. **Fix**: `heatmap-stream.js` now explicitly discards `lat===0 && lon===0` before buffering the cell (same spot as the range check). This only affects **future** ingestion — (0,0) cells already accumulated in the DB stay until manually removed (`DELETE FROM heatmap_cells WHERE lat_idx=0 AND lon_idx=0` on the heatmap DB, or "Clear data" which wipes everything).
+- **Isolated "singleton" cells** (`msg_count = 1`, no populated cell nearby) — the typical signature of a **satellite-AIS** positioning artifact: when the receiver can't properly resolve a ship's position from a marginal detection, some feeds fall back to the satellite's own sub-point/ground-track (near-constant longitude during a single orbital pass, wide latitude spread) instead of dropping the message — different from a real transit, which would leave more messages per cell along a diagonal path. Not reliably distinguishable without identity/course data (which the heatmap DB **deliberately doesn't store**, see above), so no ingestion-side heuristic: **read-time filter only**, opt-out for the user.
+
+**"Hide singletons" toggle** (🧹, **on by default**): same UI pattern as the name/trail toggles (`createMapToggleControl`/`setToggleBtnState`, exported from `public/js/maps.js` and reused in `public/js/coverage.js` — icon-only, explanation via a hover `data-tip` overlay, not text/`title`). User pref `hideHeatmapSingletons` (default `true`) in `user-prefs.js`, shared within a group (`group-sync.js` `SHARED_SETTING_KEYS`), read/written like the others via `GET`/`POST /api/settings`.
+
+- **Server-side filter** — `heatmapDb.getCellsAgg({ level, bbox, hideSingletons })` ([`src/heatmap-db.js`](../../src/heatmap-db.js)) drops **fine** cells with `msg_count = 1` **before** LOD aggregation, not after: a coarse block that also contains real traffic keeps it — only the noise cell's own contribution is dropped. Query param `?hideSingletons=1` on both routes (`GET /api/heatmap/cells` authenticated, `GET /api/heatmap/public-cells` public). The world-view cache (`aggCache`) is keyed by `factor:hideSingletons` so the two variants don't clobber each other.
+- **Public page** (`public/heatmap.html`, `/heatmap`, no session) — filter **always on, not toggleable** (nothing to persist a preference against without a logged-in user).
+
+**Key files**: [`src/services/heatmap-stream.js`](../../src/services/heatmap-stream.js), [`src/heatmap-db.js`](../../src/heatmap-db.js), [`src/routes/heatmap.js`](../../src/routes/heatmap.js), [`src/routes/heatmap-public.js`](../../src/routes/heatmap-public.js), [`public/js/coverage.js`](../../public/js/coverage.js), [`public/js/maps.js`](../../public/js/maps.js) (`createMapToggleControl`/`setToggleBtnState`), [`public/heatmap.html`](../../public/heatmap.html).
 
 ## 🔗 MarineTraffic / VesselFinder Integration
 

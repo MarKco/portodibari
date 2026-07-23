@@ -474,6 +474,8 @@ Opens from **🌐 Coverage map**. Shows a **world map** where each cell is color
 
 As a user, you can **open the map and see the current data** (read-only for you). The map is also available **without login** at `/heatmap`. Starting and stopping data collection is reserved to administrators.
 
+A **🧹** button in the top-right corner (hover over it to see what it does) hides — **on by default** — cells with a **single message**: almost always isolated noise (e.g. satellite positioning artifacts far from any real route) rather than real coverage. Your choice is remembered for future visits.
+
 ---
 
 ## Settings

@@ -95,7 +95,10 @@
 
     async function loadCells() {
       const level = levelForZoom(map.getZoom());
-      let url = `/api/heatmap/public-cells?level=${level}`;
+      // Always hide single-message cells here (isolated noise, e.g. satellite
+      // position artifacts) — this page is public/read-only with no per-user
+      // settings to persist a toggle against.
+      let url = `/api/heatmap/public-cells?level=${level}&hideSingletons=1`;
       if (map.getZoom() > 3) {
         const b = map.getBounds();
         url += `&minLat=${b.getSouth().toFixed(4)}&maxLat=${b.getNorth().toFixed(4)}` +

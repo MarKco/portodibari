@@ -158,6 +158,11 @@ function connect() {
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return;
     }
+    // (0,0) "Null Island" — the classic GPS-not-fixed sentinel some upstream AIS
+    // feeders emit instead of the proper ITU-R M.1371 invalid-position code
+    // (91°/181°, already rejected above). A real vessel there is negligible next
+    // to how often this exact point shows up as pure ingestion noise.
+    if (lat === 0 && lon === 0) return;
     const latIdx = Math.floor(lat / GRID);
     const lonIdx = Math.floor(lon / GRID);
     const key = latIdx + ':' + lonIdx;

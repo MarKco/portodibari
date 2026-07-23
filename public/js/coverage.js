@@ -7,6 +7,7 @@
 import { S } from './store.js';
 import { addBaseLayers } from './tiles.js';
 import { t } from './i18n.js';
+import { createMapToggleControl, setToggleBtnState } from './maps.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -61,6 +62,8 @@ function levelForZoom(z) {
   return 2.0;
 }
 
+let covToggleBtns = null;
+
 function initMap() {
   if (S.coverageMap) return;
   S.coverageMap = L.map('coverage-map', { worldCopyJump: true, minZoom: 2, zoomControl: true }).setView([25, 10], 2);
@@ -72,6 +75,17 @@ function initMap() {
     clearTimeout(moveTimer);
     moveTimer = setTimeout(loadCells, 250);
   });
+  covToggleBtns = createMapToggleControl(S.coverageMap, [
+    { key: 'hideHeatmapSingletons', icon: '🧹', tipKey: 'coverage.toggleSingletonsTip', onChange: loadCells },
+  ]);
+}
+
+// Re-applies S.hideHeatmapSingletons to the control button once /api/settings
+// resolves (called from main.js's loadSettings). No-op if the map hasn't been
+// created yet — initMap sets the initial state itself.
+export function syncCoverageMapToggleButton() {
+  if (!covToggleBtns) return;
+  setToggleBtnState(covToggleBtns.hideHeatmapSingletons, S.hideHeatmapSingletons);
 }
 
 // Interpolate blue→cyan→green→yellow→red at t∈[0,1].
@@ -108,7 +122,7 @@ async function loadCells() {
   const level = levelForZoom(m.getZoom());
   // Zoomed in: ask only for the viewport (fine cells). Whole world in view: drop
   // the bbox so the server serves (and caches) the coarse world aggregation.
-  let url = `/api/heatmap/cells?level=${level}`;
+  let url = `/api/heatmap/cells?level=${level}&hideSingletons=${S.hideHeatmapSingletons ? '1' : '0'}`;
   if (m.getZoom() > 3) {
     const b = m.getBounds();
     url += `&minLat=${b.getSouth().toFixed(4)}&maxLat=${b.getNorth().toFixed(4)}` +

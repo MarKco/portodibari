@@ -47,6 +47,9 @@ const DEFAULTS = {
   // hand-picked followed list.
   showActiveShipNames: true,
   showActiveTrails: false,
+  // Coverage heatmap: hide single-message cells (isolated noise — e.g. satellite
+  // position fallback artifacts far from any real traffic). On by default.
+  hideHeatmapSingletons: true,
   lang: 'it',
   defaultArea: null,
 };
@@ -55,6 +58,7 @@ const BOOL_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
   'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
   'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
+  'hideHeatmapSingletons',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
   'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',

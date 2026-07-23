@@ -1037,6 +1037,7 @@ export default {
   'coverage.stopped':        'Raccolta fermata',
   'coverage.confirmReset':   'Cancellare TUTTI i dati della mappa delle zone coperte? L\'operazione non è reversibile.',
   'coverage.resetDone':      'Cancellate {n} celle',
+  'coverage.toggleSingletonsTip': 'Nascondi le celle con un solo messaggio (spesso rumore isolato, es. artefatti di posizione satellitare, non copertura reale). Acceso di default.',
   'settings.group.heatmap':  'Mappa zone coperte',
   'settings.heatmapExport.name': 'Esporta dati copertura',
   'settings.heatmapExport.desc': 'Scarica il database separato della mappa delle zone coperte (file .db). È incluso anche nel backup completo.',

@@ -474,6 +474,8 @@ Si apre da **🌐 Mappa zone coperte**. Mostra una **mappa del mondo** dove ogni
 
 Come utente puoi **aprire la mappa e vedere i dati correnti** (per te è in sola lettura). La mappa è disponibile anche **senza login** all'indirizzo `/heatmap`. L'avvio e lo stop della raccolta dati sono riservati agli amministratori.
 
+Un pulsante **🧹** in alto a destra (passaci sopra col mouse per vedere a cosa serve) nasconde — **acceso di default** — le celle con **un solo messaggio**: quasi sempre rumore isolato (es. artefatti di posizionamento satellitare lontani da qualsiasi rotta reale) piuttosto che copertura vera. La scelta resta ricordata per i tuoi accessi successivi.
+
 ---
 
 ## Impostazioni

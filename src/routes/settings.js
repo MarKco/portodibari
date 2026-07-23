@@ -90,6 +90,7 @@ router.get('/settings', (req, res) => {
     showFollowedTrails: prefs.showFollowedTrails,
     showActiveShipNames: prefs.showActiveShipNames,
     showActiveTrails: prefs.showActiveTrails,
+    hideHeatmapSingletons: prefs.hideHeatmapSingletons,
     // ── Global (admin-managed; shown read-only to non-admins) ──
     importVfData: state.importVfData,
     importMtData: state.importMtData,
@@ -385,6 +386,7 @@ router.post('/settings', (req, res) => {
     'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
     'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
     'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
+    'hideHeatmapSingletons',
   ];
   const personalPatch = {};
   for (const k of personalKeys) if (b[k] !== undefined) personalPatch[k] = b[k];
@@ -543,6 +545,7 @@ router.post('/settings', (req, res) => {
     showFollowedTrails: prefs.showFollowedTrails,
     showActiveShipNames: prefs.showActiveShipNames,
     showActiveTrails: prefs.showActiveTrails,
+    hideHeatmapSingletons: prefs.hideHeatmapSingletons,
     importVfData: state.importVfData,
     importMtData: state.importMtData,
     importSfData: state.importSfData,

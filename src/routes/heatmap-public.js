@@ -33,7 +33,8 @@ router.get('/api/heatmap/public-cells', publicHeatmapLimit, (req, res) => {
     const b = { minLat: +q.minLat, minLon: +q.minLon, maxLat: +q.maxLat, maxLon: +q.maxLon };
     if (Object.values(b).every(Number.isFinite)) bbox = b;
   }
-  const out = heatmap.getCellsAgg({ level, bbox });
+  const hideSingletons = q.hideSingletons === '1';
+  const out = heatmap.getCellsAgg({ level, bbox, hideSingletons });
   res.json({ gridDeg: out.gridDeg, cells: out.cells });
 });
 

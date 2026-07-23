@@ -107,6 +107,7 @@ export const S = {
   coverageMap: null,
   coverageLayer: null,
   coverageRenderer: null,
+  hideHeatmapSingletons: true, // hide single-message cells (isolated noise); synced from server
 
   // Berths (mooring characterization overlay on the overview map)
   berthsLayer: null,

@@ -150,43 +150,51 @@ function floorDivExpr(col, f) {
 
 /**
  * Cells for a zoom level. `level` is the desired cell size in degrees (snapped to
- * an achievable factor); `bbox` (optional) restricts to a viewport. Returns
- * { gridDeg, cells:[{a,o,c}] } where a/o are indices in the EFFECTIVE grid so the
- * client draws each at a*gridDeg. World-view results are cached.
+ * an achievable factor); `bbox` (optional) restricts to a viewport. `hideSingletons`
+ * drops FINE cells with exactly one recorded message BEFORE aggregation — the
+ * signature of isolated single-ping noise (e.g. satellite-AIS position fallback
+ * artifacts: a stray fix far from any real traffic, never repeated) rather than
+ * real coverage. Filtering at the fine level (not on the aggregated sum) means a
+ * coarse block that also contains real traffic still shows it; only the noise
+ * cell's own contribution is dropped. Returns { gridDeg, cells:[{a,o,c}] } where
+ * a/o are indices in the EFFECTIVE grid so the client draws each at a*gridDeg.
+ * World-view results are cached (keyed by factor + the singleton-filter flag).
  */
-function getCellsAgg({ level, bbox } = {}) {
+function getCellsAgg({ level, bbox, hideSingletons = false } = {}) {
   const f = factorFor(level);
   const gridDeg = Number((f * GRID).toFixed(6));
   const worldView = !bbox;
+  const cacheKey = `${f}:${hideSingletons ? 1 : 0}`;
 
   if (worldView) {
     if (aggDirty) {
       aggCache.clear();
       aggDirty = false;
-    } else if (aggCache.has(f)) {
-      return { gridDeg, cells: aggCache.get(f) };
+    } else if (aggCache.has(cacheKey)) {
+      return { gridDeg, cells: aggCache.get(cacheKey) };
     }
   }
 
+  const conds = [];
+  const args = [];
+  if (bbox) {
+    conds.push('lat_idx BETWEEN ? AND ? AND lon_idx BETWEEN ? AND ?');
+    args.push(...boundsArgs(bbox));
+  }
+  if (hideSingletons) conds.push('msg_count > 1');
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
   let cells;
   if (f === 1) {
-    cells = bbox
-      ? db
-          .prepare(
-            'SELECT lat_idx AS a, lon_idx AS o, msg_count AS c FROM heatmap_cells ' +
-              'WHERE lat_idx BETWEEN ? AND ? AND lon_idx BETWEEN ? AND ?'
-          )
-          .all(...boundsArgs(bbox))
-      : getCells();
+    cells = db.prepare(`SELECT lat_idx AS a, lon_idx AS o, msg_count AS c FROM heatmap_cells ${where}`).all(...args);
   } else {
     const a = floorDivExpr('lat_idx', f);
     const o = floorDivExpr('lon_idx', f);
-    const where = bbox ? 'WHERE lat_idx BETWEEN ? AND ? AND lon_idx BETWEEN ? AND ?' : '';
     const sql = `SELECT ${a} AS a, ${o} AS o, SUM(msg_count) AS c FROM heatmap_cells ${where} GROUP BY a, o`;
-    cells = bbox ? db.prepare(sql).all(...boundsArgs(bbox)) : db.prepare(sql).all();
+    cells = db.prepare(sql).all(...args);
   }
 
-  if (worldView) aggCache.set(f, cells);
+  if (worldView) aggCache.set(cacheKey, cells);
   return { gridDeg, cells };
 }
 

@@ -530,7 +530,19 @@ Si salva **solo** il conteggio messaggi per cella e l'ultimo avvistamento (`msg_
 
 **Griglia**: `HEATMAP_GRID_DEG` in `app.config.properties` (default **0.25°** ≈ 28 km). Più piccola = più precisa, ma il costo cresce in modo **quadratico** (render/payload/righe DB). Cambiare la griglia **invalida le celle salvate** (l'indice è `floor(coord/grid)`) → eseguire **"Cancella dati"** dopo il cambio.
 
-File chiave: `src/services/heatmap-stream.js`, `src/heatmap-db.js`, `src/routes/heatmap.js`, `public/js/coverage.js`.
+#### Filtro rumore: posizione (0,0) e celle "singleton"
+
+Analizzando un export reale sono emerse due forme distinte di rumore, entrambe **dati esterni** (AISStream/i suoi feeder), non un bug di parsing nostro (stessa estrazione `MetaData.latitude/longitude` di `ais-stream.js`/`ship-follow.js`):
+
+- **"Null Island" (0°,0°)** — sentinel classico di "GPS senza fix" che alcuni feeder emettono al posto del vero codice ITU-R M.1371 di posizione non disponibile (91°/181°, già respinto dal range-check `lat/lon` esistente). Passava perché 0 è un valore finito e in range. **Fix**: `heatmap-stream.js` scarta esplicitamente `lat===0 && lon===0` prima di bufferizzare la cella (stesso punto del range-check). Solo ingestion **futura**: celle (0,0) già accumulate nel DB restano finché non le si cancella a mano (`DELETE FROM heatmap_cells WHERE lat_idx=0 AND lon_idx=0` sul DB heatmap, oppure "Cancella dati" che però svuota tutto).
+- **Celle "singleton" isolate** (`msg_count = 1`, nessuna cella popolata nell'intorno) — firma tipica di un artefatto di posizionamento **satellitare AIS**: quando il ricevitore non riesce a risolvere bene la posizione da un rilevamento marginale, alcuni feed ripiegano sul sub-punto/ground-track del satellite (longitudine quasi costante durante un singolo passaggio orbitale, latitudine che spazia molto) invece di scartare il messaggio — diverso da un vero transito (che lascerebbe più messaggi per cella lungo un percorso diagonale). Impossibile distinguere in modo affidabile senza identità/rotta (che il DB heatmap **non salva di proposito**, vedi sopra), quindi niente euristica in ingestion: **filtro solo in lettura**, opt-out per l'utente.
+
+**Toggle "nascondi singleton"** (🧹, **acceso di default**): stesso pattern UI dei toggle nome/scia (`createMapToggleControl`/`setToggleBtnState`, esportate da `public/js/maps.js` e riusate in `public/js/coverage.js` — icona sola, spiegazione via overlay hover `data-tip`, non testo/`title`). Pref utente `hideHeatmapSingletons` (default `true`) in `user-prefs.js`, condivisa in gruppo (`group-sync.js` `SHARED_SETTING_KEYS`), letta/scritta come le altre da `GET`/`POST /api/settings`.
+
+- **Filtro lato server** — `heatmapDb.getCellsAgg({ level, bbox, hideSingletons })` ([`src/heatmap-db.js`](../../src/heatmap-db.js)) scarta le celle **fini** con `msg_count = 1` **prima** dell'aggregazione per LOD, non dopo: un blocco coarse che contiene anche traffico vero non perde quel traffico, solo il contributo della cella-rumore. Query param `?hideSingletons=1` su entrambe le rotte (`GET /api/heatmap/cells` autenticata, `GET /api/heatmap/public-cells` pubblica). Cache mondo (`aggCache`) tenuta per chiave `factor:hideSingletons` così le due varianti non si sovrascrivono a vicenda.
+- **Pagina pubblica** (`public/heatmap.html`, `/heatmap`, nessuna sessione) — filtro **sempre attivo, non togglabile** (niente da persistere senza utente loggato).
+
+File chiave: `src/services/heatmap-stream.js`, `src/heatmap-db.js`, `src/routes/heatmap.js`, `src/routes/heatmap-public.js`, `public/js/coverage.js`, `public/js/maps.js` (`createMapToggleControl`/`setToggleBtnState`), `public/heatmap.html`.
 
 ## 🔗 Integrazione MarineTraffic / VesselFinder
 

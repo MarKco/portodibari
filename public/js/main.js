@@ -14,7 +14,7 @@ import { initLogPanel, openLogs, closeLogs } from './logs.js';
 import { initAppLog, openSettingsLog, closeSettingsLog, setAppLogToggle } from './app-log.js';
 import { openHealth, closeHealth } from './health.js';
 import { initAreas } from './areas.js';
-import { initCoverage } from './coverage.js';
+import { initCoverage, syncCoverageMapToggleButton } from './coverage.js';
 import { applyOpenSeaMap } from './tiles.js';
 import { renderSeamarkBerths, SEAMARK_CATEGORIES } from './seamarks.js';
 import { initNotifications, loadNotifications } from './notifications.js';
@@ -208,6 +208,8 @@ async function loadSettings() {
     S.showActiveShipNames = s.showActiveShipNames !== false;
     S.showActiveTrails = s.showActiveTrails === true;
     syncActiveMapToggleButtons();
+    S.hideHeatmapSingletons = s.hideHeatmapSingletons !== false;
+    syncCoverageMapToggleButton();
     applyOpenSeaMap(); // sync any maps already created before settings loaded
     if (s.cargoClasses) S.cargoClasses = s.cargoClasses;
     if (s.defaultCargoWeights) S.defaultCargoWeights = s.defaultCargoWeights;

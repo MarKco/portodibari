@@ -1037,6 +1037,7 @@ export default {
   'coverage.stopped':        'Collection stopped',
   'coverage.confirmReset':   'Delete ALL coverage-map data? This cannot be undone.',
   'coverage.resetDone':      'Deleted {n} cells',
+  'coverage.toggleSingletonsTip': 'Hide cells with a single message (often isolated noise, e.g. satellite position artifacts, not real coverage). On by default.',
   'settings.group.heatmap':  'Coverage map',
   'settings.heatmapExport.name': 'Export coverage data',
   'settings.heatmapExport.desc': 'Download the separate coverage-map database (.db file). Also included in the full backup.',

@@ -690,13 +690,13 @@ window.openShipDetail = function (mmsi) {
 // (data-tip, same glossary-tooltip system as the "ⓘ" Equasis icons — see
 // initGlossaryTooltip in main.js), not a native title/visible label: a "Nomi"/
 // "Names" caption next to the icon was too terse to convey what it toggles.
-function setToggleBtnState(btn, on) {
+export function setToggleBtnState(btn, on) {
   if (!btn) return;
   btn.classList.toggle('active', on);
   btn.setAttribute('aria-pressed', String(!!on));
 }
 
-function createMapToggleControl(map, buttons) {
+export function createMapToggleControl(map, buttons) {
   const els = {};
   const ToggleControl = L.Control.extend({
     options: { position: 'topright' },
