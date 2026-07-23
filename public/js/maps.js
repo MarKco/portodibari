@@ -691,7 +691,9 @@ window.openShipDetail = function (mmsi) {
 // initGlossaryTooltip in main.js), not a native title/visible label: a "Nomi"/
 // "Names" caption next to the icon was too terse to convey what it toggles.
 function setToggleBtnState(btn, on) {
-  if (btn) btn.classList.toggle('active', on);
+  if (!btn) return;
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', String(!!on));
 }
 
 function createMapToggleControl(map, buttons) {

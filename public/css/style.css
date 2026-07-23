@@ -892,18 +892,42 @@ td.empty {
   min-height: 0;
   margin-bottom: 0.75rem;
 }
+/* OFF = dim/greyscale-ish icon on neutral grey (clearly "not doing anything");
+   ON = full-opacity icon on a solid blue chip + a small green dot, so the
+   state reads at a glance and doesn't rely on color alone (dot position/shape
+   is a second, colorblind-safe signal). */
 .map-toggle-buttons a {
   width: 28px;
   height: 28px;
   line-height: 28px;
   text-align: center;
   font-size: 0.95rem;
-  background: #fff;
+  background: #e5e7eb;
+  opacity: 0.55;
+  filter: grayscale(60%);
   cursor: pointer;
+  position: relative;
+  transition: opacity 0.15s ease, filter 0.15s ease, background 0.15s ease;
+}
+.map-toggle-buttons a:hover {
+  opacity: 0.8;
+  filter: grayscale(20%);
 }
 .map-toggle-buttons a.active {
-  background: #dbeafe;
-  box-shadow: inset 0 0 0 2px #2563eb;
+  background: #2563eb;
+  opacity: 1;
+  filter: none;
+}
+.map-toggle-buttons a.active::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 1.5px #fff;
 }
 .ship-name-label {
   font-size: 0.72rem;
