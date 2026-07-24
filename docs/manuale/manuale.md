@@ -316,9 +316,9 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il dettagli
 
 ## Dettaglio nave
 
-Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la scheda completa.
+Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la scheda completa, organizzata in **tab**: **Generale**, più un tab per ciascuna fonte esterna abilitata (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). Il tab di una fonte disattivata nelle Impostazioni non compare.
 
-![Dettaglio nave — intestazione, griglia informazioni, fattori di rischio e pannello dati VesselFinder con mappa della traccia.](images/11-monitoraggio_dettagli_nave_1.png)
+![Dettaglio nave — intestazione, tab, griglia informazioni, mappa e tabella dati nave aggregati (tab Generale).](images/11-monitoraggio_dettagli_nave_1.png)
 
 ### Intestazione e azioni
 
@@ -328,6 +328,10 @@ Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la s
 - **🔔 / 🔕** — silenzia o riabilita le notifiche automatiche per questa nave
 - **⧉ VesselFinder / MarineTraffic / ShipFinder / MyShipTracking** — apri la scheda esterna
 - **Report** — genera un report della nave
+
+### Tab Generale
+
+Il primo tab, aperto di default, raccoglie tutto ciò che **non è specifico di una singola fonte esterna**: griglia informazioni, fattori di rischio, mappa con traccia e replay, tabella dati nave aggregati (sotto), letture AIS, note operative, storico visite in porto e — quando presenti — sanzioni e rendezvous in mare. Ogni fonte esterna abilitata ha invece il proprio tab dedicato (vedi sotto).
 
 ### Griglia informazioni
 
@@ -358,36 +362,49 @@ Tutti i dati disponibili della nave:
 
 Lista dei fattori che hanno contribuito al punteggio, con i punti di ciascuno. Se non ci sono anomalie compare "Nessuna anomalia rilevata".
 
-### Dati VesselFinder / MarineTraffic
+### Dati nave aggregati (tutti i provider)
 
-Se abilitati nelle impostazioni, mostrano informazioni aggiuntive recuperate da questi servizi (bandiera, stazza, anno di costruzione…), con indicazione se sono in cache. Il recupero è automatico in background per le navi viste di recente.
+Sotto la mappa, il tab Generale mostra una tabella che raccoglie i **dati principali della nave così come li riporta ciascuna fonte esterna abilitata** — nome, IMO, MMSI, nominativo, bandiera, tipo, anno di costruzione, lunghezza, larghezza, pescaggio, stazza lorda, portata lorda, porto di armamento — senza dover aprire il tab di ogni singolo provider per confrontarli.
 
-### Dati ShipFinder e MyShipTracking (ri-localizzazione delle navi seguite)
+- Quando più fonti riportano **lo stesso valore** — anche scritto in modo diverso (es. bandiera "PAN" e "Panama", lunghezza "202.80" e "203") — compare **una sola volta**, con un **pallino colorato per ciascuna fonte** che lo riporta, accanto al valore.
+- Quando le fonti **non sono d'accordo**, compaiono invece **tutti i valori distinti** riportati, ciascuno con il proprio pallino colorato, e la riga viene evidenziata con una leggera tinta per farla notare a colpo d'occhio: è il segnale che una delle fonti ha probabilmente un dato sbagliato o non aggiornato, utile da verificare.
+- **Passa il mouse su un pallino** per vedere a quale fonte corrisponde — lo stesso colore usato per distinguere i rispettivi tab (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch).
+- I campi che cambiano spesso (destinazione, ETA, pescaggio in tempo reale, stato di navigazione) **non** compaiono in questa tabella: restano nella griglia informazioni e nei singoli tab provider, dove il momento della rilevazione conta.
 
-![Dettaglio nave — pannelli delle fonti esterne aggiuntive (ShipFinder / MyShipTracking) con l'ultima posizione nota.](images/13-monitoraggio_dettagli_nave_3.png)
+La tabella compare solo se **almeno una fonte** ha già dei dati per la nave; resta vuota (nascosta) finché nessuna fonte ha ancora risposto.
 
-Se abiliti **Import ShipFinder** e/o **Import MyShipTracking**, compaiono i relativi pannelli. Oltre ai dati statici, queste fonti offrono la **posizione dell'ultimo avvistamento**, che serve a **ritrovare le navi seguite che l'AIS non vede più**:
+### Tab VesselFinder / MarineTraffic
 
-- **Automatico** — per ogni nave seguita che non trasmette da un po', l'app interroga periodicamente queste fonti in background. Se trova una posizione, compare sulla mini-mappa come marker distinto (**arancione** = ShipFinder, **teal/ciano** = MyShipTracking), senza alterare la traccia AIS, lo score o il replay.
+Se abilitati nelle impostazioni, il rispettivo tab mostra le informazioni aggiuntive recuperate da questi servizi (bandiera, stazza, anno di costruzione…), con indicazione se sono in cache. Il recupero è automatico in background per le navi viste di recente.
+
+### Tab ShipFinder e MyShipTracking (ri-localizzazione delle navi seguite)
+
+![Dettaglio nave — tab delle fonti esterne aggiuntive (ShipFinder / MyShipTracking) con l'ultima posizione nota.](images/13-monitoraggio_dettagli_nave_3.png)
+
+Se abiliti **Import ShipFinder** e/o **Import MyShipTracking**, compaiono i relativi tab. Oltre ai dati statici, queste fonti offrono la **posizione dell'ultimo avvistamento**, che serve a **ritrovare le navi seguite che l'AIS non vede più**:
+
+- **Automatico** — per ogni nave seguita che non trasmette da un po', l'app interroga periodicamente queste fonti in background. Se trova una posizione, compare sulla mini-mappa (tab Generale) come marker distinto (**arancione** = ShipFinder, **teal/ciano** = MyShipTracking), senza alterare la traccia AIS, lo score o il replay.
 - **Badge dedicato** — quando esiste una posizione compare accanto al nome un badge **📍 vista su ShipFinder/MyShipTracking · <data>**, distinto dal badge giallo **🔍 in ricerca** (che riflette lo stato AIS). Il badge "in ricerca" si spegne **solo** con un segnale AIS reale.
 - **Manuale** — il pulsante **📍 Localizza via ShipFinder / MyShipTracking** recupera **subito** la posizione corrente.
 
-> I pannelli compaiono **solo se l'integrazione è attiva** (Impostazioni → Import…). Di default sono spenti. Sulla mappa delle Navi seguite, una nave che l'AIS non vede più viene mostrata sulla sua posizione SF/MST più recente (marker grigio) e torna sull'AIS live appena ri-trasmette.
+> I tab compaiono **solo se l'integrazione è attiva** (Impostazioni → Import…). Di default sono spenti. Sulla mappa delle Navi seguite, una nave che l'AIS non vede più viene mostrata sulla sua posizione SF/MST più recente (marker grigio) e torna sull'AIS live appena ri-trasmette.
 
-### Proprietà / gestione (Equasis)
+### Tab Equasis (proprietà / gestione)
 
-![Dettaglio nave — pannello Proprietà / gestione (Equasis) e Global Fishing Watch con gli eventi comportamentali.](images/14-monitoraggio_dettagli_nave_4.png)
+![Dettaglio nave — tab Equasis (Proprietà / gestione), con pulsante di recupero e dati su proprietario, gestore e operatore.](images/14-monitoraggio_dettagli_nave_4.png)
 
-Se il lookup Equasis è abilitato, compare il pannello **Proprietà / gestione (Equasis)** con il pulsante **Recupera informazioni Equasis**. **Non parte mai in automatico**: la ricerca avviene solo al clic e interroga Equasis per **numero IMO**. Restituisce dati nave, **proprietà e gestione** (proprietario, gestore ISM, operatore), classificazione, copertura P&I, indicatori di performance/rischio e posizioni recenti. Il risultato viene memorizzato una sola volta e mostrato senza scadenza.
+Se il lookup Equasis è abilitato, compare il tab **Equasis** con il pulsante **Recupera informazioni Equasis**. **Non parte mai in automatico**: la ricerca avviene solo al clic e interroga Equasis per **numero IMO**. Restituisce dati nave, **proprietà e gestione** (proprietario, gestore ISM, operatore), classificazione, copertura P&I, indicatori di performance/rischio e posizioni recenti. Il risultato viene memorizzato una sola volta e mostrato senza scadenza.
 
-### Global Fishing Watch
+### Tab Global Fishing Watch
 
-Se l'arricchimento GFW è abilitato (di default lo è), compare il pannello **Global Fishing Watch** con l'**identità** della nave e le tabelle degli **eventi comportamentali** ricavati dal flusso AIS globale:
+Se l'arricchimento GFW è abilitato (di default lo è), compare il tab **Global Fishing Watch** con l'**identità** della nave e le tabelle degli **eventi comportamentali** ricavati dal flusso AIS globale:
 
 - **Incontri** — due navi che si incontrano in mare aperto (firma di un trasbordo).
 - **Loitering** — sosta prolungata in mare aperto.
 - **Port visit** — scali in porto ricostruiti.
 - **AIS spento (gap)** — transponder spento in navigazione ("dark activity").
+
+Ogni tabella evento è **ordinabile**: clic sull'intestazione di una colonna per ordinare, clic di nuovo per invertire (l'ordinamento predefinito è per data, dal più recente). Le tabelle con più di 10 righe sono **paginate**, con i pulsanti **‹ Prec.** e **Succ. ›** in fondo.
 
 L'arricchimento è **proattivo** (nessun pulsante). GFW traccia soprattutto navi da pesca, di supporto e reefer/carrier: molte mercantili non sono presenti (nota "non trovata in GFW"). Questi eventi **alimentano lo score di rischio**.
 

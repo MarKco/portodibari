@@ -436,6 +436,20 @@
                   data-i18n-title="detail.reportTitle" title="Genera report stampabile (PDF)">📄 <span data-i18n="detail.report">Report</span></button>
         </div>
       </div>
+      <div class="tabs" id="detail-tabs">
+        <button class="tab tab-active" data-panel="general" data-i18n="detail.tab.general">Generale</button>
+        <button class="tab hidden" data-panel="vf" data-i18n="detail.tab.vf">VesselFinder</button>
+        <button class="tab hidden" data-panel="mt" data-i18n="detail.tab.mt">MarineTraffic</button>
+        <button class="tab hidden" data-panel="sf" data-i18n="detail.tab.sf">ShipFinder</button>
+        <button class="tab hidden" data-panel="mst" data-i18n="detail.tab.mst">MyShipTracking</button>
+        <button class="tab hidden" data-panel="eq" data-i18n="detail.tab.eq">Equasis</button>
+        <button class="tab hidden" data-panel="gfw" data-i18n="detail.tab.gfw">Global Fishing Watch</button>
+      </div>
+
+      <!-- Tab: Generale — summary bar, map, cross-provider aggregate, notes,
+           risk trend, port visits. Everything not specific to one external
+           provider lives here. -->
+      <div id="detail-panel-general" class="detail-tab-panel">
       <div id="detail-info-bar" class="detail-info-bar"></div>
 
       <!-- Sanctions match detail (shown only when the vessel is listed) -->
@@ -446,15 +460,6 @@
         <div id="sanctions-data-body"></div>
       </div>
 
-      <!-- Map + VesselFinder data: side-by-side when VF available, full-width otherwise -->
-      <div id="detail-map-vf-row">
-        <div id="vf-data-section" class="detail-section detail-section--vf hidden">
-          <h3 class="detail-section-title">
-            <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
-            <span id="vf-cache-badge" class="scrape-badge hidden"></span>
-          </h3>
-          <div id="vf-data-body"></div>
-        </div>
         <div id="detail-map-wrap">
           <div id="detail-map"></div>
           <div id="track-anim" class="track-anim hidden">
@@ -511,62 +516,16 @@
             </button>
           </div>
         </div>
+
+      <!-- Cross-provider aggregate: identity/specs merged from every enabled
+           provider, one row per field, tagged with a colored dot per source. -->
+      <div id="agg-data-section" class="detail-section hidden">
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.aggTitle">Dati nave aggregati (tutti i provider)</span>
+        </h3>
+        <div id="agg-data-body"></div>
       </div>
 
-      <!-- MarineTraffic data -->
-      <div id="mt-data-section" class="detail-section detail-section--mt hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.mtTitle">Dati MarineTraffic</span>
-          <span id="mt-cache-badge" class="scrape-badge scrape-badge--mt hidden"></span>
-        </h3>
-        <div id="mt-data-body"></div>
-      </div>
-
-      <!-- ShipFinder data: static fields (fallback) + last-known scraped position.
-           The "Localizza" button force-scrapes the current position now; positions
-           are drawn as distinct markers on the detail map above. -->
-      <div id="sf-data-section" class="detail-section detail-section--sf hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.sfTitle">Dati ShipFinder</span>
-          <span id="sf-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
-          <button id="btn-sf-locate" class="btn btn-secondary btn-sm"
-                  data-i18n="detail.sfLocate">📍 Localizza via ShipFinder</button>
-        </h3>
-        <div id="sf-data-body"></div>
-      </div>
-
-      <!-- MyShipTracking data: mirror of the ShipFinder section — static fields +
-           last-known scraped position (second position backup). "Localizza" force-
-           scrapes the current position now; markers drawn on the detail map above. -->
-      <div id="mst-data-section" class="detail-section detail-section--mst hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.mstTitle">Dati MyShipTracking</span>
-          <span id="mst-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
-          <button id="btn-mst-locate" class="btn btn-secondary btn-sm"
-                  data-i18n="detail.mstLocate">📍 Localizza via MyShipTracking</button>
-        </h3>
-        <div id="mst-data-body"></div>
-      </div>
-
-      <!-- Equasis ownership data (manual, on-demand) -->
-      <div id="equasis-data-section" class="detail-section detail-section--eq hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.equasisTitle">Proprietà / gestione (Equasis)</span>
-          <span id="equasis-cache-badge" class="scrape-badge scrape-badge--eq hidden"></span>
-          <button id="btn-equasis-fetch" class="btn btn-secondary btn-sm"
-                  data-i18n="detail.equasisFetch">Recupera informazioni Equasis</button>
-        </h3>
-        <div id="equasis-data-body"></div>
-      </div>
-
-      <!-- Global Fishing Watch data (proactive: identity + behavioural events) -->
-      <div id="gfw-data-section" class="detail-section detail-section--gfw hidden">
-        <h3 class="detail-section-title">
-          <span data-i18n="detail.gfwTitle">Global Fishing Watch</span>
-          <span id="gfw-cache-badge" class="scrape-badge scrape-badge--gfw hidden"></span>
-        </h3>
-        <div id="gfw-data-body"></div>
-      </div>
       <div id="table-wrap-detail">
         <table>
           <thead>
@@ -646,6 +605,81 @@
             </thead>
             <tbody id="detail-rendezvous-body"></tbody>
           </table>
+        </div>
+      </div>
+      </div>
+
+      <!-- Tab: VesselFinder -->
+      <div id="detail-panel-vf" class="detail-tab-panel hidden">
+        <div id="vf-data-section" class="provider-panel detail-section--vf hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
+            <span id="vf-cache-badge" class="scrape-badge hidden"></span>
+          </h3>
+          <div id="vf-data-body"></div>
+        </div>
+      </div>
+
+      <!-- Tab: MarineTraffic -->
+      <div id="detail-panel-mt" class="detail-tab-panel hidden">
+        <div id="mt-data-section" class="provider-panel detail-section--mt hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.mtTitle">Dati MarineTraffic</span>
+            <span id="mt-cache-badge" class="scrape-badge scrape-badge--mt hidden"></span>
+          </h3>
+          <div id="mt-data-body"></div>
+        </div>
+      </div>
+
+      <!-- Tab: ShipFinder — static fields (fallback) + last-known scraped
+           position. The "Localizza" button force-scrapes the current position
+           now; positions are drawn as distinct markers on the map (tab Generale). -->
+      <div id="detail-panel-sf" class="detail-tab-panel hidden">
+        <div id="sf-data-section" class="provider-panel detail-section--sf hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.sfTitle">Dati ShipFinder</span>
+            <span id="sf-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
+            <button id="btn-sf-locate" class="btn btn-secondary btn-sm"
+                    data-i18n="detail.sfLocate">📍 Localizza via ShipFinder</button>
+          </h3>
+          <div id="sf-data-body"></div>
+        </div>
+      </div>
+
+      <!-- Tab: MyShipTracking — mirror of the ShipFinder tab (second position backup). -->
+      <div id="detail-panel-mst" class="detail-tab-panel hidden">
+        <div id="mst-data-section" class="provider-panel detail-section--mst hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.mstTitle">Dati MyShipTracking</span>
+            <span id="mst-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
+            <button id="btn-mst-locate" class="btn btn-secondary btn-sm"
+                    data-i18n="detail.mstLocate">📍 Localizza via MyShipTracking</button>
+          </h3>
+          <div id="mst-data-body"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Equasis (manual, on-demand ownership/management lookup) -->
+      <div id="detail-panel-eq" class="detail-tab-panel hidden">
+        <div id="equasis-data-section" class="provider-panel detail-section--eq hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.equasisTitle">Proprietà / gestione (Equasis)</span>
+            <span id="equasis-cache-badge" class="scrape-badge scrape-badge--eq hidden"></span>
+            <button id="btn-equasis-fetch" class="btn btn-secondary btn-sm"
+                    data-i18n="detail.equasisFetch">Recupera informazioni Equasis</button>
+          </h3>
+          <div id="equasis-data-body"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Global Fishing Watch (proactive: identity + behavioural events) -->
+      <div id="detail-panel-gfw" class="detail-tab-panel hidden">
+        <div id="gfw-data-section" class="provider-panel detail-section--gfw hidden">
+          <h3 class="detail-section-title">
+            <span data-i18n="detail.gfwTitle">Global Fishing Watch</span>
+            <span id="gfw-cache-badge" class="scrape-badge scrape-badge--gfw hidden"></span>
+          </h3>
+          <div id="gfw-data-body"></div>
         </div>
       </div>
     </div>

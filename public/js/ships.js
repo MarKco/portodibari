@@ -1050,8 +1050,235 @@ export function renderSanctionsSection(risk) {
   sec.classList.remove('hidden');
 }
 
+// ── Cross-provider aggregate (tab Generale) ──────────────────────────────────
+// Merges the identity/specs fields every enrichment source can offer into one
+// table: same value across providers → one row, multiple sources tagged; a
+// real disagreement → one chip per distinct value, each tagged with its own
+// source(s). Populated as each load*Data below resolves; reset on ship switch
+// (resetProviderAggregate, called from views.js before the fetches start) so
+// the previous ship's data never bleeds into the new one while loading.
+const providerData = { vf: null, mt: null, sf: null, mst: null, eq: null, gfw: null };
+
+const PROVIDER_NAME = {
+  vf: 'VesselFinder', mt: 'MarineTraffic', sf: 'ShipFinder',
+  mst: 'MyShipTracking', eq: 'Equasis', gfw: 'Global Fishing Watch',
+};
+
+function srcDot(key) {
+  return `<span class="src-dot src-dot--${key}" data-tip="${escHtml(PROVIDER_NAME[key] || key)}"></span>`;
+}
+
+// VF's fields are open-set/scraped (see SCRAPE_LABEL_GLOSSARY above) — find a
+// value by normalized label rather than an exact key.
+function scrapeGet(data, ...normKeys) {
+  for (const [label, value] of Object.entries(data || {})) {
+    if (label.startsWith('_')) continue;
+    if (normKeys.includes(scrapeNormLabel(label))) return String(value).trim();
+  }
+  return null;
+}
+
+function extractVf(data) {
+  if (!data) return {};
+  const out = {};
+  const imoMmsi = scrapeGet(data, 'imo / mmsi');
+  if (imoMmsi && imoMmsi.includes('/')) {
+    const [imo, mmsi] = imoMmsi.split('/').map((s) => s.trim());
+    if (imo) out.imo = imo;
+    if (mmsi) out.mmsi = mmsi;
+  }
+  if (!out.name) out.name = scrapeGet(data, 'vessel name');
+  if (!out.imo) out.imo = scrapeGet(data, 'imo number');
+  if (!out.mmsi) out.mmsi = scrapeGet(data, 'mmsi');
+  out.callsign = scrapeGet(data, 'callsign');
+  out.flag = scrapeGet(data, 'flag') || scrapeGet(data, 'ais flag');
+  out.type = scrapeGet(data, 'ship type') || scrapeGet(data, 'ais type');
+  out.year = scrapeGet(data, 'year of build');
+  out.length = scrapeGet(data, 'length overall');
+  out.beam = scrapeGet(data, 'beam');
+  out.draught = scrapeGet(data, 'draught');
+  out.gt = scrapeGet(data, 'gross tonnage');
+  out.dwt = scrapeGet(data, 'deadweight');
+  return out;
+}
+
+// MT/SF/MST use their own fixed label sets (MT_FIELD_LABELS in
+// marinetraffic.js; the put() calls in shipfinder.js / myshiptracking.js) —
+// exact key lookups, no fuzzy matching needed.
+function extractMt(data) {
+  if (!data) return {};
+  return {
+    name: data['Nome'], imo: data['IMO'], mmsi: data['MMSI'], callsign: data['Nominativo'],
+    flag: data['Bandiera'], type: data['Tipo'], year: data['Anno costruzione'],
+    length: data['Lunghezza (m)'], beam: data['Larghezza (m)'],
+    gt: data['Stazza lorda'], dwt: data['Portata lorda (DWT)'], homePort: data['Porto di armamento'],
+  };
+}
+function extractSf(data) {
+  if (!data) return {};
+  return {
+    name: data['Nome'], imo: data['IMO'], mmsi: data['MMSI'], callsign: data['Call Sign'],
+    flag: data['Bandiera'], type: data['Tipo'], length: data['Lunghezza'],
+    beam: data['Larghezza'], draught: data['Pescaggio'],
+  };
+}
+function extractMst(data) {
+  if (!data) return {};
+  const out = {
+    name: data['Nome'], imo: data['IMO'], mmsi: data['MMSI'], callsign: data['Call Sign'],
+    flag: data['Bandiera'], type: data['Tipo'], draught: data['Pescaggio'],
+  };
+  // MST reports size as one combined "203 × 31 m" field instead of two.
+  const m = data['Dimensioni'] && String(data['Dimensioni']).match(/(\d+(?:[.,]\d+)?)\s*[×x]\s*(\d+(?:[.,]\d+)?)/);
+  if (m) { out.length = m[1]; out.beam = m[2]; }
+  return out;
+}
+function extractEquasis(data) {
+  const p = (data && data.particulars) || {};
+  return {
+    name: p['Name'], imo: p['IMO number'], mmsi: p['MMSI'], callsign: p['Call Sign'],
+    flag: p['Flag'], type: p['Type of ship'], year: p['Year of build'],
+    gt: p['Gross tonnage'], dwt: p['DWT'], homePort: p['Port of registry'],
+  };
+}
+function extractGfw(data) {
+  const id = (data && data.identity) || {};
+  return { name: id.shipname, imo: id.imo, mmsi: id.mmsi, callsign: id.callsign, flag: id.flag, type: id.type, year: id.year };
+}
+
+const AGG_EXTRACTORS = { vf: extractVf, mt: extractMt, sf: extractSf, mst: extractMst, eq: extractEquasis, gfw: extractGfw };
+// Priority order for picking which spelling to display when sources agree.
+const AGG_PROVIDER_ORDER = ['vf', 'mt', 'gfw', 'eq', 'sf', 'mst'];
+
+// Only the fields shared by more than one provider (or otherwise worth
+// reconciling) — live/dynamic fields (destination, ETA, nav status, current
+// draught) are deliberately excluded: providers scrape at different times, so
+// comparing them would flag staleness as a "conflict", not a real one.
+const AGG_FIELDS = [
+  { id: 'name', labelKey: 'agg.name', kind: 'text' },
+  { id: 'imo', labelKey: 'agg.imo', kind: 'text' },
+  { id: 'mmsi', labelKey: 'agg.mmsi', kind: 'text' },
+  { id: 'callsign', labelKey: 'agg.callsign', kind: 'text' },
+  { id: 'flag', labelKey: 'agg.flag', kind: 'flag' },
+  { id: 'type', labelKey: 'agg.type', kind: 'text' },
+  { id: 'year', labelKey: 'agg.year', kind: 'int' },
+  { id: 'length', labelKey: 'agg.length', kind: 'num1' },
+  { id: 'beam', labelKey: 'agg.beam', kind: 'num1' },
+  { id: 'draught', labelKey: 'agg.draught', kind: 'num1' },
+  { id: 'gt', labelKey: 'agg.gt', kind: 'int' },
+  { id: 'dwt', labelKey: 'agg.dwt', kind: 'int' },
+  { id: 'homePort', labelKey: 'agg.homePort', kind: 'text' },
+];
+
+// Deliberately not an exhaustive ISO-3166 table (same scope choice as
+// ISO3_TO_NAME in gfw.js) — only the flags actually likely to show up need a
+// name to compare against. An unmapped alpha-3 code just falls through to a
+// raw lowercase compare, which fails "safe": it shows an extra source chip
+// instead of silently merging two different flags into one.
+const AGG_ISO3_TO_NAME = {
+  PAN: 'panama', LBR: 'liberia', MHL: 'marshall islands', HKG: 'hong kong',
+  SGP: 'singapore', MLT: 'malta', CHN: 'china', BHS: 'bahamas', GRC: 'greece',
+  JPN: 'japan', GBR: 'united kingdom', CYP: 'cyprus', IMN: 'isle of man',
+  IDN: 'indonesia', KOR: 'south korea', USA: 'united states', DNK: 'denmark',
+  NOR: 'norway', ITA: 'italy', DEU: 'germany', IND: 'india', VNM: 'vietnam',
+  NLD: 'netherlands', ATG: 'antigua and barbuda', CYM: 'cayman islands',
+  BMU: 'bermuda', GIB: 'gibraltar', BEL: 'belgium', TUR: 'turkey',
+  VUT: 'vanuatu', COM: 'comoros', PLW: 'palau', KHM: 'cambodia',
+  COK: 'cook islands', TZA: 'tanzania', SLE: 'sierra leone', TGO: 'togo',
+  MDA: 'moldova', MNG: 'mongolia', PRK: 'north korea', IRN: 'iran',
+  SYR: 'syria', RUS: 'russia', CIV: 'ivory coast', FRA: 'france',
+  ESP: 'spain', HRV: 'croatia', ALB: 'albania', MNE: 'montenegro',
+};
+
+function normalizeFlag(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  if (/^[A-Za-z]{2}$/.test(v)) {
+    try {
+      return new Intl.DisplayNames(['en'], { type: 'region' }).of(v.toUpperCase()).toLowerCase();
+    } catch { /* unknown code — fall through to raw compare */ }
+  }
+  if (/^[A-Za-z]{3}$/.test(v) && AGG_ISO3_TO_NAME[v.toUpperCase()]) return AGG_ISO3_TO_NAME[v.toUpperCase()];
+  return v.toLowerCase();
+}
+
+// Normalize for the equality check only — the raw value is still what gets
+// displayed. Numeric fields round (length/beam/draught to the nearest metre,
+// year/GT/DWT to the nearest unit) so e.g. VF's "202.80" and SF's "203" agree.
+function normalizeAggValue(kind, raw) {
+  const v = String(raw ?? '').trim();
+  if (!v) return null;
+  if (kind === 'flag') return normalizeFlag(v);
+  if (kind === 'int' || kind === 'num1') {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? String(Math.round(n)) : v.toLowerCase();
+  }
+  return v.toLowerCase().replace(/\s+/g, ' ');
+}
+
+function buildAggregateRows() {
+  const perProvider = {};
+  for (const key of Object.keys(AGG_EXTRACTORS)) perProvider[key] = AGG_EXTRACTORS[key](providerData[key]);
+
+  const rows = [];
+  for (const field of AGG_FIELDS) {
+    const candidates = [];
+    for (const key of AGG_PROVIDER_ORDER) {
+      const raw = perProvider[key]?.[field.id];
+      if (raw == null || String(raw).trim() === '') continue;
+      candidates.push({ provider: key, raw: String(raw).trim(), norm: normalizeAggValue(field.kind, raw) });
+    }
+    if (!candidates.length) continue;
+    const groups = new Map();
+    for (const c of candidates) {
+      if (!groups.has(c.norm)) groups.set(c.norm, []);
+      groups.get(c.norm).push(c);
+    }
+    rows.push({ field, groups: [...groups.values()] });
+  }
+  return rows;
+}
+
+// One chip per distinct value: the most readable spelling among its sources
+// (prefer a full word over a bare code) plus one dot per contributing source.
+function aggValueChip(group) {
+  const best = group.find((c) => c.raw.length > 3) || group[0];
+  return `<span class="agg-value-chip">${escHtml(best.raw)}${group.map((c) => srcDot(c.provider)).join('')}</span>`;
+}
+
+function renderAggregateTable() {
+  const rows = buildAggregateRows();
+  if (!rows.length) {
+    el.aggDataSection.classList.add('hidden');
+    return;
+  }
+  const trs = rows
+    .map(({ field, groups }) => {
+      const conflict = groups.length > 1;
+      return `<tr>
+        <td class="vf-td-label">${t(field.labelKey)}</td>
+        <td class="vf-td-val agg-td-val${conflict ? ' agg-conflict' : ''}"><span class="agg-value-group">${groups.map(aggValueChip).join('')}</span></td>
+      </tr>`;
+    })
+    .join('');
+  el.aggDataBody.innerHTML = `<table class="vf-table">${trs}</table>`;
+  el.aggDataSection.classList.remove('hidden');
+}
+
+// Called from views.js right before opening a ship, so the previous ship's
+// aggregate never flashes while the new one's provider fetches are in flight.
+export function resetProviderAggregate() {
+  for (const k of Object.keys(providerData)) providerData[k] = null;
+  el.aggDataSection.classList.add('hidden');
+}
+
+// Called from views.js once every provider fetch for the open ship resolves.
+export function refreshProviderAggregate() {
+  renderAggregateTable();
+}
+
 // ── Scraped data (VesselFinder / MarineTraffic) ──────────────────────────────
-function invalidateDetailMap() {
+export function invalidateDetailMap() {
   setTimeout(() => { if (S.aisMap) S.aisMap.invalidateSize(); }, 50);
 }
 
@@ -1081,6 +1308,7 @@ export async function loadVfData(mmsi) {
       el.vfCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.vfDataBody, result.data);
+    providerData.vf = result.data;
     invalidateDetailMap();
   } catch {
     el.vfDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
@@ -1114,6 +1342,7 @@ export async function loadMtData(mmsi) {
       el.mtCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.mtDataBody, result.data);
+    providerData.mt = result.data;
     invalidateDetailMap();
   } catch {
     el.mtDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
@@ -1153,6 +1382,7 @@ export async function loadSfData(mmsi) {
       el.sfCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.sfDataBody, result.data);
+    providerData.sf = result.data;
     renderSfPositionBlock(result.positions); // show last-known position at top of panel
     invalidateDetailMap();
   } catch {
@@ -1248,6 +1478,7 @@ export async function loadMstData(mmsi) {
       el.mstCacheBadge.classList.remove('hidden');
     }
     renderScrapedData(el.mstDataBody, result.data);
+    providerData.mst = result.data;
     renderMstPositionBlock(result.positions);
     invalidateDetailMap();
   } catch {
@@ -1356,6 +1587,7 @@ export async function loadEquasisData(mmsi, doFetch = false) {
     // Already have data: hide the button (lookup is "once").
     el.btnEquasisFetch.classList.add('hidden');
     renderEquasisData(el.equasisDataBody, result.data);
+    providerData.eq = result.data;
     el.equasisDataSection.classList.remove('collapsed');
   } catch {
     el.equasisDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
@@ -1533,6 +1765,7 @@ export async function loadGfwData(mmsi) {
       el.gfwCacheBadge.classList.remove('hidden');
     }
     renderGfwData(el.gfwDataBody, result.data);
+    providerData.gfw = result.data;
   } catch {
     el.gfwDataBody.innerHTML = `<p class="vf-error">${t('scrape.error')}</p>`;
   }

@@ -316,9 +316,9 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 ## Ship detail
 
-Clicking any table row (or a ship's notification) opens the full detail card.
+Clicking any table row (or a ship's notification) opens the full detail card, organized into **tabs**: **General**, plus one tab per enabled external source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). A source disabled in Settings has no tab.
 
-![Ship detail — header, information grid, risk factors, and VesselFinder data panel with track map.](images/11-monitoraggio_dettagli_nave_1.png)
+![Ship detail — header, tabs, information grid, map, and aggregated ship data table (General tab).](images/11-monitoraggio_dettagli_nave_1.png)
 
 ### Header and actions
 
@@ -328,6 +328,10 @@ Clicking any table row (or a ship's notification) opens the full detail card.
 - **🔔 / 🔕** — mute or re-enable automatic notifications for this ship
 - **⧉ VesselFinder / MarineTraffic / ShipFinder / MyShipTracking** — open the external page
 - **Report** — generates a report for the ship
+
+### General tab
+
+The first tab, open by default, gathers everything that **isn't specific to a single external source**: information grid, risk factors, map with track and replay, aggregated ship data table (below), AIS readings, operational notes, port visit history, and — when present — sanctions and rendezvous at sea. Each enabled external source instead has its own dedicated tab (see below).
 
 ### Information grid
 
@@ -358,36 +362,49 @@ All available data for the ship:
 
 List of the factors that contributed to the score, with each one's points. If there are no anomalies, "No anomalies detected" is shown.
 
-### VesselFinder / MarineTraffic data
+### Aggregated ship data (all providers)
 
-If enabled in settings, shows additional information fetched from these services (flag, gross tonnage, year built…), noting whether it's cached. Fetching happens automatically in the background for recently seen ships.
+Below the map, the General tab shows a table gathering the **main ship data as reported by each enabled external source** — name, IMO, MMSI, call sign, flag, type, year built, length, beam, draught, gross tonnage, deadweight, home port — without having to open every provider's tab to compare them.
 
-### ShipFinder and MyShipTracking data (re-locating followed ships)
+- When several sources report **the same value** — even spelled differently (e.g. flag "PAN" and "Panama", length "202.80" and "203") — it appears **once**, with a **colored dot per confirming source** next to the value.
+- When sources **disagree**, **every distinct value** reported appears instead, each with its own colored dot, and the row is highlighted with a light tint so it stands out at a glance: it's a sign one of the sources likely has a wrong or stale value, worth checking.
+- **Hover over a dot** to see which source it is — the same color used to tell apart the respective tabs (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch).
+- Fields that change often (destination, ETA, live draught, nav status) **don't** appear in this table: they stay in the information grid and in each provider's own tab, where the time of the reading matters.
 
-![Ship detail — additional external source panels (ShipFinder / MyShipTracking) with last known position.](images/13-monitoraggio_dettagli_nave_3.png)
+The table only appears once **at least one source** has data for the ship; it stays empty (hidden) until a source has responded.
 
-If you enable **Import ShipFinder** and/or **Import MyShipTracking**, the corresponding panels appear. Besides static data, these sources provide the **last-sighting position**, used to **re-locate followed ships AIS can no longer see**:
+### VesselFinder / MarineTraffic tab
 
-- **Automatic** — for every followed ship that hasn't transmitted in a while, the app periodically queries these sources in the background. If it finds a position, it appears on the mini-map as a distinct marker (**orange** = ShipFinder, **teal/cyan** = MyShipTracking), without altering the AIS track, score, or replay.
+If enabled in settings, the respective tab shows additional information fetched from these services (flag, gross tonnage, year built…), noting whether it's cached. Fetching happens automatically in the background for recently seen ships.
+
+### ShipFinder and MyShipTracking tabs (re-locating followed ships)
+
+![Ship detail — additional external source tabs (ShipFinder / MyShipTracking) with last known position.](images/13-monitoraggio_dettagli_nave_3.png)
+
+If you enable **Import ShipFinder** and/or **Import MyShipTracking**, the corresponding tabs appear. Besides static data, these sources provide the **last-sighting position**, used to **re-locate followed ships AIS can no longer see**:
+
+- **Automatic** — for every followed ship that hasn't transmitted in a while, the app periodically queries these sources in the background. If it finds a position, it appears on the mini-map (General tab) as a distinct marker (**orange** = ShipFinder, **teal/cyan** = MyShipTracking), without altering the AIS track, score, or replay.
 - **Dedicated badge** — when a position exists, a **📍 seen on ShipFinder/MyShipTracking · <date>** badge appears next to the name, distinct from the yellow **🔍 searching** badge (which reflects AIS status). The "searching" badge only turns off with a real AIS signal.
 - **Manual** — the **📍 Locate via ShipFinder / MyShipTracking** button fetches the current position **right away**.
 
-> The panels appear **only if the integration is enabled** (Settings → Import…). Off by default. On the Followed ships map, a ship AIS can no longer see is shown at its most recent SF/MST position (grey marker) and returns to live AIS as soon as it re-transmits.
+> The tabs appear **only if the integration is enabled** (Settings → Import…). Off by default. On the Followed ships map, a ship AIS can no longer see is shown at its most recent SF/MST position (grey marker) and returns to live AIS as soon as it re-transmits.
 
-### Ownership / management (Equasis)
+### Equasis tab (ownership / management)
 
-![Ship detail — Ownership / management (Equasis) panel and Global Fishing Watch with behavioral events.](images/14-monitoraggio_dettagli_nave_4.png)
+![Ship detail — Equasis tab (Ownership / management), with the fetch button and owner/manager/operator data.](images/14-monitoraggio_dettagli_nave_4.png)
 
-If the Equasis lookup is enabled, the **Ownership / management (Equasis)** panel appears with a **Fetch Equasis information** button. **Never runs automatically**: the lookup only happens on click and queries Equasis by **IMO number**. It returns ship data, **ownership and management** (owner, ISM manager, operator), classification, P&I coverage, performance/risk indicators, and recent positions. The result is stored once and shown with no expiry.
+If the Equasis lookup is enabled, the **Equasis** tab appears with a **Fetch Equasis information** button. **Never runs automatically**: the lookup only happens on click and queries Equasis by **IMO number**. It returns ship data, **ownership and management** (owner, ISM manager, operator), classification, P&I coverage, performance/risk indicators, and recent positions. The result is stored once and shown with no expiry.
 
-### Global Fishing Watch
+### Global Fishing Watch tab
 
-If GFW enrichment is enabled (on by default), the **Global Fishing Watch** panel appears with the ship's **identity** and tables of **behavioral events** derived from the global AIS feed:
+If GFW enrichment is enabled (on by default), the **Global Fishing Watch** tab appears with the ship's **identity** and tables of **behavioral events** derived from the global AIS feed:
 
 - **Encounters** — two ships meeting in open water (a transshipment signature).
 - **Loitering** — prolonged stop in open water.
 - **Port visit** — reconstructed port calls.
 - **AIS off (gap)** — transponder off while underway ("dark activity").
+
+Every event table is **sortable**: click a column header to sort, click again to reverse (default sort is by date, most recent first). Tables with more than 10 rows are **paginated**, with **‹ Prev** and **Next ›** buttons at the bottom.
 
 Enrichment is **proactive** (no button). GFW mainly tracks fishing, support, and reefer/carrier vessels: many merchant ships aren't present (a "not found in GFW" note). These events **feed the risk score**.
 

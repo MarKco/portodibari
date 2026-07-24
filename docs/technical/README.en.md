@@ -246,7 +246,7 @@ The interface is organized around **ships** (MMSI), not individual readings:
 | --------------------| -----------------------------------------------------------------------------------|
 | **Active ships**   | Ships seen in the last **6 hours**, **or** "in port" ships seen in the last **24 hours**. Toolbar with **search** (name/MMSI/IMO/destination) and **filters** (risk band, in-port only, flagged only) + **CSV export of the filtered view** (see [Search, filters and export](#-search-filters-and-list-export)) |
 | **Past ships**     | Ships that no longer meet the "active" criteria (complement). Same search/filter/export toolbar (without the "in port" filter) |
-| **Ship detail**    | Static ship info (type, IMO, callsign, dimensions, destination…) + VesselFinder/MarineTraffic data (if enabled, above the map) + **[risk score over time](#-risk-score-history)** + track map (with collapsed stops) + paginated readings + notes + port visit history. **📄 Report** button to generate a [printable/PDF report](#-ship-pdf-report) |
+| **Ship detail**    | Organized into **tabs**: **General** (static ship info — type, IMO, callsign, dimensions, destination… — + **aggregated data table** reconciling the main fields across every enabled source, see below + **[risk score over time](#-risk-score-history)** + track map with collapsed stops + paginated readings + notes + port visit history) plus **one tab per enabled external source** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — a disabled source has no tab). **📄 Report** button to generate a [printable/PDF report](#-ship-pdf-report) |
 | **Traffic**        | Aggregate statistics: summary cards, arrivals by hour-of-day chart, arrivals by ship type; **risk score distribution** (green/yellow/red tiles for ships in the last 7 days), **top risk factors** (frequency), **daily arrivals** (last 30 days), **highest-score ships** (top 8, clickable); expected ships (by preset keyword), latest port events |
 | **Areas**          | Runtime area management: list with coordinates/status/stored data, map showing all areas, panel to add (GPS coordinates or map view capture) and delete areas (with related history and a 10s undo window) |
 
@@ -530,7 +530,7 @@ Analyzing a real export surfaced two distinct forms of noise, both **external da
 
 ## 🔗 MarineTraffic / VesselFinder Integration
 
-In the ship detail view, two panels enrich AIS data with data downloaded (scraped) from external sources, cached in the `ship_scrape_cache` table (TTL configurable via `SCRAPE_CACHE_TTL`).
+In the ship detail view, two tabs enrich AIS data with data downloaded (scraped) from external sources, cached in the `ship_scrape_cache` table (TTL configurable via `SCRAPE_CACHE_TTL`).
 
 **VesselFinder** — server-rendered page; HTML scraping (`crawlVesselFinder`) extracts photo + data table via `fetchHttp` (the `https` module).
 
@@ -654,7 +654,17 @@ Unlike VF/MT/Equasis/PSC, GFW is **on by default** (`IMPORT_GFW=true`). Like VF/
 - **Non-commercial license**: GFW data is free **for non-commercial use only** (research, NGO, public good); commercial use requires a dedicated license from GFW.
 - **Coverage**: GFW mainly tracks **fishing, support, and reefer/carrier vessels** — many merchant ships are simply not in GFW (the detail panel shows a "not found in GFW" note for those).
 
-In the ship detail view a new **Global Fishing Watch** panel appears (when enabled), above the map alongside the VF/MT/Equasis panels: it shows the identity table and the event tables (encounters, loitering, port visits, AIS-off), each field/section with a hover ⓘ info icon explaining it.
+In the ship detail view a **Global Fishing Watch** tab appears (when enabled): it shows the identity table and the event tables (encounters, loitering, port visits, AIS-off), each field/section with a hover ⓘ info icon explaining it. Every event table is sortable by column (default: date, most recent first) and paginated client-side (10 rows/page) — `gfw.js` already paginates the GFW API response upstream (see `EVENT_MAX_TOTAL`/`fetchEvents`, which follows GFW's `nextOffset` instead of stopping at the first page), so even a very active vessel reaches the frontend with its complete behavioural history.
+
+### Cross-provider aggregated ship data
+
+The **General** tab of the ship detail also shows a table reconciling the identity/spec fields (name, IMO, MMSI, call sign, flag, type, year, length, beam, draught, GT, DWT, home port) across **every** enabled source, so nobody has to open each tab to compare them. Logic lives in `public/js/ships.js` (`buildAggregateRows`/`renderAggregateTable`), client-side, over the data already loaded for the detail view:
+
+- **Per-provider extraction**: one extractor per source reads its own keys. VF is open-set (scraped labels vary page to page) → matched by normalized label (`scrapeGet`/`scrapeNormLabel`, the same mechanism as `SCRAPE_LABEL_GLOSSARY`). MT/SF/MST/Equasis use fixed keys (`MT_FIELD_LABELS`, the `put()` calls in `shipfinder.js`/`myshiptracking.js`, Equasis's `particulars`) → direct lookup. GFW uses the already-structured `identity` object.
+- **Deliberately excluded fields**: destination, ETA, live draught, nav status — fields that change often and that sources scrape at different times: comparing them would produce false "conflicts" from staleness alone, not a real disagreement.
+- **Normalization for comparison only** (the displayed value is always the raw one): flag → canonical name via `Intl.DisplayNames` for ISO alpha-2 codes, a small alpha-3→name table (`AGG_ISO3_TO_NAME`, the same deliberately-limited scope as `ISO3_TO_NAME` in `gfw.js` — an unmapped code fails "safe": it shows an extra source chip instead of wrongly merging two different flags); numeric fields (`length`/`beam`/`draught`/`year`/`gt`/`dwt`) are rounded before comparing, so "202.80" and "203" match.
+- **Grouping**: values sharing the same normalized form land in one chip, with one dot per source reporting it; different normalized values stay separate chips on the same row, with a light background tint (`.agg-conflict`) flagging the disagreement.
+- The dots reuse the same 6 colors as the provider tabs (`.src-dot--vf/mt/sf/mst/eq/gfw` in `style.css`) and show the source name on hover (the same `data-tip` tooltip system as `initGlossaryTooltip`).
 
 ## 🤝 Ship-to-ship rendezvous detection
 

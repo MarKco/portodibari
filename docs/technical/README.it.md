@@ -256,7 +256,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | --------------------| -----------------------------------------------------------------------------------|
 | **Navi presenti**  | Navi viste negli ultimi **6 ore**, **oppure** navi "in porto" viste nelle ultime **24 ore**. Toolbar con **ricerca** (nome/MMSI/IMO/destinazione) e **filtri** (fascia di rischio, solo in porto, solo segnalate) + **export CSV della vista filtrata** (vedi [Ricerca, filtri ed export](#-ricerca-filtri-ed-export-liste)) |
 | **Navi passate**   | Navi che non rientrano nel criterio "presenti" (complemento). Stessa toolbar di ricerca/filtri/export (senza il filtro "in porto") |
-| **Dettaglio nave** | Info statiche nave (tipo, IMO, callsign, dimensioni, destinazione…) + dati VesselFinder/MarineTraffic (se abilitati, sopra alla mappa) + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track (con soste collassate) + letture paginate + note + storico visite porto. La **destinazione è cliccabile** (vedi sotto). Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
+| **Dettaglio nave** | Organizzato in **tab**: **Generale** (info statiche nave — tipo, IMO, callsign, dimensioni, destinazione… — + **tabella dati aggregati** con i campi principali riconciliati tra tutte le fonti abilitate, vedi sotto + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track con soste collassate + letture paginate + note + storico visite porto) più **un tab per fonte esterna abilitata** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — il tab di una fonte disattivata non compare). La **destinazione è cliccabile** (vedi sotto). Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
@@ -545,7 +545,7 @@ File chiave: `src/services/heatmap-stream.js`, `src/heatmap-db.js`, `src/routes/
 
 ## 🔗 Integrazione MarineTraffic / VesselFinder
 
-Nel dettaglio nave, due pannelli arricchiscono i dati AIS con dati scaricati (scraping) da fonti esterne, con cache in tabella `ship_scrape_cache` (TTL configurabile via `SCRAPE_CACHE_TTL`).
+Nel dettaglio nave, due tab arricchiscono i dati AIS con dati scaricati (scraping) da fonti esterne, con cache in tabella `ship_scrape_cache` (TTL configurabile via `SCRAPE_CACHE_TTL`).
 
 **VesselFinder** — pagina server-rendered, lo scraping HTML (`crawlVesselFinder`) estrae foto + tabella dati via `fetchHttp` (modulo `https`).
 
@@ -669,7 +669,17 @@ A differenza di VF/MT/Equasis/PSC, GFW è **attivo di default** (`IMPORT_GFW=tru
 - **Licenza non commerciale**: i dati GFW sono gratuiti **solo per uso non commerciale** (ricerca, ONG, interesse pubblico); l'uso commerciale richiede una licenza dedicata da GFW.
 - **Copertura**: GFW traccia soprattutto navi da **pesca, di supporto e reefer/carrier** — molte navi mercantili semplicemente non sono in GFW (il pannello di dettaglio mostra una nota "non trovata in GFW" per queste).
 
-Nel dettaglio nave compare un nuovo pannello **Global Fishing Watch** (quando abilitato), sopra la mappa accanto ai pannelli VF/MT/Equasis: mostra la tabella di identità e le tabelle eventi (incontri, loitering, port visit, AIS spento), con un'icona ⓘ al hover su ogni campo/sezione che ne spiega il significato.
+Nel dettaglio nave compare un tab **Global Fishing Watch** (quando abilitato): mostra la tabella di identità e le tabelle eventi (incontri, loitering, port visit, AIS spento), con un'icona ⓘ al hover su ogni campo/sezione che ne spiega il significato. Ogni tabella evento è ordinabile per colonna (default: data, più recenti prima) e paginata lato client (10 righe/pagina) — `gfw.js` pagina già a monte la risposta dell'API GFW (vedi `EVENT_MAX_TOTAL`/`fetchEvents`, che segue il `nextOffset` di GFW invece di fermarsi alla prima pagina), quindi anche una nave molto attiva arriva al frontend con la storia comportamentale completa.
+
+### Dati nave aggregati (cross-provider)
+
+Il tab **Generale** del dettaglio nave mostra anche una tabella che riconcilia i campi identità/specifiche (nome, IMO, MMSI, call sign, bandiera, tipo, anno, lunghezza, larghezza, pescaggio, GT, DWT, porto di armamento) tra **tutte** le fonti abilitate, in modo che non serva aprire ogni tab per confrontarli. Logica in `public/js/ships.js` (`buildAggregateRows`/`renderAggregateTable`), lato client, sui dati già caricati per il dettaglio:
+
+- **Estrazione per provider**: un extractor per fonte legge le rispettive chiavi. VF è open-set (le etichette scrapate variano pagina per pagina) → matching per etichetta normalizzata (`scrapeGet`/`scrapeNormLabel`, stesso meccanismo di `SCRAPE_LABEL_GLOSSARY`). MT/SF/MST/Equasis usano chiavi fisse (`MT_FIELD_LABELS`, i `put()` di `shipfinder.js`/`myshiptracking.js`, `particulars` di Equasis) → lookup diretto. GFW usa l'oggetto `identity` già strutturato.
+- **Campi volutamente esclusi**: destinazione, ETA, pescaggio corrente, stato di navigazione — dati che cambiano spesso e che le fonti scrapano in momenti diversi: confrontarli produrrebbe falsi "conflitti" dovuti solo alla staleness, non un vero disaccordo.
+- **Normalizzazione per il confronto** (il valore mostrato resta sempre quello grezzo): bandiera → nome canonico via `Intl.DisplayNames` per i codici ISO alpha-2, una piccola tabella alpha-3→nome (`AGG_ISO3_TO_NAME`, stesso scope volutamente limitato di `ISO3_TO_NAME` in `gfw.js` — un codice non mappato fallisce "al sicuro": mostra una fonte in più invece di fondere per errore due bandiere diverse); numerici (`length`/`beam`/`draught`/`year`/`gt`/`dwt`) → arrotondati prima del confronto, così "202.80" e "203" coincidono.
+- **Raggruppamento**: i valori con lo stesso normalizzato finiscono in un unico chip, con un pallino per ogni fonte che lo riporta; i normalizzati diversi restano chip separati sulla stessa riga, con un leggero tint di sfondo (`.agg-conflict`) a segnalare il disaccordo.
+- I pallini riusano gli stessi 6 colori delle sezioni provider (`.src-dot--vf/mt/sf/mst/eq/gfw` in `style.css`) e mostrano il nome della fonte al passaggio del mouse (stesso sistema di tooltip `data-tip` di `initGlossaryTooltip`).
 
 ## 🤝 Rilevamento rendezvous nave-nave
 

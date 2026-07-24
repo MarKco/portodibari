@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData, invalidateDetailMap } from './ships.js';
 import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -563,6 +563,63 @@ function stopSettingsFeeds() {
   closeLogs();
   closeHealth();
   stopTelegramLinkPoll();
+}
+
+// ── Ship detail tabs (Generale / per-provider) ──────────────────────────────
+// Which store flag gates each provider tab — same flags loadXData() already
+// checks before rendering its section.
+const DETAIL_TAB_FLAG = {
+  vf: 'importVfData', mt: 'importMtData', sf: 'importSfData',
+  mst: 'importMstData', eq: 'importEquasis', gfw: 'importGfw',
+};
+
+function activateDetailPanel(panel) {
+  const target = `detail-panel-${panel}`;
+  el.detailPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
+  // The map lives in the Generale panel; Leaflet needs a nudge after its
+  // container goes from display:none back to visible.
+  if (panel === 'general') invalidateDetailMap();
+}
+
+// Hide the tab of any provider that's globally disabled — independent of
+// whether the open ship happens to have data from it. If the tab currently
+// active just got hidden this way, fall back to Generale.
+function updateDetailTabAvailability() {
+  if (!el.detailTabs) return;
+  let activeHidden = false;
+  el.detailTabs.querySelectorAll('.tab[data-panel]').forEach((btn) => {
+    const panel = btn.dataset.panel;
+    if (panel === 'general') return;
+    const enabled = !!S[DETAIL_TAB_FLAG[panel]];
+    btn.classList.toggle('hidden', !enabled);
+    if (!enabled && btn.classList.contains('tab-active')) activeHidden = true;
+  });
+  if (activeHidden) {
+    el.detailTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
+    el.detailTabs.querySelector('.tab[data-panel="general"]').classList.add('tab-active');
+    activateDetailPanel('general');
+  }
+}
+
+// Called on every ship open (showView('detail', ...)): back to Generale and
+// re-check which provider tabs are currently enabled.
+export function resetDetailTabs() {
+  if (!el.detailTabs) return;
+  el.detailTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
+  el.detailTabs.querySelector('.tab[data-panel="general"]').classList.add('tab-active');
+  activateDetailPanel('general');
+  updateDetailTabAvailability();
+}
+
+function initDetailTabs() {
+  if (!el.detailTabs) return;
+  el.detailTabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab || tab.classList.contains('hidden')) return;
+    el.detailTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
+    tab.classList.add('tab-active');
+    activateDetailPanel(tab.dataset.panel);
+  });
 }
 
 function initSettingsModal() {
@@ -1782,7 +1839,7 @@ function initGlossaryTooltip() {
     tip.style.left = left + 'px';
   }
 
-  const TIP_SELECTOR = '.eq-info[data-tip], .follow-search-badge[data-tip], .map-toggle-buttons a[data-tip]';
+  const TIP_SELECTOR = '.eq-info[data-tip], .follow-search-badge[data-tip], .map-toggle-buttons a[data-tip], .src-dot[data-tip]';
   document.addEventListener('mouseover', (e) => {
     const icon = e.target.closest(TIP_SELECTOR);
     if (icon) show(icon);
@@ -1816,6 +1873,7 @@ initReplay();
 initWebhooks();
 initAppConfig();
 initCollapsibleSections();
+initDetailTabs();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.

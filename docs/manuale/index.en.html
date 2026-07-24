@@ -200,17 +200,20 @@
         <li><a href="#ship-detail">Ship detail</a>
         <ul>
         <li><a href="#header-and-actions">Header and actions</a></li>
+        <li><a href="#general-tab">General tab</a></li>
         <li><a href="#information-grid">Information grid</a></li>
         <li><a href="#risk-factors">Risk factors</a></li>
-        <li><a href="#vesselfinder-marinetraffic-data">VesselFinder /
-        MarineTraffic data</a></li>
+        <li><a href="#aggregated-ship-data-all-providers">Aggregated
+        ship data (all providers)</a></li>
+        <li><a href="#vesselfinder-marinetraffic-tab">VesselFinder /
+        MarineTraffic tab</a></li>
         <li><a
-        href="#shipfinder-and-myshiptracking-data-re-locating-followed-ships">ShipFinder
-        and MyShipTracking data (re-locating followed ships)</a></li>
-        <li><a href="#ownership-management-equasis">Ownership /
-        management (Equasis)</a></li>
-        <li><a href="#global-fishing-watch">Global Fishing
-        Watch</a></li>
+        href="#shipfinder-and-myshiptracking-tabs-re-locating-followed-ships">ShipFinder
+        and MyShipTracking tabs (re-locating followed ships)</a></li>
+        <li><a href="#equasis-tab-ownership-management">Equasis tab
+        (ownership / management)</a></li>
+        <li><a href="#global-fishing-watch-tab">Global Fishing Watch
+        tab</a></li>
         <li><a href="#sanctions">Sanctions</a></li>
         <li><a href="#rendezvous-at-sea">Rendezvous at sea</a></li>
         <li><a href="#position-map">Position map</a></li>
@@ -226,7 +229,7 @@
         <li><a href="#coverage-map">Coverage map</a></li>
         <li><a href="#settings">Settings</a>
         <ul>
-        <li><a href="#general-tab">General tab</a></li>
+        <li><a href="#general-tab-1">General tab</a></li>
         <li><a href="#areas-tab">Areas tab</a></li>
         <li><a
         href="#external-integrations-tab-telegram-webhooks">External
@@ -897,13 +900,17 @@
         <hr />
         <h2 id="ship-detail">Ship detail</h2>
         <p>Clicking any table row (or a ship’s notification) opens the
-        full detail card.</p>
+        full detail card, organized into <strong>tabs</strong>:
+        <strong>General</strong>, plus one tab per enabled external
+        source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking,
+        Equasis, Global Fishing Watch). A source disabled in Settings
+        has no tab.</p>
         <figure>
         <img src="images/11-monitoraggio_dettagli_nave_1.png"
-        alt="Ship detail — header, information grid, risk factors, and VesselFinder data panel with track map." />
-        <figcaption aria-hidden="true">Ship detail — header, information
-        grid, risk factors, and VesselFinder data panel with track
-        map.</figcaption>
+        alt="Ship detail — header, tabs, information grid, map, and aggregated ship data table (General tab)." />
+        <figcaption aria-hidden="true">Ship detail — header, tabs,
+        information grid, map, and aggregated ship data table (General
+        tab).</figcaption>
         </figure>
         <h3 id="header-and-actions">Header and actions</h3>
         <ul>
@@ -919,6 +926,14 @@
         <li><strong>Report</strong> — generates a report for the
         ship</li>
         </ul>
+        <h3 id="general-tab">General tab</h3>
+        <p>The first tab, open by default, gathers everything that
+        <strong>isn’t specific to a single external source</strong>:
+        information grid, risk factors, map with track and replay,
+        aggregated ship data table (below), AIS readings, operational
+        notes, port visit history, and — when present — sanctions and
+        rendezvous at sea. Each enabled external source instead has its
+        own dedicated tab (see below).</p>
         <h3 id="information-grid">Information grid</h3>
         <p>All available data for the ship:</p>
         <table>
@@ -1011,24 +1026,55 @@
         <p>List of the factors that contributed to the score, with each
         one’s points. If there are no anomalies, “No anomalies detected”
         is shown.</p>
-        <h3 id="vesselfinder-marinetraffic-data">VesselFinder /
-        MarineTraffic data</h3>
-        <p>If enabled in settings, shows additional information fetched
-        from these services (flag, gross tonnage, year built…), noting
-        whether it’s cached. Fetching happens automatically in the
-        background for recently seen ships.</p>
+        <h3 id="aggregated-ship-data-all-providers">Aggregated ship data
+        (all providers)</h3>
+        <p>Below the map, the General tab shows a table gathering the
+        <strong>main ship data as reported by each enabled external
+        source</strong> — name, IMO, MMSI, call sign, flag, type, year
+        built, length, beam, draught, gross tonnage, deadweight, home
+        port — without having to open every provider’s tab to compare
+        them.</p>
+        <ul>
+        <li>When several sources report <strong>the same value</strong>
+        — even spelled differently (e.g. flag “PAN” and “Panama”, length
+        “202.80” and “203”) — it appears <strong>once</strong>, with a
+        <strong>colored dot per confirming source</strong> next to the
+        value.</li>
+        <li>When sources <strong>disagree</strong>, <strong>every
+        distinct value</strong> reported appears instead, each with its
+        own colored dot, and the row is highlighted with a light tint so
+        it stands out at a glance: it’s a sign one of the sources likely
+        has a wrong or stale value, worth checking.</li>
+        <li><strong>Hover over a dot</strong> to see which source it is
+        — the same color used to tell apart the respective tabs
+        (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking,
+        Equasis, Global Fishing Watch).</li>
+        <li>Fields that change often (destination, ETA, live draught,
+        nav status) <strong>don’t</strong> appear in this table: they
+        stay in the information grid and in each provider’s own tab,
+        where the time of the reading matters.</li>
+        </ul>
+        <p>The table only appears once <strong>at least one
+        source</strong> has data for the ship; it stays empty (hidden)
+        until a source has responded.</p>
+        <h3 id="vesselfinder-marinetraffic-tab">VesselFinder /
+        MarineTraffic tab</h3>
+        <p>If enabled in settings, the respective tab shows additional
+        information fetched from these services (flag, gross tonnage,
+        year built…), noting whether it’s cached. Fetching happens
+        automatically in the background for recently seen ships.</p>
         <h3
-        id="shipfinder-and-myshiptracking-data-re-locating-followed-ships">ShipFinder
-        and MyShipTracking data (re-locating followed ships)</h3>
+        id="shipfinder-and-myshiptracking-tabs-re-locating-followed-ships">ShipFinder
+        and MyShipTracking tabs (re-locating followed ships)</h3>
         <figure>
         <img src="images/13-monitoraggio_dettagli_nave_3.png"
-        alt="Ship detail — additional external source panels (ShipFinder / MyShipTracking) with last known position." />
+        alt="Ship detail — additional external source tabs (ShipFinder / MyShipTracking) with last known position." />
         <figcaption aria-hidden="true">Ship detail — additional external
-        source panels (ShipFinder / MyShipTracking) with last known
+        source tabs (ShipFinder / MyShipTracking) with last known
         position.</figcaption>
         </figure>
         <p>If you enable <strong>Import ShipFinder</strong> and/or
-        <strong>Import MyShipTracking</strong>, the corresponding panels
+        <strong>Import MyShipTracking</strong>, the corresponding tabs
         appear. Besides static data, these sources provide the
         <strong>last-sighting position</strong>, used to
         <strong>re-locate followed ships AIS can no longer
@@ -1037,7 +1083,7 @@
         <li><strong>Automatic</strong> — for every followed ship that
         hasn’t transmitted in a while, the app periodically queries
         these sources in the background. If it finds a position, it
-        appears on the mini-map as a distinct marker
+        appears on the mini-map (General tab) as a distinct marker
         (<strong>orange</strong> = ShipFinder,
         <strong>teal/cyan</strong> = MyShipTracking), without altering
         the AIS track, score, or replay.</li>
@@ -1052,23 +1098,23 @@
         position <strong>right away</strong>.</li>
         </ul>
         <blockquote>
-        <p>The panels appear <strong>only if the integration is
+        <p>The tabs appear <strong>only if the integration is
         enabled</strong> (Settings → Import…). Off by default. On the
         Followed ships map, a ship AIS can no longer see is shown at its
         most recent SF/MST position (grey marker) and returns to live
         AIS as soon as it re-transmits.</p>
         </blockquote>
-        <h3 id="ownership-management-equasis">Ownership / management
-        (Equasis)</h3>
+        <h3 id="equasis-tab-ownership-management">Equasis tab (ownership
+        / management)</h3>
         <figure>
         <img src="images/14-monitoraggio_dettagli_nave_4.png"
-        alt="Ship detail — Ownership / management (Equasis) panel and Global Fishing Watch with behavioral events." />
-        <figcaption aria-hidden="true">Ship detail — Ownership /
-        management (Equasis) panel and Global Fishing Watch with
-        behavioral events.</figcaption>
+        alt="Ship detail — Equasis tab (Ownership / management), with the fetch button and owner/manager/operator data." />
+        <figcaption aria-hidden="true">Ship detail — Equasis tab
+        (Ownership / management), with the fetch button and
+        owner/manager/operator data.</figcaption>
         </figure>
-        <p>If the Equasis lookup is enabled, the <strong>Ownership /
-        management (Equasis)</strong> panel appears with a <strong>Fetch
+        <p>If the Equasis lookup is enabled, the
+        <strong>Equasis</strong> tab appears with a <strong>Fetch
         Equasis information</strong> button. <strong>Never runs
         automatically</strong>: the lookup only happens on click and
         queries Equasis by <strong>IMO number</strong>. It returns ship
@@ -1076,9 +1122,9 @@
         manager, operator), classification, P&amp;I coverage,
         performance/risk indicators, and recent positions. The result is
         stored once and shown with no expiry.</p>
-        <h3 id="global-fishing-watch">Global Fishing Watch</h3>
+        <h3 id="global-fishing-watch-tab">Global Fishing Watch tab</h3>
         <p>If GFW enrichment is enabled (on by default), the
-        <strong>Global Fishing Watch</strong> panel appears with the
+        <strong>Global Fishing Watch</strong> tab appears with the
         ship’s <strong>identity</strong> and tables of
         <strong>behavioral events</strong> derived from the global AIS
         feed:</p>
@@ -1091,6 +1137,11 @@
         <li><strong>AIS off (gap)</strong> — transponder off while
         underway (“dark activity”).</li>
         </ul>
+        <p>Every event table is <strong>sortable</strong>: click a
+        column header to sort, click again to reverse (default sort is
+        by date, most recent first). Tables with more than 10 rows are
+        <strong>paginated</strong>, with <strong>‹ Prev</strong> and
+        <strong>Next ›</strong> buttons at the bottom.</p>
         <p>Enrichment is <strong>proactive</strong> (no button). GFW
         mainly tracks fishing, support, and reefer/carrier vessels: many
         merchant ships aren’t present (a “not found in GFW” note). These
@@ -1265,7 +1316,7 @@
         <strong>Areas</strong>, <strong>External integrations</strong>,
         <strong>Parameters</strong>, <strong>Backup / Restore</strong>,
         and the technical <strong>📡 AIS Diagnostics</strong> tab.</p>
-        <h3 id="general-tab">General tab</h3>
+        <h3 id="general-tab-1">General tab</h3>
         <figure>
         <img src="images/19-impostazioni-generali.png"
         alt="Settings — General tab: data source toggles, sanctions/PSC screening, notifications, and map overlay." />

@@ -977,51 +977,8 @@ td.empty {
   z-index: 0;
 }
 
-/* Map + VesselFinder side-by-side row */
-#detail-map-vf-row {
-  display: flex;
-  gap: 1.25rem;
-  align-items: stretch;
-  margin-top: 1.25rem;
-}
-#detail-map-vf-row #vf-data-section {
-  flex: 1;
-  min-width: 0;
-  margin-top: 0;
-}
 #detail-map-wrap {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-/* Map stretches to match VF table height; min-height is the fallback when VF is hidden */
-#detail-map-vf-row #detail-map {
-  flex: 1;
-  height: auto;
-  min-height: 260px;
-  margin-bottom: 0.5rem;
-}
-/* track-anim sits below map, no extra margins needed */
-#detail-map-vf-row .track-anim {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-@media (max-width: 768px) {
-  #detail-map-vf-row {
-    flex-direction: column;
-  }
-  #detail-map-vf-row #vf-data-section,
-  #detail-map-wrap {
-    width: 100%;
-  }
-  #detail-map-wrap {
-    order: -1;
-  }
-  #detail-map-vf-row #detail-map {
-    height: 360px;
-    flex: none;
-  }
+  margin-top: 1.25rem;
 }
 
 /* Track playback controls (ship-detail map) */
@@ -1762,6 +1719,17 @@ pre {
   padding: 1.1rem;
   background: var(--surface-1);
 }
+
+/* Sole content of a provider tab panel: same box as .detail-section, but not
+   collapsible (initCollapsibleSections targets .detail-section specifically —
+   a per-tab panel doesn't need its own collapse toggle on top of the tab). */
+.provider-panel {
+  margin: 1.25rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1.1rem;
+  background: var(--surface-1);
+}
 .detail-section-title {
   font-size: 0.74rem;
   font-weight: 700;
@@ -2299,6 +2267,36 @@ html[data-theme="light"] .gloss-tooltip .gt-term { color: var(--accent); }
 }
 .gfw-pager-btn:hover:not(:disabled) { background: var(--surface-3); }
 .gfw-pager-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Cross-provider aggregate table (ship detail, tab Generale): one row per
+   field, one chip per distinct value, a colored dot per contributing source. */
+.agg-value-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  align-items: center;
+}
+.agg-value-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.agg-td-val.agg-conflict { background: rgba(245, 158, 11, 0.07); }
+.src-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: help;
+}
+.src-dot--vf  { background: #4a90d9; }
+.src-dot--mt  { background: #7c9fc0; }
+.src-dot--sf  { background: #f59e0b; }
+.src-dot--mst { background: #2dd4bf; }
+.src-dot--eq  { background: #c0a37c; }
+.src-dot--gfw { background: #8b5cf6; }
 .vf-error   { color: var(--red); }
 .vf-empty   { color: var(--text-faint); }
 

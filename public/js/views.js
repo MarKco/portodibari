@@ -15,6 +15,8 @@ import {
   updateDetailFlagBtn,
   updateDetailSeenBtn,
   updateDetailNotifMuteBtn,
+  resetProviderAggregate,
+  refreshProviderAggregate,
 } from './ships.js';
 import { loadTrack, stopTrackAnim } from './maps.js';
 import { loadTraffco } from './traffico.js';
@@ -26,7 +28,7 @@ import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
 import { applyOutageBanner } from './outage.js';
 import { t } from './i18n.js';
-import { stopTelegramLinkPoll } from './main.js';
+import { stopTelegramLinkPoll, resetDetailTabs } from './main.js';
 import { exitReplay } from './replay.js';
 
 export function showView(v, mmsi, shipData) {
@@ -90,16 +92,21 @@ export function showView(v, mmsi, shipData) {
       : `https://www.marinetraffic.com/it/ais/details/ships/mmsi:${mmsi}`;
     renderDetailInfoBar(shipData, null);
     renderSanctionsSection(shipData?.risk);
+    resetDetailTabs(); // back to Generale + hide tabs of globally-disabled providers
+    resetProviderAggregate(); // drop the previous ship's aggregate while the new fetches are in flight
     loadDetail();
     // Reset the scraped-scatter cache + track window so the previous ship's
     // SF/MST markers/window never bleed into this one before loadTrack resolves.
     S.sfPositions = null; S.mstPositions = null; S.trackFrom = null; S.trackTo = null;
     loadTrack(mmsi);
     // VF/MT/GFW are proactive enrichment and can shift the risk score, so
-    // refresh the detail (score + factors) once they resolve.
-    Promise.all([loadVfData(mmsi), loadMtData(mmsi), loadSfData(mmsi), loadMstData(mmsi), loadGfwData(mmsi)]).then(() => loadDetail());
-    // Equasis is manual: only show cached data here, never auto-fetch.
-    loadEquasisData(mmsi, false);
+    // refresh the detail (score + factors) once they resolve. Equasis is
+    // manual (only cached data is loaded here, never auto-fetched) but still
+    // feeds the cross-provider aggregate once its cache check resolves.
+    Promise.all([
+      loadVfData(mmsi), loadMtData(mmsi), loadSfData(mmsi), loadMstData(mmsi), loadGfwData(mmsi),
+      loadEquasisData(mmsi, false),
+    ]).then(() => { loadDetail(); refreshProviderAggregate(); });
   } else if (v === 'active') {
     loadActive();
   } else if (v === 'past') {

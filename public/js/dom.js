@@ -251,6 +251,14 @@ export const el = {
   sanctionsDataSection: $('sanctions-data-section'),
   sanctionsDataBody: $('sanctions-data-body'),
 
+  // Ship detail tabs (Generale / per-provider)
+  detailTabs: $('detail-tabs'),
+  detailPanels: document.querySelectorAll('.detail-tab-panel'),
+
+  // Cross-provider aggregate table (tab Generale)
+  aggDataSection: $('agg-data-section'),
+  aggDataBody: $('agg-data-body'),
+
   // Scraped data sections
   vfDataSection: $('vf-data-section'),
   vfDataBody: $('vf-data-body'),
