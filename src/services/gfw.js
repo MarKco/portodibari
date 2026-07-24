@@ -43,7 +43,8 @@ const EVENT_DATASETS = {
 // How far back to ask for events, and a cap per event type so a very active
 // vessel can't return thousands of rows into the cache.
 const EVENT_WINDOW_DAYS = 365;
-const EVENT_LIMIT = 50;
+const EVENT_PAGE_SIZE = 50;
+const EVENT_MAX_TOTAL = 500;
 
 // GFW reports the flag as an ISO-3166 alpha-3 code (e.g. "PAN"). The risk score
 // matches embargo / flag-of-convenience registries by country *name*, so map the
@@ -173,27 +174,41 @@ async function searchVessel(ship) {
 const hoursBetween = (start, end) =>
   start && end ? Math.max(0, (new Date(end) - new Date(start)) / 3.6e6) : null;
 
-/** Fetch one event dataset for a vesselId over the window. Returns raw entries
- *  (may be empty). A per-type failure is swallowed (returns []) so one missing
- *  dataset doesn't sink the whole enrichment. */
+/** Fetch one event dataset for a vesselId over the window, following GFW's
+ *  `nextOffset` until exhausted (capped at EVENT_MAX_TOTAL so a very active
+ *  vessel can't return thousands of rows into the cache). GFW returns entries
+ *  oldest-first with no `sort` param available, so stopping at the first page
+ *  (the old behaviour) silently dropped every event *more recent* than the
+ *  page boundary — exactly the events that matter for the risk score. Returns
+ *  raw entries (may be empty). A per-type failure is swallowed (returns
+ *  whatever was accumulated so far) so one missing dataset doesn't sink the
+ *  whole enrichment. */
 async function fetchEvents(vesselId, dataset, startDate, endDate) {
-  const url = `${GATEWAY}/events?${qs({
-    'datasets[0]': dataset,
-    'vessels[0]': vesselId,
-    'start-date': startDate,
-    'end-date': endDate,
-    limit: EVENT_LIMIT,
-    offset: 0,
-  })}`;
+  const entries = [];
+  let offset = 0;
   try {
-    const res = await getJson(url);
-    return res?.entries || [];
+    for (;;) {
+      const url = `${GATEWAY}/events?${qs({
+        'datasets[0]': dataset,
+        'vessels[0]': vesselId,
+        'start-date': startDate,
+        'end-date': endDate,
+        limit: EVENT_PAGE_SIZE,
+        offset,
+      })}`;
+      const res = await getJson(url);
+      const page = res?.entries || [];
+      entries.push(...page);
+      if (page.length < EVENT_PAGE_SIZE || entries.length >= EVENT_MAX_TOTAL) break;
+      if (res?.nextOffset == null) break;
+      offset = res.nextOffset;
+    }
   } catch (e) {
     // A token/rate error must surface (it affects every call); a per-dataset 4xx
     // (e.g. dataset unavailable for this vessel) is non-fatal.
     if (/Token GFW|429/.test(e.message)) throw e;
-    return [];
   }
+  return entries.slice(0, EVENT_MAX_TOTAL);
 }
 
 function normEncounter(e) {

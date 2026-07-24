@@ -448,7 +448,7 @@
 
       <!-- Map + VesselFinder data: side-by-side when VF available, full-width otherwise -->
       <div id="detail-map-vf-row">
-        <div id="vf-data-section" class="detail-section hidden">
+        <div id="vf-data-section" class="detail-section detail-section--vf hidden">
           <h3 class="detail-section-title">
             <span data-i18n="detail.vfTitle">Dati VesselFinder</span>
             <span id="vf-cache-badge" class="scrape-badge hidden"></span>
@@ -514,7 +514,7 @@
       </div>
 
       <!-- MarineTraffic data -->
-      <div id="mt-data-section" class="detail-section hidden">
+      <div id="mt-data-section" class="detail-section detail-section--mt hidden">
         <h3 class="detail-section-title">
           <span data-i18n="detail.mtTitle">Dati MarineTraffic</span>
           <span id="mt-cache-badge" class="scrape-badge scrape-badge--mt hidden"></span>
@@ -525,7 +525,7 @@
       <!-- ShipFinder data: static fields (fallback) + last-known scraped position.
            The "Localizza" button force-scrapes the current position now; positions
            are drawn as distinct markers on the detail map above. -->
-      <div id="sf-data-section" class="detail-section hidden">
+      <div id="sf-data-section" class="detail-section detail-section--sf hidden">
         <h3 class="detail-section-title">
           <span data-i18n="detail.sfTitle">Dati ShipFinder</span>
           <span id="sf-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
@@ -538,7 +538,7 @@
       <!-- MyShipTracking data: mirror of the ShipFinder section — static fields +
            last-known scraped position (second position backup). "Localizza" force-
            scrapes the current position now; markers drawn on the detail map above. -->
-      <div id="mst-data-section" class="detail-section hidden">
+      <div id="mst-data-section" class="detail-section detail-section--mst hidden">
         <h3 class="detail-section-title">
           <span data-i18n="detail.mstTitle">Dati MyShipTracking</span>
           <span id="mst-cache-badge" class="scrape-badge scrape-badge--sf hidden"></span>
@@ -549,7 +549,7 @@
       </div>
 
       <!-- Equasis ownership data (manual, on-demand) -->
-      <div id="equasis-data-section" class="detail-section hidden">
+      <div id="equasis-data-section" class="detail-section detail-section--eq hidden">
         <h3 class="detail-section-title">
           <span data-i18n="detail.equasisTitle">Proprietà / gestione (Equasis)</span>
           <span id="equasis-cache-badge" class="scrape-badge scrape-badge--eq hidden"></span>
@@ -560,7 +560,7 @@
       </div>
 
       <!-- Global Fishing Watch data (proactive: identity + behavioural events) -->
-      <div id="gfw-data-section" class="detail-section hidden">
+      <div id="gfw-data-section" class="detail-section detail-section--gfw hidden">
         <h3 class="detail-section-title">
           <span data-i18n="detail.gfwTitle">Global Fishing Watch</span>
           <span id="gfw-cache-badge" class="scrape-badge scrape-badge--gfw hidden"></span>

@@ -1571,23 +1571,115 @@ function gfwDur(h) {
   return h == null ? '' : t('scrape.gfwHours', { h: Math.round(h) });
 }
 
-// One event table; `cols` is an array of { key (i18n), get (row→cell html) }.
-function gfwEventTable(titleKey, rows, cols) {
+// Rows/page for the GFW event tables. A very active vessel can carry hundreds
+// of events (see EVENT_MAX_TOTAL in gfw.js), so they're paginated client-side.
+const GFW_PAGE_SIZE = 10;
+
+// Sort + pagination state per event type. Persists across ship switches (same
+// convention as activeSort/pastSort for the ship lists). Default: most recent
+// first, i.e. sorted by the row's date column, descending.
+const gfwTableState = {
+  encounters: { col: 'date', dir: 'desc', page: 1 },
+  loitering: { col: 'date', dir: 'desc', page: 1 },
+  portVisits: { col: 'date', dir: 'desc', page: 1 },
+  gaps: { col: 'date', dir: 'desc', page: 1 },
+};
+
+// Re-render target for sort/page click handlers (set on every renderGfwData call).
+let lastGfwContainer = null;
+let lastGfwData = null;
+
+function gfwSortValue(col, r) {
+  switch (col) {
+    case 'date': return r.start ? new Date(r.start).getTime() : -Infinity;
+    case 'duration': return r.durationH ?? -Infinity;
+    case 'with': return (r.withName || r.withMmsi || '').toString().toLowerCase();
+    case 'pos': return r.lat ?? -Infinity;
+    case 'port': return (r.port || r.country || '').toLowerCase();
+    default: return 0;
+  }
+}
+
+function sortGfwRows(rows, col, dir) {
+  const mul = dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    const av = gfwSortValue(col, a);
+    const bv = gfwSortValue(col, b);
+    if (av < bv) return -mul;
+    if (av > bv) return mul;
+    return 0;
+  });
+}
+
+// One event table: sortable column headers (click to sort, click again to
+// flip direction) + client-side pagination. `cols` is an array of
+// { id (sort key / data-col), key (i18n label), get (row→cell html) }.
+function gfwEventTable(type, titleKey, rows, cols) {
   if (!rows || !rows.length) return '';
-  const head = cols.map((c) => `<th>${t(c.key)}</th>`).join('');
-  const body = rows
+  const state = gfwTableState[type];
+  const sorted = sortGfwRows(rows, state.col, state.dir);
+  const pages = Math.max(1, Math.ceil(sorted.length / GFW_PAGE_SIZE));
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const start = (state.page - 1) * GFW_PAGE_SIZE;
+  const pageRows = sorted.slice(start, start + GFW_PAGE_SIZE);
+
+  const head = cols
+    .map((c) => {
+      const sortCls = c.id !== state.col ? '' : state.dir === 'asc' ? 'sort-asc' : 'sort-desc';
+      return `<th data-col="${c.id}" class="${sortCls}">${t(c.key)}</th>`;
+    })
+    .join('');
+  const body = pageRows
     .map((r) => `<tr>${cols.map((c) => `<td>${c.get(r)}</td>`).join('')}</tr>`)
     .join('');
   const info = eqInfoIcon(t(titleKey), GFW_SECTION_GLOSSARY[titleKey]);
-  return `<h4 class="eq-subtitle">${t(titleKey)}${info}</h4><table class="vf-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const pager = sorted.length <= GFW_PAGE_SIZE ? '' : `
+    <div class="gfw-pager" data-gfw-type="${type}">
+      <button type="button" class="gfw-pager-btn" data-dir="-1" ${state.page <= 1 ? 'disabled' : ''}>‹ ${t('scrape.gfwPagePrev')}</button>
+      <span class="gfw-pager-info">${t('scrape.gfwPageInfo', { page: state.page, pages, n: sorted.length })}</span>
+      <button type="button" class="gfw-pager-btn" data-dir="1" ${state.page >= pages ? 'disabled' : ''}>${t('scrape.gfwPageNext')} ›</button>
+    </div>`;
+  return `<h4 class="eq-subtitle">${t(titleKey)}${info}</h4><table class="vf-table gfw-event-table" data-gfw-type="${type}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${pager}`;
+}
+
+// Delegate clicks on sortable headers and pager buttons, re-rendering the
+// whole GFW section (cheap: at most EVENT_MAX_TOTAL rows per table).
+function bindGfwTableInteractions(container) {
+  container.querySelectorAll('table.gfw-event-table[data-gfw-type]').forEach((table) => {
+    const type = table.dataset.gfwType;
+    table.tHead.querySelectorAll('th[data-col]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const state = gfwTableState[type];
+        if (state.col === th.dataset.col) {
+          state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.col = th.dataset.col;
+          state.dir = 'asc';
+        }
+        state.page = 1;
+        renderGfwData(lastGfwContainer, lastGfwData);
+      });
+    });
+  });
+  container.querySelectorAll('.gfw-pager[data-gfw-type]').forEach((pager) => {
+    const type = pager.dataset.gfwType;
+    pager.querySelectorAll('.gfw-pager-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        gfwTableState[type].page += Number(btn.dataset.dir);
+        renderGfwData(lastGfwContainer, lastGfwData);
+      });
+    });
+  });
 }
 
 function renderGfwData(container, data) {
+  lastGfwContainer = container;
+  lastGfwData = data;
   const identity = (data && data.identity) || {};
   const events = (data && data.events) || {};
   const enc = events.encounters || [];
   const loi = events.loitering || [];
-  const prt = (events.portVisits || []).slice().sort((a, b) => (b.start > a.start ? 1 : b.start < a.start ? -1 : 0));
+  const prt = events.portVisits || [];
   const gaps = events.gaps || [];
 
   let html = '';
@@ -1604,32 +1696,33 @@ function renderGfwData(container, data) {
     html += `<h4 class="eq-subtitle">${t('scrape.gfwIdentity')}</h4><table class="vf-table">${idRows}</table>`;
   }
 
-  // Event tables (newest GFW returns first).
-  html += gfwEventTable('scrape.gfwEncounters', enc, [
-    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
-    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
-    { key: 'scrape.gfwColWith', get: (r) => escHtml(r.withName || r.withMmsi || '—') },
-    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  // Event tables (sortable, newest first by default; see gfwTableState).
+  html += gfwEventTable('encounters', 'scrape.gfwEncounters', enc, [
+    { id: 'date', key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { id: 'duration', key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { id: 'with', key: 'scrape.gfwColWith', get: (r) => escHtml(r.withName || r.withMmsi || '—') },
+    { id: 'pos', key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
   ]);
-  html += gfwEventTable('scrape.gfwLoitering', loi, [
-    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
-    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
-    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  html += gfwEventTable('loitering', 'scrape.gfwLoitering', loi, [
+    { id: 'date', key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { id: 'duration', key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { id: 'pos', key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
   ]);
-  html += gfwEventTable('scrape.gfwPortVisits', prt, [
-    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
-    { key: 'scrape.gfwColPort', get: (r) => escHtml([r.port, r.country].filter(Boolean).join(', ') || '—') },
+  html += gfwEventTable('portVisits', 'scrape.gfwPortVisits', prt, [
+    { id: 'date', key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { id: 'port', key: 'scrape.gfwColPort', get: (r) => escHtml([r.port, r.country].filter(Boolean).join(', ') || '—') },
   ]);
-  html += gfwEventTable('scrape.gfwGaps', gaps, [
-    { key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
-    { key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
-    { key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
+  html += gfwEventTable('gaps', 'scrape.gfwGaps', gaps, [
+    { id: 'date', key: 'scrape.gfwColDate', get: (r) => escHtml(formatTime(r.start)) },
+    { id: 'duration', key: 'scrape.gfwColDuration', get: (r) => escHtml(gfwDur(r.durationH)) },
+    { id: 'pos', key: 'scrape.gfwColPos', get: (r) => escHtml(gfwPos(r.lat, r.lon)) },
   ]);
 
   if (!enc.length && !loi.length && !prt.length && !gaps.length) {
     html += `<p class="vf-empty">${t('scrape.gfwNoEvents')}</p>`;
   }
   container.innerHTML = html;
+  bindGfwTableInteractions(container);
 }
 
 // Glossary for the VesselFinder / MarineTraffic scraped tables. Labels are

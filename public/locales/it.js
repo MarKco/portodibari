@@ -373,6 +373,9 @@ export default {
   'scrape.gfwColPort':         'Porto',
   'scrape.gfwColPos':          'Posizione',
   'scrape.gfwHours':           '{h} h',
+  'scrape.gfwPagePrev':        'Prec.',
+  'scrape.gfwPageNext':        'Succ.',
+  'scrape.gfwPageInfo':        'Pagina {page}/{pages} · {n} eventi',
 
   // ── Alerts / toasts ────────────────────────────────────────────────────────
   'alert.flagged':    '⚠️ Nave segnalata in area!',
