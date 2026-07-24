@@ -219,7 +219,8 @@
         <li><a href="#position-map">Position map</a></li>
         <li><a href="#ais-readings">AIS readings</a></li>
         <li><a href="#operational-notes">Operational notes</a></li>
-        <li><a href="#port-visit-history">Port visit history</a></li>
+        <li><a href="#visit-history-in-monitored-areas">Visit history in
+        monitored areas</a></li>
         </ul></li>
         <li><a href="#managing-areas">Managing areas</a>
         <ul>
@@ -931,9 +932,9 @@
         <strong>isn’t specific to a single external source</strong>:
         information grid, risk factors, map with track and replay,
         aggregated ship data table (below), AIS readings, operational
-        notes, port visit history, and — when present — sanctions and
-        rendezvous at sea. Each enabled external source instead has its
-        own dedicated tab (see below).</p>
+        notes, visit history in monitored areas, and — when present —
+        sanctions and rendezvous at sea. Each enabled external source
+        instead has its own dedicated tab (see below).</p>
         <h3 id="information-grid">Information grid</h3>
         <p>All available data for the ship:</p>
         <table>
@@ -1225,11 +1226,21 @@
         <p>Free-text area: write any notes about the ship and press
         <strong>Save notes</strong>. Notes are persisted in the
         database.</p>
-        <h3 id="port-visit-history">Port visit history</h3>
+        <h3 id="visit-history-in-monitored-areas">Visit history in
+        monitored areas</h3>
         <p>Log of all arrivals (↙) and departures (↗) detected for the
-        ship, with destination, draught, and stay duration. UN/LOCODE
-        codes in the destination are resolved to the port name
+        ship, with the <strong>monitored area</strong> they occurred in,
+        destination, draught, and stay duration. UN/LOCODE codes in the
+        destination are resolved to the port name
         (e.g. <code>ITNAP</code> → “Napoli”).</p>
+        <p>The ⓘ icon next to the title explains the concept: a
+        “monitored area” is the geographic box you configured (see <a
+        href="#managing-areas">Managing areas</a>), not necessarily a
+        single real port — it can cover an entire gulf with several
+        harbours, or just one berth. An “arrival” is logged when the
+        ship reappears in the area after being absent more than 60
+        minutes (or is seen there for the first time); a “departure”
+        when it stops being seen while still logged in the area.</p>
         <hr />
         <h2 id="managing-areas">Managing areas</h2>
         <p>Open with <strong>🗺 Areas</strong>. Here you add and remove

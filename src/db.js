@@ -2132,7 +2132,10 @@ function getShipEvents(mmsi) {
   return db
     .prepare(
       `
-    SELECT * FROM port_events WHERE mmsi = ? ORDER BY ts DESC
+    SELECT port_events.*, areas.name AS area_name
+    FROM port_events
+    LEFT JOIN areas ON areas.key = port_events.area
+    WHERE mmsi = ? ORDER BY ts DESC
   `
     )
     .all(mmsi);

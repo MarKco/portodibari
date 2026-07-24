@@ -112,7 +112,8 @@ export default {
   'detail.notesHolder':  'Aggiungi note su questa nave…',
   'detail.notesSave':    'Salva note',
   'detail.notesSaved':   'Salvato ✓',
-  'detail.eventsTitle':  'Storico visite in porto',
+  'detail.eventsTitle':  'Storico visite nelle aree monitorate',
+  'detail.eventsTooltip': '"Area monitorata" è il riquadro geografico che hai configurato in Impostazioni → Aree, non necessariamente un porto reale: può coprire un intero golfo con più scali o solo una banchina. Arrivo = la nave ricompare nell\'area dopo un\'assenza di oltre 60 minuti (o è la prima volta che viene vista). Partenza = la nave smette di essere vista mentre risultava nell\'area.',
   'detail.eventsSource': 'AISStream / ShipFinder / report posizione',
   'detail.readingTitle': 'Dettaglio lettura',
   'detail.rawData':      'Dati grezzi AIS',
@@ -129,6 +130,7 @@ export default {
 
   // ── Events table headers ───────────────────────────────────────────────────
   'events.col.event':    'Evento',
+  'events.col.area':     'Area monitorata',
   'events.col.datetime': 'Data/ora',
   'events.col.dest':     'Destinazione',
   'events.col.draught':  'Pescaggio',

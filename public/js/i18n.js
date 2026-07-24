@@ -55,6 +55,7 @@ export function getLang() {
  *   data-i18n-title="key"        → element.title
  *   data-i18n-aria="key"         → element.setAttribute('aria-label', …)
  *   data-i18n-placeholder="key"  → element.placeholder
+ *   data-i18n-tip="key"          → element.dataset.tip (glossary hover tooltip, see main.js initGlossaryTooltip)
  */
 export function applyToDOM() {
   document.documentElement.lang = _lang;
@@ -73,5 +74,8 @@ export function applyToDOM() {
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll('[data-i18n-tip]').forEach((el) => {
+    el.dataset.tip = t(el.dataset.i18nTip);
   });
 }

@@ -331,7 +331,7 @@ Clicking any table row (or a ship's notification) opens the full detail card, or
 
 ### General tab
 
-The first tab, open by default, gathers everything that **isn't specific to a single external source**: information grid, risk factors, map with track and replay, aggregated ship data table (below), AIS readings, operational notes, port visit history, and — when present — sanctions and rendezvous at sea. Each enabled external source instead has its own dedicated tab (see below).
+The first tab, open by default, gathers everything that **isn't specific to a single external source**: information grid, risk factors, map with track and replay, aggregated ship data table (below), AIS readings, operational notes, visit history in monitored areas, and — when present — sanctions and rendezvous at sea. Each enabled external source instead has its own dedicated tab (see below).
 
 ### Information grid
 
@@ -447,9 +447,11 @@ Paginated table with all positions received in chronological order. Click a row 
 
 Free-text area: write any notes about the ship and press **Save notes**. Notes are persisted in the database.
 
-### Port visit history
+### Visit history in monitored areas
 
-Log of all arrivals (↙) and departures (↗) detected for the ship, with destination, draught, and stay duration. UN/LOCODE codes in the destination are resolved to the port name (e.g. `ITNAP` → "Napoli").
+Log of all arrivals (↙) and departures (↗) detected for the ship, with the **monitored area** they occurred in, destination, draught, and stay duration. UN/LOCODE codes in the destination are resolved to the port name (e.g. `ITNAP` → "Napoli").
+
+The ⓘ icon next to the title explains the concept: a "monitored area" is the geographic box you configured (see [Managing areas](#managing-areas)), not necessarily a single real port — it can cover an entire gulf with several harbours, or just one berth. An "arrival" is logged when the ship reappears in the area after being absent more than 60 minutes (or is seen there for the first time); a "departure" when it stops being seen while still logged in the area.
 
 ---
 

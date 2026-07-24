@@ -571,13 +571,17 @@
 
       <!-- Storico visite -->
       <div class="detail-section">
-        <h3 class="detail-section-title" data-i18n="detail.eventsTitle">Storico visite in porto</h3>
+        <h3 class="detail-section-title">
+          <span data-i18n="detail.eventsTitle">Storico visite nelle aree monitorate</span>
+          <span class="eq-info" data-i18n-tip="detail.eventsTooltip" data-i18n-aria="detail.eventsTooltip" role="img">ⓘ</span>
+        </h3>
         <div id="detail-events-wrap">
           <h4 class="eq-subtitle" data-i18n="detail.eventsSource">AISStream / ShipFinder / report posizione</h4>
           <table class="events-table">
             <thead>
               <tr>
                 <th data-i18n="events.col.event">Evento</th>
+                <th data-i18n="events.col.area">Area monitorata</th>
                 <th data-i18n="events.col.datetime">Data/ora</th>
                 <th data-i18n="events.col.dest">Destinazione</th>
                 <th data-i18n="events.col.draught">Pescaggio</th>
@@ -585,7 +589,7 @@
               </tr>
             </thead>
             <tbody id="detail-events-body">
-              <tr><td colspan="5" class="empty" data-i18n="empty.events">Nessun evento registrato.</td></tr>
+              <tr><td colspan="6" class="empty" data-i18n="empty.events">Nessun evento registrato.</td></tr>
             </tbody>
           </table>
         </div>

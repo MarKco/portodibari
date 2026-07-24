@@ -226,8 +226,8 @@
         <li><a href="#mappa-posizione">Mappa posizione</a></li>
         <li><a href="#letture-ais">Letture AIS</a></li>
         <li><a href="#note-operative">Note operative</a></li>
-        <li><a href="#storico-visite-in-porto">Storico visite in
-        porto</a></li>
+        <li><a href="#storico-visite-nelle-aree-monitorate">Storico
+        visite nelle aree monitorate</a></li>
         </ul></li>
         <li><a href="#gestione-aree">Gestione aree</a>
         <ul>
@@ -961,9 +961,9 @@
         <strong>non è specifico di una singola fonte esterna</strong>:
         griglia informazioni, fattori di rischio, mappa con traccia e
         replay, tabella dati nave aggregati (sotto), letture AIS, note
-        operative, storico visite in porto e — quando presenti —
-        sanzioni e rendezvous in mare. Ogni fonte esterna abilitata ha
-        invece il proprio tab dedicato (vedi sotto).</p>
+        operative, storico visite nelle aree monitorate e — quando
+        presenti — sanzioni e rendezvous in mare. Ogni fonte esterna
+        abilitata ha invece il proprio tab dedicato (vedi sotto).</p>
         <h3 id="griglia-informazioni">Griglia informazioni</h3>
         <p>Tutti i dati disponibili della nave:</p>
         <table>
@@ -1269,11 +1269,21 @@
         <p>Area di testo libero: scrivi qualsiasi annotazione sulla nave
         e premi <strong>Salva note</strong>. Le note sono persistenti
         nel database.</p>
-        <h3 id="storico-visite-in-porto">Storico visite in porto</h3>
+        <h3 id="storico-visite-nelle-aree-monitorate">Storico visite
+        nelle aree monitorate</h3>
         <p>Registro di tutti gli arrivi (↙) e partenze (↗) rilevati per
-        la nave, con destinazione, pescaggio e durata della sosta. I
-        codici UN/LOCODE nella destinazione sono risolti nel nome del
-        porto (es. <code>ITNAP</code> → “Napoli”).</p>
+        la nave, con l’<strong>area monitorata</strong> in cui sono
+        avvenuti, destinazione, pescaggio e durata della sosta. I codici
+        UN/LOCODE nella destinazione sono risolti nel nome del porto
+        (es. <code>ITNAP</code> → “Napoli”).</p>
+        <p>L’icona ⓘ accanto al titolo spiega il concetto: un’“area
+        monitorata” è il riquadro geografico che hai configurato (vedi
+        <a href="#gestione-aree">Gestione aree</a>), non necessariamente
+        un singolo porto reale — può coprire un intero golfo con più
+        scali o una sola banchina. Un “arrivo” è registrato quando la
+        nave ricompare nell’area dopo un’assenza di oltre 60 minuti (o è
+        la prima volta che viene vista); una “partenza” quando smette di
+        essere vista mentre risultava nell’area.</p>
         <hr />
         <h2 id="gestione-aree">Gestione aree</h2>
         <p>Apri con <strong>🗺 Aree</strong>. Qui aggiungi e rimuovi le

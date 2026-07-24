@@ -674,7 +674,7 @@ function renderDetailEvents(events) {
   const tbody = document.getElementById('detail-events-body');
   if (!events.length) {
     tbody.innerHTML =
-      `<tr><td colspan="5" class="empty">${t('empty.eventsShip')}</td></tr>`;
+      `<tr><td colspan="6" class="empty">${t('empty.eventsShip')}</td></tr>`;
     return;
   }
 
@@ -709,6 +709,7 @@ function renderDetailEvents(events) {
         ? `
       <tr>
         <td><span class="event-badge departed">${t('event.departed')}</span></td>
+        <td>${escHtml(departure.area_name || departure.area) || '—'}</td>
         <td>${formatTime(departure.ts)}</td>
         <td>${escHtml(departure.destination_label || departure.destination) || '—'}</td>
         <td>${departure.draught != null ? departure.draught.toFixed(1) + ' m' : '—'} ${draughtStr}</td>
@@ -718,6 +719,7 @@ function renderDetailEvents(events) {
       return `
       <tr>
         <td><span class="event-badge arrived">${t('event.arrived')}</span></td>
+        <td>${escHtml(arrival.area_name || arrival.area) || '—'}</td>
         <td>${formatTime(arrival.ts)}</td>
         <td>${escHtml(arrival.destination_label || arrival.destination) || '—'}</td>
         <td>${arrival.draught != null ? arrival.draught.toFixed(1) + ' m' : '—'}</td>
@@ -2109,13 +2111,14 @@ async function generateReport(mmsi) {
           .map(
             (e) => `<tr>
               <td>${e.event_type === 'arrived' ? t('event.arrived') : t('event.departed')}</td>
+              <td>${escHtml(e.area_name || e.area) || '—'}</td>
               <td>${escHtml(formatTime(e.ts))}</td>
               <td>${escHtml(e.destination) || '—'}</td>
               <td>${e.draught != null ? e.draught.toFixed(1) + ' m' : '—'}</td>
             </tr>`
           )
           .join('')
-      : `<tr><td colspan="4">${escHtml(t('empty.eventsShip'))}</td></tr>`;
+      : `<tr><td colspan="5">${escHtml(t('empty.eventsShip'))}</td></tr>`;
 
     const history = historyData?.history || [];
     const histNote = history.length >= 2
@@ -2153,7 +2156,7 @@ async function generateReport(mmsi) {
 
       <h2>${t('detail.eventsTitle')}</h2>
       <table>
-        <thead><tr><th>${t('events.col.event')}</th><th>${t('events.col.datetime')}</th><th>${t('events.col.dest')}</th><th>${t('events.col.draught')}</th></tr></thead>
+        <thead><tr><th>${t('events.col.event')}</th><th>${t('events.col.area')}</th><th>${t('events.col.datetime')}</th><th>${t('events.col.dest')}</th><th>${t('events.col.draught')}</th></tr></thead>
         <tbody>${eventsRows}</tbody>
       </table>
 

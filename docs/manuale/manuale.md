@@ -331,7 +331,7 @@ Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la s
 
 ### Tab Generale
 
-Il primo tab, aperto di default, raccoglie tutto ciò che **non è specifico di una singola fonte esterna**: griglia informazioni, fattori di rischio, mappa con traccia e replay, tabella dati nave aggregati (sotto), letture AIS, note operative, storico visite in porto e — quando presenti — sanzioni e rendezvous in mare. Ogni fonte esterna abilitata ha invece il proprio tab dedicato (vedi sotto).
+Il primo tab, aperto di default, raccoglie tutto ciò che **non è specifico di una singola fonte esterna**: griglia informazioni, fattori di rischio, mappa con traccia e replay, tabella dati nave aggregati (sotto), letture AIS, note operative, storico visite nelle aree monitorate e — quando presenti — sanzioni e rendezvous in mare. Ogni fonte esterna abilitata ha invece il proprio tab dedicato (vedi sotto).
 
 ### Griglia informazioni
 
@@ -447,9 +447,11 @@ Tabella paginata con tutte le posizioni ricevute in ordine cronologico. Clicca u
 
 Area di testo libero: scrivi qualsiasi annotazione sulla nave e premi **Salva note**. Le note sono persistenti nel database.
 
-### Storico visite in porto
+### Storico visite nelle aree monitorate
 
-Registro di tutti gli arrivi (↙) e partenze (↗) rilevati per la nave, con destinazione, pescaggio e durata della sosta. I codici UN/LOCODE nella destinazione sono risolti nel nome del porto (es. `ITNAP` → "Napoli").
+Registro di tutti gli arrivi (↙) e partenze (↗) rilevati per la nave, con l'**area monitorata** in cui sono avvenuti, destinazione, pescaggio e durata della sosta. I codici UN/LOCODE nella destinazione sono risolti nel nome del porto (es. `ITNAP` → "Napoli").
+
+L'icona ⓘ accanto al titolo spiega il concetto: un'"area monitorata" è il riquadro geografico che hai configurato (vedi [Gestione aree](#gestione-aree)), non necessariamente un singolo porto reale — può coprire un intero golfo con più scali o una sola banchina. Un "arrivo" è registrato quando la nave ricompare nell'area dopo un'assenza di oltre 60 minuti (o è la prima volta che viene vista); una "partenza" quando smette di essere vista mentre risultava nell'area.
 
 ---
 

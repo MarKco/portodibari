@@ -256,7 +256,7 @@ L'interfaccia è organizzata per **nave** (MMSI), non per singola lettura:
 | --------------------| -----------------------------------------------------------------------------------|
 | **Navi presenti**  | Navi viste negli ultimi **6 ore**, **oppure** navi "in porto" viste nelle ultime **24 ore**. Toolbar con **ricerca** (nome/MMSI/IMO/destinazione) e **filtri** (fascia di rischio, solo in porto, solo segnalate) + **export CSV della vista filtrata** (vedi [Ricerca, filtri ed export](#-ricerca-filtri-ed-export-liste)) |
 | **Navi passate**   | Navi che non rientrano nel criterio "presenti" (complemento). Stessa toolbar di ricerca/filtri/export (senza il filtro "in porto") |
-| **Dettaglio nave** | Organizzato in **tab**: **Generale** (info statiche nave — tipo, IMO, callsign, dimensioni, destinazione… — + **tabella dati aggregati** con i campi principali riconciliati tra tutte le fonti abilitate, vedi sotto + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track con soste collassate + letture paginate + note + storico visite porto) più **un tab per fonte esterna abilitata** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — il tab di una fonte disattivata non compare). La **destinazione è cliccabile** (vedi sotto). Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
+| **Dettaglio nave** | Organizzato in **tab**: **Generale** (info statiche nave — tipo, IMO, callsign, dimensioni, destinazione… — + **tabella dati aggregati** con i campi principali riconciliati tra tutte le fonti abilitate, vedi sotto + **andamento dello [score di rischio nel tempo](#-storico-dello-score-di-rischio)** + mappa track con soste collassate + letture paginate + note + storico visite nelle aree monitorate) più **un tab per fonte esterna abilitata** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — il tab di una fonte disattivata non compare). La **destinazione è cliccabile** (vedi sotto). Bottone **📄 Report** per generare un [report stampabile/PDF](#-report-pdf-della-nave) |
 | **Traffico**       | Statistiche aggregate: card riepilogo, grafico arrivi per ora del giorno, arrivi per tipo nave; **distribuzione score rischio** (tile verde/giallo/rosso sulle navi degli ultimi 7 giorni), **principali fattori di rischio** (frequenza), **arrivi giornalieri** (ultimi 30 giorni), **navi con score più alto** (top 8 cliccabili); navi attese (per keyword preset), ultimi eventi porto |
 | **Aree**           | Gestione aree a runtime: elenco con coordinate/stato/dati salvati, mappa con tutte le aree, pannello per aggiungere (coordinate GPS o cattura vista mappa) ed eliminare aree (con storico correlato e annullamento entro 10s) |
 
@@ -439,7 +439,7 @@ Lo [score di rischio](#-score-di-rischio-potenziale-trasporto-armi) è ricalcola
 
 ## 📄 Report PDF della nave
 
-Il bottone **📄 Report** nell'header del dettaglio genera un **report stampabile** della nave: apre una finestra con un documento HTML autoconsistente (stili inline) e lancia la stampa del browser — da cui si può salvare come **PDF** (*Stampa → Salva come PDF*). Nessuna dipendenza server-side per i PDF. Il report include intestazione (nome, MMSI, data), **score di rischio con fattori**, tabella dati nave, **storico visite in porto** e note operative, con un disclaimer sull'uso dello score come strumento di triage.
+Il bottone **📄 Report** nell'header del dettaglio genera un **report stampabile** della nave: apre una finestra con un documento HTML autoconsistente (stili inline) e lancia la stampa del browser — da cui si può salvare come **PDF** (*Stampa → Salva come PDF*). Nessuna dipendenza server-side per i PDF. Il report include intestazione (nome, MMSI, data), **score di rischio con fattori**, tabella dati nave, **storico visite nelle aree monitorate** (con area, destinazione e pescaggio) e note operative, con un disclaimer sull'uso dello score come strumento di triage.
 
 ## ⚓ Rilevamento "in porto" e de-noise della traccia
 
@@ -822,7 +822,7 @@ npm run format   # Prettier
 3. (Opzionale) selezionare l'**area** dal selettore in fondo alla sidebar — cambia solo la vista, non influisce sugli stream attivi
 4. Cliccare **▶ Avvia il monitoraggio** nella sidebar per avviare lo stream dell'area correntemente visualizzata — il badge diventa verde
 5. Tab **Navi presenti**: navi rilevate nella finestra attiva (6h / 24h in porto), aggiornamento ogni 5 minuti. Le navi ad alto rischio (score 71–100) hanno riga rossa, le navi segnalate ★ riga viola, le navi militari auto-rilevate riga rossa con ★ automatica, quelle in sosta il badge ⚓ In porto. Colonna **Rischio** con lo score 0–100 colorato. Toolbar in alto per **cercare/filtrare** la lista ed **esportarla in CSV** ([dettagli](#-ricerca-filtri-ed-export-liste))
-6. Cliccare una riga nave → vista **Dettaglio**: info-bar + dati VesselFinder/MarineTraffic (se abilitati) + **andamento score di rischio** + mappa track (soste collassate) + letture paginate + note + storico visite porto. Bottone **📄 Report** per il [report PDF](#-report-pdf-della-nave)
+6. Cliccare una riga nave → vista **Dettaglio**: info-bar + dati VesselFinder/MarineTraffic (se abilitati) + **andamento score di rischio** + mappa track (soste collassate) + letture paginate + note + storico visite nelle aree monitorate. Bottone **📄 Report** per il [report PDF](#-report-pdf-della-nave)
 7. Cliccare una riga lettura nel dettaglio → modal con dati grezzi AIS
 8. **← Indietro** per tornare alla lista precedente
 9. Tab **Navi passate**: navi non più nel criterio "presenti"; cliccare ★ per segnalarle / ✓ per marcarle viste
@@ -1214,7 +1214,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/:mmsi/mtdata` | Dati scaricati da MarineTraffic (con cache); risolve e salva `mt_ship_id` |
 | GET | `/api/ships/:mmsi/equasis` | Dati Equasis (proprietà/gestione) dalla cache; scrapa solo con `?fetch=1` (pulsante dettaglio). Mai automatico, nessuna scadenza |
 | GET / DELETE | `/api/equasis-log` | Legge (tail 256 KB) / svuota il log di audit testuale dei lookup Equasis (`equasis.log`) |
-| GET | `/api/ships/:mmsi/events` | Eventi porto (arrivi/partenze) di una nave |
+| GET | `/api/ships/:mmsi/events` | Eventi porto (arrivi/partenze) di una nave, con `area_name` (join su `areas.key`, nome globale dell'area monitorata in cui l'evento è avvenuto) |
 | GET | `/api/ships/:mmsi/risk-history` | Serie storica degli snapshot di score di rischio della nave (`{history:[{ts,score,band}]}`) |
 | GET | `/api/ships/expected` | Navi attese nell'area (`?area=`): destinazione = keyword preset, uscite < 48h |
 | PATCH | `/api/ships/:mmsi/flag` | Imposta flag segnalata `{flagged: 0\|1}` |

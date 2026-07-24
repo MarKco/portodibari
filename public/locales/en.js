@@ -112,7 +112,8 @@ export default {
   'detail.notesHolder':  'Add notes about this ship…',
   'detail.notesSave':    'Save notes',
   'detail.notesSaved':   'Saved ✓',
-  'detail.eventsTitle':  'Port visit history',
+  'detail.eventsTitle':  'Visit history in monitored areas',
+  'detail.eventsTooltip': 'A "monitored area" is the geographic box you configured under Settings → Areas, not necessarily a real port: it can cover an entire gulf with several harbours, or just a single berth. Arrival = the ship reappears in the area after being absent more than 60 minutes (or is seen there for the first time). Departure = the ship stops being seen while it was still logged in the area.',
   'detail.eventsSource': 'AISStream / ShipFinder / position reports',
   'detail.readingTitle': 'Reading detail',
   'detail.rawData':      'Raw AIS data',
@@ -129,6 +130,7 @@ export default {
 
   // ── Events table headers ───────────────────────────────────────────────────
   'events.col.event':    'Event',
+  'events.col.area':     'Monitored area',
   'events.col.datetime': 'Date/time',
   'events.col.dest':     'Destination',
   'events.col.draught':  'Draught',

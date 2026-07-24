@@ -246,7 +246,7 @@ The interface is organized around **ships** (MMSI), not individual readings:
 | --------------------| -----------------------------------------------------------------------------------|
 | **Active ships**   | Ships seen in the last **6 hours**, **or** "in port" ships seen in the last **24 hours**. Toolbar with **search** (name/MMSI/IMO/destination) and **filters** (risk band, in-port only, flagged only) + **CSV export of the filtered view** (see [Search, filters and export](#-search-filters-and-list-export)) |
 | **Past ships**     | Ships that no longer meet the "active" criteria (complement). Same search/filter/export toolbar (without the "in port" filter) |
-| **Ship detail**    | Organized into **tabs**: **General** (static ship info — type, IMO, callsign, dimensions, destination… — + **aggregated data table** reconciling the main fields across every enabled source, see below + **[risk score over time](#-risk-score-history)** + track map with collapsed stops + paginated readings + notes + port visit history) plus **one tab per enabled external source** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — a disabled source has no tab). **📄 Report** button to generate a [printable/PDF report](#-ship-pdf-report) |
+| **Ship detail**    | Organized into **tabs**: **General** (static ship info — type, IMO, callsign, dimensions, destination… — + **aggregated data table** reconciling the main fields across every enabled source, see below + **[risk score over time](#-risk-score-history)** + track map with collapsed stops + paginated readings + notes + visit history in monitored areas) plus **one tab per enabled external source** (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch — a disabled source has no tab). **📄 Report** button to generate a [printable/PDF report](#-ship-pdf-report) |
 | **Traffic**        | Aggregate statistics: summary cards, arrivals by hour-of-day chart, arrivals by ship type; **risk score distribution** (green/yellow/red tiles for ships in the last 7 days), **top risk factors** (frequency), **daily arrivals** (last 30 days), **highest-score ships** (top 8, clickable); expected ships (by preset keyword), latest port events |
 | **Areas**          | Runtime area management: list with coordinates/status/stored data, map showing all areas, panel to add (GPS coordinates or map view capture) and delete areas (with related history and a 10s undo window) |
 
@@ -418,7 +418,7 @@ The [risk score](#-risk-score-potential-arms-transport) is recomputed on every r
 
 ## 📄 Ship PDF report
 
-The **📄 Report** button in the detail header generates a **printable report** of the ship: it opens a window with a self-contained HTML document (inline styles) and triggers the browser print dialog — from which it can be saved as **PDF** (*Print → Save as PDF*). No server-side PDF dependency. The report includes a header (name, MMSI, date), **risk score with factors**, a ship-data table, **port visit history** and operational notes, plus a disclaimer about using the score as a triage tool.
+The **📄 Report** button in the detail header generates a **printable report** of the ship: it opens a window with a self-contained HTML document (inline styles) and triggers the browser print dialog — from which it can be saved as **PDF** (*Print → Save as PDF*). No server-side PDF dependency. The report includes a header (name, MMSI, date), **risk score with factors**, a ship-data table, **visit history in monitored areas** (with area, destination and draught) and operational notes, plus a disclaimer about using the score as a triage tool.
 
 ## ⚓ "In port" detection and track de-noising
 
@@ -769,7 +769,7 @@ npm run format   # Prettier
 3. (Optional) select the **area** from the selector at the bottom of the sidebar — this changes the data view only, it does not affect active streams
 4. Click **▶ Start monitoring** in the sidebar to start the stream for the currently viewed area — the badge turns green
 5. Tab **Active ships**: ships detected in the active window (6h / 24h in port), updated every 5 minutes. High-risk ships (score 71–100) have a red row, flagged ★ ships a purple row, auto-detected military ships a red row with automatic ★, ships at rest the ⚓ In port badge. **Risk** column with the 0–100 colored score. Toolbar on top to **search/filter** the list and **export it to CSV** ([details](#-search-filters-and-list-export))
-6. Click a ship row → **Detail** view: info-bar + VesselFinder/MarineTraffic data (if enabled) + **risk score trend** + track map (collapsed stops) + paginated readings + notes + port visit history. **📄 Report** button for the [PDF report](#-ship-pdf-report)
+6. Click a ship row → **Detail** view: info-bar + VesselFinder/MarineTraffic data (if enabled) + **risk score trend** + track map (collapsed stops) + paginated readings + notes + visit history in monitored areas. **📄 Report** button for the [PDF report](#-ship-pdf-report)
 7. Click a reading row in the detail → modal with raw AIS data
 8. **← Back** to return to the previous list
 9. Tab **Past ships**: ships no longer meeting the "active" criteria; click ★ to flag them / ✓ to mark them as seen
@@ -1114,7 +1114,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/ships/:mmsi/mtdata` | Data downloaded from MarineTraffic (with cache); resolves and saves `mt_ship_id` |
 | GET | `/api/ships/:mmsi/equasis` | Equasis data (ownership/management) from cache; scrapes only with `?fetch=1` (detail button). Never automatic, no expiry |
 | GET / DELETE | `/api/equasis-log` | Reads (tail 256 KB) / clears the plain-text audit log of Equasis lookups (`equasis.log`) |
-| GET | `/api/ships/:mmsi/events` | Port events (arrivals/departures) for a ship |
+| GET | `/api/ships/:mmsi/events` | Port events (arrivals/departures) for a ship, with `area_name` (joined on `areas.key`, the global name of the monitored area the event occurred in) |
 | GET | `/api/ships/:mmsi/risk-history` | Risk-score snapshot time series for the ship (`{history:[{ts,score,band}]}`) |
 | GET | `/api/ships/expected` | Expected ships in the area (`?area=`): destination = preset keyword, departed < 48h ago |
 | PATCH | `/api/ships/:mmsi/flag` | Set flagged flag `{flagged: 0\|1}` |
