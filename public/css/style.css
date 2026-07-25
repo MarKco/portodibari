@@ -896,7 +896,8 @@ td.empty {
    ON = full-opacity icon on a solid blue chip + a small green dot, so the
    state reads at a glance and doesn't rely on color alone (dot position/shape
    is a second, colorblind-safe signal). */
-.map-toggle-buttons a {
+.map-toggle-buttons a,
+.leaflet-touch .map-toggle-buttons a {
   width: 28px;
   height: 28px;
   line-height: 28px;
@@ -914,7 +915,8 @@ td.empty {
   filter: grayscale(20%);
 }
 .map-toggle-buttons a.active {
-  background: #2563eb;
+  background: #bfdbfe;
+  box-shadow: inset 0 0 0 1.5px #2563eb;
   opacity: 1;
   filter: none;
 }
@@ -1216,7 +1218,7 @@ td.empty {
 #modal-close:hover,
 #health-close:hover { color: var(--text); background: var(--surface-3); }
 
-#modal-body { overflow-y: auto; padding: 1.25rem; }
+#modal-body { overflow-y: auto; overflow-x: auto; padding: 1.25rem; }
 
 .detail-grid {
   display: grid;
@@ -1269,6 +1271,7 @@ pre {
   width: 100%;
   max-height: calc(100vh - 220px);
   overflow-y: auto;
+  overflow-x: auto;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
   background: var(--surface-1);
@@ -1814,6 +1817,7 @@ pre {
 .notes-textarea:focus { outline: none; border-color: var(--border-focus); }
 .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; align-self: flex-start; }
 
+#detail-events-wrap, #detail-rendezvous-wrap { overflow-x: auto; }
 .events-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
 .events-table th, .events-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border); }
 .events-table th {
@@ -2378,6 +2382,11 @@ html[data-theme="light"] .gloss-tooltip .gt-term { color: var(--accent); }
     font-size: 0.8rem;
     white-space: nowrap;
   }
+
+  /* Fixed map heights (480px/360px) eat most of a phone's viewport; shrink
+     them so the rest of the page (tabs, info, tables) stays reachable. */
+  #active-map, #followed-map { height: 280px; }
+  #detail-map { height: 260px; }
 }
 
 /* ── Light-theme component fixes (hardcoded values) ───────────────────── */
@@ -2997,6 +3006,18 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   }
   .notif-check,
   .notif-delete { width: 34px; height: 34px; }
+
+  /* Floating map-layer toggle icons: 28px is hard to hit precisely on a
+     touchscreen; the leaflet-bar stacks vertically so growing them doesn't
+     cost horizontal space. */
+  .map-toggle-buttons a,
+  .leaflet-touch .map-toggle-buttons a { width: 40px; height: 40px; line-height: 40px; }
+
+  /* Small inline icon/text buttons in ship rows and the detail header —
+     more tap padding without forcing a fixed square (they sit inline next
+     to other text). */
+  .vf-link { padding: 0.5rem; }
+  .military-btn { padding: 0.5rem 0.7rem; }
 }
 
 /* Clickable destination (info bar) + its info popover ---------------------- */
