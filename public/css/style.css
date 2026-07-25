@@ -2361,6 +2361,23 @@ html[data-theme="light"] .gloss-tooltip .gt-term { color: var(--accent); }
     border-left: 1px solid var(--border);
     flex-shrink: 0;
   }
+
+  /* Tab bars (ship detail sources, settings…) can hold more buttons than fit
+     a phone's width (e.g. Generale/VF/MT/ShipFinder/MyShipTracking/Equasis/
+     GFW) — scroll horizontally instead of overflowing the page. */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
 }
 
 /* ── Light-theme component fixes (hardcoded values) ───────────────────── */
