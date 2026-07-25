@@ -976,12 +976,55 @@ td.empty {
   border: 1px solid var(--border-strong);
   margin-bottom: 1.25rem;
   background: #0e1420;
-  z-index: 0;
+  /* Stays pinned to the top of #detail-panel-readings' own scroll box (see
+     below) while the readings table scrolls underneath it. NOTE: #app has
+     overflow:auto but — because body/#layout use min-height:100vh, not a
+     fixed height — #app's content never actually outgrows its own box, so
+     #app never develops a real scrollbar; the page scrolls at the document
+     level instead. CSS still treats #app as the "nearest scrolling ancestor"
+     for sticky purposes (overflow:auto alone qualifies, whether or not it
+     ever actually scrolls), so a plain sticky here would just ride along
+     with the page instead of pinning. Giving the panel below its own real
+     overflow box sidesteps that entirely. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  box-shadow: 0 6px 12px -6px rgba(0, 0, 0, 0.5);
 }
 
-#detail-map-wrap {
-  margin-top: 1.25rem;
+/* Own scrolling box for the Letture tab (map+controls+readings table), sized
+   to the viewport minus the page header above it — same convention as
+   #log-table-wrap. Without this, #detail-map's sticky positioning binds to
+   #app (see comment above) and never actually pins. */
+#detail-panel-readings {
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
 }
+
+.reading-source {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.reading-row td.reading-actions {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+.reading-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.reading-action:hover { color: var(--text); background: var(--surface-3); }
+.reading-action:disabled { opacity: 0.3; cursor: default; }
+.reading-action:disabled:hover { background: none; color: var(--text-faint); }
 
 /* Track playback controls (ship-detail map) */
 .track-anim {
@@ -2295,6 +2338,7 @@ html[data-theme="light"] .gloss-tooltip .gt-term { color: var(--accent); }
   flex-shrink: 0;
   cursor: help;
 }
+.src-dot--ais { background: #34d399; }
 .src-dot--vf  { background: #4a90d9; }
 .src-dot--mt  { background: #7c9fc0; }
 .src-dot--sf  { background: #f59e0b; }

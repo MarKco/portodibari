@@ -87,6 +87,7 @@ export default {
   'detail.equasisFetch': 'Recupera informazioni Equasis',
   'detail.gfwTitle':     'Global Fishing Watch',
   'detail.tab.general':  'Generale',
+  'detail.tab.readings': 'Letture',
   'detail.tab.vf':       'VesselFinder',
   'detail.tab.mt':       'MarineTraffic',
   'detail.tab.sf':       'ShipFinder',
@@ -118,15 +119,23 @@ export default {
   'detail.readingTitle': 'Dettaglio lettura',
   'detail.rawData':      'Dati grezzi AIS',
   'detail.unknown':      'Nave sconosciuta',
+  'detail.readingsHint': 'Clicca una riga per vedere quel punto nel replay qui sopra. 📄 mostra il dato grezzo.',
 
   // ── Detail table headers ───────────────────────────────────────────────────
   'detail.col.time':      'Ora',
+  'detail.col.source':    'Fonte',
   'detail.col.type':      'Tipo',
   'detail.col.cog':       'COG',
   'detail.col.heading':   'Prua',
   'detail.col.lat':       'Lat',
   'detail.col.lon':       'Lon',
   'detail.col.navStatus': 'Stato nav.',
+  'detail.readingSeekTip':  'Sposta la nave nel replay su questo punto',
+  'detail.readingJsonTip':  'Mostra il dato grezzo ricevuto',
+  'detail.readingNoPos':    'Nessuna posizione in questa lettura',
+  'source.ais': 'AISStream',
+  'source.sf':  'ShipFinder',
+  'source.mst': 'MyShipTracking',
 
   // ── Events table headers ───────────────────────────────────────────────────
   'events.col.event':    'Evento',

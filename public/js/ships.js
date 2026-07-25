@@ -2,7 +2,7 @@ import { el } from './dom.js';
 import { S, PAGE_SIZE, saveShipFilters } from './store.js';
 import { api } from './api.js';
 import { showAlert } from './toast.js';
-import { renderActiveMap, renderSfPositions, renderMstPositions } from './maps.js';
+import { renderActiveMap, renderSfPositions, renderMstPositions, seekTrackTo } from './maps.js';
 import { showView } from './views.js';
 import { t, getLang } from './i18n.js';
 import { exportShips, exportTrack, exportBerths } from './geoexport.js';
@@ -634,19 +634,29 @@ export async function loadDetail() {
   }
 }
 
+// Source dot + label for the readings table ("is this real AISStream data or
+// a ShipFinder/MyShipTracking backup fix?" — see CLAUDE.md "readings.source").
+function readingSourceHtml(source) {
+  const src = source || 'ais';
+  const key = src === 'sf' ? 'source.sf' : src === 'mst' ? 'source.mst' : 'source.ais';
+  return `<span class="reading-source"><span class="src-dot src-dot--${src}"></span>${t(key)}</span>`;
+}
+
 function renderDetailTable(rows) {
   if (!rows.length) {
-    el.detailBody.innerHTML = `<tr><td colspan="8" class="empty">${t('empty.readings')}</td></tr>`;
+    el.detailBody.innerHTML = `<tr><td colspan="10" class="empty">${t('empty.readings')}</td></tr>`;
     return;
   }
   if (!el.detailName.textContent && rows[0].ship_name) {
     el.detailName.textContent = rows[0].ship_name;
   }
   el.detailBody.innerHTML = rows
-    .map(
-      (r) => `
-    <tr class="reading-row" data-id="${r.id}">
+    .map((r) => {
+      const hasPos = r.latitude != null && r.longitude != null;
+      return `
+    <tr class="reading-row" data-id="${r.id}" data-lat="${hasPos ? r.latitude : ''}" data-lon="${hasPos ? r.longitude : ''}" data-heading="${r.true_heading ?? ''}" data-ts="${escHtml(r.received_at)}">
       <td>${formatTime(r.received_at)}</td>
+      <td>${readingSourceHtml(r.source)}</td>
       <td><span class="type-badge ${r.message_type}">${shortType(r.message_type)}</span></td>
       <td>${r.sog != null ? r.sog.toFixed(1) + ' kn' : '—'}</td>
       <td>${r.cog != null ? r.cog.toFixed(1) + '°' : '—'}</td>
@@ -654,12 +664,28 @@ function renderDetailTable(rows) {
       <td>${r.latitude != null ? r.latitude.toFixed(5) : '—'}</td>
       <td>${r.longitude != null ? r.longitude.toFixed(5) : '—'}</td>
       <td>${navStatus(r.navigational_status)}</td>
+      <td class="reading-actions">
+        <button type="button" class="reading-action reading-seek" ${hasPos ? '' : 'disabled'}
+                data-i18n-title="${hasPos ? 'detail.readingSeekTip' : 'detail.readingNoPos'}"
+                title="${hasPos ? t('detail.readingSeekTip') : t('detail.readingNoPos')}">🎯</button>
+        <button type="button" class="reading-action reading-json"
+                data-i18n-title="detail.readingJsonTip" title="${t('detail.readingJsonTip')}">📄</button>
+      </td>
     </tr>
-  `
-    )
+  `;
+    })
     .join('');
   el.detailBody.querySelectorAll('.reading-row').forEach((tr) => {
-    tr.addEventListener('click', () => openReadingModal(Number(tr.dataset.id)));
+    const { lat, lon, heading, ts } = tr.dataset;
+    const hasPos = lat !== '' && lon !== '';
+    const seek = () => {
+      if (hasPos) seekTrackTo(Number(lat), Number(lon), heading !== '' ? Number(heading) : null, ts);
+    };
+    tr.addEventListener('click', seek);
+    tr.querySelector('.reading-json').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openReadingModal(Number(tr.dataset.id));
+    });
   });
 }
 

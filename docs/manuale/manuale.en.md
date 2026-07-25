@@ -316,9 +316,9 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 ## Ship detail
 
-Clicking any table row (or a ship's notification) opens the full detail card, organized into **tabs**: **General**, plus one tab per enabled external source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). A source disabled in Settings has no tab.
+Clicking any table row (or a ship's notification) opens the full detail card, organized into **tabs**: **General**, **Readings**, plus one tab per enabled external source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). A source disabled in Settings has no tab.
 
-![Ship detail — header, tabs, information grid, map, and aggregated ship data table (General tab).](images/11-monitoraggio_dettagli_nave_1.png)
+![Ship detail — header, tabs and information grid (General tab).](images/27-monitoraggio_dettagli_nave_generale.png)
 
 ### Header and actions
 
@@ -331,7 +331,7 @@ Clicking any table row (or a ship's notification) opens the full detail card, or
 
 ### General tab
 
-The first tab, open by default, gathers everything that **isn't specific to a single external source**: information grid, risk factors, map with track and replay, aggregated ship data table (below), AIS readings, operational notes, visit history in monitored areas, and — when present — sanctions and rendezvous at sea. Each enabled external source instead has its own dedicated tab (see below).
+The first tab, open by default, gathers everything that **isn't specific to a single external source**: information grid, risk factors, aggregated ship data table (below), operational notes, visit history in monitored areas, and — when present — sanctions and rendezvous at sea. The map with track/replay and the raw AIS readings live in the **Readings** tab instead (see below). Each enabled external source has its own dedicated tab (see below).
 
 ### Information grid
 
@@ -425,9 +425,13 @@ A notice reminds you to always verify against the official source (a **name-only
 
 If the ship has had a confirmed **rendezvous** with another one (stayed close, slow, and offshore long enough — a ship-to-ship transshipment signature), the **Rendezvous at sea** section appears with the list of encounters (other ship, date/time, minimum distance, area). Every row is clickable and opens the ship involved. A confirmed rendezvous triggers a **notification** and **adds risk points to both** ships.
 
-### Position map
+### Readings tab
 
-Map with the ship's track and animated playback controls.
+![Ship detail — Readings tab: track/replay map pinned at the top, paginated AIS readings table below.](images/28-monitoraggio_dettagli_nave_letture.png)
+
+The **Readings** tab gathers everything about the ship's raw position: the track/replay map at the top, and below it, the table of every reading received in chronological order.
+
+**Map and replay** — stays **pinned at the top** while you scroll the table below, so you can always see where you are along the route.
 
 - **Time window** — presets **6h / 24h / 7d / all**, or a **custom** interval (From → To, then **Apply**).
 - **▶ / ⏸** — plays/pauses the track animation.
@@ -437,11 +441,10 @@ Map with the ship's track and animated playback controls.
 
 > The **last known position** markers for ShipFinder/MyShipTracking shown on the map follow the **same time window** selected for the track (preset, custom interval, or replay segment): narrowing the window only shows sightings that fall within it, exactly as with AIS positions. The **📍 Locate via …** button always shows the just-fetched position regardless.
 
-### AIS readings
+**Readings table** — every position received, in chronological order, with a **Source** column (colored dot + label: green = AISStream, orange = ShipFinder, teal = MyShipTracking) so you can immediately tell real AIS data apart from a backup fix. Navigate with **← Prev** and **Next →**.
 
-![Ship detail — paginated table of AIS readings and operational notes section.](images/16-monitoraggio_dettagli_nave_6.png)
-
-Paginated table with all positions received in chronological order. Click a row for detail. Full raw JSON data is shown only for static messages (name, dimensions, destination…); for simple position messages, the useful fields are already in the grid. Navigate with **← Prev** and **Next →**.
+- **Click a row** (with a known position) → the ship in the replay above jumps exactly to that point. Handy to see at a glance where the ship was at a precise moment, without manually dragging the slider.
+- **📄 icon** on the row → opens the raw data received (full JSON). For simple position messages, the useful fields are already in the grid; the raw data mainly matters for static messages (name, dimensions, destination…).
 
 ### Operational notes
 

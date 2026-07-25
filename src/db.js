@@ -1918,7 +1918,7 @@ function getShipReadings(mmsi, limit = 50, offset = 0) {
     .prepare(
       `
     SELECT id, received_at, message_type, mmsi, ship_name, latitude, longitude,
-           navigational_status, sog, cog, true_heading
+           navigational_status, sog, cog, true_heading, source
     FROM readings WHERE mmsi = ? ORDER BY received_at DESC LIMIT ? OFFSET ?
   `
     )

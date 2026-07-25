@@ -438,6 +438,7 @@
       </div>
       <div class="tabs" id="detail-tabs">
         <button class="tab tab-active" data-panel="general" data-i18n="detail.tab.general">Generale</button>
+        <button class="tab" data-panel="readings" data-i18n="detail.tab.readings">Letture</button>
         <button class="tab hidden" data-panel="vf" data-i18n="detail.tab.vf">VesselFinder</button>
         <button class="tab hidden" data-panel="mt" data-i18n="detail.tab.mt">MarineTraffic</button>
         <button class="tab hidden" data-panel="sf" data-i18n="detail.tab.sf">ShipFinder</button>
@@ -460,63 +461,6 @@
         <div id="sanctions-data-body"></div>
       </div>
 
-        <div id="detail-map-wrap">
-          <div id="detail-map"></div>
-          <div id="track-anim" class="track-anim hidden">
-            <div class="track-row">
-              <span class="replay-wins">
-                <button class="track-win" data-win="6h" type="button">6h</button>
-                <button class="track-win" data-win="24h" type="button">24h</button>
-                <button class="track-win" data-win="7d" type="button">7gg</button>
-                <button class="track-win active" data-win="all" type="button" data-i18n="replay.all">tutto</button>
-              </span>
-              <span class="replay-custom">
-                <input id="track-from" type="datetime-local" class="replay-dt" aria-label="Da" />
-                <span>→</span>
-                <input id="track-to" type="datetime-local" class="replay-dt" aria-label="A" />
-                <button id="track-apply" class="btn btn-secondary btn-sm" type="button" data-i18n="replay.apply">Applica</button>
-              </span>
-            </div>
-            <div class="track-row">
-              <button id="track-play" class="track-play" type="button"
-                      data-i18n-title="map.pause" title="Pausa">⏸</button>
-              <input id="track-slider" class="track-slider" type="range"
-                     min="0" max="1000" value="0" step="1" aria-label="Timeline" />
-              <span id="track-time" class="track-time">—</span>
-              <span class="replay-speeds">
-                <button class="track-speed" data-speed="1" type="button">1×</button>
-                <button class="track-speed" data-speed="5" type="button">5×</button>
-                <button class="track-speed active" data-speed="20" type="button">20×</button>
-                <button class="track-speed" data-speed="60" type="button">60×</button>
-              </span>
-              <label id="track-use-scraped-wrap" class="list-check hidden" data-i18n-title="track.useScrapedTitle" title="Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata">
-                <input type="checkbox" id="track-use-scraped" checked>
-                <span data-i18n="track.useScraped">Includi SF/MST</span>
-              </label>
-            </div>
-          </div>
-          <div id="track-export" class="track-export">
-            <span class="track-export-label" data-i18n="export.trackLabel">Esporta traccia:</span>
-            <select id="track-export-sel" class="list-band" title="Esporta traccia">
-              <option value="">⬇ Esporta…</option>
-              <option value="geojson">GeoJSON</option>
-              <option value="kml">KML</option>
-            </select>
-            <select id="track-interval" class="list-band hidden" data-i18n-title="track.intervalTitle"
-                    title="Scegli quale intervallo di spostamenti vedere nel replay"></select>
-            <button id="track-cut-add" class="btn btn-secondary btn-sm" type="button"
-                    data-i18n-title="track.cutTitle"
-                    title="Segna un taglio a ora: gli spostamenti successivi diventano un nuovo intervallo. Reversibile, non cancella dati.">
-              🧹 <span data-i18n="track.cut">Azzera replay</span>
-            </button>
-            <button id="track-cut-del" class="btn btn-secondary btn-sm hidden" type="button"
-                    data-i18n-title="track.cutDeleteTitle"
-                    title="Elimina il taglio all'inizio dell'intervallo selezionato: lo unisce all'intervallo precedente.">
-              🗑 <span data-i18n="track.cutDelete">Elimina taglio</span>
-            </button>
-          </div>
-        </div>
-
       <!-- Cross-provider aggregate: identity/specs merged from every enabled
            provider, one row per field, tagged with a colored dot per source. -->
       <div id="agg-data-section" class="detail-section hidden">
@@ -524,31 +468,6 @@
           <span data-i18n="detail.aggTitle">Dati nave aggregati (tutti i provider)</span>
         </h3>
         <div id="agg-data-body"></div>
-      </div>
-
-      <div id="table-wrap-detail">
-        <table>
-          <thead>
-            <tr>
-              <th data-i18n="detail.col.time">Ora</th>
-              <th data-i18n="detail.col.type">Tipo</th>
-              <th data-i18n="col.sog">SOG</th>
-              <th data-i18n="detail.col.cog">COG</th>
-              <th data-i18n="detail.col.heading">Prua</th>
-              <th data-i18n="detail.col.lat">Lat</th>
-              <th data-i18n="detail.col.lon">Lon</th>
-              <th data-i18n="detail.col.navStatus">Stato nav.</th>
-            </tr>
-          </thead>
-          <tbody id="detail-body">
-            <tr><td colspan="8" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination">
-        <button id="detail-prev" disabled data-i18n="page.prev">← Prec</button>
-        <span id="detail-page-info">Pag. 1</span>
-        <button id="detail-next" disabled data-i18n="page.next">Succ →</button>
       </div>
 
       <!-- Note operative -->
@@ -611,6 +530,94 @@
           </table>
         </div>
       </div>
+      </div>
+
+      <!-- Tab: Letture — raw AIS log (+ ShipFinder/MyShipTracking backup fixes),
+           with a sticky map+replay header. Clicking a row with a position moves
+           the replay ship marker there; the 📄 icon opens the raw JSON. -->
+      <div id="detail-panel-readings" class="detail-tab-panel hidden">
+          <div id="detail-map"></div>
+          <div id="track-anim" class="track-anim hidden">
+            <div class="track-row">
+              <span class="replay-wins">
+                <button class="track-win" data-win="6h" type="button">6h</button>
+                <button class="track-win" data-win="24h" type="button">24h</button>
+                <button class="track-win" data-win="7d" type="button">7gg</button>
+                <button class="track-win active" data-win="all" type="button" data-i18n="replay.all">tutto</button>
+              </span>
+              <span class="replay-custom">
+                <input id="track-from" type="datetime-local" class="replay-dt" aria-label="Da" />
+                <span>→</span>
+                <input id="track-to" type="datetime-local" class="replay-dt" aria-label="A" />
+                <button id="track-apply" class="btn btn-secondary btn-sm" type="button" data-i18n="replay.apply">Applica</button>
+              </span>
+            </div>
+            <div class="track-row">
+              <button id="track-play" class="track-play" type="button"
+                      data-i18n-title="map.pause" title="Pausa">⏸</button>
+              <input id="track-slider" class="track-slider" type="range"
+                     min="0" max="1000" value="0" step="1" aria-label="Timeline" />
+              <span id="track-time" class="track-time">—</span>
+              <span class="replay-speeds">
+                <button class="track-speed" data-speed="1" type="button">1×</button>
+                <button class="track-speed" data-speed="5" type="button">5×</button>
+                <button class="track-speed active" data-speed="20" type="button">20×</button>
+                <button class="track-speed" data-speed="60" type="button">60×</button>
+              </span>
+              <label id="track-use-scraped-wrap" class="list-check hidden" data-i18n-title="track.useScrapedTitle" title="Usa anche le posizioni ricavate da ShipFinder e MyShipTracking nel tracciare la rotta animata">
+                <input type="checkbox" id="track-use-scraped" checked>
+                <span data-i18n="track.useScraped">Includi SF/MST</span>
+              </label>
+            </div>
+          </div>
+          <div id="track-export" class="track-export">
+            <span class="track-export-label" data-i18n="export.trackLabel">Esporta traccia:</span>
+            <select id="track-export-sel" class="list-band" title="Esporta traccia">
+              <option value="">⬇ Esporta…</option>
+              <option value="geojson">GeoJSON</option>
+              <option value="kml">KML</option>
+            </select>
+            <select id="track-interval" class="list-band hidden" data-i18n-title="track.intervalTitle"
+                    title="Scegli quale intervallo di spostamenti vedere nel replay"></select>
+            <button id="track-cut-add" class="btn btn-secondary btn-sm" type="button"
+                    data-i18n-title="track.cutTitle"
+                    title="Segna un taglio a ora: gli spostamenti successivi diventano un nuovo intervallo. Reversibile, non cancella dati.">
+              🧹 <span data-i18n="track.cut">Azzera replay</span>
+            </button>
+            <button id="track-cut-del" class="btn btn-secondary btn-sm hidden" type="button"
+                    data-i18n-title="track.cutDeleteTitle"
+                    title="Elimina il taglio all'inizio dell'intervallo selezionato: lo unisce all'intervallo precedente.">
+              🗑 <span data-i18n="track.cutDelete">Elimina taglio</span>
+            </button>
+          </div>
+
+        <h4 class="eq-subtitle" data-i18n="detail.readingsHint">Clicca una riga per vedere quel punto nel replay qui sopra. 📄 mostra il dato grezzo.</h4>
+        <div id="table-wrap-detail">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="detail.col.time">Ora</th>
+                <th data-i18n="detail.col.source">Fonte</th>
+                <th data-i18n="detail.col.type">Tipo</th>
+                <th data-i18n="col.sog">SOG</th>
+                <th data-i18n="detail.col.cog">COG</th>
+                <th data-i18n="detail.col.heading">Prua</th>
+                <th data-i18n="detail.col.lat">Lat</th>
+                <th data-i18n="detail.col.lon">Lon</th>
+                <th data-i18n="detail.col.navStatus">Stato nav.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="detail-body">
+              <tr><td colspan="10" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button id="detail-prev" disabled data-i18n="page.prev">← Prec</button>
+          <span id="detail-page-info">Pag. 1</span>
+          <button id="detail-next" disabled data-i18n="page.next">Succ →</button>
+        </div>
       </div>
 
       <!-- Tab: VesselFinder -->

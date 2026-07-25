@@ -30,6 +30,7 @@
 
 const https = require('https');
 const { GFW_TOKEN } = require('../config');
+const { normalizeCode, resolveLocode } = require('./locode');
 
 const GATEWAY = 'https://gateway.api.globalfishingwatch.org/v3';
 const VESSEL_DATASET = 'public-global-vessel-identity:latest';
@@ -236,6 +237,19 @@ function normLoitering(e) {
   };
 }
 
+// GFW's anchorage label is sometimes a full name ("LA NAPOULE"), sometimes a
+// bare UN/LOCODE-style code when it has no nicer name on file. Resolve it
+// against our own LOCODE registry (same one used for AIS destinations) so the
+// UI can show the full port name instead of a cryptic code — keeping the raw
+// code in parentheses as a reference, in case the resolved name ever looks off.
+function portLabelWithCode(raw) {
+  if (!raw) return raw;
+  const code = normalizeCode(raw);
+  if (!code) return raw; // already a name, not a code — leave as-is
+  const name = resolveLocode(raw);
+  return name ? `${name} (${code})` : raw;
+}
+
 function normPortVisit(e) {
   const pv = e.port_visit || e.portVisit || {};
   // A port visit carries up to three anchorages (start/intermediate/end). Prefer
@@ -247,7 +261,7 @@ function normPortVisit(e) {
   return {
     start: e.start || null,
     end: e.end || null,
-    port: named ? named.name || named.portLabel : null,
+    port: named ? portLabelWithCode(named.name || named.portLabel) : null,
     country: withFlag ? flagName(withFlag.flag) || withFlag.flag : null,
   };
 }

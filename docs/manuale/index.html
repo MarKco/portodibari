@@ -223,8 +223,7 @@
         Watch</a></li>
         <li><a href="#sanzioni">Sanzioni</a></li>
         <li><a href="#rendezvous-in-mare">Rendezvous in mare</a></li>
-        <li><a href="#mappa-posizione">Mappa posizione</a></li>
-        <li><a href="#letture-ais">Letture AIS</a></li>
+        <li><a href="#tab-letture">Tab Letture</a></li>
         <li><a href="#note-operative">Note operative</a></li>
         <li><a href="#storico-visite-nelle-aree-monitorate">Storico
         visite nelle aree monitorate</a></li>
@@ -932,16 +931,16 @@
         <h2 id="dettaglio-nave">Dettaglio nave</h2>
         <p>Cliccando qualsiasi riga della tabella (o una notifica di una
         nave) si apre la scheda completa, organizzata in
-        <strong>tab</strong>: <strong>Generale</strong>, più un tab per
-        ciascuna fonte esterna abilitata (VesselFinder, MarineTraffic,
-        ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). Il
-        tab di una fonte disattivata nelle Impostazioni non compare.</p>
+        <strong>tab</strong>: <strong>Generale</strong>,
+        <strong>Letture</strong>, più un tab per ciascuna fonte esterna
+        abilitata (VesselFinder, MarineTraffic, ShipFinder,
+        MyShipTracking, Equasis, Global Fishing Watch). Il tab di una
+        fonte disattivata nelle Impostazioni non compare.</p>
         <figure>
-        <img src="images/11-monitoraggio_dettagli_nave_1.png"
-        alt="Dettaglio nave — intestazione, tab, griglia informazioni, mappa e tabella dati nave aggregati (tab Generale)." />
+        <img src="images/27-monitoraggio_dettagli_nave_generale.png"
+        alt="Dettaglio nave — intestazione, tab e griglia informazioni (tab Generale)." />
         <figcaption aria-hidden="true">Dettaglio nave — intestazione,
-        tab, griglia informazioni, mappa e tabella dati nave aggregati
-        (tab Generale).</figcaption>
+        tab e griglia informazioni (tab Generale).</figcaption>
         </figure>
         <h3 id="intestazione-e-azioni">Intestazione e azioni</h3>
         <ul>
@@ -959,11 +958,12 @@
         <h3 id="tab-generale">Tab Generale</h3>
         <p>Il primo tab, aperto di default, raccoglie tutto ciò che
         <strong>non è specifico di una singola fonte esterna</strong>:
-        griglia informazioni, fattori di rischio, mappa con traccia e
-        replay, tabella dati nave aggregati (sotto), letture AIS, note
-        operative, storico visite nelle aree monitorate e — quando
-        presenti — sanzioni e rendezvous in mare. Ogni fonte esterna
-        abilitata ha invece il proprio tab dedicato (vedi sotto).</p>
+        griglia informazioni, fattori di rischio, tabella dati nave
+        aggregati (sotto), note operative, storico visite nelle aree
+        monitorate e — quando presenti — sanzioni e rendezvous in mare.
+        Mappa con traccia/replay e letture AIS grezze sono invece nel
+        tab <strong>Letture</strong> (vedi sotto). Ogni fonte esterna
+        abilitata ha il proprio tab dedicato (vedi sotto).</p>
         <h3 id="griglia-informazioni">Griglia informazioni</h3>
         <p>Tutti i dati disponibili della nave:</p>
         <table>
@@ -1223,9 +1223,21 @@
         cliccabile e apre la nave coinvolta. Un rendezvous confermato fa
         scattare una <strong>notifica</strong> e <strong>aggiunge punti
         al rischio di entrambe</strong> le navi.</p>
-        <h3 id="mappa-posizione">Mappa posizione</h3>
-        <p>Mappa con la traccia della nave e controlli di riproduzione
-        animata.</p>
+        <h3 id="tab-letture">Tab Letture</h3>
+        <figure>
+        <img src="images/28-monitoraggio_dettagli_nave_letture.png"
+        alt="Dettaglio nave — tab Letture: mappa con traccia/replay fissa in alto e tabella paginata delle letture AIS." />
+        <figcaption aria-hidden="true">Dettaglio nave — tab Letture:
+        mappa con traccia/replay fissa in alto e tabella paginata delle
+        letture AIS.</figcaption>
+        </figure>
+        <p>Il tab <strong>Letture</strong> raccoglie tutto ciò che
+        riguarda la posizione grezza della nave: mappa con
+        traccia/replay in alto e, sotto, la tabella di tutte le letture
+        ricevute in ordine cronologico.</p>
+        <p><strong>Mappa e replay</strong> — resta <strong>fissa in
+        alto</strong> mentre scorri la tabella sotto, così puoi sempre
+        vedere dove sei nel percorso.</p>
         <ul>
         <li><strong>Finestra temporale</strong> — preset <strong>6h /
         24h / 7gg / tutto</strong>, oppure intervallo
@@ -1252,19 +1264,22 @@
         AIS. Il pulsante <strong>📍 Localizza via …</strong> mostra
         comunque sempre la posizione appena recuperata.</p>
         </blockquote>
-        <h3 id="letture-ais">Letture AIS</h3>
-        <figure>
-        <img src="images/16-monitoraggio_dettagli_nave_6.png"
-        alt="Dettaglio nave — tabella paginata delle letture AIS e sezione note operative." />
-        <figcaption aria-hidden="true">Dettaglio nave — tabella paginata
-        delle letture AIS e sezione note operative.</figcaption>
-        </figure>
-        <p>Tabella paginata con tutte le posizioni ricevute in ordine
-        cronologico. Clicca una riga per il dettaglio. I dati grezzi
-        JSON completi sono mostrati solo per i messaggi statici (nome,
-        dimensioni, destinazione…); per i semplici messaggi di posizione
-        i campi utili sono già nella griglia. Naviga con <strong>←
-        Prec</strong> e <strong>Succ →</strong>.</p>
+        <p><strong>Tabella letture</strong> — tutte le posizioni
+        ricevute in ordine cronologico, con colonna
+        <strong>Fonte</strong> (pallino colorato + etichetta: verde =
+        AISStream, arancione = ShipFinder, teal = MyShipTracking) per
+        distinguere subito un dato AIS reale da un fix di backup. Naviga
+        con <strong>← Prec</strong> e <strong>Succ →</strong>.</p>
+        <ul>
+        <li><strong>Clicca una riga</strong> (con posizione nota) → la
+        nave nel replay sopra si sposta esattamente su quel punto.
+        Comodo per vedere al volo dove si trovava la nave in un istante
+        preciso, senza far scorrere manualmente lo slider.</li>
+        <li><strong>Icona 📄</strong> sulla riga → apre il dato grezzo
+        ricevuto (JSON completo). Per i semplici messaggi di posizione i
+        campi utili sono già nella griglia; il grezzo serve soprattutto
+        per i messaggi statici (nome, dimensioni, destinazione…).</li>
+        </ul>
         <h3 id="note-operative">Note operative</h3>
         <p>Area di testo libero: scrivi qualsiasi annotazione sulla nave
         e premi <strong>Salva note</strong>. Le note sono persistenti

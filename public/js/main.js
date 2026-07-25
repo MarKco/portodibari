@@ -576,9 +576,9 @@ const DETAIL_TAB_FLAG = {
 function activateDetailPanel(panel) {
   const target = `detail-panel-${panel}`;
   el.detailPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
-  // The map lives in the Generale panel; Leaflet needs a nudge after its
+  // The map lives in the Letture panel; Leaflet needs a nudge after its
   // container goes from display:none back to visible.
-  if (panel === 'general') invalidateDetailMap();
+  if (panel === 'readings') invalidateDetailMap();
 }
 
 // Hide the tab of any provider that's globally disabled — independent of
@@ -589,7 +589,7 @@ function updateDetailTabAvailability() {
   let activeHidden = false;
   el.detailTabs.querySelectorAll('.tab[data-panel]').forEach((btn) => {
     const panel = btn.dataset.panel;
-    if (panel === 'general') return;
+    if (panel === 'general' || panel === 'readings') return;
     const enabled = !!S[DETAIL_TAB_FLAG[panel]];
     btn.classList.toggle('hidden', !enabled);
     if (!enabled && btn.classList.contains('tab-active')) activeHidden = true;

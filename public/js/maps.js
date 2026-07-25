@@ -625,6 +625,32 @@ export function refreshTrack() {
   if (S.detailMmsi != null) loadTrack(S.detailMmsi, { ...(_lastTrackOpts || {}), keepView: true });
 }
 
+// Row click in the readings table (Letture tab): jump the replay ship marker
+// straight to that reading's own raw lat/lon. Always exact (uses the actual
+// received fix, not an interpolated point), and works even for a fix outside
+// the currently drawn/animated path (e.g. an SF/MST point while "Includi
+// SF/MST" is off). Deliberately does NOT recompute the slider/progress
+// fraction — render()'s distance/time tables are private to setupTrackAnim,
+// and a stale slider after a manual seek is an accepted tradeoff (pressing
+// ▶ again just resumes from wherever it was).
+export function seekTrackTo(lat, lon, heading, receivedAt) {
+  if (!S.aisMap || lat == null || lon == null) return;
+  const A = S.trackAnim;
+  if (A) {
+    if (A.rafId) cancelAnimationFrame(A.rafId);
+    A.playing = false;
+    if (A.play) { A.play.textContent = '▶'; A.play.title = t('map.play'); }
+    A.ship.setLatLng([lat, lon]);
+    if (heading != null) {
+      const rot = A.ship.getElement()?.querySelector('.track-ship-rot');
+      if (rot) rot.style.transform = `rotate(${heading}deg)`;
+    }
+  }
+  const timeEl = document.getElementById('track-time');
+  if (timeEl && receivedAt) timeEl.textContent = formatTime(receivedAt);
+  S.aisMap.panTo([lat, lon]);
+}
+
 // ── Active-ships overview map ────────────────────────────────────────────────
 export function initActiveMap() {
   if (S.activeMap) return;

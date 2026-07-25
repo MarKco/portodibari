@@ -316,9 +316,9 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il dettagli
 
 ## Dettaglio nave
 
-Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la scheda completa, organizzata in **tab**: **Generale**, più un tab per ciascuna fonte esterna abilitata (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). Il tab di una fonte disattivata nelle Impostazioni non compare.
+Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la scheda completa, organizzata in **tab**: **Generale**, **Letture**, più un tab per ciascuna fonte esterna abilitata (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). Il tab di una fonte disattivata nelle Impostazioni non compare.
 
-![Dettaglio nave — intestazione, tab, griglia informazioni, mappa e tabella dati nave aggregati (tab Generale).](images/11-monitoraggio_dettagli_nave_1.png)
+![Dettaglio nave — intestazione, tab e griglia informazioni (tab Generale).](images/27-monitoraggio_dettagli_nave_generale.png)
 
 ### Intestazione e azioni
 
@@ -331,7 +331,7 @@ Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la s
 
 ### Tab Generale
 
-Il primo tab, aperto di default, raccoglie tutto ciò che **non è specifico di una singola fonte esterna**: griglia informazioni, fattori di rischio, mappa con traccia e replay, tabella dati nave aggregati (sotto), letture AIS, note operative, storico visite nelle aree monitorate e — quando presenti — sanzioni e rendezvous in mare. Ogni fonte esterna abilitata ha invece il proprio tab dedicato (vedi sotto).
+Il primo tab, aperto di default, raccoglie tutto ciò che **non è specifico di una singola fonte esterna**: griglia informazioni, fattori di rischio, tabella dati nave aggregati (sotto), note operative, storico visite nelle aree monitorate e — quando presenti — sanzioni e rendezvous in mare. Mappa con traccia/replay e letture AIS grezze sono invece nel tab **Letture** (vedi sotto). Ogni fonte esterna abilitata ha il proprio tab dedicato (vedi sotto).
 
 ### Griglia informazioni
 
@@ -425,9 +425,13 @@ Un avviso ricorda di verificare sempre sulla fonte ufficiale (un match **solo pe
 
 Se la nave ha avuto un **rendezvous** confermato con un'altra (rimaste vicine, lente e al largo abbastanza a lungo — firma di un trasbordo nave-nave), compare la sezione **Rendezvous in mare** con l'elenco degli incontri (altra nave, data/ora, distanza minima, area). Ogni riga è cliccabile e apre la nave coinvolta. Un rendezvous confermato fa scattare una **notifica** e **aggiunge punti al rischio di entrambe** le navi.
 
-### Mappa posizione
+### Tab Letture
 
-Mappa con la traccia della nave e controlli di riproduzione animata.
+![Dettaglio nave — tab Letture: mappa con traccia/replay fissa in alto e tabella paginata delle letture AIS.](images/28-monitoraggio_dettagli_nave_letture.png)
+
+Il tab **Letture** raccoglie tutto ciò che riguarda la posizione grezza della nave: mappa con traccia/replay in alto e, sotto, la tabella di tutte le letture ricevute in ordine cronologico.
+
+**Mappa e replay** — resta **fissa in alto** mentre scorri la tabella sotto, così puoi sempre vedere dove sei nel percorso.
 
 - **Finestra temporale** — preset **6h / 24h / 7gg / tutto**, oppure intervallo **personalizzato** (Da → A, poi **Applica**).
 - **▶ / ⏸** — riproduce/pausa l'animazione della traccia.
@@ -437,11 +441,10 @@ Mappa con la traccia della nave e controlli di riproduzione animata.
 
 > I marker dell'**ultima posizione nota** ShipFinder/MyShipTracking mostrati sulla mappa seguono la **stessa finestra temporale** selezionata per la traccia (preset, intervallo personalizzato o segmento di replay): restringendo la finestra vengono mostrati solo i rilevamenti che vi ricadono, esattamente come per le posizioni AIS. Il pulsante **📍 Localizza via …** mostra comunque sempre la posizione appena recuperata.
 
-### Letture AIS
+**Tabella letture** — tutte le posizioni ricevute in ordine cronologico, con colonna **Fonte** (pallino colorato + etichetta: verde = AISStream, arancione = ShipFinder, teal = MyShipTracking) per distinguere subito un dato AIS reale da un fix di backup. Naviga con **← Prec** e **Succ →**.
 
-![Dettaglio nave — tabella paginata delle letture AIS e sezione note operative.](images/16-monitoraggio_dettagli_nave_6.png)
-
-Tabella paginata con tutte le posizioni ricevute in ordine cronologico. Clicca una riga per il dettaglio. I dati grezzi JSON completi sono mostrati solo per i messaggi statici (nome, dimensioni, destinazione…); per i semplici messaggi di posizione i campi utili sono già nella griglia. Naviga con **← Prec** e **Succ →**.
+- **Clicca una riga** (con posizione nota) → la nave nel replay sopra si sposta esattamente su quel punto. Comodo per vedere al volo dove si trovava la nave in un istante preciso, senza far scorrere manualmente lo slider.
+- **Icona 📄** sulla riga → apre il dato grezzo ricevuto (JSON completo). Per i semplici messaggi di posizione i campi utili sono già nella griglia; il grezzo serve soprattutto per i messaggi statici (nome, dimensioni, destinazione…).
 
 ### Note operative
 
