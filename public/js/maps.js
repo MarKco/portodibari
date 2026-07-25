@@ -491,7 +491,10 @@ export async function loadTrack(mmsi, opts = {}) {
 
     // On a background poll refresh (keepView) leave the user's pan/zoom alone.
     const bounds = L.latLngBounds(latlngs);
-    if (bounds.isValid() && !opts.keepView) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    if (bounds.isValid()) {
+      S.trackBounds = bounds; // remembered so the Letture tab can re-fit on open (see fitTrackToView)
+      if (!opts.keepView) S.aisMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    }
 
     // Read current speed from active button (or default 20×).
     const activeSpeed = document.querySelector('.track-speed.active');
@@ -623,6 +626,20 @@ function setupTrackAnim(nodes, speed = 20, { autoplay = true } = {}) {
 // user's chosen window, pan/zoom, or playback state.
 export function refreshTrack() {
   if (S.detailMmsi != null) loadTrack(S.detailMmsi, { ...(_lastTrackOpts || {}), keepView: true });
+}
+
+// Called each time the Letture tab becomes active: loadTrack() runs the
+// instant ship detail opens, while the tab (and its map) may still be
+// hidden — Leaflet computes fitBounds against whatever size the container
+// happens to have at that moment, which for a display:none box is 0×0 and
+// gives a degenerate zoom. invalidateSize() alone only fixes tile alignment
+// at that (possibly wrong) zoom; it doesn't re-run fitBounds. Re-fitting here,
+// once the panel is actually visible and correctly sized, guarantees the
+// whole route is in view whenever this tab opens.
+export function fitTrackToView() {
+  if (!S.aisMap) return;
+  S.aisMap.invalidateSize();
+  if (S.trackBounds) S.aisMap.fitBounds(S.trackBounds, { padding: [30, 30], maxZoom: 16 });
 }
 
 // Row click in the readings table (Letture tab): jump the replay ship marker

@@ -932,6 +932,7 @@ export default {
   'dir.still': '⚓ Ferma',
 
   // ── Reading modal field labels ─────────────────────────────────────────────
+  'reading.expired':   'Questa lettura non è più disponibile: è stata ruotata via dallo storico (il numero di letture grezze conservate è limitato).',
   'reading.mmsi':      'MMSI',
   'reading.name':      'Nome',
   'reading.msgType':   'Tipo messaggio',

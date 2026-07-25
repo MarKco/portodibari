@@ -3,8 +3,8 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData, invalidateDetailMap } from './ships.js';
-import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons } from './maps.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
+import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons, fitTrackToView } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay, exitReplay } from './replay.js';
@@ -576,9 +576,10 @@ const DETAIL_TAB_FLAG = {
 function activateDetailPanel(panel) {
   const target = `detail-panel-${panel}`;
   el.detailPanels.forEach((p) => p.classList.toggle('hidden', p.id !== target));
-  // The map lives in the Letture panel; Leaflet needs a nudge after its
-  // container goes from display:none back to visible.
-  if (panel === 'readings') invalidateDetailMap();
+  // The map lives in the Letture panel; re-fit to the whole route every time
+  // it becomes visible (Leaflet needs a nudge + a fresh fitBounds after its
+  // container goes from display:none back to visible — see fitTrackToView).
+  if (panel === 'readings') fitTrackToView();
 }
 
 // Hide the tab of any provider that's globally disabled — independent of

@@ -2255,6 +2255,11 @@ async function openReadingModal(id) {
     `;
     el.modalOverlay.classList.remove('hidden');
   } catch {
-    /* ignore */
+    // Most likely cause: the reading rolled off the shared per-message-type cap
+    // (MAX_READINGS_PER_TYPE, default 10k across ALL ships) between rendering
+    // the row and clicking it — a busy area can prune it within minutes. Not
+    // silent anymore: the old behaviour left the click looking like it did
+    // nothing at all.
+    showAlert(t('reading.expired'), '');
   }
 }
