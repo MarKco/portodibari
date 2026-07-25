@@ -1,15 +1,3 @@
 {
-  "_comment": "Aree di monitoraggio personalizzabili. Aggiungi/modifica liberamente: 'sw' = angolo Sud-Ovest [lat, lon], 'ne' = angolo Nord-Est [lat, lon]. 'name' è l'etichetta mostrata nell'interfaccia. 'keyword' (facoltativa, può essere null) filtra le navi 'attese' per destinazione. La chiave dell'oggetto (es. 'bari') è quella usata da BBOX_PRESET in local.properties. Vuoto di default: nessuna area pre-configurata al primo avvio, aggiungile dalla schermata Aree o qui a mano prima di avviare.",
-  "italy": {
-    "name": "Italy",
-    "keyword": null,
-    "sw": [
-      37.57941,
-      6.70166
-    ],
-    "ne": [
-      44.51218,
-      26.98242
-    ]
-  }
+  "_comment": "Aree di monitoraggio personalizzabili. Aggiungi/modifica liberamente: 'sw' = angolo Sud-Ovest [lat, lon], 'ne' = angolo Nord-Est [lat, lon]. 'name' è l'etichetta mostrata nell'interfaccia. 'keyword' (facoltativa, può essere null) filtra le navi 'attese' per destinazione. La chiave dell'oggetto (es. 'bari') è quella usata da BBOX_PRESET in local.properties. Vuoto di default: nessuna area pre-configurata al primo avvio, aggiungile dalla schermata Aree o qui a mano prima di avviare."
 }
