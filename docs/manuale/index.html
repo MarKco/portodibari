@@ -852,6 +852,26 @@
         attese</strong> (dirette verso l’area, per parola chiave nella
         destinazione) e <strong>Ultimi eventi porto</strong>
         (arrivi/partenze recenti).</p>
+        <blockquote>
+        <p><strong>Come funziona “Navi attese”.</strong> La tabella
+        elenca le navi probabilmente in arrivo verso l’area che stai
+        guardando in questo momento (non tutte le aree insieme, e non
+        solo le navi che segui tu). Il sistema tiene un unico database
+        condiviso con tutte le navi mai avvistate in qualsiasi area
+        monitorata; per questa tabella prende solo le navi la cui
+        <strong>ultima posizione nota cade dentro i confini geografici
+        dell’area corrente</strong> e la cui <strong>destinazione
+        dichiarata via AIS</strong> contiene la parola chiave impostata
+        per quest’area (es. <code>TARANTO</code>). Non conta se hai
+        messo la stella o segui la nave: il criterio è solo geografico +
+        destinazione dichiarata. La nave deve essersi allontanata di
+        recente — vista tra 1 ora e 48 ore fa — se è ancora dentro
+        l’area ora, è già “presente” e non compare qui. Se la tabella
+        resta sempre vuota, probabilmente l’area non ha una parola
+        chiave configurata (si imposta nella schermata <a
+        href="#gestione-aree">Gestione aree</a>): senza quella, il
+        sistema non sa cosa cercare.</p>
+        </blockquote>
         <hr />
         <h2 id="navi-seguite">Navi seguite</h2>
         <p>La sezione <strong>🗺 Navi seguite</strong> raccoglie le navi

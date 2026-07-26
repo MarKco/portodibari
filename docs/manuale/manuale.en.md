@@ -278,6 +278,8 @@ Statistics panel with aggregate indicators and charts.
 
 **Bottom panels:** **Expected ships** (heading toward the area, matched by keyword in the destination) and **Latest port events** (recent arrivals/departures).
 
+> **How "Expected ships" works.** The table lists ships likely heading toward the area you're currently viewing (not all areas at once, and not just ships you follow). The system keeps one shared database with every ship ever seen in any monitored area; for this table it only picks ships whose **last known position falls inside the current area's geographic boundaries** and whose **AIS-declared destination** contains the keyword configured for this area (e.g. `TARANTO`). Whether you starred or follow the ship doesn't matter — the criterion is purely geographic + declared destination. The ship must have left recently — last seen between 1 and 48 hours ago — if it's still inside the area right now it's already "current" and won't show up here. If the table stays empty, the area probably has no keyword configured (set it in the [Managing areas](#managing-areas) screen): without it, the system doesn't know what to look for.
+
 ---
 
 ## Followed ships

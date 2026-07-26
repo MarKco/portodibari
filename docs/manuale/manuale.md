@@ -278,6 +278,8 @@ Pannello statistico con indicatori e grafici aggregati.
 
 **Pannelli inferiori:** **Navi attese** (dirette verso l'area, per parola chiave nella destinazione) e **Ultimi eventi porto** (arrivi/partenze recenti).
 
+> **Come funziona "Navi attese".** La tabella elenca le navi probabilmente in arrivo verso l'area che stai guardando in questo momento (non tutte le aree insieme, e non solo le navi che segui tu). Il sistema tiene un unico database condiviso con tutte le navi mai avvistate in qualsiasi area monitorata; per questa tabella prende solo le navi la cui **ultima posizione nota cade dentro i confini geografici dell'area corrente** e la cui **destinazione dichiarata via AIS** contiene la parola chiave impostata per quest'area (es. `TARANTO`). Non conta se hai messo la stella o segui la nave: il criterio è solo geografico + destinazione dichiarata. La nave deve essersi allontanata di recente — vista tra 1 ora e 48 ore fa — se è ancora dentro l'area ora, è già "presente" e non compare qui. Se la tabella resta sempre vuota, probabilmente l'area non ha una parola chiave configurata (si imposta nella schermata [Gestione aree](#gestione-aree)): senza quella, il sistema non sa cosa cercare.
+
 ---
 
 ## Navi seguite
