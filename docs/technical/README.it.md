@@ -767,6 +767,13 @@ Il box di follow stretto da 0.5° è **centrato sull'ultima posizione nota**: se
 
 Per le notifiche nave `ais-stream` calcola lo score e chiama `db.addNotification` (le navi con `notif_muted` sono escluse); per le notifiche banchina è `berths.recomputeArea` a chiamarlo, memorizzando in `berth_id` la banchina di riferimento per la navigazione. Il primo ricalcolo su un'area senza banchine preesistenti **non** genera notifiche (per evitare una raffica di "nuova banchina" sul backfill iniziale). Ogni notifica nave conserva la fascia di rischio (`band`) e lo `score` calcolati al momento dell'evento, mostrati come bollino verde/giallo/rosso; le notifiche banchina mostrano un bollino dedicato. Un **clic** su una notifica nave apre la scheda della nave, su una notifica banchina porta alla mappa dell'area corrispondente con la banchina centrata. Endpoint: `GET /api/notifications` (lista + conteggio non lette), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (singola), `DELETE /api/notifications` (tutte). Conservate le ultime 100 (rotazione automatica a ogni inserimento).
 
+**Filtro per tipo nave e per navi "viste"** (tab Impostazioni → **Notifiche**, [`src/services/notify-categories.js`](../../src/services/notify-categories.js)) — si applica alle quattro notifiche **legate a una nave** (`revisit`, `area_change`, `high_risk`, `proximity`), non a quelle di banchina. Due preferenze per-utente in `user-prefs.js`:
+
+- `notifyShipTypesHidden` (array, default vuoto = tutte attive) — categorie nave da **escludere**: `cargo`, `container`, `tanker`, `passenger`, `fishing`, `highspeed`, `sailing_pleasure`, `tug_service`, `coastguard`, `military`, `other`. Categoria risolta da `categoryOf(ship)`: codice AIS grezzo per la maggior parte dei bucket; `container` vs `cargo` (AIS 70–79) usa la stessa cache VF/MT di `cargo-type.js` (nessuna chiamata di rete nel path caldo delle notifiche) — una nave appena arrivata senza ancora arricchimento VF/MT ricade su `cargo` finché non viene arricchita. `coastguard` (AIS 55) e `military` (AIS 35 / flag manuale / prefisso nome, stessa `isMilitary()` dello score) sono **categorie distinte apposta**: una motovedetta non forza score 100 come una nave militare vera. Resolver indipendente da `services/ship-categories.js` (quello delle statistiche banchine, non toccato). Per un **rendezvous** (2 navi) basta che una delle due sia di categoria attiva.
+- `notifyIncludeSeen` (bool, default `true`) — a `false` sopprime le stesse quattro notifiche per le navi che l'utente ha marcato "vista" 👁 (`db.isUserSeen`, tabella `user_seen` per-utente, vedi [Dati per-utente vs globali](#dati-per-utente-vs-globali)).
+
+Il gate combinato (`shouldNotifyShip`) è invocato **una sola volta per (utente, evento)** e vale uniformemente sia per la notifica in-app sia per Telegram/webhook — vedi [Notifiche Telegram](#-notifiche-telegram). **Diverso da `excludeTankers`** (Impostazioni → Modello di rischio, admin/globale): quello azzera il fattore "tipo carico" nello **score condiviso** da tutti; questo filtro è **personale** e agisce solo su cosa arriva a te come notifica, senza toccare lo score — i due non sono ridondanti.
+
 **Eliminazione con annullamento** — sia la singola notifica (cestino 🗑 sulla riga) sia il pulsante **🗑 cancella tutte** (accanto al badge non-lette nella sidebar) eliminano con una **finestra di annullamento** (toast "↶ Annulla") prima che la cancellazione diventi effettiva. La durata del bounce è configurabile in `app.config.properties` con `NOTIF_DELETE_UNDO_SECONDS` (default 5 s; `0` = eliminazione immediata) ed è esposta al frontend via `/api/config`.
 
 ### 📲 Notifiche Telegram
@@ -774,7 +781,7 @@ Per le notifiche nave `ais-stream` calcola lo score e chiama `db.addNotification
 Oltre al feed in sidebar, ogni utente può ricevere le proprie notifiche su **Telegram** tramite un bot. Un solo bot (token `TELEGRAM_BOT_TOKEN` in `local.properties`, creato con [@BotFather](https://t.me/BotFather)) serve tutti gli utenti; senza token la feature è inerte. Il backend riceve i messaggi in **long-polling** (`getUpdates`) — nessun URL pubblico né webhook, funziona dietro NAT accanto agli stream AIS (`src/services/telegram.js`, avviato in `server.js`).
 
 - **Collegamento** — dalle **Impostazioni → tab Telegram** l'utente preme "Collega": il backend genera un codice monouso (`user_settings.telegramLinkCode`) e un deep link `https://t.me/<bot>?start=<codice>`. L'utente avvia il bot; il backend mappa il codice → utente e salva il `chat_id` in `user_settings.telegramChatId`. `/stop` (o il pulsante "Scollega") azzera il collegamento. Se l'utente blocca il bot, l'invio fallito con 403 scollega automaticamente.
-- **Toggle per categoria** — indipendenti dalle notifiche in-sidebar (un utente può ricevere una categoria su Telegram anche con quella in-app spenta, e viceversa). Master per-utente `telegramEnabled` + sette categorie: score alto, rientro nave, cambio area, nuova banchina, caratterizzazione banchina, **disservizio AIS** (outage, evento globale verso tutti gli utenti collegati col toggle attivo) e **avvio/stop monitoraggio area** (quando l'utente aggiunge/rimuove una propria area). Persistiti come preferenze per-utente (`telegramNotify*`).
+- **Toggle per categoria** — indipendenti dalle notifiche in-sidebar (un utente può ricevere una categoria su Telegram anche con quella in-app spenta, e viceversa). Master per-utente `telegramEnabled` + sette categorie: score alto, rientro nave, cambio area, nuova banchina, caratterizzazione banchina, **disservizio AIS** (outage, evento globale verso tutti gli utenti collegati col toggle attivo) e **avvio/stop monitoraggio area** (quando l'utente aggiunge/rimuove una propria area). Persistiti come preferenze per-utente (`telegramNotify*`). Le quattro categorie **legate a una nave** (score alto, rientro, cambio area, rendezvous) seguono **anche** il filtro per tipo nave e il flag "vista" del tab Notifiche (vedi sopra) — sono lo stesso gate della notifica in-app, non un filtro separato; nuova banchina/caratterizzazione/outage/avvio-stop monitoraggio non sono legate a una nave e non sono filtrate.
 - **Lingua** — ogni messaggio è reso nella lingua dell'utente (`it`/`en`).
 - **Mappa del punto** (`telegramSendMap`, default on) — per le notifiche con coordinate (banchine e navi) il bot allega un'**immagine statica della mappa** centrata sul punto. La mappa è renderizzata server-side da `src/services/static-map.js`: cuce le tile raster di base OpenStreetMap (le stesse del client, vedi `public/js/tiles.js`) in un PNG con `pngjs`. L'**overlay nautico OpenSeaMap è disattivato** in questi screenshot (i suoi simboli intasano una mappa di notifica piccola; il render lo supporta comunque via l'opzione `seamark`, usata altrove) (puro JS, nessun build nativo né browser headless né API key), disegna il marker e lo carica con `sendPhoto` (multipart). Render fallito → fallback automatico a solo testo. Le notifiche fanno fan-out per-utente, quindi quattro accorgimenti contengono il costo: (A) **riuso del `file_id`** — il primo destinatario carica i byte, gli altri riusano il `file_id` Telegram (nessun re-render né re-upload; dedup in-burst via promise condivisa); (B) **cache delle tile** decodificate (LRU+TTL, rispetta la tile usage policy di OSM evitando refetch massivi); (C) **cache della mappa renderizzata** per coordinate arrotondate+zoom; (D) **limite di concorrenza** sui render (max 2) per contenere i picchi di CPU/RAM.
 - **Posizione e dati compatti** — invece del vecchio **segnaposto nativo** (`sendVenue`/`sendLocation`, un secondo grande widget-mappa ridondante con lo screenshot), ogni notifica con coordinate include una riga **📍 Apri in mappa** — un link `https://www.google.com/maps?q=lat,lon` tappabile che apre l'app mappe del dispositivo (una sola notifica, navigazione con un tap). Le notifiche **nave** (score alto, rientro, cambio area) arricchiscono inoltre la caption — senza appesantirla — con: **bandiera** (emoji ricavata dal MID dell'MMSI), **tipo nave** (es. Cargo/Tanker, ☢ se Hazmat), **motivo del rischio** (il fattore col peso più alto dal risk score, reso nella lingua del destinatario) e **cinematica + destinazione** (SOG/COG → porto dichiarato). Ogni riga compare solo se il dato è presente. Bandiera e tipo: `src/services/vessel-format.js` (`flagEmoji`, `shipTypeLabel`).
@@ -935,7 +942,7 @@ Ogni utente ha **i propri** dati:
 
 - le **aree** (bounding box di monitoraggio);
 - le **impostazioni** (preferenze notifiche, opzioni di visualizzazione mappa OpenSeaMap, lingua, area di default);
-- le **navi segnalate** ★ e le **navi seguite**;
+- le **navi segnalate** ★, le **navi seguite** e le **navi segnate come viste** 👁;
 - il proprio **feed di notifiche**.
 
 La visibilità delle navi è **geografica**: un utente vede i dati AIS la cui posizione cade dentro una delle bounding box delle sue aree.
@@ -950,13 +957,14 @@ C'è **un solo set di connessioni AISstream** a livello di sistema (una WebSocke
 
 ### 👥 Gruppi di utenti
 
-Un amministratore può raggruppare gli utenti in **gruppi** (dalla pagina `/admin`). Ogni utente appartiene **al massimo a un gruppo**; un gruppo deve avere **almeno 2 membri**. I membri di un gruppo **condividono** — come **unione** — quattro insiemi di risorse e un sottoinsieme di impostazioni:
+Un amministratore può raggruppare gli utenti in **gruppi** (dalla pagina `/admin`). Ogni utente appartiene **al massimo a un gruppo**; un gruppo deve avere **almeno 2 membri**. I membri di un gruppo **condividono** — come **unione** — cinque insiemi di risorse e un sottoinsieme di impostazioni:
 
 - le **aree** di monitoraggio;
 - le **navi seguite** (attive);
 - le **navi segnalate** ★;
 - le **navi silenziate** 🔕;
-- le **preferenze di notifica** (in-app e Telegram per-categoria + invio mappa) e di **visualizzazione mappa** (OpenSeaMap) + l'**area di default**.
+- le **navi segnate come viste** 👁 (utile per dividersi il lavoro di cernita: chi ha già controllato una nave la segna vista per tutto il gruppo);
+- le **preferenze di notifica** (in-app e Telegram per-categoria + filtro per tipo nave + invio mappa) e di **visualizzazione mappa** (OpenSeaMap) + l'**area di default**.
 
 Restano **personali** (mai sincronizzati): la **connessione Telegram** del singolo (chat collegata e codice di link), la **lingua** dell'interfaccia, e — ovviamente — credenziali e sessione. Le impostazioni **globali gestite dall'amministratore** (fonti di arricchimento, pesi di rischio, ecc.) restano globali e valgono per tutti, come prima: **non** fanno parte del gruppo.
 
@@ -974,7 +982,7 @@ Poiché l'email non è ancora collegata, il reset password è **avviato dall'amm
 
 ### Migrazione dalla versione single-user
 
-Aggiornando da una versione precedente (single-user): quando un **vecchio database** (pre-multi-utente) viene ripristinato/importato, tutte le sue aree, navi segnalate, navi seguite e notifiche esistenti vengono **migrate automaticamente all'account amministratore predefinito**.
+Aggiornando da una versione precedente (single-user): quando un **vecchio database** (pre-multi-utente) viene ripristinato/importato, tutte le sue aree, navi segnalate, navi seguite, navi viste e notifiche esistenti vengono **migrate automaticamente all'account amministratore predefinito**. Anche il flag "vista" — global su `ships.seen` fino alla versione che ha introdotto il filtro per tipo nave nelle notifiche — segue lo stesso trattamento: `migrateMultiUser` (`src/db.js`) lo ri-assegna a `user_seen` dell'admin e azzera la colonna legacy, così i backup vecchi restano importabili senza perdere le navi già marcate.
 
 > ⚠️ Il cookie di sessione di per sé **non cifra il traffico**. Per l'esposizione diretta su internet metti **TLS** davanti (reverse proxy con HTTPS, Caddy, Cloudflare Tunnel…) e imposta `COOKIE_SECURE=true`, così il cookie viaggia solo su HTTPS.
 
@@ -1222,7 +1230,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/:mmsi/risk-history` | Serie storica degli snapshot di score di rischio della nave (`{history:[{ts,score,band}]}`) |
 | GET | `/api/ships/expected` | Navi attese nell'area (`?area=`): destinazione = keyword preset, uscite < 48h |
 | PATCH | `/api/ships/:mmsi/flag` | Imposta flag segnalata `{flagged: 0\|1}` |
-| PATCH | `/api/ships/:mmsi/seen` | Imposta flag vista `{seen: 0\|1}` |
+| PATCH | `/api/ships/:mmsi/seen` | Imposta flag vista `{seen: 0\|1}`, per-utente (`user_seen`), mirror di gruppo |
 | PATCH | `/api/ships/:mmsi/notes` | Imposta note libere `{notes: "…"}` |
 | PATCH | `/api/ships/:mmsi/military` | Imposta flag militare manuale `{is_military: 0\|1}` → forza score 100 e riga rossa |
 | GET | `/api/readings` | Letture globali (`?type=&limit=50&offset=0`) |
@@ -1247,7 +1255,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/app-config` | Parametri di `app.config.properties` raggruppati, con descrizioni estratte dai commenti del file; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Scrive i parametri modificati `{values:{CHIAVE:valore}}` (solo chiavi già presenti nel file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Preset bbox corrente, lista preset, stato import VF/MT |
-| POST | `/api/settings` | Cambia preset, toggle import, toggle notifiche e overlay OpenSeaMap `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, notifyProximity?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
+| POST | `/api/settings` | Cambia preset, toggle import, toggle notifiche e overlay OpenSeaMap `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, notifyProximity?, notifyShipTypesHidden?, notifyIncludeSeen?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
 | GET | `/api/areas` | Elenco aree con bbox, stato stream, flag `current` e conteggi dati (`counts`); `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Aggiunge un'area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → salva in `bounding-boxes.json` e avvia lo stream (salvo `autostart:false`) |
 | DELETE | `/api/areas/:key` | Elimina un'area e tutto il suo storico (letture/navi/eventi); rifiuta se è l'unica rimasta. Se era l'area attiva, ne seleziona un'altra |

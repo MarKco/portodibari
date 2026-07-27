@@ -714,6 +714,13 @@ A rendezvous on the open sea — two distinct vessels lingering side by side off
 
 For ship notifications `ais-stream` computes the score and calls `db.addNotification` (ships with `notif_muted` are skipped); for berth notifications `berths.recomputeArea` calls it, storing the referenced berth in `berth_id` for navigation. The first recompute on an area with no pre-existing berths does **not** generate notifications (to avoid a burst of "new berth" alerts on the initial backfill). Each ship notification stores the risk band (`band`) and `score` computed at event time, shown as a green/yellow/red dot; berth notifications show a dedicated dot. **Clicking** a ship notification opens the ship detail view; clicking a berth notification jumps to that area's map with the berth centred. Endpoints: `GET /api/notifications` (list + unread count), `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`, `DELETE /api/notifications/:id` (single), `DELETE /api/notifications` (all). The last 100 are retained (automatic rotation on every insert).
 
+**Ship-type and "seen" filter** (Settings → **Notifications** tab, [`src/services/notify-categories.js`](../../src/services/notify-categories.js)) — applies to the four **ship-tied** notifications (`revisit`, `area_change`, `high_risk`, `proximity`), not to berth ones. Two per-user prefs in `user-prefs.js`:
+
+- `notifyShipTypesHidden` (array, default empty = all active) — ship categories to **exclude**: `cargo`, `container`, `tanker`, `passenger`, `fishing`, `highspeed`, `sailing_pleasure`, `tug_service`, `coastguard`, `military`, `other`. Category resolved by `categoryOf(ship)`: raw AIS type code for most buckets; `container` vs `cargo` (AIS 70–79) reuses the same VF/MT cache `cargo-type.js` uses for scoring (no network call on the hot notification path) — a freshly-seen cargo ship with no VF/MT data yet falls back to `cargo` until it's enriched. `coastguard` (AIS 55) and `military` (AIS 35 / manual flag / name prefix, same `isMilitary()` used by the score) are **deliberately distinct categories**: a coastguard vessel doesn't force score 100 the way a real military ship does. Resolver independent from `services/ship-categories.js` (the one behind berth stats, untouched). For a **rendezvous** (2 ships), it's enough for one of the two to be an active category.
+- `notifyIncludeSeen` (bool, default `true`) — set to `false` to suppress those same four notifications for ships the user marked "seen" 👁 (`db.isUserSeen`, per-user `user_seen` table, see [Per-user vs global data](#per-user-vs-global-data)).
+
+The combined gate (`shouldNotifyShip`) is evaluated **once per (user, event)** and applies uniformly to the in-app notification and to Telegram/webhooks — see [Telegram notifications](#-telegram-notifications). **Different from `excludeTankers`** (Settings → Risk model, admin/global): that zeroes the "cargo type" factor in the **shared score** everyone sees; this filter is **personal** and only affects what reaches you as a notification, without touching the score — the two aren't redundant.
+
 **Delete with undo** — both a single notification (🗑 trash on the row) and the **🗑 clear-all** button (next to the unread badge in the sidebar) delete with an **undo window** ("↶ Undo" toast) before the deletion becomes effective. The bounce duration is configurable in `app.config.properties` via `NOTIF_DELETE_UNDO_SECONDS` (default 5 s; `0` = immediate delete) and exposed to the frontend via `/api/config`.
 
 ### 📲 Telegram notifications
@@ -721,7 +728,7 @@ For ship notifications `ais-stream` computes the score and calls `db.addNotifica
 Beyond the sidebar feed, each user can receive their own notifications on **Telegram** via a bot. A single bot (token `TELEGRAM_BOT_TOKEN` in `local.properties`, created with [@BotFather](https://t.me/BotFather)) serves all users; without a token the feature is inert. The backend receives messages by **long-polling** (`getUpdates`) — no public URL or webhook, works behind NAT alongside the AIS streams (`src/services/telegram.js`, started in `server.js`).
 
 - **Linking** — from **Settings → External integrations tab** the user clicks "Link": the backend generates a one-time code (`user_settings.telegramLinkCode`) and a deep link `https://t.me/<bot>?start=<code>`. The user starts the bot; the backend maps code → user and stores the `chat_id` in `user_settings.telegramChatId`. `/stop` (or the "Unlink" button) clears the binding. If the user blocks the bot, a 403 send auto-unlinks them.
-- **Per-category toggles** — independent of the in-sidebar notifications (a user may get a category on Telegram while it's off in-app, and vice versa). Per-user master `telegramEnabled` + seven categories: high-risk score, ship revisit, area change, new berth, berth characterisation, **AIS outage** (a global event sent to every linked user with the toggle on) and **area monitoring start/stop** (when the user adds/removes one of their own areas). Persisted as per-user prefs (`telegramNotify*`).
+- **Per-category toggles** — independent of the in-sidebar notifications (a user may get a category on Telegram while it's off in-app, and vice versa). Per-user master `telegramEnabled` + seven categories: high-risk score, ship revisit, area change, new berth, berth characterisation, **AIS outage** (a global event sent to every linked user with the toggle on) and **area monitoring start/stop** (when the user adds/removes one of their own areas). Persisted as per-user prefs (`telegramNotify*`). The four **ship-tied** categories (high-risk score, revisit, area change, rendezvous) also follow the ship-type filter and the "seen" flag from the Notifications tab (see above) — it's the same gate as the in-app notification, not a separate filter; new berth/characterisation/outage/area-monitor aren't tied to a ship and are never filtered.
 - **Language** — every message is rendered in the user's language (`it`/`en`).
 - **Location map** (`telegramSendMap`, default on) — notifications that carry coordinates (berths and ships) get a **static map image** centred on the point. The map is rendered server-side by `src/services/static-map.js`: it stitches the OpenStreetMap base raster tiles (the same as the client, see `public/js/tiles.js`) into a PNG with `pngjs`. The **OpenSeaMap nautical overlay is disabled** in these screenshots (its symbols clutter a small notification map; the renderer still supports it via the `seamark` option, used elsewhere) (pure JS — no native build, no headless browser, no API key), draws the marker and uploads it via `sendPhoto` (multipart). A failed render falls back automatically to text only. Notifications fan out per-user, so four measures bound the cost: (A) **`file_id` reuse** — the first recipient uploads the bytes, the rest reuse the Telegram `file_id` (no re-render, no re-upload; in-burst dedupe via a shared promise); (B) **tile cache** of decoded tiles (LRU+TTL, keeps us within the OSM tile usage policy by avoiding bulk refetching); (C) **rendered-map cache** keyed by rounded coords+zoom; (D) **render concurrency cap** (max 2) to bound CPU/RAM spikes.
 - **Location & compact data** — instead of the old **native pin** (`sendVenue`/`sendLocation`, a second large map widget redundant with the screenshot), every notification with coordinates carries a **📍 Open in map** line — a tappable `https://www.google.com/maps?q=lat,lon` link that hands off to the device's maps app (one notification, one-tap navigation). **Ship** notifications (high risk, revisit, area change) additionally enrich the caption — without bloating it — with: **flag** (emoji derived from the MMSI's MID), **ship type** (e.g. Cargo/Tanker, ☢ if Hazmat), **risk reason** (the highest-weighted factor from the risk score, rendered in the recipient's language) and **kinematics + destination** (SOG/COG → declared port). Each line appears only when its data is present. Flag and type: `src/services/vessel-format.js` (`flagEmoji`, `shipTypeLabel`).
@@ -843,7 +850,7 @@ Each user has **their own** data:
 
 - their **areas** (monitoring bounding boxes);
 - their **settings** (notification preferences, OpenSeaMap map-display options, language, default area);
-- their **flagged** ships ★ and **followed** ships;
+- their **flagged** ships ★, **followed** ships, and ships marked **seen** 👁;
 - their own **notifications** feed.
 
 Ship visibility is **geographic**: a user sees AIS data whose position falls inside one of their areas' bounding boxes.
@@ -858,13 +865,14 @@ There is **one AISstream connection set** system-wide (one WebSocket per distinc
 
 ### 👥 User groups
 
-An administrator can bundle users into **groups** (from the `/admin` page). Each user belongs to **at most one group**; a group must have **at least 2 members**. Group members **share** — as a **union** — four resource sets plus a subset of settings:
+An administrator can bundle users into **groups** (from the `/admin` page). Each user belongs to **at most one group**; a group must have **at least 2 members**. Group members **share** — as a **union** — five resource sets plus a subset of settings:
 
 - monitoring **areas**;
 - **followed** ships (active);
 - **flagged** ships ★;
 - **muted** ships 🔕;
-- **notification preferences** (in-app and per-category Telegram + send-map) and **map-display** (OpenSeaMap) options + the **default area**.
+- ships marked **seen** 👁 (handy for splitting up triage work: whoever checked a ship marks it seen for the whole group);
+- **notification preferences** (in-app and per-category Telegram + ship-type filter + send-map) and **map-display** (OpenSeaMap) options + the **default area**.
 
 These stay **personal** (never synced): each user's **Telegram connection** (linked chat + link code), the UI **language**, and of course credentials and session. **Admin-managed global** settings (enrichment sources, risk weights, etc.) stay global and apply to everyone, as before — they are **not** part of the group.
 
@@ -882,7 +890,7 @@ Since email is not wired up yet, password reset is **admin-initiated**: the user
 
 ### Migration from the single-user version
 
-When upgrading from a previous (single-user) version: when an **old database** (pre-multi-user) is restored/imported, all of its existing areas, flagged ships, followed ships and notifications are **automatically migrated to the built-in administrator account**.
+When upgrading from a previous (single-user) version: when an **old database** (pre-multi-user) is restored/imported, all of its existing areas, flagged ships, followed ships, seen ships and notifications are **automatically migrated to the built-in administrator account**. The "seen" flag — global on `ships.seen` before the ship-type notification filter was introduced — gets the same treatment: `migrateMultiUser` (`src/db.js`) re-homes it to the admin's `user_seen` and zeroes the legacy column, so older backups keep importing cleanly without losing already-marked ships.
 
 > ⚠️ The session cookie itself **does not encrypt traffic**. For direct internet exposure put **TLS** in front (HTTPS reverse proxy, Caddy, Cloudflare Tunnel…) and set `COOKIE_SECURE=true` so the cookie is only sent over HTTPS.
 
@@ -1122,7 +1130,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/ships/:mmsi/risk-history` | Risk-score snapshot time series for the ship (`{history:[{ts,score,band}]}`) |
 | GET | `/api/ships/expected` | Expected ships in the area (`?area=`): destination = preset keyword, departed < 48h ago |
 | PATCH | `/api/ships/:mmsi/flag` | Set flagged flag `{flagged: 0\|1}` |
-| PATCH | `/api/ships/:mmsi/seen` | Set seen flag `{seen: 0\|1}` |
+| PATCH | `/api/ships/:mmsi/seen` | Set seen flag `{seen: 0\|1}`, per-user (`user_seen`), group-mirrored |
 | PATCH | `/api/ships/:mmsi/notes` | Set free-form notes `{notes: "…"}` |
 | PATCH | `/api/ships/:mmsi/military` | Set manual military flag `{is_military: 0\|1}` → forces score 100 and red row |
 | GET | `/api/readings` | Global readings (`?type=&limit=50&offset=0`) |
@@ -1143,7 +1151,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/app-config` | `app.config.properties` parameters grouped, with descriptions extracted from the file comments; `{groups, applies:'restart'}` |
 | POST | `/api/app-config` | Write edited parameters `{values:{KEY:value}}` (only keys already present in the file); `{ok, changed, restart}` |
 | GET | `/api/settings` | Current bbox preset, preset list, VF/MT import status |
-| POST | `/api/settings` | Change preset, import toggles, notification toggles and OpenSeaMap overlay `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, notifyProximity?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
+| POST | `/api/settings` | Change preset, import toggles, notification toggles and OpenSeaMap overlay `{preset?, importVfData?, importMtData?, notificationsEnabled?, notifyRevisit?, notifyAreaChange?, notifyHighRisk?, notifyBerthNew?, notifyBerthChar?, notifyProximity?, notifyShipTypesHidden?, notifyIncludeSeen?, showOpenSeaMap?, showOpenSeaMapMarkers?, openSeaMapHidden?}` |
 | GET | `/api/areas` | List of areas with bbox, stream status, `current` flag and data `counts`; `{areas, preset, minAreas}` |
 | POST | `/api/areas` | Add an area `{name, sw:[lat,lon], ne:[lat,lon], keyword?, autostart?}` → saves to `bounding-boxes.json` and starts the stream (unless `autostart:false`) |
 | DELETE | `/api/areas/:key` | Delete an area and all its history (readings/ships/events); refuses if it's the only one left. If it was the active area, selects another |

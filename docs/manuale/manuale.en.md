@@ -504,7 +504,7 @@ A **🧹** button in the top-right corner (hover over it to see what it does) hi
 
 ## Settings
 
-Open with **⚙ Settings**. Settings are organized into **tabs**: **General**, **Areas**, **External integrations**, **Parameters**, **Backup / Restore**, and the technical **📡 AIS Diagnostics** tab.
+Open with **⚙ Settings**. Settings are organized into **tabs**: **General**, **Notifications**, **Areas**, **External integrations**, **Parameters**, **Backup / Restore**, and the technical **📡 AIS Diagnostics** tab.
 
 ### General tab
 
@@ -524,9 +524,6 @@ Below, the toggles for **data sources and features**:
 | **Port State Control screening (Paris/Tokyo MoU)** | White/grey/black flag performance + Paris MoU banned ships. |
 | **Equasis lookup (ownership)** | Enables the on-demand button in the detail. Never automatic. |
 | **Global Fishing Watch** | Identity + behavioral events (proactive). On by default. |
-| **Notifications** | General on/off switch for in-app notifications. |
-| **Ship return / area change / high score / new berth / berth characterization notification** | Enables each individual in-app notification category. |
-| **Exclude tankers** | Doesn't assign the "ship type" score to tanker hulls (useful when monitoring weapons transport). |
 | **Check position jump** / **Check AIS blackout** | Includes these signals in the risk score. Disable them in areas with poor AIS coverage (false positives). Default on. |
 | **OpenSeaMap nautical layer (tile)** | Nautical symbols as a single image (all or nothing). Default on. |
 | **OpenSeaMap markers (selectable)** + **Items to show** | ⚓ markers filterable by category (ports, moorings, anchorages, marinas, lighthouses, buoys, hazards…). Default on. |
@@ -536,6 +533,30 @@ Below, the toggles for **data sources and features**:
 | **Language** | Italiano / English. |
 
 > **Warning:** **restoring** the database replaces **all** current data and is irreversible. Download a backup before proceeding. After restoring, data is reassigned to the correct area based on coordinates.
+
+### Notifications tab
+
+![Settings — Notifications tab: per-category switches, ship-type filter, and the "seen" flag.](images/19b-impostazioni-notifiche.png)
+
+Here you decide **which events** raise a notification in the sidebar (and, if linked, on Telegram — see the External integrations tab).
+
+| Option | Function |
+|---|---|
+| **Notifications** | Master switch: off, no in-app notification arrives at all (regardless of the toggles below). |
+| **Ship revisit notification** | Alerts when a ship **already seen before** in the same area returns to it after a period of absence. |
+| **Area change notification** | Alerts when a ship you were monitoring in one area is detected in **another** of your areas. |
+| **High score notification** | Alerts when a ship **arrives** with a risk score in the red band (71–100). The most useful one for quick triage: no need to watch the table to notice it. |
+| **New berth notification** | Alerts when the app automatically detects a **new berth** in an area (a mooring cluster not seen before). |
+| **Berth characterization notification** | Alerts when a berth (automatic or manually corrected) is **classified for the first time** by its dominant ship category (e.g. "Cargo", "Passenger"). |
+| **At-sea rendezvous notification** | Alerts when two distinct ships linger close together, slow and offshore for a while — a possible ship-to-ship transfer. |
+
+**🚢 Ship-type filter** — a list of categories, each with its own checkbox (Cargo, Container ship, Tanker, Passenger, Fishing, High-speed craft, Sailing & pleasure craft, Tugs & service craft, Coastguard, Military, Other/unclassified): **all active by default**. Uncheck a category to **stop being notified** for that ship type. Applies only to ship revisit, area change, high score, and rendezvous (not to new berth/berth characterization, which aren't about a specific ship type); for a two-ship rendezvous, it's enough for **one of the two** to be a checked type to get notified. Example: to follow only merchant traffic, uncheck Passenger, Fishing, Sailing & pleasure craft, Tugs & service craft, Coastguard — you'll stay notified for Cargo, Container ship, Tanker (and optionally Military, High-speed craft, Other, if you leave them checked).
+
+> Note: "Container ship" is distinguished from "Cargo" only once the app already has VesselFinder/MarineTraffic enrichment data for that ship (obtained by opening its detail, or via automatic backfill if enabled). A cargo ship just spotted and not yet enriched shows up temporarily as "Cargo" even if it's actually a container ship.
+
+| Option | Function |
+|---|---|
+| **Also notify ships marked as seen** | On by default. Turn it off to **stop** receiving revisit / area change / high score / rendezvous alerts for ships you've marked "seen" 👁 (from the ship detail) — handy so you're not re-alerted about ships you've already checked. If you belong to a **user group**, the "seen" flag is shared: a ship marked seen by a group-mate shows as seen for everyone, so you can split up the checking work. |
 
 ### Areas tab
 
@@ -557,7 +578,9 @@ Here you connect the external channels notifications are sent to: **Telegram** (
 
 To stop, press **Unlink** (or `/stop`). Use **Send test** to check the link.
 
-**Which notifications to receive** — the **Telegram notifications** switch turns everything on/off; below it, a toggle per category: **High score**, **Ship return**, **Area change**, **New berth**, **Berth characterization**, **AIS outage**, **Area monitoring start/stop**. The **Position map** toggle attaches a **map image** plus a tappable pin to notifications that include a position. Telegram toggles are **independent** from the in-app ones.
+**Which notifications to receive** — the **Telegram notifications** switch turns everything on/off; below it, a toggle per category: **High score**, **Ship return**, **Area change**, **New berth**, **Berth characterization**, **AIS outage**, **Area monitoring start/stop**. The **Position map** toggle attaches a **map image** plus a tappable pin to notifications that include a position. Telegram toggles are **independent** from the in-app ones (you can receive a category on Telegram only, or in-app only).
+
+> ⚠️ The **High score**, **Ship return**, **Area change**, and **At-sea rendezvous** categories still follow the **ship-type filter** and the **"seen"** flag set in the **Notifications** tab: if you exclude e.g. tankers there, those alerts won't arrive either in-app or on Telegram. New berth, characterization, AIS outage, and area monitoring start/stop aren't tied to a ship type and are never filtered.
 
 > Ship notifications (High score, Return, Area change) show **🛰️ Follow** and **⭐ Flag** buttons on Telegram to act directly from the message.
 

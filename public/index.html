@@ -879,6 +879,8 @@
         <div class="tabs" id="settings-tabs">
           <button id="settings-tab-general" class="tab tab-active" data-panel="general"
                   data-i18n="settings.tab.general">Generali</button>
+          <button id="settings-tab-notifications" class="tab" data-panel="notifications"
+                  data-i18n="settings.tab.notifications">Notifiche</button>
           <button id="settings-tab-areas" class="tab" data-panel="areas"
                   data-i18n="settings.tab.areas">Aree</button>
           <button id="settings-tab-telegram" class="tab" data-panel="telegram"
@@ -1012,76 +1014,6 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notif.name">Notifiche</div>
-            <div class="setting-desc" data-i18n="settings.notif.desc">Abilita o disabilita tutte le notifiche nella barra laterale.</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notifications">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-revisit">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifRevisit.name">Notifica rientro nave</div>
-            <div class="setting-desc" data-i18n="settings.notifRevisit.desc">Avvisa quando una nave rientra in un'area dove era già stata in passato.</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-revisit">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-area-change">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifAreaChange.name">Notifica cambio area</div>
-            <div class="setting-desc" data-i18n="settings.notifAreaChange.desc">Avvisa quando una nave vista in un'area viene poi vista in un'altra area.</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-area-change">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-high-risk">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifHighRisk.name">Notifica score alto</div>
-            <div class="setting-desc" data-i18n="settings.notifHighRisk.desc">Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100).</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-high-risk">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-berth-new">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifBerthNew.name">Notifica nuova banchina</div>
-            <div class="setting-desc" data-i18n="settings.notifBerthNew.desc">Avvisa quando viene rilevata una nuova banchina in un'area.</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-berth-new">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-berth-char">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifBerthChar.name">Notifica caratterizzazione banchina</div>
-            <div class="setting-desc" data-i18n="settings.notifBerthChar.desc">Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente).</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-berth-char">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row setting-row-child" id="setting-notify-proximity">
-          <div class="setting-info">
-            <div class="setting-name" data-i18n="settings.notifProximity.name">Notifica rendezvous in mare</div>
-            <div class="setting-desc" data-i18n="settings.notifProximity.desc">Avvisa quando due navi distinte sostano vicine, lente e al largo (possibile trasbordo nave-nave).</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="toggle-notify-proximity">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
         <div class="settings-section-head" data-i18n="settings.riskModel.head">⚖ Modello di rischio</div>
         <div class="setting-row">
           <div class="setting-info">
@@ -1189,6 +1121,97 @@
           </select>
         </div>
         </div>
+        <div id="settings-panel-notifications" class="settings-panel hidden">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notif.name">Notifiche</div>
+            <div class="setting-desc" data-i18n="settings.notif.desc">Abilita o disabilita tutte le notifiche nella barra laterale.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notifications">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-revisit">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifRevisit.name">Notifica rientro nave</div>
+            <div class="setting-desc" data-i18n="settings.notifRevisit.desc">Avvisa quando una nave rientra in un'area dove era già stata in passato.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-revisit">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-area-change">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifAreaChange.name">Notifica cambio area</div>
+            <div class="setting-desc" data-i18n="settings.notifAreaChange.desc">Avvisa quando una nave vista in un'area viene poi vista in un'altra area.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-area-change">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-high-risk">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifHighRisk.name">Notifica score alto</div>
+            <div class="setting-desc" data-i18n="settings.notifHighRisk.desc">Avvisa quando una nave arriva con score di rischio in fascia rossa (71–100).</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-high-risk">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-berth-new">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifBerthNew.name">Notifica nuova banchina</div>
+            <div class="setting-desc" data-i18n="settings.notifBerthNew.desc">Avvisa quando viene rilevata una nuova banchina in un'area.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-berth-new">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-berth-char">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifBerthChar.name">Notifica caratterizzazione banchina</div>
+            <div class="setting-desc" data-i18n="settings.notifBerthChar.desc">Avvisa quando una banchina viene caratterizzata per la prima volta (categoria di navi prevalente).</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-berth-char">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-proximity">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifProximity.name">Notifica rendezvous in mare</div>
+            <div class="setting-desc" data-i18n="settings.notifProximity.desc">Avvisa quando due navi distinte sostano vicine, lente e al largo (possibile trasbordo nave-nave).</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-proximity">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-section-head" data-i18n="settings.notifShipTypes.head">🚢 Filtro per tipo nave</div>
+        <div class="setting-row setting-row-child">
+          <div class="setting-info">
+            <div class="setting-desc" data-i18n="settings.notifShipTypes.desc">Si applica a rientro nave, cambio area, score alto e rendezvous (non alle notifiche di banchina, che non sono legate a un singolo tipo nave). Per un rendezvous tra due navi basta che una delle due sia di tipo attivo. Default: tutte attive.</div>
+          </div>
+        </div>
+        <div class="setting-row setting-row-col setting-row-child">
+          <div id="notify-ship-types" class="seamark-types"></div>
+        </div>
+        <div class="setting-row setting-row-child" id="setting-notify-include-seen">
+          <div class="setting-info">
+            <div class="setting-name" data-i18n="settings.notifIncludeSeen.name">Notifica anche navi segnate come viste</div>
+            <div class="setting-desc" data-i18n="settings.notifIncludeSeen.desc">Disattivalo per non ricevere rientro nave / cambio area / score alto / rendezvous per le navi che hai segnato come "viste" (👁 nel dettaglio nave). Il flag "vista" è condiviso con gli altri membri del tuo gruppo, se ne fai parte.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-notify-include-seen">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        </div>
         <div id="settings-panel-areas" class="settings-panel hidden">
           <div class="setting-row setting-row-col">
             <div class="setting-info">
@@ -1221,6 +1244,11 @@
               <button class="btn btn-sm" id="btn-telegram-link" data-i18n="settings.telegram.link.btn">Collega</button>
               <button class="btn btn-sm" id="btn-telegram-test" data-i18n="settings.telegram.test.btn" hidden>Invia prova</button>
               <button class="btn btn-sm btn-danger" id="btn-telegram-unlink" data-i18n="settings.telegram.unlink.btn" hidden>Scollega</button>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child">
+            <div class="setting-info">
+              <div class="setting-desc" data-i18n-html="settings.telegramShipTypesNote.desc">⚠️ Score alto, rientro nave, cambio area e rendezvous qui sotto seguono anche il filtro per tipo nave e il flag "vista" impostati nel tab <strong>Notifiche</strong>: se lì escludi es. i tanker, non li riceverai nemmeno su Telegram (né in app). Nuova banchina, caratterizzazione banchina, disservizio AIS e avvio/stop monitoraggio non sono legate a un tipo nave e non sono filtrate.</div>
             </div>
           </div>
           <div class="setting-row setting-row-child" id="setting-telegram-high-risk">

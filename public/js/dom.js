@@ -175,6 +175,8 @@ export const el = {
   settingNotifyBerthChar: $('setting-notify-berth-char'),
   toggleNotifyProximity: $('toggle-notify-proximity'),
   settingNotifyProximity: $('setting-notify-proximity'),
+  notifyShipTypes: $('notify-ship-types'),
+  toggleNotifyIncludeSeen: $('toggle-notify-include-seen'),
   // Telegram bot
   toggleTelegram: $('toggle-telegram'),
   settingTelegramLink: $('setting-telegram-link'),

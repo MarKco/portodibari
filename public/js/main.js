@@ -130,6 +130,41 @@ function renderSeamarkTypeToggles() {
   });
 }
 
+// Rebuild the ship-category checkboxes (Settings → Notifiche) from
+// S.notifyShipTypesHidden. Categories come from the server (S.notifyShipCategories,
+// see services/notify-categories.js) so the list can't drift out of sync with the
+// backend. Each box toggles its category in the hidden set and persists it
+// (reverting on failure) — it gates ship notifications both in-app and on
+// Telegram/webhooks, per src/services/ais-stream.js / proximity.js.
+function renderNotifyShipTypeToggles() {
+  const box = el.notifyShipTypes;
+  if (!box || !Array.isArray(S.notifyShipCategories)) return;
+  const hidden = new Set(S.notifyShipTypesHidden || []);
+  box.innerHTML = S.notifyShipCategories.map(
+    (key) =>
+      `<label class="seamark-type-opt">` +
+      `<input type="checkbox" data-cat="${key}"${hidden.has(key) ? '' : ' checked'}>` +
+      `<span>${escHtml(t('notify.cat.' + key))}</span>` +
+      `</label>`
+  ).join('');
+  box.querySelectorAll('input[data-cat]').forEach((cb) => {
+    cb.addEventListener('change', async () => {
+      const prev = S.notifyShipTypesHidden;
+      const set = new Set(prev || []);
+      if (cb.checked) set.delete(cb.dataset.cat);
+      else set.add(cb.dataset.cat);
+      const arr = [...set];
+      S.notifyShipTypesHidden = arr;
+      try {
+        await api('/api/settings', 'POST', { notifyShipTypesHidden: arr });
+      } catch {
+        S.notifyShipTypesHidden = prev;
+        cb.checked = !cb.checked;
+      }
+    });
+  });
+}
+
 async function loadSettings() {
   try {
     const s = await api('/api/settings');
@@ -190,6 +225,11 @@ async function loadSettings() {
     if (el.toggleNotifyBerthNew) el.toggleNotifyBerthNew.checked = S.notifyBerthNew;
     if (el.toggleNotifyBerthChar) el.toggleNotifyBerthChar.checked = S.notifyBerthChar;
     if (el.toggleNotifyProximity) el.toggleNotifyProximity.checked = S.notifyProximity;
+    S.notifyShipTypesHidden = Array.isArray(s.notifyShipTypesHidden) ? s.notifyShipTypesHidden : [];
+    if (Array.isArray(s.notifyShipCategories)) S.notifyShipCategories = s.notifyShipCategories;
+    renderNotifyShipTypeToggles();
+    S.notifyIncludeSeen = s.notifyIncludeSeen !== false;
+    if (el.toggleNotifyIncludeSeen) el.toggleNotifyIncludeSeen.checked = S.notifyIncludeSeen;
     S.excludeTankers = !!s.excludeTankers;
     if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
     S.checkSpoofing = s.checkSpoofing !== false;
@@ -928,6 +968,16 @@ function initSettingsModal() {
       S.notifyProximity = enabled;
     } catch {
       el.toggleNotifyProximity.checked = !enabled;
+    }
+  });
+
+  if (el.toggleNotifyIncludeSeen) el.toggleNotifyIncludeSeen.addEventListener('change', async () => {
+    const enabled = el.toggleNotifyIncludeSeen.checked;
+    try {
+      await api('/api/settings', 'POST', { notifyIncludeSeen: enabled });
+      S.notifyIncludeSeen = enabled;
+    } catch {
+      el.toggleNotifyIncludeSeen.checked = !enabled;
     }
   });
 

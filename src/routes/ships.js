@@ -32,8 +32,8 @@ function userScope(req) {
   return all;
 }
 
-// Overlay the per-user flag/follow/mute state onto a ship row + the usual
-// derived fields. `sets` holds the user's flagged/followed/muted MMSI sets.
+// Overlay the per-user flag/follow/mute/seen state onto a ship row + the usual
+// derived fields. `sets` holds the user's flagged/followed/muted/seen MMSI sets.
 function decorate(s, sets, lang, withDirection) {
   const mil = isMilitary(s);
   const flagged = mil ? true : sets.flags.has(s.mmsi);
@@ -42,6 +42,7 @@ function decorate(s, sets, lang, withDirection) {
     flagged,
     followed: sets.follows.has(s.mmsi) ? 1 : 0,
     notif_muted: sets.mutes.has(s.mmsi) ? 1 : 0,
+    seen: sets.seen.has(s.mmsi) ? 1 : 0,
     risk: computeRiskScoreCached(s, lang),
     is_military: mil,
     destination_label: destinationLabel(s.destination),
@@ -58,6 +59,7 @@ function userSets(userId) {
     flags: db.getUserFlaggedMmsis(userId),
     follows: db.getUserFollowedMmsis(userId),
     mutes: db.getUserMutedMmsis(userId),
+    seen: db.getUserSeenMmsis(userId),
   };
 }
 
@@ -530,6 +532,7 @@ router.get('/ships/:mmsi', (req, res) => {
     is_military: mil,
     flagged: mil ? true : db.getUserFlaggedMmsis(uid).has(mmsi),
     followed: db.getUserFollowedMmsis(uid).has(mmsi) ? 1 : 0,
+    seen: db.isUserSeen(uid, mmsi) ? 1 : 0,
     is_stale: (!ship.last_seen_at || Date.now() - new Date(ship.last_seen_at).getTime() > FOLLOW_FRESH_MS) ? 1 : 0,
     search_mode: db.getUserFollowSearchMode(uid, mmsi),
     sf_last_at: sfBadgeAt(mmsi, ship.last_seen_at),
@@ -738,7 +741,8 @@ router.patch('/ships/:mmsi/seen', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { seen } = req.body;
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
-  db.setSeen(mmsi, seen);
+  db.setUserSeen(req.user.id, mmsi, !!seen);
+  groupSync.syncSeen(req.user.id, mmsi, !!seen); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.seen', { on: !!seen }), { mmsi });
   res.json({ ok: true });
 });

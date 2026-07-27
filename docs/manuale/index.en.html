@@ -230,6 +230,7 @@
         <li><a href="#settings">Settings</a>
         <ul>
         <li><a href="#general-tab-1">General tab</a></li>
+        <li><a href="#notifications-tab">Notifications tab</a></li>
         <li><a href="#areas-tab">Areas tab</a></li>
         <li><a
         href="#external-integrations-tab-telegram-webhooks">External
@@ -1358,7 +1359,8 @@
         <h2 id="settings">Settings</h2>
         <p>Open with <strong>⚙ Settings</strong>. Settings are organized
         into <strong>tabs</strong>: <strong>General</strong>,
-        <strong>Areas</strong>, <strong>External integrations</strong>,
+        <strong>Notifications</strong>, <strong>Areas</strong>,
+        <strong>External integrations</strong>,
         <strong>Parameters</strong>, <strong>Backup / Restore</strong>,
         and the technical <strong>📡 AIS Diagnostics</strong> tab.</p>
         <h3 id="general-tab-1">General tab</h3>
@@ -1432,52 +1434,38 @@
         default.</td>
         </tr>
         <tr class="odd">
-        <td><strong>Notifications</strong></td>
-        <td>General on/off switch for in-app notifications.</td>
-        </tr>
-        <tr class="even">
-        <td><strong>Ship return / area change / high score / new berth /
-        berth characterization notification</strong></td>
-        <td>Enables each individual in-app notification category.</td>
-        </tr>
-        <tr class="odd">
-        <td><strong>Exclude tankers</strong></td>
-        <td>Doesn’t assign the “ship type” score to tanker hulls (useful
-        when monitoring weapons transport).</td>
-        </tr>
-        <tr class="even">
         <td><strong>Check position jump</strong> / <strong>Check AIS
         blackout</strong></td>
         <td>Includes these signals in the risk score. Disable them in
         areas with poor AIS coverage (false positives). Default on.</td>
         </tr>
-        <tr class="odd">
+        <tr class="even">
         <td><strong>OpenSeaMap nautical layer (tile)</strong></td>
         <td>Nautical symbols as a single image (all or nothing). Default
         on.</td>
         </tr>
-        <tr class="even">
+        <tr class="odd">
         <td><strong>OpenSeaMap markers (selectable)</strong> +
         <strong>Items to show</strong></td>
         <td>⚓ markers filterable by category (ports, moorings,
         anchorages, marinas, lighthouses, buoys, hazards…). Default
         on.</td>
         </tr>
-        <tr class="odd">
+        <tr class="even">
         <td><strong>Risk weights by cargo type</strong></td>
         <td>Points assigned to each cargo class. Edit and <strong>💾
         Save weights</strong> (immediate effect).</td>
         </tr>
-        <tr class="even">
+        <tr class="odd">
         <td><strong>⬇ Export CSV</strong></td>
         <td>Downloads all readings as CSV.</td>
         </tr>
-        <tr class="odd">
+        <tr class="even">
         <td><strong>⬇ Download backup</strong> / <strong>⬆
         Restore</strong></td>
         <td>Downloads/reloads the database file.</td>
         </tr>
-        <tr class="even">
+        <tr class="odd">
         <td><strong>Language</strong></td>
         <td>Italiano / English.</td>
         </tr>
@@ -1490,6 +1478,118 @@
         restoring, data is reassigned to the correct area based on
         coordinates.</p>
         </blockquote>
+        <h3 id="notifications-tab">Notifications tab</h3>
+        <figure>
+        <img src="images/19b-impostazioni-notifiche.png"
+        alt="Settings — Notifications tab: per-category switches, ship-type filter, and the “seen” flag." />
+        <figcaption aria-hidden="true">Settings — Notifications tab:
+        per-category switches, ship-type filter, and the “seen”
+        flag.</figcaption>
+        </figure>
+        <p>Here you decide <strong>which events</strong> raise a
+        notification in the sidebar (and, if linked, on Telegram — see
+        the External integrations tab).</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Option</th>
+        <th>Function</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>Notifications</strong></td>
+        <td>Master switch: off, no in-app notification arrives at all
+        (regardless of the toggles below).</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Ship revisit notification</strong></td>
+        <td>Alerts when a ship <strong>already seen before</strong> in
+        the same area returns to it after a period of absence.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Area change notification</strong></td>
+        <td>Alerts when a ship you were monitoring in one area is
+        detected in <strong>another</strong> of your areas.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>High score notification</strong></td>
+        <td>Alerts when a ship <strong>arrives</strong> with a risk
+        score in the red band (71–100). The most useful one for quick
+        triage: no need to watch the table to notice it.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>New berth notification</strong></td>
+        <td>Alerts when the app automatically detects a <strong>new
+        berth</strong> in an area (a mooring cluster not seen
+        before).</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Berth characterization notification</strong></td>
+        <td>Alerts when a berth (automatic or manually corrected) is
+        <strong>classified for the first time</strong> by its dominant
+        ship category (e.g. “Cargo”, “Passenger”).</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>At-sea rendezvous notification</strong></td>
+        <td>Alerts when two distinct ships linger close together, slow
+        and offshore for a while — a possible ship-to-ship
+        transfer.</td>
+        </tr>
+        </tbody>
+        </table>
+        <p><strong>🚢 Ship-type filter</strong> — a list of categories,
+        each with its own checkbox (Cargo, Container ship, Tanker,
+        Passenger, Fishing, High-speed craft, Sailing &amp; pleasure
+        craft, Tugs &amp; service craft, Coastguard, Military,
+        Other/unclassified): <strong>all active by default</strong>.
+        Uncheck a category to <strong>stop being notified</strong> for
+        that ship type. Applies only to ship revisit, area change, high
+        score, and rendezvous (not to new berth/berth characterization,
+        which aren’t about a specific ship type); for a two-ship
+        rendezvous, it’s enough for <strong>one of the two</strong> to
+        be a checked type to get notified. Example: to follow only
+        merchant traffic, uncheck Passenger, Fishing, Sailing &amp;
+        pleasure craft, Tugs &amp; service craft, Coastguard — you’ll
+        stay notified for Cargo, Container ship, Tanker (and optionally
+        Military, High-speed craft, Other, if you leave them
+        checked).</p>
+        <blockquote>
+        <p>Note: “Container ship” is distinguished from “Cargo” only
+        once the app already has VesselFinder/MarineTraffic enrichment
+        data for that ship (obtained by opening its detail, or via
+        automatic backfill if enabled). A cargo ship just spotted and
+        not yet enriched shows up temporarily as “Cargo” even if it’s
+        actually a container ship.</p>
+        </blockquote>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Option</th>
+        <th>Function</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>Also notify ships marked as seen</strong></td>
+        <td>On by default. Turn it off to <strong>stop</strong>
+        receiving revisit / area change / high score / rendezvous alerts
+        for ships you’ve marked “seen” 👁 (from the ship detail) — handy
+        so you’re not re-alerted about ships you’ve already checked. If
+        you belong to a <strong>user group</strong>, the “seen” flag is
+        shared: a ship marked seen by a group-mate shows as seen for
+        everyone, so you can split up the checking work.</td>
+        </tr>
+        </tbody>
+        </table>
         <h3 id="areas-tab">Areas tab</h3>
         <figure>
         <img src="images/20-impostazioni-aree.png"
@@ -1535,7 +1635,20 @@
         <strong>Position map</strong> toggle attaches a <strong>map
         image</strong> plus a tappable pin to notifications that include
         a position. Telegram toggles are <strong>independent</strong>
-        from the in-app ones.</p>
+        from the in-app ones (you can receive a category on Telegram
+        only, or in-app only).</p>
+        <blockquote>
+        <p>⚠️ The <strong>High score</strong>, <strong>Ship
+        return</strong>, <strong>Area change</strong>, and
+        <strong>At-sea rendezvous</strong> categories still follow the
+        <strong>ship-type filter</strong> and the
+        <strong>“seen”</strong> flag set in the
+        <strong>Notifications</strong> tab: if you exclude e.g. tankers
+        there, those alerts won’t arrive either in-app or on Telegram.
+        New berth, characterization, AIS outage, and area monitoring
+        start/stop aren’t tied to a ship type and are never
+        filtered.</p>
+        </blockquote>
         <blockquote>
         <p>Ship notifications (High score, Return, Area change) show
         <strong>🛰️ Follow</strong> and <strong>⭐ Flag</strong> buttons

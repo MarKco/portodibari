@@ -24,6 +24,7 @@
 const db = require('../db');
 const appLog = require('./app-log');
 const userPrefs = require('./user-prefs');
+const { shouldNotifyShip } = require('./notify-categories');
 const { haversineM } = require('./ship-analysis');
 const { PROXIMITY, BBOX_PRESETS } = require('../config');
 
@@ -52,8 +53,14 @@ function notifyOwners(area, c) {
     latA: c.latA, lonA: c.lonA, latB: c.latB, lonB: c.lonB,
     lat: midLat, lon: midLon, distM: c.minDistM, durMin: c.durMin,
   };
+  // Fetched once, reused for every recipient below.
+  const shipA = db.getShip(c.mmsiA);
+  const shipB = db.getShip(c.mmsiB);
   for (const uid of db.getAreaOwners(area)) {
     const p = userPrefs.get(uid);
+    // A pair passes the ship-category/seen filter if EITHER ship does — excluding
+    // "passeggeri" shouldn't hide a cargo↔passenger rendezvous you'd want to see.
+    if (!shouldNotifyShip(uid, shipA, p) && !shouldNotifyShip(uid, shipB, p)) continue;
     if (p.notificationsEnabled && p.notifyProximity) {
       db.addNotification({
         user_id: uid, type: 'proximity', mmsi: c.mmsiA, ship_name: label,

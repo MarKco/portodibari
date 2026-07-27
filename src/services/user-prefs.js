@@ -17,6 +17,13 @@ const DEFAULTS = {
   notifyBerthNew: true,
   notifyBerthChar: true,
   notifyProximity: true,
+  // Ship-category filter for the four per-ship notification types above
+  // (high_risk/revisit/area_change/proximity). Holds the EXCLUDED category keys
+  // (see services/notify-categories.js) — empty = every category notifies.
+  notifyShipTypesHidden: [],
+  // Off → suppress those same four notification types for ships the user has
+  // marked "seen" (per-user, see user_seen table / db.isUserSeen).
+  notifyIncludeSeen: true,
   // Telegram bot notifications. INDEPENDENT of the in-app toggles above: a user
   // can receive a category on Telegram while it's off in the sidebar, and vice
   // versa. telegramEnabled is the per-user master switch; it stays OFF until the
@@ -56,13 +63,17 @@ const DEFAULTS = {
 
 const BOOL_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
-  'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers',
+  'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'notifyIncludeSeen',
+  'showOpenSeaMap', 'showOpenSeaMapMarkers',
   'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
   'hideHeatmapSingletons',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
   'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
 ]);
+
+// String-array keys, JSON-encoded in user_settings (a list of category keys).
+const ARRAY_KEYS = new Set(['openSeaMapHidden', 'notifyShipTypesHidden']);
 
 /** Typed, defaulted view of a user's personal preferences. */
 function get(userId) {
@@ -72,7 +83,7 @@ function get(userId) {
     if (!(key in raw) || raw[key] == null) continue;
     const v = raw[key];
     if (BOOL_KEYS.has(key)) out[key] = v === '1' || v === 'true';
-    else if (key === 'openSeaMapHidden') {
+    else if (ARRAY_KEYS.has(key)) {
       try { const a = JSON.parse(v); if (Array.isArray(a)) out[key] = a.filter((x) => typeof x === 'string'); } catch { /* keep default */ }
     } else out[key] = v;
   }
@@ -87,7 +98,7 @@ function set(userId, patch) {
       if (!(key in patch)) continue;
       const v = patch[key];
       if (BOOL_KEYS.has(key)) db.setUserSetting(userId, key, v ? '1' : '0');
-      else if (key === 'openSeaMapHidden') {
+      else if (ARRAY_KEYS.has(key)) {
         const arr = Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === 'string'))] : [];
         db.setUserSetting(userId, key, JSON.stringify(arr));
       } else if (key === 'lang') db.setUserSetting(userId, key, v === 'en' ? 'en' : 'it');

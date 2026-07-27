@@ -67,6 +67,11 @@ Besides the **cargo-type weights** (editable by everyone in Settings), administr
 
 > **Detection thresholds** and signal **multipliers** are not in the UI: they stay in the [`app.config.properties`](#app.config.properties-operating-parameters) file (`RISK_*` keys).
 
+The Settings **General** tab, "⚖ Risk model" section, also has two toggles **reserved for administrators** (invisible to other users):
+
+- **Exclude tankers** — doesn't assign the "ship type" score to tanker hulls (AIS code 80–89). Useful when monitoring weapons transport, which a tanker can't carry out: it only zeroes that one factor, not the whole score (a tanker can still land in the red band from other signals — sanctions, AIS dark, etc.). It's a **global** value shared by every user, and different from the notifications' ship-type filter (Settings → **Notifications**, personal to each user): that one only decides what reaches you as a notification, without touching the score.
+- **Check position jump** / **Check AIS blackout** — include those signals in the score. Disable them in areas with poor AIS coverage, where sparse reports produce false positives (apparent jumps/gaps that aren't real).
+
 ---
 
 ## System logs

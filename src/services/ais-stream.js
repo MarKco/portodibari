@@ -9,6 +9,7 @@ const telegram = require('./telegram');
 const webhooks = require('./webhooks');
 const berths = require('./berths');
 const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = require('./risk-score');
+const { shouldNotifyShip } = require('./notify-categories');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
 const { API_KEY, API_KEY_SOURCE, maskKey, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS } = require('../config');
@@ -262,7 +263,9 @@ function connect() {
             }
 
             // High-risk: notify each monitoring user whose PERSONAL prefs enable
-            // it and who hasn't muted the ship.
+            // it, who hasn't muted the ship, and whose ship-category/seen filter
+            // (Settings → Notifiche) doesn't exclude it — that filter gates BOTH
+            // the in-app row and the Telegram/webhook dispatch below, uniformly.
             if (risk.band === 'high') {
               // Top risk factor (the WHY) in both languages, so each recipient's
               // Telegram caption shows it in their own language. Cached scorer →
@@ -273,6 +276,7 @@ function connect() {
               for (const uid of seers) {
                 if (db.isUserMuted(uid, arrived)) continue;
                 const p = userPrefs.get(uid);
+                if (!shouldNotifyShip(uid, ship, p)) continue;
                 if (p.notificationsEnabled && p.notifyHighRisk) {
                   db.addNotification({ user_id: uid, type: 'high_risk', mmsi: arrived, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
                   any = true;
@@ -296,6 +300,7 @@ function connect() {
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
               if (db.isUserMuted(uid, revisit)) continue;
               const p = userPrefs.get(uid);
+              if (!shouldNotifyShip(uid, ship, p)) continue;
               if (p.notificationsEnabled && p.notifyRevisit) {
                 db.addNotification({ user_id: uid, type: 'revisit', mmsi: revisit, ship_name: ship.ship_name, area: areaKey, band: risk.band, score: risk.score });
               }
@@ -315,6 +320,7 @@ function connect() {
             for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
               if (db.isUserMuted(uid, areaChange.mmsi)) continue;
               const p = userPrefs.get(uid);
+              if (!shouldNotifyShip(uid, ship, p)) continue;
               if (p.notificationsEnabled && p.notifyAreaChange) {
                 db.addNotification({ user_id: uid, type: 'area_change', mmsi: areaChange.mmsi, ship_name: ship.ship_name, area: areaChange.toArea, from_area: areaChange.fromArea, band: risk.band, score: risk.score });
                 any = true;

@@ -504,7 +504,7 @@ Un pulsante **🧹** in alto a destra (passaci sopra col mouse per vedere a cosa
 
 ## Impostazioni
 
-Apri con **⚙ Impostazioni**. Le impostazioni sono organizzate in **schede**: **Generali**, **Aree**, **Integrazioni esterne**, **Parametri**, **Backup / Ripristino** e la scheda tecnica **📡 Diagnostica AIS**.
+Apri con **⚙ Impostazioni**. Le impostazioni sono organizzate in **schede**: **Generali**, **Notifiche**, **Aree**, **Integrazioni esterne**, **Parametri**, **Backup / Ripristino** e la scheda tecnica **📡 Diagnostica AIS**.
 
 ### Scheda Generali
 
@@ -524,9 +524,6 @@ Sotto, i toggle delle **sorgenti dati e delle funzioni**:
 | **Screening Port State Control (Paris/Tokyo MoU)** | Performance bandiera white/grey/black + navi bandite dal Paris MoU. |
 | **Lookup Equasis (proprietà)** | Abilita il pulsante on-demand nel dettaglio. Mai automatico. |
 | **Global Fishing Watch** | Identità + eventi comportamentali (proattivo). Attivo di default. |
-| **Notifiche** | Interruttore generale delle notifiche in-app. |
-| **Notifica rientro nave / cambio area / score alto / nuova banchina / caratterizzazione banchina** | Attiva le singole categorie di notifica in-app. |
-| **Escludi tanker** | Non assegna il punteggio "tipo nave" agli scafi tanker (utile monitorando il trasporto di armi). |
 | **Controlla salto di posizione** / **Controlla blackout AIS** | Includono nel rischio i relativi segnali. Disattivali in aree con copertura AIS scarsa (falsi positivi). Default attivi. |
 | **Livello nautico OpenSeaMap (tile)** | Simboli nautici come immagine unica (tutto o niente). Default attivo. |
 | **Marcatori OpenSeaMap (selezionabili)** + **Elementi da mostrare** | Marcatori ⚓ filtrabili per categoria (porti, ormeggi, ancoraggi, marine, fari, boe, pericoli…). Default attivi. |
@@ -536,6 +533,30 @@ Sotto, i toggle delle **sorgenti dati e delle funzioni**:
 | **Lingua** | Italiano / English. |
 
 > **Attenzione:** il **ripristino** del database sostituisce **tutti** i dati attuali ed è irreversibile. Scarica un backup prima di procedere. Dopo il ripristino i dati vengono riassegnati all'area corretta in base alle coordinate.
+
+### Scheda Notifiche
+
+![Impostazioni — scheda Notifiche: interruttori per categoria, filtro per tipo nave e flag "vista".](images/19b-impostazioni-notifiche.png)
+
+Qui decidi **quali eventi** generano una notifica nella barra laterale (e, se collegato, su Telegram — vedi la scheda Integrazioni esterne).
+
+| Opzione | Funzione |
+|---|---|
+| **Notifiche** | Interruttore generale: spento, non arriva nessuna notifica in-app (indipendentemente dai toggle sotto). |
+| **Notifica rientro nave** | Avvisa quando una nave **già vista in passato** nella stessa area vi rientra dopo un periodo di assenza. |
+| **Notifica cambio area** | Avvisa quando una nave che monitoravi in un'area viene rilevata in **un'altra** delle tue aree. |
+| **Notifica score alto** | Avvisa quando una nave **arriva** con punteggio di rischio in fascia rossa (71–100). La più utile per il triage rapido: non serve stare a guardare la tabella per accorgersene. |
+| **Notifica nuova banchina** | Avvisa quando l'app individua automaticamente una **nuova banchina** in un'area (un cluster di ormeggi non ancora visto). |
+| **Notifica caratterizzazione banchina** | Avvisa quando una banchina (automatica o corretta a mano) viene **classificata per la prima volta** per categoria di navi prevalente (es. "Cargo", "Passeggeri"). |
+| **Notifica rendezvous in mare** | Avvisa quando due navi distinte si fermano vicine, lente e al largo per un po' — possibile trasbordo nave-nave. |
+
+**🚢 Filtro per tipo nave** — una lista di categorie con una spunta ciascuna (Cargo, Portacontainer, Cisterna, Passeggeri, Pesca, Alta velocità, Vela e diporto, Rimorchiatori e servizio, Guardia costiera, Militare, Altro/non classificato): **tutte attive di default**. Togli la spunta a una categoria per **non essere più notificato** per quel tipo di nave. Si applica solo a rientro nave, cambio area, score alto e rendezvous (non a nuova banchina/caratterizzazione banchina, che non riguardano un tipo nave specifico); per un rendezvous tra due navi basta che **una delle due** sia di un tipo con la spunta per essere notificato. Esempio: per seguire solo il traffico mercantile, togli la spunta a Passeggeri, Pesca, Vela e diporto, Rimorchiatori e servizio, Guardia costiera — resterai notificato per Cargo, Portacontainer, Cisterna (ed eventualmente Militare, Alta velocità, Altro, se li lasci attivi).
+
+> Nota: "Portacontainer" è distinto da "Cargo" solo se l'app ha già i dati arricchiti da VesselFinder/MarineTraffic per quella nave (si ottengono aprendone il dettaglio, o con il backfill automatico se attivo). Una nave cargo appena avvistata e non ancora arricchita compare temporaneamente come "Cargo" anche se in realtà è una portacontainer.
+
+| Opzione | Funzione |
+|---|---|
+| **Notifica anche navi segnate come viste** | Acceso di default. Spegnilo per **non** ricevere rientro nave / cambio area / score alto / rendezvous per le navi che hai segnato come "viste" 👁 (dal dettaglio nave) — utile per non essere ri-avvisato di navi che hai già controllato. Se fai parte di un **gruppo utenti**, il flag "vista" è condiviso: la nave marcata vista da un collega del gruppo risulta vista per tutti, per dividervi il lavoro di controllo. |
 
 ### Scheda Aree
 
@@ -557,7 +578,9 @@ Qui colleghi i canali esterni a cui inviare le notifiche: **Telegram** (in alto)
 
 Per smettere premi **Scollega** (o `/stop`). Con **Invia prova** verifichi il collegamento.
 
-**Quali notifiche ricevere** — l'interruttore **Notifiche Telegram** accende/spegne tutto; sotto, un toggle per categoria: **Score alto**, **Rientro nave**, **Cambio area**, **Nuova banchina**, **Caratterizzazione banchina**, **Disservizio AIS**, **Avvio/stop monitoraggio area**. Il toggle **Mappa del punto** allega alle notifiche con posizione un'**immagine della mappa** più un segnaposto toccabile. I toggle Telegram sono **indipendenti** da quelli in-app.
+**Quali notifiche ricevere** — l'interruttore **Notifiche Telegram** accende/spegne tutto; sotto, un toggle per categoria: **Score alto**, **Rientro nave**, **Cambio area**, **Nuova banchina**, **Caratterizzazione banchina**, **Disservizio AIS**, **Avvio/stop monitoraggio area**. Il toggle **Mappa del punto** allega alle notifiche con posizione un'**immagine della mappa** più un segnaposto toccabile. I toggle Telegram sono **indipendenti** da quelli in-app (puoi ricevere una categoria solo su Telegram, o solo in-app).
+
+> ⚠️ Le categorie **Score alto**, **Rientro nave**, **Cambio area** e **Rendezvous in mare** seguono comunque il **filtro per tipo nave** e il flag **"vista"** impostati nella scheda **Notifiche**: se lì escludi es. i tanker, quelle notifiche non arriveranno né in app né su Telegram. Nuova banchina, caratterizzazione, disservizio AIS e avvio/stop monitoraggio non sono legate a un tipo nave e non sono filtrate.
 
 > Le notifiche di una nave (Score alto, Rientro, Cambio area) mostrano su Telegram i pulsanti **🛰️ Segui** e **⭐ Segnala** per agire direttamente dal messaggio.
 

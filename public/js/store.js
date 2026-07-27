@@ -44,6 +44,10 @@ export const S = {
   notifyHighRisk: true,
   notifyBerthNew: true,
   notifyBerthChar: true,
+  notifyProximity: true,
+  notifyShipTypesHidden: [], // ship-category keys excluded from ship notifications (default none = all notify); synced from server
+  notifyIncludeSeen: true, // off → suppress ship notifications for ships marked "seen"; synced from server
+  notifyShipCategories: null, // category key list for the filter checklist, from GET /api/settings
   excludeTankers: false,
   checkSpoofing: true,
   checkDarkActivity: true,

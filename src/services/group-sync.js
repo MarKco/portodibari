@@ -2,9 +2,9 @@
 
 // ── Group sync ───────────────────────────────────────────────────────────────
 //
-// Users bound into a `groups` row SHARE four per-user resource sets — monitoring
-// areas, followed ships, flagged ships, muted ships — and a subset of personal
-// settings. Sharing is WRITE-THROUGH: the per-user tables stay the source of
+// Users bound into a `groups` row SHARE five per-user resource sets — monitoring
+// areas, followed ships, flagged ships, muted ships, seen ships — and a subset
+// of personal settings. Sharing is WRITE-THROUGH: the per-user tables stay the source of
 // truth (so the notification / geographic-visibility layer is untouched), and
 // every mutation a member makes is mirrored onto its co-members.
 //
@@ -27,6 +27,7 @@ const userPrefs = require('./user-prefs');
 const SHARED_SETTING_KEYS = new Set([
   'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
   'notifyBerthNew', 'notifyBerthChar', 'notifyProximity',
+  'notifyShipTypesHidden', 'notifyIncludeSeen',
   'telegramNotifyHighRisk', 'telegramNotifyRevisit', 'telegramNotifyAreaChange',
   'telegramNotifyBerthNew', 'telegramNotifyBerthChar', 'telegramNotifyProximity',
   'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
@@ -69,6 +70,10 @@ function syncMute(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserMute(uid, mmsi, !!on);
 }
 
+function syncSeen(actorId, mmsi, on) {
+  for (const uid of coMembers(actorId)) db.setUserSeen(uid, mmsi, !!on);
+}
+
 /** Mirror a settings patch onto co-members — only the SHARED keys, by value.
  *  `patch` is the raw request patch; non-shared keys are silently ignored. */
 function syncSettings(actorId, patch) {
@@ -81,21 +86,23 @@ function syncSettings(actorId, patch) {
 
 // ── Union + baseline (used by the admin lifecycle below) ──────────────────────
 
-// Compute the UNION of all four resource sets across `memberIds` and write it
+// Compute the UNION of all five resource sets across `memberIds` and write it
 // back to every member (additive). Returns whether any follow was touched.
 function applyUnion(memberIds) {
-  const areas = new Set(); const follows = new Set(); const flags = new Set(); const mutes = new Set();
+  const areas = new Set(); const follows = new Set(); const flags = new Set(); const mutes = new Set(); const seens = new Set();
   for (const uid of memberIds) {
     for (const k of db.getUserAreaKeys(uid)) areas.add(k);
     for (const m of db.getUserFollowedMmsis(uid)) follows.add(m);
     for (const m of db.getUserFlaggedMmsis(uid)) flags.add(m);
     for (const m of db.getUserMutedMmsis(uid)) mutes.add(m);
+    for (const m of db.getUserSeenMmsis(uid)) seens.add(m);
   }
   for (const uid of memberIds) {
     for (const k of areas) db.addUserArea(uid, k);
     for (const m of follows) db.setUserFollow(uid, m, true);
     for (const m of flags) db.setUserFlag(uid, m, true);
     for (const m of mutes) db.setUserMute(uid, m, true);
+    for (const m of seens) db.setUserSeen(uid, m, true);
   }
   return follows.size > 0;
 }
@@ -158,6 +165,7 @@ module.exports = {
   syncFollow,
   syncFlag,
   syncMute,
+  syncSeen,
   syncSettings,
   formGroup,
   joinGroup,

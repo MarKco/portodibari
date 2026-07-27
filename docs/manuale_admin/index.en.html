@@ -317,6 +317,26 @@
         href="#app.config.properties-operating-parameters"><code>app.config.properties</code></a>
         file (<code>RISK_*</code> keys).</p>
         </blockquote>
+        <p>The Settings <strong>General</strong> tab, “⚖ Risk model”
+        section, also has two toggles <strong>reserved for
+        administrators</strong> (invisible to other users):</p>
+        <ul>
+        <li><strong>Exclude tankers</strong> — doesn’t assign the “ship
+        type” score to tanker hulls (AIS code 80–89). Useful when
+        monitoring weapons transport, which a tanker can’t carry out: it
+        only zeroes that one factor, not the whole score (a tanker can
+        still land in the red band from other signals — sanctions, AIS
+        dark, etc.). It’s a <strong>global</strong> value shared by
+        every user, and different from the notifications’ ship-type
+        filter (Settings → <strong>Notifications</strong>, personal to
+        each user): that one only decides what reaches you as a
+        notification, without touching the score.</li>
+        <li><strong>Check position jump</strong> / <strong>Check AIS
+        blackout</strong> — include those signals in the score. Disable
+        them in areas with poor AIS coverage, where sparse reports
+        produce false positives (apparent jumps/gaps that aren’t
+        real).</li>
+        </ul>
         <hr />
         <h2 id="system-logs">System logs</h2>
         <p>Logs are <strong>shared</strong> and visible <strong>only to

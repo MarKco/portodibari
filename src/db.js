@@ -312,8 +312,9 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_users_group ON users(group_id)');
 //   Each area is a single bbox; streams + areaForPoint() run over this catalog,
 //   deduped by geometry. created_by records the author (admin for seeded ones).
 // `user_areas`: which users monitor which catalog areas ("le proprie aree").
-// `user_flags` / `user_follows` / `user_mutes`: per-user replacements for the
-//   old global ships.flagged / ships.followed / ships.notif_muted columns.
+// `user_flags` / `user_follows` / `user_mutes` / `user_seen`: per-user replacements
+//   for the old global ships.flagged / ships.followed / ships.notif_muted / ships.seen
+//   columns.
 // `user_settings`: per-user personal preferences (notif toggles, map display,
 //   language, default area) as key/value rows.
 // Core AIS data (readings/ships/...) stays GLOBAL and shared; per-user views are
@@ -365,6 +366,14 @@ db.exec(`
     mmsi INTEGER NOT NULL,
     PRIMARY KEY (user_id, mmsi)
   );
+
+  CREATE TABLE IF NOT EXISTS user_seen (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, mmsi)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_seen_user ON user_seen(user_id);
 
   CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER NOT NULL,
@@ -765,7 +774,7 @@ const deleteUserSessionsStmt = db.prepare('DELETE FROM sessions WHERE user_id = 
 // Cascade a user's per-user data on delete (no FKs in this schema). Areas left
 // memberless are re-homed to the admin by migrateMultiUser on the next boot.
 function deleteUser(id) {
-  for (const t of ['sessions', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'notifications']) {
+  for (const t of ['sessions', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'notifications']) {
     db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(id);
   }
   deleteUserStmt.run(id);
@@ -1070,6 +1079,15 @@ function migrateMultiUser(adminId) {
     db.prepare('UPDATE ships SET notif_muted = 0 WHERE notif_muted = 1').run();
   }
 
+  // 4b) seen ships → admin user_seen (retire ships.seen, was global, now per-user).
+  if (count('SELECT COUNT(*) AS n FROM user_seen') === 0 &&
+      count('SELECT COUNT(*) AS n FROM ships WHERE seen = 1') > 0) {
+    db.prepare(
+      'INSERT OR IGNORE INTO user_seen (user_id, mmsi, created_at) SELECT ?, mmsi, ? FROM ships WHERE seen = 1'
+    ).run(adminId, new Date().toISOString());
+    db.prepare('UPDATE ships SET seen = 0 WHERE seen = 1').run();
+  }
+
   // 5) memberless catalog areas → admin (covers a fresh seed from JSON and any
   //    area whose owners all vanished).
   const orphans = getOrphanAreaKeys();
@@ -1149,6 +1167,20 @@ const removeUserFlagStmt = db.prepare('DELETE FROM user_flags WHERE user_id = ? 
 function setUserFlag(userId, mmsi, on) {
   if (on) addUserFlagStmt.run(userId, mmsi, new Date().toISOString());
   else removeUserFlagStmt.run(userId, mmsi);
+}
+
+const getUserSeenSetStmt = db.prepare('SELECT mmsi FROM user_seen WHERE user_id = ?');
+function getUserSeenMmsis(userId) {
+  return new Set(getUserSeenSetStmt.all(userId).map((r) => r.mmsi));
+}
+function isUserSeen(userId, mmsi) {
+  return !!db.prepare('SELECT 1 FROM user_seen WHERE user_id = ? AND mmsi = ?').get(userId, mmsi);
+}
+const addUserSeenStmt = db.prepare('INSERT INTO user_seen (user_id, mmsi, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING');
+const removeUserSeenStmt = db.prepare('DELETE FROM user_seen WHERE user_id = ? AND mmsi = ?');
+function setUserSeen(userId, mmsi, on) {
+  if (on) addUserSeenStmt.run(userId, mmsi, new Date().toISOString());
+  else removeUserSeenStmt.run(userId, mmsi);
 }
 
 // ── Per-user track cuts (ship detail replay segments) ───────────────────────
@@ -2493,10 +2525,6 @@ function setFlag(mmsi, flagged) {
   db.prepare('UPDATE ships SET flagged = ? WHERE mmsi = ?').run(flagged ? 1 : 0, mmsi);
 }
 
-function setSeen(mmsi, seen) {
-  db.prepare('UPDATE ships SET seen = ? WHERE mmsi = ?').run(seen ? 1 : 0, mmsi);
-}
-
 // Toggle "follow" for a ship. Turning it on stamps follow_started_at (and clears
 // any prior end), turning it off stamps follow_ended_at so it moves to the
 // "passate" history. follow_started_at, once set, is never cleared — it marks
@@ -2823,7 +2851,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_settings', 'user_track_cuts'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'user_track_cuts'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3059,7 +3087,6 @@ module.exports = {
   getScrapedPositions,
   getLatestScrapedPosition,
   setFlag,
-  setSeen,
   updateNotes,
   setMtShipId,
   setMilitary,
@@ -3163,6 +3190,9 @@ module.exports = {
   getVisibleAreaKeys,
   getUserFlaggedMmsis,
   setUserFlag,
+  getUserSeenMmsis,
+  isUserSeen,
+  setUserSeen,
   getTrackCuts,
   addTrackCut,
   deleteTrackCut,

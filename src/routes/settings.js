@@ -15,6 +15,7 @@ const userPrefs = require('../services/user-prefs');
 const groupSync = require('../services/group-sync');
 const { requireAdmin } = require('../middleware/session-auth');
 const { CARGO_CLASSES } = require('../services/cargo-type');
+const { CATEGORIES: NOTIFY_CATEGORIES } = require('../services/notify-categories');
 const cargoPresets = require('../services/cargo-presets');
 const riskPresets = require('../services/risk-presets');
 
@@ -83,6 +84,9 @@ router.get('/settings', (req, res) => {
     notifyBerthNew: prefs.notifyBerthNew,
     notifyBerthChar: prefs.notifyBerthChar,
     notifyProximity: prefs.notifyProximity,
+    notifyShipTypesHidden: prefs.notifyShipTypesHidden,
+    notifyIncludeSeen: prefs.notifyIncludeSeen,
+    notifyShipCategories: NOTIFY_CATEGORIES,
     showOpenSeaMap: prefs.showOpenSeaMap,
     showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
     openSeaMapHidden: prefs.openSeaMapHidden,
@@ -384,7 +388,8 @@ router.post('/settings', (req, res) => {
   // ── Personal settings (any user) ──
   const personalKeys = [
     'notificationsEnabled', 'notifyRevisit', 'notifyAreaChange', 'notifyHighRisk',
-    'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
+    'notifyBerthNew', 'notifyBerthChar', 'notifyProximity', 'notifyShipTypesHidden', 'notifyIncludeSeen',
+    'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
     'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
     'hideHeatmapSingletons',
   ];
@@ -538,6 +543,8 @@ router.post('/settings', (req, res) => {
     notifyBerthNew: prefs.notifyBerthNew,
     notifyBerthChar: prefs.notifyBerthChar,
     notifyProximity: prefs.notifyProximity,
+    notifyShipTypesHidden: prefs.notifyShipTypesHidden,
+    notifyIncludeSeen: prefs.notifyIncludeSeen,
     showOpenSeaMap: prefs.showOpenSeaMap,
     showOpenSeaMapMarkers: prefs.showOpenSeaMapMarkers,
     openSeaMapHidden: prefs.openSeaMapHidden,

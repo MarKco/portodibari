@@ -67,6 +67,11 @@ Oltre ai **pesi per tipo di carico** (modificabili da tutti in Impostazioni), gl
 
 > Le **soglie di rilevamento** e i **moltiplicatori** dei segnali non stanno nella UI: restano nel file [`app.config.properties`](#app.config.properties-parametri-di-funzionamento) (chiavi `RISK_*`).
 
+Nella scheda **Generali** delle Impostazioni, sezione "⚖ Modello di rischio", ci sono anche due toggle **riservati agli amministratori** (invisibili agli altri utenti):
+
+- **Escludi tanker** — non assegna il punteggio "tipo nave" agli scafi cisterna (codice AIS 80–89). Utile se monitori il trasporto di armi, che una nave cisterna non può effettuare: azzera solo quel fattore, non l'intero punteggio (una cisterna può restare in fascia rossa per altri segnali — sanzioni, AIS spento, ecc.). È un valore **globale**, condiviso da tutti gli utenti, e diverso dal filtro per tipo nave delle notifiche (Impostazioni → **Notifiche**, personale per ciascun utente): quello decide solo cosa arriva come notifica, senza toccare il punteggio.
+- **Controlla salto di posizione** / **Controlla blackout AIS** — includono nel punteggio i relativi segnali. Disattivali nelle aree con copertura AIS scarsa, dove i report radi producono falsi positivi (salti/buchi apparenti non reali).
+
 ---
 
 ## Log di sistema
