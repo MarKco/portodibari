@@ -1655,7 +1655,7 @@ function insert(parsed, areaKey = '') {
       const lastEvent = priorSameArea > 0 ? lastEventWasDepartedStmt.get(row.mmsi, areaKey) : null;
       insertPortEventStmt.run(
         row.mmsi,
-        row.ship_name || existing?.ship_name,
+        row.ship_name || existing?.ship_name || null,
         'arrived',
         row.received_at,
         row.ship_type ?? existing?.ship_type ?? null,
