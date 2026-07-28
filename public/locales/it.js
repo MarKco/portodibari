@@ -839,6 +839,7 @@ export default {
   'chart.daily':  '{date} — {n} arrivi',
 
   // ── Ricerca nave ("Cerca e segui una nave") ─────────────────────────────────
+  'search.hint':         'Cerca una nave ovunque nel mondo per iniziare a seguirla.',
   'search.placeholder':  'Cerca una nave per nome o MMSI da seguire…',
   'search.btn':          '🔍 Cerca',
   'search.title':        'Cerca e segui una nave',
@@ -965,7 +966,7 @@ export default {
   'theme.toggle': 'Cambia tema chiaro/scuro',
 
   // ── List filters / export ──────────────────────────────────────────────────
-  'filter.searchHolder': 'Cerca nome, MMSI, IMO, destinazione…',
+  'filter.searchHolder': 'Filtra le navi della lista qui sotto per nome, MMSI, IMO, destinazione…',
   'filter.allBands':     'Tutte le fasce',
   'filter.bandLow':      '🟢 Verde (0–30)',
   'filter.bandMed':      '🟡 Giallo (31–70)',

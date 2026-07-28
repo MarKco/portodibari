@@ -2887,6 +2887,11 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .telegram-code-box code { user-select: all; }
 
 /* ── Ship search ("Cerca e segui una nave") ────────────────────────────────── */
+.search-hint {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 .ship-search-bar {
   display: flex;
   gap: 0.5rem;
@@ -2939,6 +2944,7 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   text-align: left; cursor: pointer;
   background: var(--surface-4); border: 1px solid var(--border-strong);
   border-radius: var(--r-md); padding: 0.6rem 0.75rem;
+  color: var(--text); font: inherit;
   transition: border-color var(--t-fast), background var(--t-fast);
 }
 .search-cand:hover { border-color: var(--accent); background: var(--surface-4); filter: brightness(1.12); }
@@ -2963,19 +2969,19 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 999px;
   border: 1px solid var(--border); color: var(--text-dim); background: var(--surface-3);
 }
-.src-badge.ok { color: #16a34a; border-color: #16a34a; }
+.src-badge.ok { color: var(--green); border-color: var(--green); }
 .src-badge.miss { color: var(--text-muted); }
-.src-badge.err { color: #dc2626; border-color: #dc2626; }
+.src-badge.err { color: var(--red); border-color: var(--red); }
 .screen-badge {
   font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: var(--r-sm);
   border: 1px solid var(--border); background: var(--surface-3); text-decoration: none;
 }
 .screen-badge.danger { color: #fff; background: #dc2626; border-color: #dc2626; }
-.screen-badge.warn { color: #92400e; background: #fde68a; border-color: #f59e0b; }
-.screen-badge.ok { color: #16a34a; border-color: #16a34a; }
+.screen-badge.warn { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-bd); }
+.screen-badge.ok { color: var(--green); border-color: var(--green); }
 .screen-badge.band-high { color: #fff; background: #dc2626; border-color: #dc2626; }
-.screen-badge.band-med { color: #92400e; background: #fde68a; border-color: #f59e0b; }
-.screen-badge.band-low { color: #16a34a; border-color: #16a34a; }
+.screen-badge.band-med { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-bd); }
+.screen-badge.band-low { color: var(--green); border-color: var(--green); }
 
 .search-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.3rem 0.75rem; margin-bottom: 0.75rem; }
 .search-field { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.15rem; }
@@ -2984,8 +2990,8 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 
 .search-pos { margin-bottom: 0.85rem; }
 .search-pos-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; color: var(--text-dim); margin-bottom: 0.5rem; }
-.search-pos-status.ok { color: #16a34a; }
-.search-pos-status.warn { color: #b45309; }
+.search-pos-status.ok { color: var(--green); }
+.search-pos-status.warn { color: var(--amber); }
 .search-map { height: 240px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); }
 
 .search-spinner {

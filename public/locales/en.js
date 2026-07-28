@@ -839,6 +839,7 @@ export default {
   'chart.daily':  '{date} — {n} arrivals',
 
   // ── Ship search ("Search and follow a ship") ────────────────────────────────
+  'search.hint':         'Search for any ship worldwide to start following it.',
   'search.placeholder':  'Search a ship by name or MMSI to follow…',
   'search.btn':          '🔍 Search',
   'search.title':        'Search and follow a ship',
@@ -965,7 +966,7 @@ export default {
   'theme.toggle': 'Toggle light/dark theme',
 
   // ── List filters / export ──────────────────────────────────────────────────
-  'filter.searchHolder': 'Search name, MMSI, IMO, destination…',
+  'filter.searchHolder': 'Filter the ships in the list below by name, MMSI, IMO, destination…',
   'filter.allBands':     'All bands',
   'filter.bandLow':      '🟢 Green (0–30)',
   'filter.bandMed':      '🟡 Yellow (31–70)',
