@@ -146,6 +146,7 @@
         <li><a href="#activity-log">Activity log</a></li>
         <li><a href="#api-log">API log</a></li>
         </ul></li>
+        <li><a href="#ais-diagnostics">AIS diagnostics</a></li>
         <li><a href="#editing-configuration-files">Editing configuration
         files</a>
         <ul>
@@ -366,6 +367,35 @@
         status, time), useful for diagnostics. Sensitive request bodies
         (login, etc.) are <strong>suppressed</strong>: passwords are
         never logged.</p>
+        <hr />
+        <h2 id="ais-diagnostics">AIS diagnostics</h2>
+        <figure>
+        <img src="images/26-impostazioni-diagnostica.png"
+        alt="Settings — AIS Diagnostics tab: connection status, uptime, frames received, and reconnections." />
+        <figcaption aria-hidden="true">Settings — AIS Diagnostics tab:
+        connection status, uptime, frames received, and
+        reconnections.</figcaption>
+        </figure>
+        <p>The <strong>⚙ Settings → AIS Diagnostics</strong> tab
+        (visible only to administrators) shows the active area’s data
+        stream connection status, refreshed every 5s:</p>
+        <ul>
+        <li><strong>Connection</strong> — Connected / Disconnected</li>
+        <li><strong>Session uptime</strong> — how long the stream has
+        been active</li>
+        <li><strong>WS frames received</strong> / <strong>Ship
+        messages</strong> / <strong>Message rate</strong></li>
+        <li><strong>Reconnections</strong> — how many times the
+        connection was restored</li>
+        <li><strong>Last error</strong> — the most recent error, if
+        any</li>
+        </ul>
+        <p>The <strong>AIS outage banner</strong> shown to all users on
+        monitoring pages when an area goes quiet for a long time is
+        described from the user’s perspective in the <a
+        href="../manuale/index.en.html#ais-outage-banner">user
+        manual</a>; the external-confirmation mechanism behind it is in
+        the <a href="#credits">Credits</a> section below.</p>
         <hr />
         <h2 id="editing-configuration-files">Editing configuration
         files</h2>
@@ -680,6 +710,16 @@
         <hr />
         <h2 id="backup-restore-and-deploy">Backup, restore, and
         deploy</h2>
+        <figure>
+        <img src="images/23-impostazioni-backup.png"
+        alt="Settings — Backup tab: download and export data, restore a backup." />
+        <figcaption aria-hidden="true">Settings — Backup tab: download
+        and export data, restore a backup.</figcaption>
+        </figure>
+        <p>From <strong>⚙ Settings → Backup</strong> (visible only to
+        administrators) you <strong>download a backup</strong> of the
+        database, <strong>restore</strong> a saved backup, and
+        <strong>export</strong> data.</p>
         <ul>
         <li><strong>Restoring</strong> a database replaces
         <strong>all</strong> current data (irreversible): download a

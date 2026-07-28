@@ -92,6 +92,22 @@ Lists the application's API calls in real time (method, path, status, time), use
 
 ---
 
+## AIS diagnostics
+
+![Settings — AIS Diagnostics tab: connection status, uptime, frames received, and reconnections.](images/26-impostazioni-diagnostica.png)
+
+The **⚙ Settings → AIS Diagnostics** tab (visible only to administrators) shows the active area's data stream connection status, refreshed every 5s:
+
+- **Connection** — Connected / Disconnected
+- **Session uptime** — how long the stream has been active
+- **WS frames received** / **Ship messages** / **Message rate**
+- **Reconnections** — how many times the connection was restored
+- **Last error** — the most recent error, if any
+
+The **AIS outage banner** shown to all users on monitoring pages when an area goes quiet for a long time is described from the user's perspective in the [user manual](../manuale/index.en.html#ais-outage-banner); the external-confirmation mechanism behind it is in the [Credits](#credits) section below.
+
+---
+
 ## Editing configuration files
 
 Some advanced settings aren't in the interface but in text files in the project folder. Open them with a text editor, change the values, and **restart the application** to apply them. Lines starting with `#` (or `//`) are comments and are ignored.
@@ -171,6 +187,10 @@ Each area:
 ---
 
 ## Backup, restore, and deploy
+
+![Settings — Backup tab: download and export data, restore a backup.](images/23-impostazioni-backup.png)
+
+From **⚙ Settings → Backup** (visible only to administrators) you **download a backup** of the database, **restore** a saved backup, and **export** data.
 
 - **Restoring** a database replaces **all** current data (irreversible): download a backup first. After restoring, data is reassigned to the correct area based on coordinates. Restoring **does not** re-trigger VesselFinder/MarineTraffic scraping (the data is already in the restored DB).
 - **Coverage map** data lives in a **separate database**, exportable/importable on its own and still included in the full backup.

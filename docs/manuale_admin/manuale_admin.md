@@ -92,6 +92,22 @@ Elenca in tempo reale le chiamate alle API dell'applicazione (metodo, percorso, 
 
 ---
 
+## Diagnostica AIS
+
+![Impostazioni — scheda Diagnostica AIS: stato della connessione, uptime, frame ricevuti e riconnessioni.](images/26-impostazioni-diagnostica.png)
+
+La scheda **⚙ Impostazioni → Diagnostica AIS** (visibile solo agli amministratori) mostra lo stato della connessione al flusso dati dell'area attiva, aggiornato ogni 5 s:
+
+- **Connessione** — Connesso / Disconnesso
+- **Uptime sessione** — da quanto il flusso è attivo
+- **Frame WS ricevuti** / **Messaggi nave** / **Velocità messaggi**
+- **Riconnessioni** — quante volte la connessione è stata ripristinata
+- **Ultimo errore** — l'eventuale ultimo errore
+
+Il **banner di disservizio AIS** che compare a tutti gli utenti nelle pagine di monitoraggio quando un'area resta a lungo senza segnale è descritto dal punto di vista dell'utente nel [manuale utente](../manuale/index.html#banner-di-disservizio-ais); il meccanismo di conferma esterna che lo alimenta è nella sezione [Crediti](#crediti) qui sotto.
+
+---
+
 ## Modifica dei file di configurazione
 
 Alcune impostazioni avanzate non sono nell'interfaccia ma in file di testo nella cartella del progetto. Aprili con un editor di testo, modifica i valori e **riavvia l'applicazione** per applicarli. Le righe che iniziano con `#` (o `//`) sono commenti e vengono ignorate.
@@ -171,6 +187,10 @@ Ogni area:
 ---
 
 ## Backup, ripristino e deploy
+
+![Impostazioni — scheda Backup: scarica ed esporta i dati, ripristina un backup.](images/23-impostazioni-backup.png)
+
+Da **⚙ Impostazioni → Backup** (visibile solo agli amministratori) **scarichi un backup** del database, **ripristini** un backup salvato ed **esporti** i dati.
 
 - Il **ripristino** di un database sostituisce **tutti** i dati attuali (irreversibile): scarica un backup prima. Dopo il ripristino i dati vengono riassegnati all'area corretta in base alle coordinate. Il ripristino **non** rilancia lo scraping VesselFinder/MarineTraffic (i dati sono già nel DB ripristinato).
 - I dati della **Mappa delle zone coperte** stanno in un **database separato**, esportabile/importabile a parte e comunque incluso nel backup completo.

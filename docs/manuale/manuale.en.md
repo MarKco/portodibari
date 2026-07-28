@@ -39,7 +39,7 @@ No technical knowledge is required to use it.
 
 The application is protected by **login**: you must authenticate to use it. Each user has their own data (areas, followed ships, notifications, settings), separate from other users'.
 
-![Login screen: Email or username and Password fields, with Register and Forgot password links.](images/01-login.png)
+![Login screen: Email or username and Password fields, with Register and Forgot password links.](images/01-login.en.png)
 
 ### Registering
 
@@ -89,7 +89,7 @@ An **area** is the geographic box you want to watch (a port, a stretch of sea). 
 3. Define the boundaries the easy way: pan and zoom the map until it frames the zone, then press **🎯 Capture current view** (or enter the SW and NE coordinates by hand).
 4. Press **＋ Add area**: the area is saved and immediately starts receiving data.
 
-![Areas screen: Add area panel, map with area rectangles, and table with coordinates and status.](images/17-aree.png)
+![Areas screen: Add area panel, map with area rectangles, and table with coordinates and status.](images/17-aree.en.png)
 
 → Full details in [Managing areas](#managing-areas).
 
@@ -100,7 +100,7 @@ An **area** is the geographic box you want to watch (a port, a stretch of sea). 
 3. Press **▶ Start monitoring**: the **● ACTIVE** badge appears at the top.
 4. Within a short time, ships appear on the **map** (colored by risk) and in the **table** below. Click a row to open the ship's **detail**.
 
-![Current ships tab: map with ship markers and detailed table below.](images/06-monitoraggio_navi_presenti.png)
+![Current ships tab: map with ship markers and detailed table below.](images/06-monitoraggio_navi_presenti.en.png)
 
 → Details in [The three main tabs](#the-three-main-tabs) and [Ship detail](#ship-detail).
 
@@ -113,7 +113,7 @@ An **area** is the geographic box you want to watch (a port, a stretch of sea). 
 3. Wait for the results window to fetch identity and **live position** (up to ~90s).
 4. When **🗺 Follow ship** becomes enabled, press it: the ship is added to your followed list.
 
-![Ship search results window: identity, data from external sources, and incoming live position.](images/04-risultati_ricerca_nave.png)
+![Ship search results window: identity, data from external sources, and incoming live position.](images/04-risultati_ricerca_nave.en.png)
 
 → Details in [Followed ships](#followed-ships).
 
@@ -133,7 +133,7 @@ An **area** is the geographic box you want to watch (a port, a stretch of sea). 
 
 ## Main interface
 
-![Home page: sidebar on the left, map with ships in the center, ships table at the bottom, and notification list.](images/02-home_page.png)
+![Home page: sidebar on the left, map with ships in the center, ships table at the bottom, and notification list.](images/02-home_page.en.png)
 
 ### Sidebar (left)
 
@@ -168,7 +168,7 @@ The home shows three tabs: **Current ships**, **Past ships**, and **Traffic**.
 
 Ships detected in the area over the last few hours, with a real-time map and table.
 
-![Current ships tab: map with markers colored by risk and detailed table below.](images/06-monitoraggio_navi_presenti.png)
+![Current ships tab: map with markers colored by risk and detailed table below.](images/06-monitoraggio_navi_presenti.en.png)
 
 **Map:** ships are markers colored by risk band. You can drag the map's bottom edge to resize it. Two buttons in the top-right corner (hover over them to see what they do): **🏷** shows the name next to each ship — with few ships on screen it stays **always visible**, with many it only shows **on hover**; **〰** (off by default) shows each ship's **recent track**, with the same logic: permanent if few ships, on hover over the single ship if many. Your choices are remembered for future visits.
 
@@ -210,7 +210,7 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 
 #### Berths (automatic mooring characterization)
 
-![Berths tab: colored polygons on the map representing moorings characterized by ship category.](images/09-monitoraggio_banchine.png)
+![Berths tab: colored polygons on the map representing moorings characterized by ship category.](images/09-monitoraggio_banchine.en.png)
 
 Turning on the **Berths** overlay shows where ships dock and what type they are, learned automatically.
 
@@ -234,7 +234,7 @@ Turning on the **Berths** overlay shows where ships dock and what type they are,
 
 #### Historical replay (reviewing past traffic)
 
-![Replay mode: control bar with play/pause, time scrubber, and speed selector, ships moving with trails.](images/10-monitoraggio_replay.png)
+![Replay mode: control bar with play/pause, time scrubber, and speed selector, ships moving with trails.](images/10-monitoraggio_replay.en.png)
 
 The **▶ Replay** button replays how traffic in the area moved during a past interval. In replay mode, live markers are hidden and a control bar appears:
 
@@ -248,7 +248,7 @@ Each ship moves interpolated between its real positions, leaves a **fading trail
 
 ### 2. Past ships
 
-![Past ships tab: table of ships that have visited the area, with first contact and stay duration.](images/07-monitoraggio_navi_passate.png)
+![Past ships tab: table of ships that have visited the area, with first contact and stay duration.](images/07-monitoraggio_navi_passate.en.png)
 
 Ships that previously visited the area. Table similar to "Current ships", plus:
 
@@ -259,7 +259,7 @@ Column sorting works as in current ships.
 
 ### 3. Traffic
 
-![Traffic tab: stat tiles at the top, and charts for arrivals by hour, ship type, risk distribution, and daily trend.](images/08-monitoraggio_traffico.png)
+![Traffic tab: stat tiles at the top, and charts for arrivals by hour, ship type, risk distribution, and daily trend.](images/08-monitoraggio_traffico.en.png)
 
 Statistics panel with aggregate indicators and charts.
 
@@ -286,11 +286,9 @@ Statistics panel with aggregate indicators and charts.
 
 The **🗺 Followed ships** section collects ships you follow **wherever they go**, even outside monitored areas, via a dedicated AIS stream. A followed ship that drops off AIS coverage **is not lost**: it stays hooked to a worldwide re-acquisition net and is tracked again as soon as it re-transmits.
 
-![Followed ships section, Followed sub-tab: list of currently tracked ships with status badges.](images/03-navi_seguite.png)
+![Followed ships section, Followed sub-tab: list of currently tracked ships with status badges.](images/03-navi_seguite.en.png)
 
 Two sub-tabs: **Followed** (currently tracked) and **Previously followed** (history; a ship ends up here only after a very long silence — default ~6 months — or when you stop following it).
-
-![Previously followed sub-tab: history of ships no longer tracked.](images/05-seguite_in_passato.png)
 
 On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷** and **〰**, hover over them to see what they do) show/hide the **name next to each marker** and a small **recent-track breadcrumb**, useful to see where a ship is coming from. Your choice is remembered for future visits.
 
@@ -298,7 +296,7 @@ On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷**
 
 At the top of the section there's a **search bar**: type **name** or **MMSI** and press **🔍 Search**.
 
-![Ship search results window: identity, data from external sources, and incoming live position.](images/04-risultati_ricerca_nave.png)
+![Ship search results window: identity, data from external sources, and incoming live position.](images/04-risultati_ricerca_nave.en.png)
 
 1. A results window opens that stays open while we gather data. If the name matches several ships, pick the right one.
 2. The card fills in **progressively**: identity and data from VesselFinder / MarineTraffic / Global Fishing Watch (with an icon showing where it was found), any **sanctions** or **PSC** alerts, and the **live position** on a mini-map.
@@ -320,7 +318,7 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 Clicking any table row (or a ship's notification) opens the full detail card, organized into **tabs**: **General**, **Readings**, plus one tab per enabled external source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). A source disabled in Settings has no tab.
 
-![Ship detail — header, tabs and information grid (General tab).](images/27-monitoraggio_dettagli_nave_generale.png)
+![Ship detail — header, tabs and information grid (General tab).](images/27-monitoraggio_dettagli_nave_generale.en.png)
 
 ### Header and actions
 
@@ -360,8 +358,6 @@ All available data for the ship:
 
 ### Risk factors
 
-![Ship detail — list of risk factors with the points assigned by each.](images/12-monitoraggio_dettagli_nave_2.png)
-
 List of the factors that contributed to the score, with each one's points. If there are no anomalies, "No anomalies detected" is shown.
 
 ### Aggregated ship data (all providers)
@@ -381,8 +377,6 @@ If enabled in settings, the respective tab shows additional information fetched 
 
 ### ShipFinder and MyShipTracking tabs (re-locating followed ships)
 
-![Ship detail — additional external source tabs (ShipFinder / MyShipTracking) with last known position.](images/13-monitoraggio_dettagli_nave_3.png)
-
 If you enable **Import ShipFinder** and/or **Import MyShipTracking**, the corresponding tabs appear. Besides static data, these sources provide the **last-sighting position**, used to **re-locate followed ships AIS can no longer see**:
 
 - **Automatic** — for every followed ship that hasn't transmitted in a while, the app periodically queries these sources in the background. If it finds a position, it appears on the mini-map (General tab) as a distinct marker (**orange** = ShipFinder, **teal/cyan** = MyShipTracking), without altering the AIS track, score, or replay.
@@ -392,8 +386,6 @@ If you enable **Import ShipFinder** and/or **Import MyShipTracking**, the corres
 > The tabs appear **only if the integration is enabled** (Settings → Import…). Off by default. On the Followed ships map, a ship AIS can no longer see is shown at its most recent SF/MST position (grey marker) and returns to live AIS as soon as it re-transmits.
 
 ### Equasis tab (ownership / management)
-
-![Ship detail — Equasis tab (Ownership / management), with the fetch button and owner/manager/operator data.](images/14-monitoraggio_dettagli_nave_4.png)
 
 If the Equasis lookup is enabled, the **Equasis** tab appears with a **Fetch Equasis information** button. **Never runs automatically**: the lookup only happens on click and queries Equasis by **IMO number**. It returns ship data, **ownership and management** (owner, ISM manager, operator), classification, P&I coverage, performance/risk indicators, and recent positions. The result is stored once and shown with no expiry.
 
@@ -412,8 +404,6 @@ Enrichment is **proactive** (no button). GFW mainly tracks fishing, support, and
 
 ### Sanctions
 
-![Ship detail — Sanctions panel with red border: list, program, and match field.](images/15-monitoraggio_dettagli_nave_5.png)
-
 When a ship matches a sanctions list, the **Sanctions** panel appears at the top of the detail — with a red border:
 
 - **List** — the matching regime: OFAC SDN (USA), EU consolidated list, UK OFSI, or UN.
@@ -428,8 +418,6 @@ A notice reminds you to always verify against the official source (a **name-only
 If the ship has had a confirmed **rendezvous** with another one (stayed close, slow, and offshore long enough — a ship-to-ship transshipment signature), the **Rendezvous at sea** section appears with the list of encounters (other ship, date/time, minimum distance, area). Every row is clickable and opens the ship involved. A confirmed rendezvous triggers a **notification** and **adds risk points to both** ships.
 
 ### Readings tab
-
-![Ship detail — Readings tab: track/replay map pinned at the top, paginated AIS readings table below.](images/28-monitoraggio_dettagli_nave_letture.png)
 
 The **Readings** tab gathers everything about the ship's raw position: the track/replay map at the top, and below it, the table of every reading received in chronological order.
 
@@ -464,7 +452,7 @@ The ⓘ icon next to the title explains the concept: a "monitored area" is the g
 
 Open with **🗺 Areas**. Here you add and remove monitored areas **without restarting the app**.
 
-![Areas screen: Add area panel, map with area rectangles, and table with coordinates and status.](images/17-aree.png)
+![Areas screen: Add area panel, map with area rectangles, and table with coordinates and status.](images/17-aree.en.png)
 
 The screen contains:
 
@@ -492,7 +480,7 @@ Press 🗑 on the area's row. **Removing the area also deletes all related histo
 
 ## Coverage map
 
-![World coverage map: grid colored from blue (few AIS messages) to red (many).](images/18_mappa_zone_coperte.png)
+![World coverage map: grid colored from blue (few AIS messages) to red (many).](images/18_mappa_zone_coperte.en.png)
 
 Opens from **🌐 Coverage map**. Shows a **world map** where each cell is colored according to **how many AIS messages are received** in that zone: from **blue** (few) to **red** (many). Useful for seeing at a glance where AIS coverage is good and where there are "holes".
 
@@ -508,7 +496,7 @@ Open with **⚙ Settings**. Settings are organized into **tabs**: **General**, *
 
 ### General tab
 
-![Settings — General tab: data source toggles, sanctions/PSC screening, notifications, and map overlay.](images/19-impostazioni-generali.png)
+![Settings — General tab: data source toggles, sanctions/PSC screening, notifications, and map overlay.](images/19-impostazioni-generali.en.png)
 
 At the top, the **Area monitoring** panel shows all areas with a toggle to start/stop each one's stream (🟢 active / ⚪ off): this way you monitor several areas together.
 
@@ -536,7 +524,7 @@ Below, the toggles for **data sources and features**:
 
 ### Notifications tab
 
-![Settings — Notifications tab: per-category switches, ship-type filter, and the "seen" flag.](images/19b-impostazioni-notifiche.png)
+![Settings — Notifications tab: per-category switches, ship-type filter, and the "seen" flag.](images/19b-impostazioni-notifiche.en.png)
 
 Here you decide **which events** raise a notification in the sidebar (and, if linked, on Telegram — see the External integrations tab).
 
@@ -560,13 +548,9 @@ Here you decide **which events** raise a notification in the sidebar (and, if li
 
 ### Areas tab
 
-![Settings — Areas tab: list of areas with monitoring toggles.](images/20-impostazioni-aree.png)
-
 Shows the configured areas with monitoring toggles (equivalent to the panel at the top of General) and links to area management.
 
 ### External integrations tab (Telegram + webhooks)
-
-![Settings — External integrations tab: Telegram link and outgoing webhook configuration.](images/21-impostazioni_integrazioni_esterne.png)
 
 Here you connect the external channels notifications are sent to: **Telegram** (top) and **outgoing webhooks** (bottom).
 
@@ -594,33 +578,7 @@ To stop, press **Unlink** (or `/stop`). Use **Send test** to check the link.
 
 > Webhooks are **personal** (only for your areas). Internal/private addresses aren't allowed. Maximum 10 per user.
 
-### Parameters tab
-
-![Settings — Parameters tab: configuration fields grouped by category with description.](images/22-impostazioni-parametri.png)
-
-Lets you edit the app's **operating parameters** (ship status thresholds, time windows, retention, berths, score weights…) from the interface. Every field has a description. Edit the values and press **💾 Save parameters**.
-
-> **⚠️ Important:** these parameters are read by the server **only at startup**. After saving, you **must restart the server** for the changes to take effect — reloading the browser is not enough. **Secrets** (API keys, passwords) can't be edited here for security.
-
-### Backup / Restore tab
-
-![Settings — Backup tab: download and export data, restore a backup.](images/23-impostazioni-backup.png)
-
-Here you **download a backup** of the database, **restore** a saved backup, and **export** data. The [Coverage map](#coverage-map) data lives in a separate database, exportable/importable on its own and still included in the full backup.
-
-### AIS Diagnostics tab
-
-![Settings — AIS Diagnostics tab: connection status, uptime, frames received, and reconnections.](images/26-impostazioni-diagnostica.png)
-
-Shows the data stream connection status (refreshes every 5s):
-
-- **Connection** — Connected / Disconnected
-- **Session uptime** — how long the stream has been active
-- **WS frames received** / **Ship messages** / **Message rate**
-- **Reconnections** — how many times the connection was restored
-- **Last error** — the most recent error, if any
-
-#### AIS outage banner
+### AIS outage banner
 
 If an active monitoring session receives **no AIS signal at all** for a few minutes, the app checks the service status with an independent uptime monitor. Only if that also confirms the outage does a yellow warning appear at the top of monitoring pages. If the area is simply quiet but the service is up, no warning appears.
 

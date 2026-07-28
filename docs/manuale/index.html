@@ -243,10 +243,7 @@
         <li><a
         href="#scheda-integrazioni-esterne-telegram-webhook">Scheda
         Integrazioni esterne (Telegram + webhook)</a></li>
-        <li><a href="#scheda-parametri">Scheda Parametri</a></li>
-        <li><a href="#scheda-backup-ripristino">Scheda Backup /
-        Ripristino</a></li>
-        <li><a href="#scheda-diagnostica-ais">Scheda Diagnostica
+        <li><a href="#banner-di-disservizio-ais">Banner di disservizio
         AIS</a></li>
         </ul></li>
         <li><a href="#punteggio-di-rischio">Punteggio di
@@ -1069,13 +1066,6 @@
         </tbody>
         </table>
         <h3 id="fattori-di-rischio">Fattori di rischio</h3>
-        <figure>
-        <img src="images/12-monitoraggio_dettagli_nave_2.png"
-        alt="Dettaglio nave — elenco dei fattori di rischio con i punti assegnati da ciascuno." />
-        <figcaption aria-hidden="true">Dettaglio nave — elenco dei
-        fattori di rischio con i punti assegnati da
-        ciascuno.</figcaption>
-        </figure>
         <p>Lista dei fattori che hanno contribuito al punteggio, con i
         punti di ciascuno. Se non ci sono anomalie compare “Nessuna
         anomalia rilevata”.</p>
@@ -1207,13 +1197,6 @@
         trovata in GFW”). Questi eventi <strong>alimentano lo score di
         rischio</strong>.</p>
         <h3 id="sanzioni">Sanzioni</h3>
-        <figure>
-        <img src="images/15-monitoraggio_dettagli_nave_5.png"
-        alt="Dettaglio nave — pannello Sanzioni con bordo rosso: lista, programma e campo di corrispondenza del match." />
-        <figcaption aria-hidden="true">Dettaglio nave — pannello
-        Sanzioni con bordo rosso: lista, programma e campo di
-        corrispondenza del match.</figcaption>
-        </figure>
         <p>Quando una nave corrisponde a una lista sanzioni, in cima al
         dettaglio compare — con bordo rosso — il pannello
         <strong>Sanzioni</strong>:</p>
@@ -1236,6 +1219,13 @@
         scheda ufficiale</strong> apre la pagina pubblica. Il pannello
         compare <strong>solo</strong> per le navi in lista.</p>
         <h3 id="rendezvous-in-mare">Rendezvous in mare</h3>
+        <figure>
+        <img src="images/29-monitoraggio_dettagli_nave_rendezvous.png"
+        alt="Dettaglio nave — sezione Rendezvous in mare: altra nave coinvolta, data/ora, distanza minima e area." />
+        <figcaption aria-hidden="true">Dettaglio nave — sezione
+        Rendezvous in mare: altra nave coinvolta, data/ora, distanza
+        minima e area.</figcaption>
+        </figure>
         <p>Se la nave ha avuto un <strong>rendezvous</strong> confermato
         con un’altra (rimaste vicine, lente e al largo abbastanza a
         lungo — firma di un trasbordo nave-nave), compare la sezione
@@ -1729,64 +1719,8 @@
         aree). Non sono ammessi indirizzi interni/privati. Massimo 10
         per utente.</p>
         </blockquote>
-        <h3 id="scheda-parametri">Scheda Parametri</h3>
-        <figure>
-        <img src="images/22-impostazioni-parametri.png"
-        alt="Impostazioni — scheda Parametri: campi di configurazione raggruppati per categoria con descrizione." />
-        <figcaption aria-hidden="true">Impostazioni — scheda Parametri:
-        campi di configurazione raggruppati per categoria con
-        descrizione.</figcaption>
-        </figure>
-        <p>Permette di modificare dall’interfaccia <strong>i parametri
-        di funzionamento</strong> dell’app (soglie di stato nave,
-        finestre temporali, retention, banchine, pesi dello score…).
-        Ogni campo ha una descrizione. Modifica i valori e premi
-        <strong>💾 Salva parametri</strong>.</p>
-        <blockquote>
-        <p><strong>⚠️ Importante:</strong> questi parametri vengono
-        letti dal server <strong>solo all’avvio</strong>. Dopo il
-        salvataggio è <strong>necessario riavviare il server</strong>
-        perché le modifiche abbiano effetto — ricaricare il browser non
-        basta. I <strong>segreti</strong> (chiavi API, password) non
-        sono modificabili da qui per sicurezza.</p>
-        </blockquote>
-        <h3 id="scheda-backup-ripristino">Scheda Backup /
-        Ripristino</h3>
-        <figure>
-        <img src="images/23-impostazioni-backup.png"
-        alt="Impostazioni — scheda Backup: scarica ed esporta i dati, ripristina un backup." />
-        <figcaption aria-hidden="true">Impostazioni — scheda Backup:
-        scarica ed esporta i dati, ripristina un backup.</figcaption>
-        </figure>
-        <p>Da qui <strong>scarichi un backup</strong> del database,
-        <strong>ripristini</strong> un backup salvato ed
-        <strong>esporti</strong> i dati. I dati della <a
-        href="#mappa-delle-zone-coperte">Mappa delle zone coperte</a>
-        sono in un database separato, esportabile/importabile a parte e
-        comunque incluso nel backup completo.</p>
-        <h3 id="scheda-diagnostica-ais">Scheda Diagnostica AIS</h3>
-        <figure>
-        <img src="images/26-impostazioni-diagnostica.png"
-        alt="Impostazioni — scheda Diagnostica AIS: stato della connessione, uptime, frame ricevuti e riconnessioni." />
-        <figcaption aria-hidden="true">Impostazioni — scheda Diagnostica
-        AIS: stato della connessione, uptime, frame ricevuti e
-        riconnessioni.</figcaption>
-        </figure>
-        <p>Mostra lo stato della connessione al flusso dati (si aggiorna
-        ogni 5 s):</p>
-        <ul>
-        <li><strong>Connessione</strong> — Connesso / Disconnesso</li>
-        <li><strong>Uptime sessione</strong> — da quanto il flusso è
-        attivo</li>
-        <li><strong>Frame WS ricevuti</strong> / <strong>Messaggi
-        nave</strong> / <strong>Velocità messaggi</strong></li>
-        <li><strong>Riconnessioni</strong> — quante volte la connessione
-        è stata ripristinata</li>
-        <li><strong>Ultimo errore</strong> — l’eventuale ultimo
-        errore</li>
-        </ul>
-        <h4 id="banner-di-disservizio-ais">Banner di disservizio
-        AIS</h4>
+        <h3 id="banner-di-disservizio-ais">Banner di disservizio
+        AIS</h3>
         <p>Se per alcuni minuti un monitoraggio attivo non riceve
         <strong>nessun segnale AIS</strong>, l’app verifica lo stato del
         servizio con un monitor di uptime indipendente. Solo se anche

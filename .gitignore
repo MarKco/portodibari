@@ -10,6 +10,8 @@ equasis.log
 *.zip
 .claude
 .DS_Store
+# Local dev-only fixtures (seed scripts, throwaway test data notes) — never committed.
+dev-fixtures/
 # Downloaded lists (OFAC SDN, Paris MoU banned, etc.) — fetched at runtime.
 # The MoU flag-performance JSONs are bundled (no machine-readable feed), so keep them.
 data/*

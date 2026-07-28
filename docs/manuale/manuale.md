@@ -360,8 +360,6 @@ Tutti i dati disponibili della nave:
 
 ### Fattori di rischio
 
-![Dettaglio nave — elenco dei fattori di rischio con i punti assegnati da ciascuno.](images/12-monitoraggio_dettagli_nave_2.png)
-
 Lista dei fattori che hanno contribuito al punteggio, con i punti di ciascuno. Se non ci sono anomalie compare "Nessuna anomalia rilevata".
 
 ### Dati nave aggregati (tutti i provider)
@@ -412,8 +410,6 @@ L'arricchimento è **proattivo** (nessun pulsante). GFW traccia soprattutto navi
 
 ### Sanzioni
 
-![Dettaglio nave — pannello Sanzioni con bordo rosso: lista, programma e campo di corrispondenza del match.](images/15-monitoraggio_dettagli_nave_5.png)
-
 Quando una nave corrisponde a una lista sanzioni, in cima al dettaglio compare — con bordo rosso — il pannello **Sanzioni**:
 
 - **Lista** — il regime del match: OFAC SDN (USA), lista consolidata UE, UK OFSI o ONU.
@@ -424,6 +420,8 @@ Quando una nave corrisponde a una lista sanzioni, in cima al dettaglio compare �
 Un avviso ricorda di verificare sempre sulla fonte ufficiale (un match **solo per nome** può essere un falso positivo). Quando l'identificativo è disponibile, **Apri scheda ufficiale** apre la pagina pubblica. Il pannello compare **solo** per le navi in lista.
 
 ### Rendezvous in mare
+
+![Dettaglio nave — sezione Rendezvous in mare: altra nave coinvolta, data/ora, distanza minima e area.](images/29-monitoraggio_dettagli_nave_rendezvous.png)
 
 Se la nave ha avuto un **rendezvous** confermato con un'altra (rimaste vicine, lente e al largo abbastanza a lungo — firma di un trasbordo nave-nave), compare la sezione **Rendezvous in mare** con l'elenco degli incontri (altra nave, data/ora, distanza minima, area). Ogni riga è cliccabile e apre la nave coinvolta. Un rendezvous confermato fa scattare una **notifica** e **aggiunge punti al rischio di entrambe** le navi.
 
@@ -594,33 +592,7 @@ Per smettere premi **Scollega** (o `/stop`). Con **Invia prova** verifichi il co
 
 > I webhook sono **personali** (solo per le tue aree). Non sono ammessi indirizzi interni/privati. Massimo 10 per utente.
 
-### Scheda Parametri
-
-![Impostazioni — scheda Parametri: campi di configurazione raggruppati per categoria con descrizione.](images/22-impostazioni-parametri.png)
-
-Permette di modificare dall'interfaccia **i parametri di funzionamento** dell'app (soglie di stato nave, finestre temporali, retention, banchine, pesi dello score…). Ogni campo ha una descrizione. Modifica i valori e premi **💾 Salva parametri**.
-
-> **⚠️ Importante:** questi parametri vengono letti dal server **solo all'avvio**. Dopo il salvataggio è **necessario riavviare il server** perché le modifiche abbiano effetto — ricaricare il browser non basta. I **segreti** (chiavi API, password) non sono modificabili da qui per sicurezza.
-
-### Scheda Backup / Ripristino
-
-![Impostazioni — scheda Backup: scarica ed esporta i dati, ripristina un backup.](images/23-impostazioni-backup.png)
-
-Da qui **scarichi un backup** del database, **ripristini** un backup salvato ed **esporti** i dati. I dati della [Mappa delle zone coperte](#mappa-delle-zone-coperte) sono in un database separato, esportabile/importabile a parte e comunque incluso nel backup completo.
-
-### Scheda Diagnostica AIS
-
-![Impostazioni — scheda Diagnostica AIS: stato della connessione, uptime, frame ricevuti e riconnessioni.](images/26-impostazioni-diagnostica.png)
-
-Mostra lo stato della connessione al flusso dati (si aggiorna ogni 5 s):
-
-- **Connessione** — Connesso / Disconnesso
-- **Uptime sessione** — da quanto il flusso è attivo
-- **Frame WS ricevuti** / **Messaggi nave** / **Velocità messaggi**
-- **Riconnessioni** — quante volte la connessione è stata ripristinata
-- **Ultimo errore** — l'eventuale ultimo errore
-
-#### Banner di disservizio AIS
+### Banner di disservizio AIS
 
 Se per alcuni minuti un monitoraggio attivo non riceve **nessun segnale AIS**, l'app verifica lo stato del servizio con un monitor di uptime indipendente. Solo se anche quello conferma il disservizio, in cima alle pagine di monitoraggio compare un avviso giallo. Se l'area è semplicemente silenziosa ma il servizio è attivo, non compare alcun avviso.
 
