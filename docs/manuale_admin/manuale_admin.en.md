@@ -10,6 +10,8 @@ Guide to the functions reserved for Tracker Porti **administrators**: user and g
 
 ## Administrator role
 
+![Administration page: user table with role, status, group, areas, and available actions.](images/30-admin-utenti.png)
+
 Administrators see the **Admin** link at the top right, which opens the **administration page** (`/admin`). An administrator can:
 
 - **approve** pending new registrations;
@@ -26,6 +28,8 @@ Settings managed by administrators (data sources, sanctions/PSC screening, risk-
 ---
 
 ## User groups
+
+![Administration page: User groups section with the creation form and the list of existing groups.](images/30b-admin-gruppi.png)
 
 An administrator can put several users into a **group**. When a user is part of a group, they **share with the other members** (as a **union** of what each one had):
 

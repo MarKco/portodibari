@@ -43,6 +43,8 @@ L'applicazione è protetta da **login**: per usarla devi autenticarti. Ogni uten
 
 ### Registrarsi
 
+![Schermata di registrazione: nome, cognome, email, username facoltativo e password.](images/31-registrati.png)
+
 Dalla pagina di accesso segui il link **Registrati** e inserisci **nome, cognome, email e password**. Il nuovo account viene creato in stato *"in attesa"*: potrai accedere **solo dopo l'approvazione di un amministratore**. Una volta approvato, effettui il login normalmente.
 
 ### Accedere
@@ -364,6 +366,8 @@ Lista dei fattori che hanno contribuito al punteggio, con i punti di ciascuno. S
 
 ### Dati nave aggregati (tutti i provider)
 
+![Dettaglio nave — tabella dati aggregati: stesso valore riportato da più fonti con un pallino colorato per ciascuna, righe evidenziate quando le fonti sono in disaccordo.](images/32-dati-nave-aggregati.png)
+
 Sotto la mappa, il tab Generale mostra una tabella che raccoglie i **dati principali della nave così come li riporta ciascuna fonte esterna abilitata** — nome, IMO, MMSI, nominativo, bandiera, tipo, anno di costruzione, lunghezza, larghezza, pescaggio, stazza lorda, portata lorda, porto di armamento — senza dover aprire il tab di ogni singolo provider per confrontarli.
 
 - Quando più fonti riportano **lo stesso valore** — anche scritto in modo diverso (es. bandiera "PAN" e "Panama", lunghezza "202.80" e "203") — compare **una sola volta**, con un **pallino colorato per ciascuna fonte** che lo riporta, accanto al valore.
@@ -396,6 +400,8 @@ Se abiliti **Import ShipFinder** e/o **Import MyShipTracking**, compaiono i rela
 Se il lookup Equasis è abilitato, compare il tab **Equasis** con il pulsante **Recupera informazioni Equasis**. **Non parte mai in automatico**: la ricerca avviene solo al clic e interroga Equasis per **numero IMO**. Restituisce dati nave, **proprietà e gestione** (proprietario, gestore ISM, operatore), classificazione, copertura P&I, indicatori di performance/rischio e posizioni recenti. Il risultato viene memorizzato una sola volta e mostrato senza scadenza.
 
 ### Tab Global Fishing Watch
+
+![Dettaglio nave — tab Global Fishing Watch: identità della nave e tabella degli scali in porto rilevati dal flusso AIS globale.](images/35-tab-global-fishing-watch.png)
 
 Se l'arricchimento GFW è abilitato (di default lo è), compare il tab **Global Fishing Watch** con l'**identità** della nave e le tabelle degli **eventi comportamentali** ricavati dal flusso AIS globale:
 
@@ -449,6 +455,12 @@ Il tab **Letture** raccoglie tutto ciò che riguarda la posizione grezza della n
 ### Note operative
 
 Area di testo libero: scrivi qualsiasi annotazione sulla nave e premi **Salva note**. Le note sono persistenti nel database.
+
+### Andamento dello score di rischio
+
+![Dettaglio nave — grafico dell'andamento dello score di rischio nel tempo, con la variazione tra prima e ultima rilevazione.](images/36-storico-visite-andamento-score.png)
+
+Grafico dell'evoluzione del punteggio di rischio nel tempo, con la variazione tra la prima e l'ultima rilevazione. Serve almeno **due rilevazioni** dello score (si accumulano a ogni arrivo della nave e all'apertura del dettaglio); con una sola compare un messaggio che lo segnala.
 
 ### Storico visite nelle aree monitorate
 

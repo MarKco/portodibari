@@ -10,6 +10,8 @@ Guida alle funzioni riservate agli **amministratori** di Tracker Porti: gestione
 
 ## Ruolo amministratore
 
+![Pagina di amministrazione: tabella utenti con ruolo, stato, gruppo, aree e azioni disponibili.](images/30-admin-utenti.png)
+
 Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagina di amministrazione** (`/admin`). Un amministratore può:
 
 - **approvare** le nuove registrazioni in attesa;
@@ -26,6 +28,8 @@ Le impostazioni gestite dagli amministratori (sorgenti dati, screening sanzioni/
 ---
 
 ## Gruppi di utenti
+
+![Pagina di amministrazione: sezione Gruppi di utenti con il modulo di creazione e l'elenco dei gruppi esistenti.](images/30b-admin-gruppi.png)
 
 Un amministratore può inserire più utenti in un **gruppo**. Quando un utente fa parte di un gruppo, **condivide con gli altri membri** (come **unione** di ciò che ognuno aveva):
 
