@@ -24,6 +24,12 @@ const TOGGLE_KEYS = [
   'telegramNotifyOutage',
   'telegramNotifyAreaMonitor',
   'telegramSendMap',
+  'telegramNotifyGroupArea',
+  'telegramNotifyGroupFollow',
+  'telegramNotifyGroupFlag',
+  'telegramNotifyGroupMute',
+  'telegramNotifyGroupSeen',
+  'telegramNotifyGroupCharge',
 ];
 
 function statePayload(userId) {

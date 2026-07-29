@@ -234,6 +234,7 @@ a.sb-btn { text-decoration: none; }
 
 .sb-label {
   overflow: hidden;
+  text-overflow: ellipsis;
   max-width: 200px;
   opacity: 1;
   white-space: nowrap;
@@ -285,7 +286,6 @@ a.sb-btn { text-decoration: none; }
   overflow-y: auto;
   padding: 0.25rem 0.1rem;
 }
-#sidebar.collapsed .notif-list { display: none; }
 
 .notif-empty {
   font-size: 0.75rem;
@@ -2280,6 +2280,20 @@ pre {
 .toggle input:checked + .toggle-slider { background: var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
 
+/* Smaller variant: the Telegram/webhook sub-toggles next to a group-activity
+   notification category's master toggle (see .notif-group-toggles below). */
+.toggle.toggle-sm { width: 30px; height: 17px; }
+.toggle.toggle-sm .toggle-slider::before { width: 11px; height: 11px; }
+.toggle.toggle-sm input:checked + .toggle-slider::before { transform: translateX(13px); }
+
+/* "Attività del gruppo" notification rows: master toggle + an icon-labelled
+   sub-toggle each for Telegram/webhook (hidden until relevant — see
+   applyGroupNotifState in main.js). */
+.notif-group-toggles { display: flex; align-items: center; gap: 0.7rem; flex-shrink: 0; }
+.ng-sub { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ng-sub-icon { font-size: 0.8rem; opacity: 0.75; }
+.ng-sub[hidden] { display: none; }
+
 /* ── Scrape data sections (VF / MT) ───────────────────────────────────── */
 .scrape-badge {
   font-size: 0.65rem;
@@ -2687,25 +2701,16 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
 .rh-trend.rh-up { color: var(--red); }
 .rh-trend.rh-down { color: var(--green); }
 
-/* ── Clear-all notifications button ─────────────────────────────────────────── */
 .notif-controls { display: flex; align-items: stretch; gap: 6px; }
-.notif-controls #btn-notifications { flex: 1 1 auto; min-width: 0; }
-.notif-clear-all {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  background: var(--surface-2);
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: color var(--ease, 0.15s), border-color var(--ease, 0.15s), background var(--ease, 0.15s);
-}
-.notif-clear-all:hover { color: var(--red); border-color: var(--red); background: rgba(220,38,38,0.07); }
-#sidebar.collapsed .notif-clear-all { display: none; }
+.notif-controls #btn-notifications,
+.notif-controls #btn-group-notifications { flex: 1 1 auto; min-width: 0; }
+
+/* ── Notifications overlay (shared #modal-overlay body) ──────────────────────
+   Both "Notifiche" and "Notifiche attività di gruppo" render their list here
+   instead of a permanent sidebar panel — see public/js/notifications.js. */
+.notif-overlay-toolbar { display: flex; justify-content: flex-end; margin-bottom: 0.6rem; }
+.notif-list-overlay { max-height: min(60vh, 480px); }
+.notif-dot.notif-dot-group { background: var(--purple, #8b5cf6); }
 
 /* ── Auto-backup list ─────────────────────────────────────────────────────── */
 .auto-backup-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }

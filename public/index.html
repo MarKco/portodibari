@@ -100,11 +100,14 @@
           <span class="sb-label" data-i18n="sidebar.notifications">Notifiche</span>
           <span id="notif-badge" class="notif-badge hidden">0</span>
         </button>
-        <button id="btn-notif-clear" class="notif-clear-all hidden"
-                data-i18n-title="notif.clearAll" title="Cancella tutte le notifiche">🗑</button>
       </div>
-      <div id="notif-list" class="notif-list">
-        <div class="notif-empty" data-i18n="notif.empty">Nessuna notifica.</div>
+      <div class="notif-controls" id="group-notif-controls" style="display:none">
+        <button id="btn-group-notifications" class="btn btn-secondary sb-btn"
+                data-i18n-title="sidebar.groupNotifications" title="Notifiche attività di gruppo">
+          <span class="sb-icon">👥</span>
+          <span class="sb-label" data-i18n="sidebar.groupNotifications">Notifiche attività di gruppo</span>
+          <span id="group-notif-badge" class="notif-badge hidden">0</span>
+        </button>
       </div>
       <div class="sb-divider"></div>
       <div class="sb-area-item">
@@ -1265,6 +1268,81 @@
             <input type="checkbox" id="toggle-notify-include-seen">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+
+        <div id="settings-group-notif-section" style="display:none">
+          <div class="settings-section-head" data-i18n="settings.notifGroupSection.head">👥 Attività del gruppo</div>
+          <div class="setting-row setting-row-child">
+            <div class="setting-info">
+              <div class="setting-desc" data-i18n="settings.notifGroupSection.desc">Notificati quando un membro del gruppo compie una di queste azioni (le azioni sono già condivise con te — qui scegli solo se generano anche una notifica). Non puoi controllare quali delle tue azioni notificano gli altri: le regole sono le stesse per tutto il gruppo.</div>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-area">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupArea.name">Aree monitorate</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupArea.desc">Un membro aggiunge o rimuove un'area dal monitoraggio del gruppo.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-area"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-area"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-area"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-follow">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupFollow.name">Navi seguite</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupFollow.desc">Un membro inizia o smette di seguire una nave.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-follow"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-follow"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-follow"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-flag">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupFlag.name">Segnalazione nave</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupFlag.desc">Un membro segnala o rimuove la segnalazione da una nave sospetta.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-flag"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-flag"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-flag"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-mute">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupMute.name">Silenziamento nave</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupMute.desc">Un membro silenzia o riattiva le notifiche per una nave.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-mute"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-mute"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-mute"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-seen">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupSeen.name">Nave vista</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupSeen.desc">Un membro segna una nave come vista o da rivedere.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-seen"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-seen"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-seen"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
+          <div class="setting-row setting-row-child notif-group-row" id="setting-notify-group-charge">
+            <div class="setting-info">
+              <div class="setting-name" data-i18n="settings.notifGroupCharge.name">Presa in carico nave</div>
+              <div class="setting-desc" data-i18n="settings.notifGroupCharge.desc">Un membro prende in carico, rilascia o assegna a un altro membro una nave.</div>
+            </div>
+            <div class="notif-group-toggles">
+              <label class="toggle"><input type="checkbox" id="toggle-notify-group-charge"><span class="toggle-slider"></span></label>
+              <span class="ng-sub ng-telegram" hidden title="Invia anche su Telegram"><span class="ng-sub-icon">✈️</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-tg-notify-group-charge"><span class="toggle-slider"></span></label></span>
+              <span class="ng-sub ng-webhook" hidden title="Includi nei webhook"><span class="ng-sub-icon">🔗</span><label class="toggle toggle-sm"><input type="checkbox" id="toggle-wh-notify-group-charge"><span class="toggle-slider"></span></label></span>
+            </div>
+          </div>
         </div>
         </div>
         <div id="settings-panel-areas" class="settings-panel hidden">

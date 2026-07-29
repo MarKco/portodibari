@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { escHtml } from './helpers.js';
 import { showAlert } from './toast.js';
+import { S } from './store.js';
 
 // ── Outbound webhooks settings (per-user) ────────────────────────────────────
 // Manage the user's webhook list: add (URL + format + event subscription +
@@ -26,6 +27,11 @@ function renderEventChecks(selected) {
 }
 
 function renderList(hooks) {
+  // Drives the "webhook" sub-toggle visibility for group-activity notification
+  // categories in Settings → Notifiche (main.js applyGroupNotifState) — that
+  // toggle only makes sense once the user has ≥1 webhook to include it in.
+  S.webhookCount = hooks.length;
+  window.dispatchEvent(new CustomEvent('webhooks-loaded'));
   const box = $('webhooks-list');
   if (!box) return;
   if (!hooks.length) {

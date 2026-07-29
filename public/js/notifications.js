@@ -6,35 +6,23 @@ import { escHtml, formatTime } from './helpers.js';
 import { showView } from './views.js';
 import { goToBerth } from './berths.js';
 import { showUndoToast } from './toast.js';
+import { actionText } from './group-activity.js';
+import { getGroupState, loadGroupState, displayName } from './group.js';
 
-// Sidebar notifications feed. The list is shown by default; the bell button
-// toggles its visibility (persisted in localStorage). The red badge counts
-// unread notifications; unread rows render bold until acknowledged.
-
-const VISIBLE_KEY = 'notifVisible';
-
-// Number of delete/clear-all undo windows currently open. While > 0 the poll
-// skips re-rendering the list: renderNotifications rebuilds it via innerHTML and
-// would wipe the pending item's "deleting" state, making it reappear as normal
-// only to vanish when the timer fires. Incremented when an undo window opens,
-// decremented on exactly one of its two exits (undo, or commit).
-let pendingDeletes = 0;
-
-function isVisible() {
-  return localStorage.getItem(VISIBLE_KEY) !== 'hidden';
-}
-
-function applyVisibility() {
-  const show = isVisible();
-  el.notifList.classList.toggle('hidden', !show);
-  el.btnNotifications.classList.toggle('active', show);
-}
+// Two independent notification feeds — personal (ship/berth alerts) and "group
+// activity" (mirrored member actions, see services/group-sync.js) — each with
+// its own sidebar button/badge, sharing one overlay (#modal-overlay/#modal-body,
+// the same dialog used for reading detail / berth rename / restore) instead of
+// a permanently-visible sidebar panel, so neither eats sidebar space. Content
+// loads fresh each time the overlay opens (no live refresh while open, same as
+// the "Attività di gruppo" log view); badges keep polling in the background via
+// pollNotificationBadges(), called from main.js's tick().
 
 function areaName(key) {
   return S.presets[key]?.name || key || '—';
 }
 
-function notifMessage(n) {
+function personalNotifMessage(n) {
   if (n.type === 'revisit') {
     const ship = n.ship_name || `MMSI ${n.mmsi}`;
     return t('notif.revisit', { ship: escHtml(ship), area: escHtml(areaName(n.area)) });
@@ -82,168 +70,216 @@ function notifMessage(n) {
   return escHtml(n.ship_name || '');
 }
 
-function renderNotifications(notifications) {
-  if (el.btnNotifClear) el.btnNotifClear.classList.toggle('hidden', !notifications.length);
-  if (!notifications.length) {
-    el.notifList.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
-    return;
+// "<actor> <azione>" — reuses the exact same i18n phrasing as the "Attività di
+// gruppo" log view (group-activity.js's actionText), fed from this row's own
+// columns (actor_id/target_user_id/mmsi/ship_name/area) instead of a
+// group_activity_log row's `detail` JSON blob.
+function groupNotifMessage(n) {
+  const action = n.type.replace(/^group_/, '');
+  const { membersById } = getGroupState();
+  const detail = { areaName: areaName(n.area), areaKey: n.area, shipName: n.ship_name, mmsi: n.mmsi, targetUserId: n.target_user_id };
+  const targetId = n.mmsi || n.area || null;
+  const actor = displayName(membersById.get(n.actor_id));
+  return `<strong>${escHtml(actor)}</strong> ${actionText(action, detail, targetId, n.actor_id, membersById)}`;
+}
+
+function updateBadge(badgeEl, unread) {
+  if (!badgeEl) return;
+  if (unread > 0) {
+    badgeEl.textContent = unread > 99 ? '99+' : String(unread);
+    badgeEl.classList.remove('hidden');
+  } else {
+    badgeEl.classList.add('hidden');
   }
-  el.notifList.innerHTML = notifications
-    .map((n) => {
-      const isBerth = n.type === 'berth_new' || n.type === 'berth_characterized';
-      const dotClass = isBerth ? 'notif-dot-berth' : `risk-${n.band || 'low'}`;
-      const clickable = n.mmsi || n.berth_id;
-      return `
+}
+
+/** One feed instance: wires its sidebar button to open the shared overlay, and
+ *  exposes pollBadge() for the periodic background badge refresh. */
+function createFeed({ kind, btn, badgeEl, titleKey, buildMessage, isGroup }) {
+  async function pollBadge() {
+    try {
+      const data = await api(`/api/notifications?kind=${kind}`);
+      updateBadge(badgeEl, data.unread || 0);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function itemHtml(n) {
+    const isBerth = n.type === 'berth_new' || n.type === 'berth_characterized';
+    const dotClass = isGroup ? 'notif-dot-group' : (isBerth ? 'notif-dot-berth' : `risk-${n.band || 'low'}`);
+    const clickable = n.mmsi || n.berth_id;
+    return `
       <div class="notif-item ${n.read ? '' : 'unread'} ${clickable ? 'notif-item-clickable' : ''}" data-id="${n.id}" data-mmsi="${n.mmsi || ''}" data-berth="${n.berth_id || ''}" data-lat="${n.berth_lat ?? ''}" data-lon="${n.berth_lon ?? ''}" data-area="${escHtml(n.area || '')}">
-        <span class="notif-dot ${dotClass}" title="${!isBerth && n.score != null ? `${n.score}/100` : ''}"></span>
+        <span class="notif-dot ${dotClass}" title="${!isGroup && !isBerth && n.score != null ? `${n.score}/100` : ''}"></span>
         <div class="notif-text">
-          <div class="notif-msg">${notifMessage(n)}</div>
+          <div class="notif-msg">${buildMessage(n)}</div>
           <div class="notif-meta">${formatTime(n.ts)}</div>
         </div>
         <button class="notif-check ${n.read ? 'done' : ''}" data-id="${n.id}"
                 title="${t('notif.markRead')}" ${n.read ? 'disabled' : ''}>✓</button>
         <button class="notif-delete" data-id="${n.id}" title="${t('notif.delete')}">🗑</button>
       </div>`;
-    })
-    .join('');
-}
-
-function updateBadge(unread) {
-  if (unread > 0) {
-    el.notifBadge.textContent = unread > 99 ? '99+' : String(unread);
-    el.notifBadge.classList.remove('hidden');
-  } else {
-    el.notifBadge.classList.add('hidden');
   }
-}
 
-export async function loadNotifications() {
-  // Don't clobber an open undo window (see pendingDeletes).
-  if (pendingDeletes > 0) return;
-  try {
-    const data = await api('/api/notifications');
-    renderNotifications(data.notifications || []);
-    updateBadge(data.unread || 0);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function initNotifications() {
-  applyVisibility();
-
-  el.btnNotifications.addEventListener('click', () => {
-    localStorage.setItem(VISIBLE_KEY, isVisible() ? 'hidden' : 'visible');
-    applyVisibility();
-  });
-
-  // Clear-all: delete the whole feed with the same undo window as a single
-  // delete (duration configurable via NOTIF_DELETE_UNDO_SECONDS).
-  el.btnNotifClear?.addEventListener('click', () => {
-    const items = el.notifList.querySelectorAll('.notif-item');
-    if (!items.length) return;
-    items.forEach((i) => i.classList.add('notif-deleting'));
-    let cancelled = false;
-    pendingDeletes++;
-    const secs = S.notifDeleteUndoSeconds;
-    const { cancel } = showUndoToast({
-      message: t('notif.clearAllUndo'),
-      seconds: secs,
-      onUndo: () => {
-        cancelled = true;
-        pendingDeletes--;
-        items.forEach((i) => i.classList.remove('notif-deleting'));
-      },
-    });
-    setTimeout(async () => {
-      if (cancelled) return;
-      pendingDeletes--;
-      cancel();
-      try {
-        await api('/api/notifications', 'DELETE');
-        el.notifList.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
-        updateBadge(0);
-        el.btnNotifClear.classList.add('hidden');
-      } catch {
-        items.forEach((i) => i.classList.remove('notif-deleting'));
-      }
-    }, secs * 1000);
-  });
-
-  el.notifList.addEventListener('click', async (e) => {
-    // Mark-as-read: clicking the ✓ check button.
-    const btn = e.target.closest('.notif-check');
-    if (btn) {
-      if (btn.disabled) return;
-      const id = Number(btn.dataset.id);
-      try {
-        const res = await api(`/api/notifications/${id}/read`, 'POST');
-        const item = btn.closest('.notif-item');
-        item?.classList.remove('unread');
-        btn.classList.add('done');
-        btn.disabled = true;
-        updateBadge(res.unread || 0);
-      } catch {
-        /* ignore */
-      }
+  function render(notifications) {
+    if (!notifications.length) {
+      el.modalBody.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
       return;
     }
+    el.modalBody.innerHTML =
+      `<div class="notif-overlay-toolbar">
+        <button id="notif-ov-clear" class="btn btn-secondary btn-sm">🗑 ${escHtml(t('notif.clearAll'))}</button>
+      </div>
+      <div class="notif-list notif-list-overlay">${notifications.map(itemHtml).join('')}</div>`;
+    wireList();
+  }
 
-    // Delete notification with 5-second undo window.
-    const delBtn = e.target.closest('.notif-delete');
-    if (delBtn) {
-      const id = Number(delBtn.dataset.id);
-      const item = delBtn.closest('.notif-item');
-      item?.classList.add('notif-deleting');
+  function wireList() {
+    const list = el.modalBody.querySelector('.notif-list-overlay');
+    const clearBtn = el.modalBody.querySelector('#notif-ov-clear');
+
+    clearBtn?.addEventListener('click', () => {
+      const items = list.querySelectorAll('.notif-item');
+      if (!items.length) return;
+      items.forEach((i) => i.classList.add('notif-deleting'));
+      clearBtn.disabled = true;
       let cancelled = false;
-      pendingDeletes++;
       const secs = S.notifDeleteUndoSeconds;
       const { cancel } = showUndoToast({
-        message: t('notif.deleteUndo'),
+        message: t('notif.clearAllUndo'),
         seconds: secs,
         onUndo: () => {
           cancelled = true;
-          pendingDeletes--;
-          item?.classList.remove('notif-deleting');
+          items.forEach((i) => i.classList.remove('notif-deleting'));
+          clearBtn.disabled = false;
         },
       });
       setTimeout(async () => {
         if (cancelled) return;
-        pendingDeletes--;
         cancel();
         try {
-          const res = await api(`/api/notifications/${id}`, 'DELETE');
-          item?.remove();
-          updateBadge(res.unread || 0);
-          if (!document.querySelector('.notif-item')) {
-            el.notifList.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
-            el.btnNotifClear?.classList.add('hidden');
-          }
+          await api(`/api/notifications?kind=${kind}`, 'DELETE');
+          el.modalBody.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
+          updateBadge(badgeEl, 0);
         } catch {
-          item?.classList.remove('notif-deleting');
+          items.forEach((i) => i.classList.remove('notif-deleting'));
+          clearBtn.disabled = false;
         }
       }, secs * 1000);
-      return;
-    }
+    });
 
-    // Navigate: clicking anywhere else on the row.
-    const item = e.target.closest('.notif-item');
-    if (!item) return;
-    // Berth events → locate the berth on its area's map. The id may be stale
-    // (berths are renumbered on every recompute), so pass the captured centroid
-    // too — goToBerth falls back to it when the id no longer resolves.
-    const berthId = Number(item.dataset.berth);
-    const lat = parseFloat(item.dataset.lat);
-    const lon = parseFloat(item.dataset.lon);
-    if (berthId || Number.isFinite(lat)) {
-      goToBerth(item.dataset.area, berthId || null, Number.isFinite(lat) ? lat : null, Number.isFinite(lon) ? lon : null);
-      return;
-    }
-    // Ship events → open the ship detail view.
-    const mmsi = Number(item.dataset.mmsi);
-    if (!mmsi) return;
-    showView('detail', mmsi, null);
-  });
+    list.addEventListener('click', async (e) => {
+      const check = e.target.closest('.notif-check');
+      if (check) {
+        if (check.disabled) return;
+        const id = Number(check.dataset.id);
+        try {
+          const res = await api(`/api/notifications/${id}/read?kind=${kind}`, 'POST');
+          const item = check.closest('.notif-item');
+          item?.classList.remove('unread');
+          check.classList.add('done');
+          check.disabled = true;
+          updateBadge(badgeEl, res.unread || 0);
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
 
-  loadNotifications();
+      const delBtn = e.target.closest('.notif-delete');
+      if (delBtn) {
+        const id = Number(delBtn.dataset.id);
+        const item = delBtn.closest('.notif-item');
+        item?.classList.add('notif-deleting');
+        let cancelled = false;
+        const secs = S.notifDeleteUndoSeconds;
+        const { cancel } = showUndoToast({
+          message: t('notif.deleteUndo'),
+          seconds: secs,
+          onUndo: () => {
+            cancelled = true;
+            item?.classList.remove('notif-deleting');
+          },
+        });
+        setTimeout(async () => {
+          if (cancelled) return;
+          cancel();
+          try {
+            const res = await api(`/api/notifications/${id}?kind=${kind}`, 'DELETE');
+            item?.remove();
+            updateBadge(badgeEl, res.unread || 0);
+            if (!list.querySelector('.notif-item')) {
+              el.modalBody.innerHTML = `<div class="notif-empty">${t('notif.empty')}</div>`;
+            }
+          } catch {
+            item?.classList.remove('notif-deleting');
+          }
+        }, secs * 1000);
+        return;
+      }
+
+      const item = e.target.closest('.notif-item');
+      if (!item) return;
+      const berthId = Number(item.dataset.berth);
+      const lat = parseFloat(item.dataset.lat);
+      const lon = parseFloat(item.dataset.lon);
+      if (berthId || Number.isFinite(lat)) {
+        el.modalOverlay.classList.add('hidden');
+        goToBerth(item.dataset.area, berthId || null, Number.isFinite(lat) ? lat : null, Number.isFinite(lon) ? lon : null);
+        return;
+      }
+      const mmsi = Number(item.dataset.mmsi);
+      if (!mmsi) return;
+      el.modalOverlay.classList.add('hidden');
+      showView('detail', mmsi, null);
+    });
+  }
+
+  async function open() {
+    el.modalTitle.textContent = t(titleKey);
+    el.modalBody.innerHTML = `<div class="notif-empty">…</div>`;
+    el.modalOverlay.classList.remove('hidden');
+    try {
+      const [data] = await Promise.all([api(`/api/notifications?kind=${kind}`), isGroup ? loadGroupState() : null]);
+      render(data.notifications || []);
+      updateBadge(badgeEl, data.unread || 0);
+    } catch {
+      el.modalBody.innerHTML = `<div class="notif-empty">${t('notif.loadFail')}</div>`;
+    }
+  }
+
+  btn?.addEventListener('click', open);
+
+  return { pollBadge };
+}
+
+let feeds = [];
+
+/** Periodic background refresh of both feeds' unread badges — called from
+ *  main.js's tick(). Does not touch the overlay content (loaded on open only). */
+export function pollNotificationBadges() {
+  feeds.forEach((f) => f.pollBadge());
+}
+
+export function initNotifications() {
+  feeds = [
+    createFeed({
+      kind: 'personal',
+      btn: el.btnNotifications,
+      badgeEl: el.notifBadge,
+      titleKey: 'notif.overlayTitle',
+      buildMessage: personalNotifMessage,
+      isGroup: false,
+    }),
+    createFeed({
+      kind: 'group',
+      btn: el.btnGroupNotifications,
+      badgeEl: el.groupNotifBadge,
+      titleKey: 'notif.groupOverlayTitle',
+      buildMessage: groupNotifMessage,
+      isGroup: true,
+    }),
+  ];
+  pollNotificationBadges();
 }

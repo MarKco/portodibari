@@ -32,11 +32,30 @@ const SHARED_SETTING_KEYS = new Set([
   'telegramNotifyHighRisk', 'telegramNotifyRevisit', 'telegramNotifyAreaChange',
   'telegramNotifyBerthNew', 'telegramNotifyBerthChar', 'telegramNotifyProximity',
   'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
+  'notifyGroupArea', 'notifyGroupFollow', 'notifyGroupFlag', 'notifyGroupMute',
+  'notifyGroupSeen', 'notifyGroupCharge',
+  'telegramNotifyGroupArea', 'telegramNotifyGroupFollow', 'telegramNotifyGroupFlag',
+  'telegramNotifyGroupMute', 'telegramNotifyGroupSeen', 'telegramNotifyGroupCharge',
+  'webhookNotifyGroupArea', 'webhookNotifyGroupFollow', 'webhookNotifyGroupFlag',
+  'webhookNotifyGroupMute', 'webhookNotifyGroupSeen', 'webhookNotifyGroupCharge',
   'showOpenSeaMap', 'showOpenSeaMapMarkers', 'openSeaMapHidden',
   'showFollowedShipNames', 'showFollowedTrails', 'showActiveShipNames', 'showActiveTrails',
   'hideHeatmapSingletons',
   'defaultArea',
 ]);
+
+// Action → the in-app pref key that gates its "group activity" notification
+// (see notifyGroupActivity below). Telegram/webhook gating live in their own
+// modules (telegram.js PREF_KEY / webhooks.js GROUP_PREF_KEY), keyed by the
+// full 'group_<action>' type instead — this map only covers the in-app surface.
+const IN_APP_PREF_BY_ACTION = {
+  area_add: 'notifyGroupArea', area_remove: 'notifyGroupArea',
+  follow_on: 'notifyGroupFollow', follow_off: 'notifyGroupFollow',
+  flag_on: 'notifyGroupFlag', flag_off: 'notifyGroupFlag',
+  mute_on: 'notifyGroupMute', mute_off: 'notifyGroupMute',
+  seen_on: 'notifyGroupSeen', seen_off: 'notifyGroupSeen',
+  charge_on: 'notifyGroupCharge', charge_off: 'notifyGroupCharge', charge_assign: 'notifyGroupCharge',
+};
 
 // The co-members of `actorId` (the group, minus the actor). Empty if the user is
 // in no group — which makes every sync* call below a no-op for solo users.
@@ -65,17 +84,49 @@ function areaLabel(areaKey) {
   return { areaKey, areaName: BBOX_PRESETS[areaKey]?.name || areaKey };
 }
 
+function displayName(u) {
+  if (!u) return '?';
+  return u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : (u.username || u.email);
+}
+
+// Fan out a "group activity" notification for a mirrored (or charge) member
+// action to co-members: in-app (gated by IN_APP_PREF_BY_ACTION), Telegram and
+// webhook (each gated by their own per-category toggle inside telegram.js /
+// webhooks.js, keyed by the full 'group_<action>' type). No-op for solo users.
+// `evp` carries whatever ship/area/target fields the action needs — same shape
+// db.addNotification expects (mmsi/ship_name, area, target_user_id).
+function notifyGroupActivity(actorId, action, evp) {
+  const members = coMembers(actorId);
+  if (!members.length) return;
+  const telegram = require('./telegram'); // lazy: avoids a load-time cycle
+  const webhooks = require('./webhooks');
+  const type = `group_${action}`;
+  const inAppKey = IN_APP_PREF_BY_ACTION[action];
+  const actorName = displayName(db.getUserById(actorId));
+  for (const uid of members) {
+    const p = userPrefs.get(uid);
+    if (p.notificationsEnabled && p[inAppKey]) {
+      db.addNotification({ user_id: uid, type, actor_id: actorId, ...evp });
+    }
+    const tp = { ...evp, actorName };
+    telegram.notifyGroupActivity(uid, type, tp);
+    webhooks.dispatch(uid, type, tp);
+  }
+}
+
 // ── Ongoing edit propagation (actor already wrote its own row) ────────────────
 
 function syncAreaAdd(actorId, areaKey) {
   for (const uid of coMembers(actorId)) db.addUserArea(uid, areaKey);
   logActivity(actorId, 'area_add', 'area', areaKey, areaLabel(areaKey));
+  notifyGroupActivity(actorId, 'area_add', { area: areaKey });
 }
 
 function syncAreaRemove(actorId, areaKey) {
   const detail = areaLabel(areaKey); // resolve the name before the catalog entry can be purged
   for (const uid of coMembers(actorId)) db.removeUserArea(uid, areaKey);
   logActivity(actorId, 'area_remove', 'area', areaKey, detail);
+  notifyGroupActivity(actorId, 'area_remove', { area: areaKey });
 }
 
 function syncFollow(actorId, mmsi, on) {
@@ -83,22 +134,30 @@ function syncFollow(actorId, mmsi, on) {
   // mirroring the follow onto co-members doesn't change the bbox set — no extra
   // ship-follow.refresh() needed beyond the one applyFollow already fired.
   for (const uid of coMembers(actorId)) db.setUserFollow(uid, mmsi, !!on);
-  logActivity(actorId, on ? 'follow_on' : 'follow_off', 'ship', mmsi, shipLabel(mmsi));
+  const action = on ? 'follow_on' : 'follow_off';
+  logActivity(actorId, action, 'ship', mmsi, shipLabel(mmsi));
+  notifyGroupActivity(actorId, action, { mmsi, ship_name: shipLabel(mmsi).shipName });
 }
 
 function syncFlag(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserFlag(uid, mmsi, !!on);
-  logActivity(actorId, on ? 'flag_on' : 'flag_off', 'ship', mmsi, shipLabel(mmsi));
+  const action = on ? 'flag_on' : 'flag_off';
+  logActivity(actorId, action, 'ship', mmsi, shipLabel(mmsi));
+  notifyGroupActivity(actorId, action, { mmsi, ship_name: shipLabel(mmsi).shipName });
 }
 
 function syncMute(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserMute(uid, mmsi, !!on);
-  logActivity(actorId, on ? 'mute_on' : 'mute_off', 'ship', mmsi, shipLabel(mmsi));
+  const action = on ? 'mute_on' : 'mute_off';
+  logActivity(actorId, action, 'ship', mmsi, shipLabel(mmsi));
+  notifyGroupActivity(actorId, action, { mmsi, ship_name: shipLabel(mmsi).shipName });
 }
 
 function syncSeen(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserSeen(uid, mmsi, !!on);
-  logActivity(actorId, on ? 'seen_on' : 'seen_off', 'ship', mmsi, shipLabel(mmsi));
+  const action = on ? 'seen_on' : 'seen_off';
+  logActivity(actorId, action, 'ship', mmsi, shipLabel(mmsi));
+  notifyGroupActivity(actorId, action, { mmsi, ship_name: shipLabel(mmsi).shipName });
 }
 
 // "Taken in charge" is NOT mirrored like the sets above — each row belongs to
@@ -106,9 +165,14 @@ function syncSeen(actorId, mmsi, on) {
 // hold it on the same ship at once. Only the audit-log entry is written here;
 // the actual user_ship_charges row is written by the caller (routes/ships.js),
 // which also resolves/authorizes `targetUserId` against the group roster.
+function chargeAction(targetUserId, actorId, on) {
+  return !on ? 'charge_off' : (targetUserId === actorId ? 'charge_on' : 'charge_assign');
+}
+
 function logCharge(actorId, targetUserId, mmsi, on) {
-  const action = !on ? 'charge_off' : (targetUserId === actorId ? 'charge_on' : 'charge_assign');
+  const action = chargeAction(targetUserId, actorId, on);
   logActivity(actorId, action, 'ship', mmsi, { ...shipLabel(mmsi), targetUserId });
+  notifyGroupActivity(actorId, action, { mmsi, ship_name: shipLabel(mmsi).shipName, target_user_id: targetUserId });
 }
 
 /** Mirror a settings patch onto co-members — only the SHARED keys, by value.
@@ -200,6 +264,7 @@ function dissolveGroup(groupId) {
 module.exports = {
   SHARED_SETTING_KEYS,
   coMembers,
+  notifyGroupActivity,
   syncAreaAdd,
   syncAreaRemove,
   syncFollow,

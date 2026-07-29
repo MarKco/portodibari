@@ -539,6 +539,14 @@ for (const col of ['berth_id INTEGER', 'berth_lat REAL', 'berth_lon REAL']) {
   try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
+// Group-activity notifications ('group_*' types, see group-sync.js): actor_id is
+// who performed the mirrored action (the recipient is the existing user_id
+// column); target_user_id is the OTHER user involved for charge_assign/charge_off
+// (who a ship was assigned to / taken from).
+for (const col of ['actor_id INTEGER', 'target_user_id INTEGER']) {
+  try { db.exec(`ALTER TABLE notifications ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+
 try { db.exec('ALTER TABLE user_follows ADD COLUMN search_mode INTEGER NOT NULL DEFAULT 0'); } catch { /* already exists */ }
 
 db.exec(`
@@ -2430,32 +2438,59 @@ function deleteBerth(id) {
 // ── Notifications ────────────────────────────────────────────────────────────
 const MAX_NOTIFICATIONS = 100;
 
+// Group-activity notification types (see group-sync.js NOTIFY_ACTIONS): mirrored
+// member actions (area/follow/flag/mute/seen/charge). Kept as their own feed
+// (separate badge/overlay, separate MAX_NOTIFICATIONS retention) so a chatty
+// group doesn't evict personal high_risk/revisit history and vice versa.
+const GROUP_NOTIF_TYPES = [
+  'area_add', 'area_remove', 'follow_on', 'follow_off', 'flag_on', 'flag_off',
+  'mute_on', 'mute_off', 'seen_on', 'seen_off', 'charge_on', 'charge_off', 'charge_assign',
+].map((a) => `group_${a}`);
+const GROUP_TYPES_SQL = GROUP_NOTIF_TYPES.map(() => '?').join(',');
+
+function kindClause(group) {
+  return `type ${group ? 'IN' : 'NOT IN'} (${GROUP_TYPES_SQL})`;
+}
+
 const insertNotificationStmt = db.prepare(
-  `INSERT INTO notifications (user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  `INSERT INTO notifications (user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, actor_id, target_user_id, ts, read)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 );
-// Prune per-user: keep only the most recent MAX_NOTIFICATIONS rows for that user.
-const pruneNotificationsStmt = db.prepare(
-  `DELETE FROM notifications WHERE user_id IS ? AND id NOT IN (
-     SELECT id FROM notifications WHERE user_id IS ? ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
-   )`
-);
+// Prune per-user AND per-kind: personal and group_* notifications are separate
+// feeds in the UI (separate badge/overlay) and must retain MAX_NOTIFICATIONS
+// each independently — otherwise a burst of one kind evicts the other's history.
+const pruneStmtByKind = {
+  true: db.prepare(
+    `DELETE FROM notifications WHERE user_id IS ? AND ${kindClause(true)} AND id NOT IN (
+       SELECT id FROM notifications WHERE user_id IS ? AND ${kindClause(true)} ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
+     )`
+  ),
+  false: db.prepare(
+    `DELETE FROM notifications WHERE user_id IS ? AND ${kindClause(false)} AND id NOT IN (
+       SELECT id FROM notifications WHERE user_id IS ? AND ${kindClause(false)} ORDER BY id DESC LIMIT ${MAX_NOTIFICATIONS}
+     )`
+  ),
+};
+function pruneNotifications(userId, group) {
+  pruneStmtByKind[group].run(userId, ...GROUP_NOTIF_TYPES, userId, ...GROUP_NOTIF_TYPES);
+}
 
 // Notifications are now per-user: `user_id` identifies the recipient. The stream
 // fan-out (see ais-stream.js) calls this once per user who should be alerted.
-function addNotification({ user_id = null, type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null, berth_lat = null, berth_lon = null }) {
+// actor_id/target_user_id are only set for group_* types (see group-sync.js).
+function addNotification({ user_id = null, type, mmsi = null, ship_name = null, area = null, from_area = null, band = null, score = null, berth_id = null, berth_lat = null, berth_lon = null, actor_id = null, target_user_id = null }) {
   const ts = new Date().toISOString();
-  const result = insertNotificationStmt.run(user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts);
-  pruneNotificationsStmt.run(user_id, user_id);
-  return { id: Number(result.lastInsertRowid), user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, ts, read: 0 };
+  const result = insertNotificationStmt.run(user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, actor_id, target_user_id, ts);
+  pruneNotifications(user_id, GROUP_NOTIF_TYPES.includes(type));
+  return { id: Number(result.lastInsertRowid), user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, actor_id, target_user_id, ts, read: 0 };
 }
 
-function getNotifications(userId, limit = MAX_NOTIFICATIONS) {
-  return db.prepare('SELECT * FROM notifications WHERE user_id IS ? ORDER BY id DESC LIMIT ?').all(userId, limit);
+function getNotifications(userId, limit = MAX_NOTIFICATIONS, group = false) {
+  return db.prepare(`SELECT * FROM notifications WHERE user_id IS ? AND ${kindClause(group)} ORDER BY id DESC LIMIT ?`).all(userId, ...GROUP_NOTIF_TYPES, limit);
 }
 
-function getUnreadNotificationCount(userId) {
-  return db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id IS ? AND read = 0').get(userId).n;
+function getUnreadNotificationCount(userId, group = false) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM notifications WHERE user_id IS ? AND read = 0 AND ${kindClause(group)}`).get(userId, ...GROUP_NOTIF_TYPES).n;
 }
 
 // Mutations are scoped to the owner so a user can't touch another's notifications.
@@ -2467,12 +2502,12 @@ function deleteNotification(id, userId) {
   db.prepare('DELETE FROM notifications WHERE id = ? AND user_id IS ?').run(id, userId);
 }
 
-function deleteAllNotifications(userId) {
-  db.prepare('DELETE FROM notifications WHERE user_id IS ?').run(userId);
+function deleteAllNotifications(userId, group = false) {
+  db.prepare(`DELETE FROM notifications WHERE user_id IS ? AND ${kindClause(group)}`).run(userId, ...GROUP_NOTIF_TYPES);
 }
 
-function markAllNotificationsRead(userId) {
-  db.prepare('UPDATE notifications SET read = 1 WHERE user_id IS ? AND read = 0').run(userId);
+function markAllNotificationsRead(userId, group = false) {
+  db.prepare(`UPDATE notifications SET read = 1 WHERE user_id IS ? AND read = 0 AND ${kindClause(group)}`).run(userId, ...GROUP_NOTIF_TYPES);
 }
 
 // ── Risk-score history ─────────────────────────────────────────────────────────

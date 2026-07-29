@@ -42,6 +42,30 @@ const DEFAULTS = {
   // Attach a static map image + a native location pin to Telegram notifications
   // that carry coordinates (berth + ship events). Off → those go as text only.
   telegramSendMap: true,
+  // "Attività del gruppo": notify me when a co-member does X (area add/remove,
+  // follow, flag, mute, seen, ship charge). In-app master per category, plus an
+  // independent Telegram sub-toggle (same telegramEnabled/link gate as the other
+  // telegramNotify* keys) and an independent webhook sub-toggle (gates dispatch
+  // in services/webhooks.js — see GROUP_PREF_KEY there). All default ON; only
+  // relevant while the user belongs to a group (see routes/group.js).
+  notifyGroupArea: true,
+  notifyGroupFollow: true,
+  notifyGroupFlag: true,
+  notifyGroupMute: true,
+  notifyGroupSeen: true,
+  notifyGroupCharge: true,
+  telegramNotifyGroupArea: true,
+  telegramNotifyGroupFollow: true,
+  telegramNotifyGroupFlag: true,
+  telegramNotifyGroupMute: true,
+  telegramNotifyGroupSeen: true,
+  telegramNotifyGroupCharge: true,
+  webhookNotifyGroupArea: true,
+  webhookNotifyGroupFollow: true,
+  webhookNotifyGroupFlag: true,
+  webhookNotifyGroupMute: true,
+  webhookNotifyGroupSeen: true,
+  webhookNotifyGroupCharge: true,
   showOpenSeaMap: false,
   showOpenSeaMapMarkers: true,
   openSeaMapHidden: ['light', 'beacon', 'pilot'],
@@ -70,6 +94,12 @@ const BOOL_KEYS = new Set([
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
   'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
+  'notifyGroupArea', 'notifyGroupFollow', 'notifyGroupFlag', 'notifyGroupMute',
+  'notifyGroupSeen', 'notifyGroupCharge',
+  'telegramNotifyGroupArea', 'telegramNotifyGroupFollow', 'telegramNotifyGroupFlag',
+  'telegramNotifyGroupMute', 'telegramNotifyGroupSeen', 'telegramNotifyGroupCharge',
+  'webhookNotifyGroupArea', 'webhookNotifyGroupFollow', 'webhookNotifyGroupFlag',
+  'webhookNotifyGroupMute', 'webhookNotifyGroupSeen', 'webhookNotifyGroupCharge',
 ]);
 
 // String-array keys, JSON-encoded in user_settings (a list of category keys).

@@ -147,9 +147,10 @@ export const el = {
 
   // Notifications
   btnNotifications: $('btn-notifications'),
-  btnNotifClear: $('btn-notif-clear'),
   notifBadge: $('notif-badge'),
-  notifList: $('notif-list'),
+  groupNotifControls: $('group-notif-controls'),
+  btnGroupNotifications: $('btn-group-notifications'),
+  groupNotifBadge: $('group-notif-badge'),
 
   // Areas view
   btnAreas: $('btn-areas'),
@@ -198,6 +199,18 @@ export const el = {
   settingNotifyProximity: $('setting-notify-proximity'),
   notifyShipTypes: $('notify-ship-types'),
   toggleNotifyIncludeSeen: $('toggle-notify-include-seen'),
+  // "Attività del gruppo" notification toggles (in-app master + Telegram/webhook
+  // sub-toggles per category), shown only while the user belongs to a group.
+  settingsGroupNotifSection: $('settings-group-notif-section'),
+  ngCategories: ['area', 'follow', 'flag', 'mute', 'seen', 'charge'].map((cat) => ({
+    cat,
+    row: $(`setting-notify-group-${cat}`),
+    master: $(`toggle-notify-group-${cat}`),
+    tg: $(`toggle-tg-notify-group-${cat}`),
+    tgLabel: $(`toggle-tg-notify-group-${cat}`)?.closest('.ng-sub'),
+    wh: $(`toggle-wh-notify-group-${cat}`),
+    whLabel: $(`toggle-wh-notify-group-${cat}`)?.closest('.ng-sub'),
+  })),
   // Telegram bot
   toggleTelegram: $('toggle-telegram'),
   settingTelegramLink: $('setting-telegram-link'),

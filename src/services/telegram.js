@@ -294,6 +294,59 @@ const MSG = {
     it: () => `🔔 <b>Notifica di prova</b>\nIl bot Telegram è collegato e funzionante.`,
     en: () => `🔔 <b>Test notification</b>\nThe Telegram bot is linked and working.`,
   },
+  // ── Group activity (see group-sync.js notifyGroupActivity) ──────────────────
+  group_area_add: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha aggiunto l'area <b>${esc(p.area)}</b> al monitoraggio del gruppo.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> added area <b>${esc(p.area)}</b> to the group's monitoring.`,
+  },
+  group_area_remove: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha rimosso l'area <b>${esc(p.area)}</b> dal monitoraggio del gruppo.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> removed area <b>${esc(p.area)}</b> from the group's monitoring.`,
+  },
+  group_follow_on: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha iniziato a seguire <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> started following <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_follow_off: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha smesso di seguire <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> stopped following <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_flag_on: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha segnalato come sospetta <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> flagged <b>${esc(p.ship_name || p.mmsi)}</b> as suspicious.`,
+  },
+  group_flag_off: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha rimosso la segnalazione da <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> removed the flag from <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_mute_on: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha silenziato le notifiche per <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> muted notifications for <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_mute_off: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha riattivato le notifiche per <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> unmuted notifications for <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_seen_on: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha segnato come vista <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> marked <b>${esc(p.ship_name || p.mmsi)}</b> as seen.`,
+  },
+  group_seen_off: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha segnato <b>${esc(p.ship_name || p.mmsi)}</b> come da rivedere.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> marked <b>${esc(p.ship_name || p.mmsi)}</b> as unseen again.`,
+  },
+  group_charge_on: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha preso in carico <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> took charge of <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_charge_off: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha rilasciato la presa in carico di <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> released charge of <b>${esc(p.ship_name || p.mmsi)}</b>.`,
+  },
+  group_charge_assign: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha assegnato <b>${esc(p.ship_name || p.mmsi)}</b> a un membro del gruppo.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> assigned <b>${esc(p.ship_name || p.mmsi)}</b> to a group member.`,
+  },
 };
 
 // Notification type → the user-pref toggle that gates it on Telegram.
@@ -306,6 +359,19 @@ const PREF_KEY = {
   proximity: 'telegramNotifyProximity',
   outage: 'telegramNotifyOutage',
   area_monitor: 'telegramNotifyAreaMonitor',
+  group_area_add: 'telegramNotifyGroupArea',
+  group_area_remove: 'telegramNotifyGroupArea',
+  group_follow_on: 'telegramNotifyGroupFollow',
+  group_follow_off: 'telegramNotifyGroupFollow',
+  group_flag_on: 'telegramNotifyGroupFlag',
+  group_flag_off: 'telegramNotifyGroupFlag',
+  group_mute_on: 'telegramNotifyGroupMute',
+  group_mute_off: 'telegramNotifyGroupMute',
+  group_seen_on: 'telegramNotifyGroupSeen',
+  group_seen_off: 'telegramNotifyGroupSeen',
+  group_charge_on: 'telegramNotifyGroupCharge',
+  group_charge_off: 'telegramNotifyGroupCharge',
+  group_charge_assign: 'telegramNotifyGroupCharge',
 };
 
 function render(msgKey, lang, params) {
@@ -426,6 +492,10 @@ function notifyProximity(userId, params) {
 }
 function notifyAreaMonitor(userId, action, params) {
   sendToUser(userId, 'area_monitor', action === 'stop' ? 'area_stop' : 'area_start', params);
+}
+// Group activity (see group-sync.js notifyGroupActivity): no coordinates, plain text.
+function notifyGroupActivity(userId, type, params) {
+  sendToUser(userId, type, type, params);
 }
 /** Outage is a global event: fan out to every linked user whose outage toggle is
  *  on. `phase` is 'start' | 'end'. */
@@ -622,5 +692,6 @@ module.exports = {
   notifyBerth,
   notifyProximity,
   notifyAreaMonitor,
+  notifyGroupActivity,
   broadcastOutage,
 };

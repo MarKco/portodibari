@@ -256,7 +256,11 @@
         </ul></li>
         <li><a href="#punteggio-di-rischio">Punteggio di
         rischio</a></li>
-        <li><a href="#notifiche">Notifiche</a></li>
+        <li><a href="#notifiche">Notifiche</a>
+        <ul>
+        <li><a href="#notifiche-attività-di-gruppo">Notifiche attività
+        di gruppo</a></li>
+        </ul></li>
         <li><a href="#esportare-i-dati">Esportare i dati</a></li>
         <li><a href="#installare-lapp-pwa">Installare l’app
         (PWA)</a></li>
@@ -1025,6 +1029,12 @@
         membri”: elenco cronologico delle azioni del
         gruppo.</figcaption>
         </figure>
+        <blockquote>
+        <p>Vuoi essere avvisato in tempo reale (invece di dover
+        controllare questa tabella)? Vedi <a
+        href="#notifiche-attività-di-gruppo">Notifiche attività di
+        gruppo</a>.</p>
+        </blockquote>
         <hr />
         <h2 id="dettaglio-nave">Dettaglio nave</h2>
         <p>Cliccando qualsiasi riga della tabella (o una notifica di una
@@ -1751,6 +1761,65 @@
         </tr>
         </tbody>
         </table>
+        <p><strong>👥 Attività del gruppo</strong> <em>(visibile solo se
+        fai parte di un gruppo)</em> — una riga per ciascuna azione
+        condivisa (vedi <a href="#attività-di-gruppo">Attività di
+        gruppo</a>): decidi se, quando un compagno di gruppo la compie,
+        ricevi la <a href="#notifiche-attività-di-gruppo">notifica
+        corrispondente</a>. Tutte accese di default.</p>
+        <figure>
+        <img src="images/19c-impostazioni-notifiche-gruppo.png"
+        alt="Impostazioni — scheda Notifiche: sezione “Attività del gruppo” con un interruttore per categoria." />
+        <figcaption aria-hidden="true">Impostazioni — scheda Notifiche:
+        sezione “Attività del gruppo” con un interruttore per
+        categoria.</figcaption>
+        </figure>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Opzione</th>
+        <th>Funzione</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>Aree monitorate</strong></td>
+        <td>Un membro aggiunge o rimuove un’area dal monitoraggio
+        condiviso.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Navi seguite</strong></td>
+        <td>Un membro inizia o smette di seguire una nave.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Segnalazione nave</strong></td>
+        <td>Un membro segnala o rimuove la segnalazione da una
+        nave.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Silenziamento nave</strong></td>
+        <td>Un membro silenzia o riattiva le notifiche di una nave.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Nave vista</strong></td>
+        <td>Un membro segna una nave come vista o da rivedere.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Presa in carico nave</strong></td>
+        <td>Un membro prende in carico, rilascia o assegna una
+        nave.</td>
+        </tr>
+        </tbody>
+        </table>
+        <p>Accanto a ciascuna riga trovi due interruttori più piccoli —
+        <strong>✈️</strong> (invia anche su Telegram, se hai collegato
+        il tuo account) e <strong>🔗</strong> (includi negli eventuali
+        webhook che hai configurato) — visibili solo quando applicabili,
+        attivi solo se l’interruttore principale della riga lo è.</p>
         <h3 id="scheda-aree">Scheda Aree</h3>
         <figure>
         <img src="images/20-impostazioni-aree.png"
@@ -1912,9 +1981,12 @@
         <hr />
         <h2 id="notifiche">Notifiche</h2>
         <p>Oltre agli avvisi temporanei in sovrimpressione, l’app tiene
-        uno <strong>storico delle notifiche</strong> nella barra
-        laterale, che si apre/chiude con <strong>🔔 Notifiche</strong>
-        (lo stato viene ricordato).</p>
+        uno <strong>storico delle notifiche</strong>: il pulsante
+        <strong>🔔 Notifiche</strong> in barra laterale mostra un badge
+        con il numero di non lette e, cliccato, apre una
+        <strong>finestra in sovrimpressione</strong> con l’elenco (si
+        chiude con <strong>✕</strong>, con <strong>Esc</strong> o
+        cliccando fuori).</p>
         <p><strong>Quando viene generata una notifica</strong> (ogni
         categoria è abilitabile a parte dalle <a
         href="#impostazioni">Impostazioni</a>):</p>
@@ -1986,6 +2058,34 @@
         contano nel badge rosso. Si conservano le <strong>ultime
         100</strong>; le più vecchie vengono eliminate. Cancellando i
         dati di un’area si rimuovono anche le sue notifiche.</p>
+        <h3 id="notifiche-attività-di-gruppo">Notifiche attività di
+        gruppo</h3>
+        <figure>
+        <img src="images/38-notifiche_attivita_gruppo.png"
+        alt="Finestra “Notifiche attività di gruppo”: azioni dei membri del gruppo con nome di chi le ha compiute." />
+        <figcaption aria-hidden="true">Finestra “Notifiche attività di
+        gruppo”: azioni dei membri del gruppo con nome di chi le ha
+        compiute.</figcaption>
+        </figure>
+        <p>Se il tuo account fa parte di un <strong>gruppo</strong>, in
+        barra laterale trovi anche il pulsante <strong>👥 Notifiche
+        attività di gruppo</strong>, accanto a “Notifiche”: stesso
+        comportamento (badge non lette, finestra in sovrimpressione, ✓
+        per segnare come letta, 🗑 per eliminare con annullamento), ma
+        per un feed <strong>separato</strong> — le azioni compiute dai
+        tuoi compagni di gruppo su aree, navi seguite, segnalazioni,
+        silenziamenti, navi viste e prese in carico (le stesse che vedi
+        elencate in <a href="#attività-di-gruppo">Attività di
+        gruppo</a>, qui però solo se hai scelto di <strong>esserne
+        notificato</strong>). Ogni riga riporta il <strong>nome di
+        chi</strong> ha compiuto l’azione, ad esempio <em>“Anna Test ha
+        iniziato a seguire la nave AMAZONITH: il gruppo riceverà
+        notifiche sui suoi movimenti.”</em></p>
+        <p>Quali azioni ti notificano si decide dalla scheda
+        <strong>Notifiche</strong> delle Impostazioni (vedi sotto): puoi
+        scegliere cosa <strong>ricevere tu</strong>, ma non puoi
+        impedire alle tue azioni di notificare gli altri membri — le
+        regole sono le stesse per tutto il gruppo.</p>
         <hr />
         <h2 id="esportare-i-dati">Esportare i dati</h2>
         <p>Tutti gli export vengono scaricati direttamente dal

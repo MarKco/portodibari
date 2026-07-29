@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
 import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData, initGroupCharge } from './ships.js';
+import { getGroupState } from './group.js';
 import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons, fitTrackToView } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -17,7 +18,7 @@ import { initAreas } from './areas.js';
 import { initCoverage, syncCoverageMapToggleButton } from './coverage.js';
 import { applyOpenSeaMap } from './tiles.js';
 import { renderSeamarkBerths, SEAMARK_CATEGORIES } from './seamarks.js';
-import { initNotifications, loadNotifications } from './notifications.js';
+import { initNotifications, pollNotificationBadges } from './notifications.js';
 import { initOutageBanner, setOutage } from './outage.js';
 import { initTheme } from './theme.js';
 import { escHtml, cargoClassLabel } from './helpers.js';
@@ -230,6 +231,19 @@ async function loadSettings() {
     renderNotifyShipTypeToggles();
     S.notifyIncludeSeen = s.notifyIncludeSeen !== false;
     if (el.toggleNotifyIncludeSeen) el.toggleNotifyIncludeSeen.checked = S.notifyIncludeSeen;
+    S.notifyGroupArea = s.notifyGroupArea !== false;
+    S.notifyGroupFollow = s.notifyGroupFollow !== false;
+    S.notifyGroupFlag = s.notifyGroupFlag !== false;
+    S.notifyGroupMute = s.notifyGroupMute !== false;
+    S.notifyGroupSeen = s.notifyGroupSeen !== false;
+    S.notifyGroupCharge = s.notifyGroupCharge !== false;
+    S.webhookNotifyGroupArea = s.webhookNotifyGroupArea !== false;
+    S.webhookNotifyGroupFollow = s.webhookNotifyGroupFollow !== false;
+    S.webhookNotifyGroupFlag = s.webhookNotifyGroupFlag !== false;
+    S.webhookNotifyGroupMute = s.webhookNotifyGroupMute !== false;
+    S.webhookNotifyGroupSeen = s.webhookNotifyGroupSeen !== false;
+    S.webhookNotifyGroupCharge = s.webhookNotifyGroupCharge !== false;
+    applyGroupNotifState();
     S.excludeTankers = !!s.excludeTankers;
     if (el.toggleExcludeTankers) el.toggleExcludeTankers.checked = S.excludeTankers;
     S.checkSpoofing = s.checkSpoofing !== false;
@@ -321,6 +335,7 @@ function applyTelegramState() {
       input.disabled = !configured || !master;
     }
   }
+  applyGroupNotifState();
 }
 
 async function loadTelegram() {
@@ -479,6 +494,36 @@ function applyNotifSettingsState() {
   if (el.settingNotifyBerthChar) el.settingNotifyBerthChar.classList.toggle('disabled', !S.notificationsEnabled);
   if (el.toggleNotifyProximity) el.toggleNotifyProximity.disabled = !S.notificationsEnabled;
   if (el.settingNotifyProximity) el.settingNotifyProximity.classList.toggle('disabled', !S.notificationsEnabled);
+}
+
+const capCat = (c) => c.charAt(0).toUpperCase() + c.slice(1);
+// { masterKey, tgKey, whKey } for one of el.ngCategories' 6 category rows.
+function ngKeys(cat) {
+  const Cat = capCat(cat);
+  return { masterKey: `notifyGroup${Cat}`, tgKey: `telegramNotifyGroup${Cat}`, whKey: `webhookNotifyGroup${Cat}` };
+}
+
+// Reflect S (+ S.telegram / S.webhookCount) onto the "Attività del gruppo"
+// notification rows: whole section hidden for solo users; the Telegram
+// sub-toggle only shown once linked, the webhook one only once the user has
+// ≥1 webhook; both sub-toggles disabled while their row's master is off.
+function applyGroupNotifState() {
+  if (!el.settingsGroupNotifSection) return;
+  const inGroup = getGroupState().inGroup;
+  el.settingsGroupNotifSection.style.display = inGroup ? '' : 'none';
+  if (!inGroup) return;
+  const tg = S.telegram || {};
+  const tgReady = !!(tg.configured && tg.linked);
+  const whReady = (S.webhookCount || 0) > 0;
+  for (const c of el.ngCategories) {
+    const { masterKey, tgKey, whKey } = ngKeys(c.cat);
+    const masterOn = S[masterKey] !== false;
+    if (c.master) c.master.checked = masterOn;
+    if (c.tgLabel) c.tgLabel.hidden = !tgReady;
+    if (c.tg) { c.tg.checked = tg[tgKey] !== false; c.tg.disabled = !masterOn; }
+    if (c.whLabel) c.whLabel.hidden = !whReady;
+    if (c.wh) { c.wh.checked = S[whKey] !== false; c.wh.disabled = !masterOn; }
+  }
 }
 
 // Dim/disable the extra-lists sub-toggle when the master sanctions switch is off.
@@ -980,6 +1025,39 @@ function initSettingsModal() {
       el.toggleNotifyIncludeSeen.checked = !enabled;
     }
   });
+
+  // ── "Attività del gruppo" notifications ──
+  for (const c of el.ngCategories) {
+    const { masterKey, tgKey, whKey } = ngKeys(c.cat);
+    c.master?.addEventListener('change', async () => {
+      const enabled = c.master.checked;
+      try {
+        await api('/api/settings', 'POST', { [masterKey]: enabled });
+        S[masterKey] = enabled;
+        applyGroupNotifState();
+      } catch {
+        c.master.checked = !enabled;
+      }
+    });
+    c.tg?.addEventListener('change', async () => {
+      const enabled = c.tg.checked;
+      try {
+        const s = await api('/api/telegram/settings', 'POST', { [tgKey]: enabled });
+        S.telegram = s;
+      } catch {
+        c.tg.checked = !enabled;
+      }
+    });
+    c.wh?.addEventListener('change', async () => {
+      const enabled = c.wh.checked;
+      try {
+        await api('/api/settings', 'POST', { [whKey]: enabled });
+        S[whKey] = enabled;
+      } catch {
+        c.wh.checked = !enabled;
+      }
+    });
+  }
 
   // ── Telegram bot ──
   if (el.toggleTelegram) {
@@ -1609,7 +1687,7 @@ function initCollapsibleSections() {
 // ── Polling ──────────────────────────────────────────────────────────────────
 function tick() {
   updateStatus();
-  loadNotifications();
+  pollNotificationBadges();
   if (el.syncTime) {
     const now = new Date();
     el.syncTime.textContent = `↻ ${now.toLocaleTimeString('it-IT')}`;
@@ -1927,6 +2005,13 @@ initAppConfig();
 initCollapsibleSections();
 initDetailTabs();
 initGroupCharge();
+
+// Keep the "Attività del gruppo" notification rows (section visibility, Telegram/
+// webhook sub-toggle visibility) in sync once the group roster / webhook list
+// resolve — both load asynchronously and may still be pending when Settings
+// first renders (loadSettings already calls applyGroupNotifState once eagerly).
+window.addEventListener('group-state-loaded', applyGroupNotifState);
+window.addEventListener('webhooks-loaded', applyGroupNotifState);
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.

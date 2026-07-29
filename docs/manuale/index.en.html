@@ -244,7 +244,11 @@
         <li><a href="#ais-outage-banner">AIS outage banner</a></li>
         </ul></li>
         <li><a href="#risk-score">Risk score</a></li>
-        <li><a href="#notifications">Notifications</a></li>
+        <li><a href="#notifications">Notifications</a>
+        <ul>
+        <li><a href="#group-activity-notifications">Group activity
+        notifications</a></li>
+        </ul></li>
         <li><a href="#exporting-data">Exporting data</a></li>
         <li><a href="#installing-the-app-pwa">Installing the app
         (PWA)</a></li>
@@ -978,6 +982,11 @@
         <figcaption aria-hidden="true">The “Actions taken by members”
         tab: chronological list of the group’s actions.</figcaption>
         </figure>
+        <blockquote>
+        <p>Want to be notified in real time instead of checking this
+        table? See <a href="#group-activity-notifications">Group
+        activity notifications</a>.</p>
+        </blockquote>
         <hr />
         <h2 id="ship-detail">Ship detail</h2>
         <p>Clicking any table row (or a ship’s notification) opens the
@@ -1626,6 +1635,63 @@
         </tr>
         </tbody>
         </table>
+        <p><strong>👥 Group activity</strong> <em>(visible only if
+        you’re in a group)</em> — one row per shared action (see <a
+        href="#group-activity">Group activity</a>): decide whether you
+        get the <a href="#group-activity-notifications">matching
+        notification</a> when a group-mate performs it. All on by
+        default.</p>
+        <figure>
+        <img src="images/19c-impostazioni-notifiche-gruppo.en.png"
+        alt="Settings — Notifications tab: “Group activity” section with one switch per category." />
+        <figcaption aria-hidden="true">Settings — Notifications tab:
+        “Group activity” section with one switch per
+        category.</figcaption>
+        </figure>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Option</th>
+        <th>Function</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td><strong>Monitored areas</strong></td>
+        <td>A member adds or removes an area from the group’s
+        monitoring.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Followed ships</strong></td>
+        <td>A member starts or stops following a ship.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Ship flag</strong></td>
+        <td>A member flags or unflags a ship.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Ship mute</strong></td>
+        <td>A member mutes or unmutes a ship’s notifications.</td>
+        </tr>
+        <tr class="odd">
+        <td><strong>Ship seen</strong></td>
+        <td>A member marks a ship as seen or to review again.</td>
+        </tr>
+        <tr class="even">
+        <td><strong>Ship charge</strong></td>
+        <td>A member takes charge of, releases, or assigns a ship.</td>
+        </tr>
+        </tbody>
+        </table>
+        <p>Next to each row are two smaller switches —
+        <strong>✈️</strong> (also send on Telegram, if you’ve linked
+        your account) and <strong>🔗</strong> (include in any webhooks
+        you’ve configured) — shown only when applicable, enabled only
+        while the row’s main switch is on.</p>
         <h3 id="areas-tab">Areas tab</h3>
         <p>Shows the configured areas with monitoring toggles
         (equivalent to the panel at the top of General) and links to
@@ -1767,9 +1833,11 @@
         <hr />
         <h2 id="notifications">Notifications</h2>
         <p>Besides temporary on-screen alerts, the app keeps a
-        <strong>notification history</strong> in the sidebar,
-        opened/closed with <strong>🔔 Notifications</strong> (the state
-        is remembered).</p>
+        <strong>notification history</strong>: the <strong>🔔
+        Notifications</strong> sidebar button shows an unread-count
+        badge and, when clicked, opens an <strong>overlay
+        window</strong> with the list (close it with <strong>✕</strong>,
+        <strong>Esc</strong>, or by clicking outside).</p>
         <p><strong>When a notification is generated</strong> (each
         category can be enabled separately from <a
         href="#settings">Settings</a>):</p>
@@ -1840,6 +1908,32 @@
         toward the red badge. The <strong>last 100</strong> are kept;
         older ones are deleted. Clearing an area’s data also removes its
         notifications.</p>
+        <h3 id="group-activity-notifications">Group activity
+        notifications</h3>
+        <figure>
+        <img src="images/38-notifiche_attivita_gruppo.en.png"
+        alt="The “Group activity notifications” window: actions taken by group members, with who did them." />
+        <figcaption aria-hidden="true">The “Group activity
+        notifications” window: actions taken by group members, with who
+        did them.</figcaption>
+        </figure>
+        <p>If your account is part of a <strong>group</strong>, the
+        sidebar also shows a <strong>👥 Group activity
+        notifications</strong> button next to “Notifications”: same
+        behaviour (unread badge, overlay window, ✓ to mark read, 🗑 to
+        delete with undo), but for a <strong>separate</strong> feed —
+        the actions your group-mates take on areas, followed ships,
+        flags, mutes, seen ships and ship charges (the same ones listed
+        in <a href="#group-activity">Group activity</a>, here only if
+        you’ve chosen to <strong>be notified</strong> of them). Each row
+        names <strong>who</strong> performed the action, e.g. <em>“Anna
+        Test started following ship AMAZONITH: the group will get
+        notified of its movements.”</em></p>
+        <p>Which actions notify you is decided from the
+        <strong>Notifications</strong> tab in Settings (see below): you
+        choose what <strong>you</strong> receive, but you can’t stop
+        your own actions from notifying the other members — the rules
+        are the same for the whole group.</p>
         <hr />
         <h2 id="exporting-data">Exporting data</h2>
         <p>All exports are downloaded directly from the browser:</p>

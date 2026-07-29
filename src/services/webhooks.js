@@ -20,11 +20,30 @@ const dns = require('dns');
 const net = require('net');
 const { URL } = require('url');
 const db = require('../db');
+const userPrefs = require('./user-prefs');
 const appLog = require('./app-log');
 
 const SETTING_KEY = 'webhooks';
-const EVENT_TYPES = ['high_risk', 'revisit', 'area_change', 'berth_new', 'berth_characterized', 'proximity', 'outage'];
+const GROUP_EVENT_TYPES = [
+  'group_area_add', 'group_area_remove', 'group_follow_on', 'group_follow_off',
+  'group_flag_on', 'group_flag_off', 'group_mute_on', 'group_mute_off',
+  'group_seen_on', 'group_seen_off', 'group_charge_on', 'group_charge_off', 'group_charge_assign',
+];
+const EVENT_TYPES = ['high_risk', 'revisit', 'area_change', 'berth_new', 'berth_characterized', 'proximity', 'outage', ...GROUP_EVENT_TYPES];
 const FORMATS = ['generic', 'slack', 'discord'];
+// group_* event type → the per-category webhook master toggle that gates it
+// (see user-prefs.js webhookNotifyGroup*). Checked in dispatch() BEFORE the
+// per-webhook `events` filter below. The 7 pre-existing types are absent from
+// this map and stay ungated, exactly as before this feature.
+const GROUP_PREF_KEY = {
+  group_area_add: 'webhookNotifyGroupArea', group_area_remove: 'webhookNotifyGroupArea',
+  group_follow_on: 'webhookNotifyGroupFollow', group_follow_off: 'webhookNotifyGroupFollow',
+  group_flag_on: 'webhookNotifyGroupFlag', group_flag_off: 'webhookNotifyGroupFlag',
+  group_mute_on: 'webhookNotifyGroupMute', group_mute_off: 'webhookNotifyGroupMute',
+  group_seen_on: 'webhookNotifyGroupSeen', group_seen_off: 'webhookNotifyGroupSeen',
+  group_charge_on: 'webhookNotifyGroupCharge', group_charge_off: 'webhookNotifyGroupCharge',
+  group_charge_assign: 'webhookNotifyGroupCharge',
+};
 const POST_TIMEOUT_MS = 8000;
 const MAX_WEBHOOKS = 10;
 
@@ -189,7 +208,13 @@ function summaryLine(type, p) {
     proximity: `🚨 At-sea rendezvous: ${who}${area}${p.distM != null ? ` · ${p.distM} m` : ''}${p.durMin != null ? ` · ${p.durMin} min` : ''}`,
     outage: p.phase === 'end' ? '✅ AIS outage cleared' : `⚠️ AIS outage (no signal for ${p.min} min)`,
   };
-  return M[type] || `${type}: ${who}${area}`;
+  if (M[type]) return M[type];
+  if (GROUP_PREF_KEY[type]) {
+    const actor = p.actorName || '?';
+    const target = p.ship_name || p.mmsi || p.area || '';
+    return `👥 ${actor} — ${type.replace(/^group_/, '')}${target ? `: ${target}` : ''}`;
+  }
+  return `${type}: ${who}${area}`;
 }
 
 function bodyFor(format, type, params) {
@@ -232,8 +257,12 @@ function post(webhook, type, params) {
   });
 }
 
-// Fire a user's webhooks subscribed to `type` (fire-and-forget).
+// Fire a user's webhooks subscribed to `type` (fire-and-forget). group_* types
+// carry an extra per-category master gate (GROUP_PREF_KEY) checked here, before
+// the per-webhook `events` filter — the 7 pre-existing types have no such gate.
 function dispatch(userId, type, params) {
+  const prefKey = GROUP_PREF_KEY[type];
+  if (prefKey && !userPrefs.get(userId)[prefKey]) return;
   let hooks;
   try {
     hooks = load(userId);

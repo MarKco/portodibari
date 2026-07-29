@@ -36,13 +36,17 @@ function settingsDetails(detail) {
   return parts.join(', ');
 }
 
-// The "Azione" cell text — no user name in it (that's its own column).
-function buildActionText(row) {
-  const d = row.detail || {};
-  switch (row.action) {
+// The "Azione" sentence for one mirrored member action — shared by the log
+// table below (buildActionText(row)) AND the "group activity" notifications
+// overlay (public/js/group-notif-format.js), which has the same 13 actions but
+// a different row shape (notification columns instead of a group_activity_log
+// row), hence the explicit params instead of reading a `row` object directly.
+export function actionText(action, detail, targetId, actorId, membersById) {
+  const d = detail || {};
+  switch (action) {
     case 'area_add':
     case 'area_remove':
-      return t(`groupActivity.msg.${row.action}`, { area: escHtml(d.areaName || d.areaKey || row.target_id) });
+      return t(`groupActivity.msg.${action}`, { area: escHtml(d.areaName || d.areaKey || targetId) });
     case 'follow_on':
     case 'follow_off':
     case 'flag_on':
@@ -52,18 +56,23 @@ function buildActionText(row) {
     case 'seen_on':
     case 'seen_off':
     case 'charge_on':
-      return t(`groupActivity.msg.${row.action}`, { ship: shipLabel(d, row.target_id) });
+      return t(`groupActivity.msg.${action}`, { ship: shipLabel(d, targetId) });
     case 'charge_assign':
-      return t('groupActivity.msg.charge_assign', { ship: shipLabel(d, row.target_id), target: escHtml(displayName(membersById.get(d.targetUserId))) });
+      return t('groupActivity.msg.charge_assign', { ship: shipLabel(d, targetId), target: escHtml(displayName(membersById.get(d.targetUserId))) });
     case 'charge_off':
-      return d.targetUserId === row.user_id
-        ? t('groupActivity.msg.charge_off_self', { ship: shipLabel(d, row.target_id) })
-        : t('groupActivity.msg.charge_off_other', { ship: shipLabel(d, row.target_id), target: escHtml(displayName(membersById.get(d.targetUserId))) });
+      return d.targetUserId === actorId
+        ? t('groupActivity.msg.charge_off_self', { ship: shipLabel(d, targetId) })
+        : t('groupActivity.msg.charge_off_other', { ship: shipLabel(d, targetId), target: escHtml(displayName(membersById.get(d.targetUserId))) });
     case 'settings_change':
       return t('groupActivity.msg.settings_change', { details: settingsDetails(d) });
     default:
-      return escHtml(row.action);
+      return escHtml(action);
   }
+}
+
+// The "Azione" cell text — no user name in it (that's its own column).
+function buildActionText(row) {
+  return actionText(row.action, row.detail, row.target_id, row.user_id, membersById);
 }
 
 function renderInfo(data) {

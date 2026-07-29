@@ -336,6 +336,8 @@ A table, newest-first, of every group action a member has taken — columns **Da
 
 ![The "Actions taken by members" tab: chronological list of the group's actions.](images/37b-attivita_gruppo_azioni.en.png)
 
+> Want to be notified in real time instead of checking this table? See [Group activity notifications](#group-activity-notifications).
+
 ---
 
 ## Ship detail
@@ -571,6 +573,21 @@ Here you decide **which events** raise a notification in the sidebar (and, if li
 |---|---|
 | **Also notify ships marked as seen** | On by default. Turn it off to **stop** receiving revisit / area change / high score / rendezvous alerts for ships you've marked "seen" 👁 (from the ship detail) — handy so you're not re-alerted about ships you've already checked. If you belong to a **user group**, the "seen" flag is shared: a ship marked seen by a group-mate shows as seen for everyone, so you can split up the checking work. |
 
+**👥 Group activity** *(visible only if you're in a group)* — one row per shared action (see [Group activity](#group-activity)): decide whether you get the [matching notification](#group-activity-notifications) when a group-mate performs it. All on by default.
+
+![Settings — Notifications tab: "Group activity" section with one switch per category.](images/19c-impostazioni-notifiche-gruppo.en.png)
+
+| Option | Function |
+|---|---|
+| **Monitored areas** | A member adds or removes an area from the group's monitoring. |
+| **Followed ships** | A member starts or stops following a ship. |
+| **Ship flag** | A member flags or unflags a ship. |
+| **Ship mute** | A member mutes or unmutes a ship's notifications. |
+| **Ship seen** | A member marks a ship as seen or to review again. |
+| **Ship charge** | A member takes charge of, releases, or assigns a ship. |
+
+Next to each row are two smaller switches — **✈️** (also send on Telegram, if you've linked your account) and **🔗** (include in any webhooks you've configured) — shown only when applicable, enabled only while the row's main switch is on.
+
 ### Areas tab
 
 Shows the configured areas with monitoring toggles (equivalent to the panel at the top of General) and links to area management.
@@ -640,7 +657,7 @@ Hover over the badge for factor and source details.
 
 ## Notifications
 
-Besides temporary on-screen alerts, the app keeps a **notification history** in the sidebar, opened/closed with **🔔 Notifications** (the state is remembered).
+Besides temporary on-screen alerts, the app keeps a **notification history**: the **🔔 Notifications** sidebar button shows an unread-count badge and, when clicked, opens an **overlay window** with the list (close it with **✕**, **Esc**, or by clicking outside).
 
 **When a notification is generated** (each category can be enabled separately from [Settings](#settings)):
 
@@ -673,6 +690,14 @@ Other events:
 **Muting a single ship:** in the detail, the **🔔** (active → click to mute) / **🔕** (muted → click to re-enable) button. A muted ship generates no return or area-change notifications.
 
 **Unread** notifications are bold and count toward the red badge. The **last 100** are kept; older ones are deleted. Clearing an area's data also removes its notifications.
+
+### Group activity notifications
+
+![The "Group activity notifications" window: actions taken by group members, with who did them.](images/38-notifiche_attivita_gruppo.en.png)
+
+If your account is part of a **group**, the sidebar also shows a **👥 Group activity notifications** button next to "Notifications": same behaviour (unread badge, overlay window, ✓ to mark read, 🗑 to delete with undo), but for a **separate** feed — the actions your group-mates take on areas, followed ships, flags, mutes, seen ships and ship charges (the same ones listed in [Group activity](#group-activity), here only if you've chosen to **be notified** of them). Each row names **who** performed the action, e.g. *"Anna Test started following ship AMAZONITH: the group will get notified of its movements."*
+
+Which actions notify you is decided from the **Notifications** tab in Settings (see below): you choose what **you** receive, but you can't stop your own actions from notifying the other members — the rules are the same for the whole group.
 
 ---
 

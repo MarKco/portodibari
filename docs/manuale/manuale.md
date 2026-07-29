@@ -340,6 +340,8 @@ Una tabella, dalla più recente, di ogni azione di gruppo compiuta da un membro 
 
 ![Tab "Azioni intraprese dai membri": elenco cronologico delle azioni del gruppo.](images/37b-attivita_gruppo_azioni.png)
 
+> Vuoi essere avvisato in tempo reale (invece di dover controllare questa tabella)? Vedi [Notifiche attività di gruppo](#notifiche-attività-di-gruppo).
+
 ---
 
 ## Dettaglio nave
@@ -593,6 +595,21 @@ Qui decidi **quali eventi** generano una notifica nella barra laterale (e, se co
 |---|---|
 | **Notifica anche navi segnate come viste** | Acceso di default. Spegnilo per **non** ricevere rientro nave / cambio area / score alto / rendezvous per le navi che hai segnato come "viste" 👁 (dal dettaglio nave) — utile per non essere ri-avvisato di navi che hai già controllato. Se fai parte di un **gruppo utenti**, il flag "vista" è condiviso: la nave marcata vista da un collega del gruppo risulta vista per tutti, per dividervi il lavoro di controllo. |
 
+**👥 Attività del gruppo** *(visibile solo se fai parte di un gruppo)* — una riga per ciascuna azione condivisa (vedi [Attività di gruppo](#attività-di-gruppo)): decidi se, quando un compagno di gruppo la compie, ricevi la [notifica corrispondente](#notifiche-attività-di-gruppo). Tutte accese di default.
+
+![Impostazioni — scheda Notifiche: sezione "Attività del gruppo" con un interruttore per categoria.](images/19c-impostazioni-notifiche-gruppo.png)
+
+| Opzione | Funzione |
+|---|---|
+| **Aree monitorate** | Un membro aggiunge o rimuove un'area dal monitoraggio condiviso. |
+| **Navi seguite** | Un membro inizia o smette di seguire una nave. |
+| **Segnalazione nave** | Un membro segnala o rimuove la segnalazione da una nave. |
+| **Silenziamento nave** | Un membro silenzia o riattiva le notifiche di una nave. |
+| **Nave vista** | Un membro segna una nave come vista o da rivedere. |
+| **Presa in carico nave** | Un membro prende in carico, rilascia o assegna una nave. |
+
+Accanto a ciascuna riga trovi due interruttori più piccoli — **✈️** (invia anche su Telegram, se hai collegato il tuo account) e **🔗** (includi negli eventuali webhook che hai configurato) — visibili solo quando applicabili, attivi solo se l'interruttore principale della riga lo è.
+
 ### Scheda Aree
 
 ![Impostazioni — scheda Aree: elenco delle aree con toggle di monitoraggio.](images/20-impostazioni-aree.png)
@@ -666,7 +683,7 @@ Passa il cursore sul badge per i dettagli dei fattori e le fonti.
 
 ## Notifiche
 
-Oltre agli avvisi temporanei in sovrimpressione, l'app tiene uno **storico delle notifiche** nella barra laterale, che si apre/chiude con **🔔 Notifiche** (lo stato viene ricordato).
+Oltre agli avvisi temporanei in sovrimpressione, l'app tiene uno **storico delle notifiche**: il pulsante **🔔 Notifiche** in barra laterale mostra un badge con il numero di non lette e, cliccato, apre una **finestra in sovrimpressione** con l'elenco (si chiude con **✕**, con **Esc** o cliccando fuori).
 
 **Quando viene generata una notifica** (ogni categoria è abilitabile a parte dalle [Impostazioni](#impostazioni)):
 
@@ -699,6 +716,14 @@ Altri eventi:
 **Silenziare una singola nave:** nel dettaglio, il pulsante **🔔** (attive → clicca per silenziare) / **🔕** (silenziate → clicca per riabilitare). Una nave silenziata non genera notifiche di rientro né di cambio area.
 
 Le notifiche **da leggere** sono in grassetto e contano nel badge rosso. Si conservano le **ultime 100**; le più vecchie vengono eliminate. Cancellando i dati di un'area si rimuovono anche le sue notifiche.
+
+### Notifiche attività di gruppo
+
+![Finestra "Notifiche attività di gruppo": azioni dei membri del gruppo con nome di chi le ha compiute.](images/38-notifiche_attivita_gruppo.png)
+
+Se il tuo account fa parte di un **gruppo**, in barra laterale trovi anche il pulsante **👥 Notifiche attività di gruppo**, accanto a "Notifiche": stesso comportamento (badge non lette, finestra in sovrimpressione, ✓ per segnare come letta, 🗑 per eliminare con annullamento), ma per un feed **separato** — le azioni compiute dai tuoi compagni di gruppo su aree, navi seguite, segnalazioni, silenziamenti, navi viste e prese in carico (le stesse che vedi elencate in [Attività di gruppo](#attività-di-gruppo), qui però solo se hai scelto di **esserne notificato**). Ogni riga riporta il **nome di chi** ha compiuto l'azione, ad esempio *"Anna Test ha iniziato a seguire la nave AMAZONITH: il gruppo riceverà notifiche sui suoi movimenti."*
+
+Quali azioni ti notificano si decide dalla scheda **Notifiche** delle Impostazioni (vedi sotto): puoi scegliere cosa **ricevere tu**, ma non puoi impedire alle tue azioni di notificare gli altri membri — le regole sono le stesse per tutto il gruppo.
 
 ---
 
