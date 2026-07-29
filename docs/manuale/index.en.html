@@ -108,6 +108,26 @@
       border-left-color:var(--accent); border-radius:8px; margin:4px 0;
     }
     nav#toc a[href="#tutorial"]:hover{background:color-mix(in srgb, var(--accent) 26%, transparent)}
+    /* Ship-actions cheat-sheet callout — same pattern as .tutorial, visually distinct (yellow) */
+    .cheatsheet{
+      position:relative; margin:28px 0 40px; padding:8px 26px 26px;
+      background:linear-gradient(180deg, color-mix(in srgb, var(--yellow) 12%, var(--panel)), var(--panel));
+      border:1px solid var(--yellow); border-radius:16px; box-shadow:var(--shadow);
+    }
+    .cheatsheet::before{
+      content:"★ QUICK GUIDE"; position:absolute; top:-12px; left:22px;
+      background:var(--yellow); color:#1b2836; font-size:12px; font-weight:700; letter-spacing:.5px;
+      padding:3px 12px; border-radius:20px;
+    }
+    .cheatsheet > h2{border-bottom:none; margin-top:26px}
+    .cheatsheet > h3{color:var(--text); background:color-mix(in srgb, var(--yellow) 14%, transparent);
+      border-left:3px solid var(--yellow); padding:6px 12px; border-radius:8px; font-size:17px}
+    /* TOC: make the ship-actions entry stand out */
+    nav#toc a[href="#ship-actions"]{
+      font-weight:700; color:var(--text); background:color-mix(in srgb, var(--yellow) 18%, transparent);
+      border-left-color:var(--yellow); border-radius:8px; margin:4px 0;
+    }
+    nav#toc a[href="#ship-actions"]:hover{background:color-mix(in srgb, var(--yellow) 28%, transparent)}
     /* Theme toggle */
     #theme{
       position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;
@@ -176,6 +196,18 @@
         Search for and follow a ship</a></li>
         <li><a href="#step-4-customize-optional">Step 4 — Customize
         (optional)</a></li>
+        </ul></li>
+        <li><a href="#ship-actions">★ Ship actions: flag, seen, taking
+        charge, following</a>
+        <ul>
+        <li><a href="#flagging-a-ship">★ Flagging a ship</a></li>
+        <li><a href="#marking-as-seen">✓ Marking as seen</a></li>
+        <li><a href="#taking-charge-of-a-ship">🧑‍✈️ Taking charge of a
+        ship</a></li>
+        <li><a href="#assigning-the-ship-to-a-group-mate">👥 Assigning
+        the ship to a group-mate</a></li>
+        <li><a href="#following-a-ship">🗺 Following a ship</a></li>
+        <li><a href="#in-short">In short</a></li>
         </ul></li>
         <li><a href="#main-interface">Main interface</a>
         <ul>
@@ -463,6 +495,105 @@
         href="#settings">Settings</a>.</p>
         <p><strong>That’s all it takes to get started.</strong> From
         here the manual goes into the detail of every feature.</p>
+        </section>
+        <hr />
+        <section id="ship-actions" class="cheatsheet">
+        <h2>★ Ship actions: flag, seen, taking charge, following</h2>
+        <p>The ship tables show several action icons that look similar
+        but have very different effects on notifications, tables, and
+        the map. This summary helps you pick the right one before diving
+        into the detail of each section later in the manual.</p>
+        <h3 id="flagging-a-ship">★ Flagging a ship</h3>
+        <p>You’re saying “this ship matters to me, keep an eye on it” —
+        a manual signal you add yourself, distinct from the
+        automatically calculated risk score.</p>
+        <ul>
+        <li><strong>Notifications</strong> — no direct notification to
+        you; if you’re in a group, the action shows up in the <a
+        href="#group-activity">Group activity</a> log and group-mates
+        can get notified if they’ve turned on the matching option under
+        <a href="#notifications-tab">Settings → Notifications</a>.</li>
+        <li><strong>Tables</strong> — the row stays where it is but gets
+        colored; a “Flagged only” filter lets you see them all
+        together.</li>
+        <li><strong>Map</strong> — purple marker, the style with the
+        highest priority (it beats even the red of a high risk
+        score).</li>
+        <li><strong>Sharing</strong> — personal, but synced across the
+        whole group if you’re in one.</li>
+        </ul>
+        <h3 id="marking-as-seen">✓ Marking as seen</h3>
+        <p>You’re saying “I already checked this one, no need to look
+        again” — mainly meant for splitting triage work in a group
+        without reviewing the same ships twice.</p>
+        <ul>
+        <li><strong>Notifications</strong> — no direct notification;
+        still logged in the group log.</li>
+        <li><strong>Tables</strong> — the effect is stronger here: seen
+        ships <strong>disappear by default</strong> from “Current ships”
+        and “Past ships” (there’s a toggle to show them again), while
+        they stay visible under “Followed ships”.</li>
+        <li><strong>Map</strong> — no dedicated color; the main effect
+        is simply disappearing from the filtered tables.</li>
+        <li><strong>Sharing</strong> — personal but shared across the
+        group: if a group-mate marks a ship as seen, it disappears for
+        you too.</li>
+        </ul>
+        <h3 id="taking-charge-of-a-ship">🧑‍✈️ Taking charge of a ship</h3>
+        <p>You’re saying “I’ve got this one” — a way to coordinate in a
+        group over who’s handling what. <em>Visible only if your account
+        is part of a group.</em></p>
+        <ul>
+        <li><strong>Notifications</strong> — logged in the group log
+        (take/release), with an optional notification to
+        group-mates.</li>
+        <li><strong>Tables</strong> — the row is highlighted in teal,
+        with a dedicated filter (all / taken by me / not taken / a
+        specific member).</li>
+        <li><strong>Map</strong> — no dedicated marker style.</li>
+        <li><strong>Sharing — different from the two above</strong>: it
+        is <strong>not</strong> a single shared label. Several group
+        members can take charge of the same ship together, each with
+        their own independent charge — not one flag that propagates to
+        everyone.</li>
+        </ul>
+        <h3 id="assigning-the-ship-to-a-group-mate">👥 Assigning the
+        ship to a group-mate</h3>
+        <p>Same mechanism as taking charge, but assigned to another
+        group member instead of yourself (the <strong>Assign</strong>
+        button in the <a href="#ship-detail">ship detail</a>). Same
+        effects on tables and map; you can only assign it to an actual
+        co-member of your group — the system checks this.</p>
+        <h3 id="following-a-ship">🗺 Following a ship</h3>
+        <p>The most demanding of the five: the ship enters a dedicated,
+        continuous monitoring track, separate from areas — it stays
+        hooked even if it leaves your monitored zones.</p>
+        <ul>
+        <li><strong>Notifications</strong> — the richest of the five:
+        besides the group log, it triggers automatic notifications
+        whenever the AIS signal’s status changes — the ship goes
+        “searching”, is found again, or is lost.</li>
+        <li><strong>Tables</strong> — it lives in a section of its own,
+        <a href="#followed-ships">Followed ships</a>, with dedicated
+        badges like “🔍 searching” or “📍 seen via
+        ShipFinder/MyShipTracking” when AIS goes quiet but a backup
+        source locates it.</li>
+        <li><strong>Map</strong> — has its own dedicated map, just for
+        followed ships.</li>
+        <li><strong>Sharing</strong> — like flag and seen, synced across
+        the whole group.</li>
+        </ul>
+        <h3 id="in-short">In short</h3>
+        <ul>
+        <li><strong>Flag and seen</strong> are lightweight labels shared
+        across the group: one click, effect on everyone.</li>
+        <li><strong>Taking charge and assigning</strong> are “multi-row”
+        teamwork: each person has their own, nothing gets
+        overwritten.</li>
+        <li><strong>Following</strong> is the most demanding action: it
+        opens a real dedicated monitoring track, with the most automatic
+        notifications.</li>
+        </ul>
         </section>
         <hr />
         <h2 id="main-interface">Main interface</h2>

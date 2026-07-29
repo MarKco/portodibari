@@ -108,6 +108,26 @@
       border-left-color:var(--accent); border-radius:8px; margin:4px 0;
     }
     nav#toc a[href="#tutorial"]:hover{background:color-mix(in srgb, var(--accent) 26%, transparent)}
+    /* Ship-actions cheat-sheet callout — same pattern as .tutorial, visually distinct (yellow) */
+    .cheatsheet{
+      position:relative; margin:28px 0 40px; padding:8px 26px 26px;
+      background:linear-gradient(180deg, color-mix(in srgb, var(--yellow) 12%, var(--panel)), var(--panel));
+      border:1px solid var(--yellow); border-radius:16px; box-shadow:var(--shadow);
+    }
+    .cheatsheet::before{
+      content:"$if(en)$★ QUICK GUIDE$else$★ GUIDA RAPIDA$endif$"; position:absolute; top:-12px; left:22px;
+      background:var(--yellow); color:#1b2836; font-size:12px; font-weight:700; letter-spacing:.5px;
+      padding:3px 12px; border-radius:20px;
+    }
+    .cheatsheet > h2{border-bottom:none; margin-top:26px}
+    .cheatsheet > h3{color:var(--text); background:color-mix(in srgb, var(--yellow) 14%, transparent);
+      border-left:3px solid var(--yellow); padding:6px 12px; border-radius:8px; font-size:17px}
+    /* TOC: make the ship-actions entry stand out */
+    nav#toc a[href="#ship-actions"]{
+      font-weight:700; color:var(--text); background:color-mix(in srgb, var(--yellow) 18%, transparent);
+      border-left-color:var(--yellow); border-radius:8px; margin:4px 0;
+    }
+    nav#toc a[href="#ship-actions"]:hover{background:color-mix(in srgb, var(--yellow) 28%, transparent)}
     /* Theme toggle */
     #theme{
       position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;

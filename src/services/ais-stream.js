@@ -317,7 +317,13 @@ function connect() {
             const fIt = risk.factors[0] ? risk.factors[0].label : null;
             const fEn = computeRiskScoreCached(ship, 'en').factors[0]?.label || null;
             let any = false;
-            for (const uid of db.getUsersSeeingPoint(ship.last_latitude, ship.last_longitude)) {
+            // Recipients = users who monitor BOTH areaChange.fromArea and
+            // .toArea by key (group members included via the mirrored
+            // user_areas rows) — not merely whoever's bbox geographically
+            // covers the ship's current point, which would also catch users
+            // owning only the destination area when one area's bbox contains
+            // the other's.
+            for (const uid of db.getUsersWithBothAreas(areaChange.fromArea, areaChange.toArea)) {
               if (db.isUserMuted(uid, areaChange.mmsi)) continue;
               const p = userPrefs.get(uid);
               if (!shouldNotifyShip(uid, ship, p)) continue;

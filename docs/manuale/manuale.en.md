@@ -131,6 +131,62 @@ An **area** is the geographic box you want to watch (a port, a stretch of sea). 
 
 ---
 
+::: {.cheatsheet}
+
+## ★ Ship actions: flag, seen, taking charge, following {#ship-actions}
+
+The ship tables show several action icons that look similar but have very different effects on notifications, tables, and the map. This summary helps you pick the right one before diving into the detail of each section later in the manual.
+
+### ★ Flagging a ship
+
+You're saying "this ship matters to me, keep an eye on it" — a manual signal you add yourself, distinct from the automatically calculated risk score.
+
+- **Notifications** — no direct notification to you; if you're in a group, the action shows up in the [Group activity](#group-activity) log and group-mates can get notified if they've turned on the matching option under [Settings → Notifications](#notifications-tab).
+- **Tables** — the row stays where it is but gets colored; a "Flagged only" filter lets you see them all together.
+- **Map** — purple marker, the style with the highest priority (it beats even the red of a high risk score).
+- **Sharing** — personal, but synced across the whole group if you're in one.
+
+### ✓ Marking as seen
+
+You're saying "I already checked this one, no need to look again" — mainly meant for splitting triage work in a group without reviewing the same ships twice.
+
+- **Notifications** — no direct notification; still logged in the group log.
+- **Tables** — the effect is stronger here: seen ships **disappear by default** from "Current ships" and "Past ships" (there's a toggle to show them again), while they stay visible under "Followed ships".
+- **Map** — no dedicated color; the main effect is simply disappearing from the filtered tables.
+- **Sharing** — personal but shared across the group: if a group-mate marks a ship as seen, it disappears for you too.
+
+### 🧑‍✈️ Taking charge of a ship
+
+You're saying "I've got this one" — a way to coordinate in a group over who's handling what. *Visible only if your account is part of a group.*
+
+- **Notifications** — logged in the group log (take/release), with an optional notification to group-mates.
+- **Tables** — the row is highlighted in teal, with a dedicated filter (all / taken by me / not taken / a specific member).
+- **Map** — no dedicated marker style.
+- **Sharing — different from the two above**: it is **not** a single shared label. Several group members can take charge of the same ship together, each with their own independent charge — not one flag that propagates to everyone.
+
+### 👥 Assigning the ship to a group-mate
+
+Same mechanism as taking charge, but assigned to another group member instead of yourself (the **Assign** button in the [ship detail](#ship-detail)). Same effects on tables and map; you can only assign it to an actual co-member of your group — the system checks this.
+
+### 🗺 Following a ship
+
+The most demanding of the five: the ship enters a dedicated, continuous monitoring track, separate from areas — it stays hooked even if it leaves your monitored zones.
+
+- **Notifications** — the richest of the five: besides the group log, it triggers automatic notifications whenever the AIS signal's status changes — the ship goes "searching", is found again, or is lost.
+- **Tables** — it lives in a section of its own, [Followed ships](#followed-ships), with dedicated badges like "🔍 searching" or "📍 seen via ShipFinder/MyShipTracking" when AIS goes quiet but a backup source locates it.
+- **Map** — has its own dedicated map, just for followed ships.
+- **Sharing** — like flag and seen, synced across the whole group.
+
+### In short
+
+- **Flag and seen** are lightweight labels shared across the group: one click, effect on everyone.
+- **Taking charge and assigning** are "multi-row" teamwork: each person has their own, nothing gets overwritten.
+- **Following** is the most demanding action: it opens a real dedicated monitoring track, with the most automatic notifications.
+
+:::
+
+---
+
 ## Main interface
 
 ![Home page: sidebar on the left, map with ships in the center, ships table at the bottom, and notification list.](images/02-home_page.en.png)

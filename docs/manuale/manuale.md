@@ -133,6 +133,62 @@ Le **navi seguite** le tieni d'occhio ovunque vadano, anche fuori dalle tue aree
 
 ---
 
+::: {.cheatsheet}
+
+## ★ Le azioni sulle navi: flag, vista, presa in carico, segui {#ship-actions}
+
+Nelle tabelle delle navi trovi diverse icone-azione che si assomigliano ma hanno effetti molto diversi su notifiche, tabelle e mappa. Questo riepilogo ti aiuta a scegliere quella giusta, prima ancora di leggere il dettaglio di ogni singola sezione più avanti nel manuale.
+
+### ★ Segnalare una nave
+
+Dici "questa nave mi interessa, tienila d'occhio" — un segnale manuale che aggiungi tu, diverso dal punteggio di rischio calcolato automaticamente.
+
+- **Notifiche** — nessuna notifica diretta a te; se sei in un gruppo, l'azione compare nel log di [Attività di gruppo](#attività-di-gruppo) e i colleghi possono ricevere una notifica se hanno attivato l'opzione corrispondente in [Impostazioni → Notifiche](#scheda-notifiche).
+- **Tabelle** — la riga resta al suo posto ma si colora; c'è un filtro "Solo segnalate" per vederle tutte insieme.
+- **Mappa** — marker viola, lo stile con la priorità più alta (batte anche il rosso del rischio alto).
+- **Condivisione** — personale, ma sincronizzata su tutto il gruppo se ne fai parte.
+
+### ✓ Segnare come vista
+
+Dici "l'ho già controllata, non serve rivederla" — pensato soprattutto per dividersi in gruppo il lavoro di cernita senza rivedere le stesse navi due volte.
+
+- **Notifiche** — nessuna notifica diretta; registrata comunque nel log di gruppo.
+- **Tabelle** — qui l'effetto è più forte: le navi viste **spariscono di default** da "Navi presenti" e "Navi passate" (c'è un interruttore per rimostrarle), mentre restano visibili tra le "Navi seguite".
+- **Mappa** — nessun colore dedicato; l'effetto principale è proprio la sparizione dalle tabelle filtrate.
+- **Condivisione** — personale ma condivisa nel gruppo: se un collega segna una nave come vista, sparisce anche a te.
+
+### 🧑‍✈️ Prendere in carico una nave
+
+Dici "questa la seguo io" — per coordinarsi in gruppo su chi si occupa di cosa. *Visibile solo se il tuo account fa parte di un gruppo.*
+
+- **Notifiche** — registrata nel log di gruppo (presa/rilascio), con eventuale notifica ai colleghi.
+- **Tabelle** — riga evidenziata in verde acqua e filtro dedicato (tutte / prese da me / non prese / un membro specifico).
+- **Mappa** — nessuno stile marker dedicato.
+- **Condivisione — diversa dalle due precedenti**: **non** è un'unica etichetta condivisa. Più membri del gruppo possono prendere in carico la stessa nave insieme, ognuno con la propria presa indipendente — non un flag unico che si propaga a tutti.
+
+### 👥 Assegnare la nave a un collega
+
+Stesso meccanismo della presa in carico, ma assegnata a un altro membro del gruppo invece che a te stesso (pulsante **Assegna** nel [dettaglio nave](#dettaglio-nave)). Stessi effetti su tabelle e mappa; puoi assegnarla solo a un tuo effettivo co-membro di gruppo — il sistema lo verifica.
+
+### 🗺 Seguire una nave
+
+L'azione più impegnativa delle cinque: la nave entra in un monitoraggio dedicato e continuo, separato dalle aree — resta agganciata anche se esce dalle tue zone monitorate.
+
+- **Notifiche** — la più ricca: oltre al log di gruppo, genera notifiche automatiche quando cambia lo stato del segnale AIS — la nave va "in ricerca", viene ritrovata, oppure viene persa.
+- **Tabelle** — vive in una sezione tutta sua, [Navi seguite](#navi-seguite), con badge dedicati come "🔍 in ricerca" o "📍 vista su ShipFinder/MyShipTracking" quando l'AIS tace ma una fonte di backup la localizza.
+- **Mappa** — ha una mappa propria, dedicata solo alle navi seguite.
+- **Condivisione** — come stellina e vista, sincronizzata su tutto il gruppo.
+
+### In breve
+
+- **Stellina e vista** sono etichette leggere e condivise nel gruppo: un click, effetto su tutti.
+- **Presa in carico e assegnazione** sono un lavoro di squadra "a righe multiple": ognuno la propria, nessuna sovrascrittura.
+- **Seguire** è l'azione più impegnativa: apre un vero monitoraggio dedicato, con il maggior numero di notifiche automatiche.
+
+:::
+
+---
+
 ## Interfaccia principale
 
 ![Home page: barra laterale a sinistra, mappa con le navi al centro, tabella delle navi in basso e lista notifiche.](images/02-home_page.png)

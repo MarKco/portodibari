@@ -108,6 +108,26 @@
       border-left-color:var(--accent); border-radius:8px; margin:4px 0;
     }
     nav#toc a[href="#tutorial"]:hover{background:color-mix(in srgb, var(--accent) 26%, transparent)}
+    /* Ship-actions cheat-sheet callout — same pattern as .tutorial, visually distinct (yellow) */
+    .cheatsheet{
+      position:relative; margin:28px 0 40px; padding:8px 26px 26px;
+      background:linear-gradient(180deg, color-mix(in srgb, var(--yellow) 12%, var(--panel)), var(--panel));
+      border:1px solid var(--yellow); border-radius:16px; box-shadow:var(--shadow);
+    }
+    .cheatsheet::before{
+      content:"★ GUIDA RAPIDA"; position:absolute; top:-12px; left:22px;
+      background:var(--yellow); color:#1b2836; font-size:12px; font-weight:700; letter-spacing:.5px;
+      padding:3px 12px; border-radius:20px;
+    }
+    .cheatsheet > h2{border-bottom:none; margin-top:26px}
+    .cheatsheet > h3{color:var(--text); background:color-mix(in srgb, var(--yellow) 14%, transparent);
+      border-left:3px solid var(--yellow); padding:6px 12px; border-radius:8px; font-size:17px}
+    /* TOC: make the ship-actions entry stand out */
+    nav#toc a[href="#ship-actions"]{
+      font-weight:700; color:var(--text); background:color-mix(in srgb, var(--yellow) 18%, transparent);
+      border-left-color:var(--yellow); border-radius:8px; margin:4px 0;
+    }
+    nav#toc a[href="#ship-actions"]:hover{background:color-mix(in srgb, var(--yellow) 28%, transparent)}
     /* Theme toggle */
     #theme{
       position:fixed; right:22px; bottom:22px; z-index:50; width:48px; height:48px; border-radius:50%;
@@ -177,6 +197,18 @@
         segui una nave</a></li>
         <li><a href="#passo-4-personalizza-facoltativo">Passo 4 —
         Personalizza (facoltativo)</a></li>
+        </ul></li>
+        <li><a href="#ship-actions">★ Le azioni sulle navi: flag, vista,
+        presa in carico, segui</a>
+        <ul>
+        <li><a href="#segnalare-una-nave">★ Segnalare una nave</a></li>
+        <li><a href="#segnare-come-vista">✓ Segnare come vista</a></li>
+        <li><a href="#prendere-in-carico-una-nave">🧑‍✈️ Prendere in carico
+        una nave</a></li>
+        <li><a href="#assegnare-la-nave-a-un-collega">👥 Assegnare la
+        nave a un collega</a></li>
+        <li><a href="#seguire-una-nave">🗺 Seguire una nave</a></li>
+        <li><a href="#in-breve">In breve</a></li>
         </ul></li>
         <li><a href="#interfaccia-principale">Interfaccia principale</a>
         <ul>
@@ -490,6 +522,108 @@
         href="#impostazioni">Impostazioni</a>.</p>
         <p><strong>Tutto qui per iniziare.</strong> Da adesso in poi il
         manuale entra nel dettaglio di ogni funzione.</p>
+        </section>
+        <hr />
+        <section id="ship-actions" class="cheatsheet">
+        <h2>★ Le azioni sulle navi: flag, vista, presa in carico,
+        segui</h2>
+        <p>Nelle tabelle delle navi trovi diverse icone-azione che si
+        assomigliano ma hanno effetti molto diversi su notifiche,
+        tabelle e mappa. Questo riepilogo ti aiuta a scegliere quella
+        giusta, prima ancora di leggere il dettaglio di ogni singola
+        sezione più avanti nel manuale.</p>
+        <h3 id="segnalare-una-nave">★ Segnalare una nave</h3>
+        <p>Dici “questa nave mi interessa, tienila d’occhio” — un
+        segnale manuale che aggiungi tu, diverso dal punteggio di
+        rischio calcolato automaticamente.</p>
+        <ul>
+        <li><strong>Notifiche</strong> — nessuna notifica diretta a te;
+        se sei in un gruppo, l’azione compare nel log di <a
+        href="#attività-di-gruppo">Attività di gruppo</a> e i colleghi
+        possono ricevere una notifica se hanno attivato l’opzione
+        corrispondente in <a href="#scheda-notifiche">Impostazioni →
+        Notifiche</a>.</li>
+        <li><strong>Tabelle</strong> — la riga resta al suo posto ma si
+        colora; c’è un filtro “Solo segnalate” per vederle tutte
+        insieme.</li>
+        <li><strong>Mappa</strong> — marker viola, lo stile con la
+        priorità più alta (batte anche il rosso del rischio alto).</li>
+        <li><strong>Condivisione</strong> — personale, ma sincronizzata
+        su tutto il gruppo se ne fai parte.</li>
+        </ul>
+        <h3 id="segnare-come-vista">✓ Segnare come vista</h3>
+        <p>Dici “l’ho già controllata, non serve rivederla” — pensato
+        soprattutto per dividersi in gruppo il lavoro di cernita senza
+        rivedere le stesse navi due volte.</p>
+        <ul>
+        <li><strong>Notifiche</strong> — nessuna notifica diretta;
+        registrata comunque nel log di gruppo.</li>
+        <li><strong>Tabelle</strong> — qui l’effetto è più forte: le
+        navi viste <strong>spariscono di default</strong> da “Navi
+        presenti” e “Navi passate” (c’è un interruttore per
+        rimostrarle), mentre restano visibili tra le “Navi
+        seguite”.</li>
+        <li><strong>Mappa</strong> — nessun colore dedicato; l’effetto
+        principale è proprio la sparizione dalle tabelle filtrate.</li>
+        <li><strong>Condivisione</strong> — personale ma condivisa nel
+        gruppo: se un collega segna una nave come vista, sparisce anche
+        a te.</li>
+        </ul>
+        <h3 id="prendere-in-carico-una-nave">🧑‍✈️ Prendere in carico una
+        nave</h3>
+        <p>Dici “questa la seguo io” — per coordinarsi in gruppo su chi
+        si occupa di cosa. <em>Visibile solo se il tuo account fa parte
+        di un gruppo.</em></p>
+        <ul>
+        <li><strong>Notifiche</strong> — registrata nel log di gruppo
+        (presa/rilascio), con eventuale notifica ai colleghi.</li>
+        <li><strong>Tabelle</strong> — riga evidenziata in verde acqua e
+        filtro dedicato (tutte / prese da me / non prese / un membro
+        specifico).</li>
+        <li><strong>Mappa</strong> — nessuno stile marker dedicato.</li>
+        <li><strong>Condivisione — diversa dalle due
+        precedenti</strong>: <strong>non</strong> è un’unica etichetta
+        condivisa. Più membri del gruppo possono prendere in carico la
+        stessa nave insieme, ognuno con la propria presa indipendente —
+        non un flag unico che si propaga a tutti.</li>
+        </ul>
+        <h3 id="assegnare-la-nave-a-un-collega">👥 Assegnare la nave a
+        un collega</h3>
+        <p>Stesso meccanismo della presa in carico, ma assegnata a un
+        altro membro del gruppo invece che a te stesso (pulsante
+        <strong>Assegna</strong> nel <a href="#dettaglio-nave">dettaglio
+        nave</a>). Stessi effetti su tabelle e mappa; puoi assegnarla
+        solo a un tuo effettivo co-membro di gruppo — il sistema lo
+        verifica.</p>
+        <h3 id="seguire-una-nave">🗺 Seguire una nave</h3>
+        <p>L’azione più impegnativa delle cinque: la nave entra in un
+        monitoraggio dedicato e continuo, separato dalle aree — resta
+        agganciata anche se esce dalle tue zone monitorate.</p>
+        <ul>
+        <li><strong>Notifiche</strong> — la più ricca: oltre al log di
+        gruppo, genera notifiche automatiche quando cambia lo stato del
+        segnale AIS — la nave va “in ricerca”, viene ritrovata, oppure
+        viene persa.</li>
+        <li><strong>Tabelle</strong> — vive in una sezione tutta sua, <a
+        href="#navi-seguite">Navi seguite</a>, con badge dedicati come
+        “🔍 in ricerca” o “📍 vista su ShipFinder/MyShipTracking” quando
+        l’AIS tace ma una fonte di backup la localizza.</li>
+        <li><strong>Mappa</strong> — ha una mappa propria, dedicata solo
+        alle navi seguite.</li>
+        <li><strong>Condivisione</strong> — come stellina e vista,
+        sincronizzata su tutto il gruppo.</li>
+        </ul>
+        <h3 id="in-breve">In breve</h3>
+        <ul>
+        <li><strong>Stellina e vista</strong> sono etichette leggere e
+        condivise nel gruppo: un click, effetto su tutti.</li>
+        <li><strong>Presa in carico e assegnazione</strong> sono un
+        lavoro di squadra “a righe multiple”: ognuno la propria, nessuna
+        sovrascrittura.</li>
+        <li><strong>Seguire</strong> è l’azione più impegnativa: apre un
+        vero monitoraggio dedicato, con il maggior numero di notifiche
+        automatiche.</li>
+        </ul>
         </section>
         <hr />
         <h2 id="interfaccia-principale">Interfaccia principale</h2>

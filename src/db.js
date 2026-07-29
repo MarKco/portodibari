@@ -1442,6 +1442,23 @@ function getAreaOwners(areaKey) {
   return db.prepare('SELECT user_id FROM user_areas WHERE area_key = ?').all(areaKey).map((r) => r.user_id);
 }
 
+/** User ids who monitor BOTH given catalog areas (membership by key, not
+ *  geographic bbox) — recipients of an area-change notification. Ensures a
+ *  transition between two areas is only notified to users who actually
+ *  monitor both, even when one area's bbox geographically contains the
+ *  other's (which would otherwise over-notify via getUsersSeeingPoint). */
+function getUsersWithBothAreas(areaKeyA, areaKeyB) {
+  if (!areaKeyA || !areaKeyB) return [];
+  return db
+    .prepare(
+      `SELECT ua1.user_id FROM user_areas ua1
+       JOIN user_areas ua2 ON ua2.user_id = ua1.user_id AND ua2.area_key = ?
+       WHERE ua1.area_key = ?`
+    )
+    .all(areaKeyB, areaKeyA)
+    .map((r) => r.user_id);
+}
+
 // ── Per-user settings (key/value) ────────────────────────────────────────────
 const getUserSettingsStmt = db.prepare('SELECT key, value FROM user_settings WHERE user_id = ?');
 /** Raw {key: value} map of a user's stored settings (values are strings). */
@@ -3351,6 +3368,7 @@ module.exports = {
   getUsersSeeingPoint,
   getUsersFlagging,
   getAreaOwners,
+  getUsersWithBothAreas,
   getUserSettings,
   setUserSetting,
   findUserIdBySetting,
