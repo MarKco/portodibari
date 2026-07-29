@@ -53,7 +53,7 @@ Il browser **non** può connettersi direttamente ad AISStream (CORS policy). Il 
 │   │   ├── gfw.js             # Client API Global Fishing Watch: identità nave + eventi comportamentali (incontri, loitering, port visit, gap AIS)
 │   │   ├── proximity.js       # Rilevamento rendezvous nave-nave (scansione periodica per area, firma di trasbordo ship-to-ship)
 │   │   ├── webhooks.js        # Webhook in uscita per-utente (Slack/Discord/SIEM/custom; formati, firma HMAC, SSRF guard)
-│   │   ├── group-sync.js      # Gruppi di utenti: unione + sincronizzazione write-through di aree/follow/flag/mute + preferenze condivise
+│   │   ├── group-sync.js      # Gruppi di utenti: unione + sincronizzazione write-through di aree/follow/flag/mute + preferenze condivise; log attività "presa in carico" (non mirrorata)
 │   │   ├── equasis-log.js     # Log di audit append-only dei lookup Equasis (equasis.log)
 │   │   ├── locode.js          # Lookup UN/LOCODE → nome porto + coordinate (carica data/locode.json e locode-coords.json a richiesta)
 │   │   └── scrapers/
@@ -943,6 +943,7 @@ Ogni utente ha **i propri** dati:
 - le **aree** (bounding box di monitoraggio);
 - le **impostazioni** (preferenze notifiche, opzioni di visualizzazione mappa OpenSeaMap, lingua, area di default);
 - le **navi segnalate** ★, le **navi seguite** e le **navi segnate come viste** 👁;
+- le navi **prese in carico** 🧑‍✈️ (solo in un gruppo — vedi sotto);
 - il proprio **feed di notifiche**.
 
 La visibilità delle navi è **geografica**: un utente vede i dati AIS la cui posizione cade dentro una delle bounding box delle sue aree.
@@ -977,6 +978,8 @@ Restano **personali** (mai sincronizzati): la **connessione Telegram** del singo
 **Vincolo dei 2 membri:** una rimozione che porterebbe il gruppo a 1 è **bloccata** — per smontare un gruppo di 2 si usa **"Sciogli gruppo"** (tutti tornano singoli mantenendo i dati). Unica eccezione: **eliminare** un utente è un'azione distruttiva esplicita, quindi se l'eliminazione lascia il gruppo a un solo membro il gruppo viene **sciolto automaticamente**.
 
 **Log delle azioni di gruppo** (tabella `group_activity_log`, popolata da [`src/services/group-sync.js`](../../src/services/group-sync.js)): il mirror write-through di per sé è silenzioso, quindi ogni azione mirrorata — aggiunta/rimozione area, follow/unfollow, segnalazione/rimozione segnalazione, mute/unmute, vista/non-vista, cambio di un'impostazione condivisa (incluso l'area di default) — viene anche registrata con **chi** l'ha fatta, **quando**, e i dati per costruire una frase leggibile (nome nave/area **risolti al momento della scrittura**, così la riga resta comprensibile anche se la nave/area viene poi rinominata o rimossa). Retention configurabile (`GROUP_ACTIVITY_LOG_RETENTION_DAYS` in `app.config.properties`, default 90 giorni — pulizia periodica sul pattern delle altre tabelle storiche); inclusa in `BACKUP_TABLES` e nel `pruneOrphans()` (righe di un gruppo sciolto). Ogni utente in un gruppo vede questo log — in ordine cronologico inverso, paginato ("Carica altro") — nella sezione **Attività di gruppo** della sidebar (sotto Monitoraggi/Navi seguite, visibile solo a chi è in un gruppo), che mostra anche nome del gruppo e lista membri in un tab separato. API: `GET /api/group` (dati gruppo + membri) e `GET /api/group/activity?limit=&offset=` (feed paginato) — entrambe risolvono il gruppo dell'utente loggato, nessun parametro di gruppo in ingresso.
+
+**Presa in carico nave** (triage di gruppo, tabella `user_ship_charges`: `user_id, mmsi, assigned_by_id, created_at`): a differenza dei cinque insiemi sopra, **non** è mirror-shared — più membri possono avere la stessa nave "in carico" contemporaneamente, e ogni riga appartiene a chi l'ha effettivamente presa (o a chi gliel'ha assegnata), non è un'unione propagata a tutto il gruppo. Ogni membro può **prendere in carico se stesso** una nave o **assegnarla** a un co-membro; chiunque nel gruppo può togliere la presa in carico di chiunque (stesso modello aperto di flag/follow/mute/vista — [`src/services/group-sync.js`](../../src/services/group-sync.js) `logCharge`, sola voce di log, la scrittura vera e propria vive in `routes/ships.js` che verifica che il destinatario sia un co-membro). Visibile: nell'intestazione del dettaglio nave (tag di chi l'ha presa + bottone "prendi in carico" 🧑‍✈️ + menu "assegna a un membro"), e nelle liste (Monitoraggi/Navi seguite, presenti e passate) come sfondo/icona dedicati (`.charged-row`, teal) + tag utenti sulla riga. Filtrabile sia dal campo di ricerca libero (nomi utente) sia da un menu a tendina dedicato (tutte / assegnate a me / non assegnate / un membro specifico). Ogni cambio genera comunque una voce nel log attività di gruppo (`charge_on`/`charge_off`/`charge_assign`), stesso meccanismo del paragrafo precedente. API: `PATCH /api/ships/:mmsi/charge {on, targetUserId?}` (`targetUserId` assente = se stesso; se presente dev'essere un co-membro, altrimenti 403). Tabella inclusa in `BACKUP_TABLES` e nella cascade `deleteUser`; nessun impatto sul restore di backup più vecchi (tabella nuova, il loop di restore la salta se assente nel backup — vedi [Vincoli importanti](../../.claude/CLAUDE.md)).
 
 ### Password dimenticata
 
@@ -1233,6 +1236,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/expected` | Navi attese nell'area (`?area=`): destinazione = keyword preset, uscite < 48h |
 | PATCH | `/api/ships/:mmsi/flag` | Imposta flag segnalata `{flagged: 0\|1}` |
 | PATCH | `/api/ships/:mmsi/seen` | Imposta flag vista `{seen: 0\|1}`, per-utente (`user_seen`), mirror di gruppo |
+| PATCH | `/api/ships/:mmsi/charge` | Presa in carico di gruppo `{on: 0\|1, targetUserId?}`, per-utente (`user_ship_charges`), NON mirrorata — `targetUserId` assente = se stesso, altrimenti dev'essere un co-membro (403 altrimenti) |
 | PATCH | `/api/ships/:mmsi/notes` | Imposta note libere `{notes: "…"}` |
 | PATCH | `/api/ships/:mmsi/military` | Imposta flag militare manuale `{is_military: 0\|1}` → forza score 100 e riga rossa |
 | GET | `/api/readings` | Letture globali (`?type=&limit=50&offset=0`) |

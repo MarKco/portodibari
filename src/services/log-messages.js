@@ -204,6 +204,7 @@ const MESSAGES = {
   'ship.follow': onOff(['Nave seguita', 'Nave non più seguita'], ['Ship followed', 'Ship unfollowed']),
   'ship.notif_muted': onOff(['Notifiche nave silenziate', 'Notifiche nave riattivate'], ['Ship notifications muted', 'Ship notifications unmuted']),
   'ship.notes': onOff(['Note nave aggiornate', 'Note nave cancellate'], ['Ship notes updated', 'Ship notes cleared']),
+  'ship.charge': onOff(['Nave presa in carico', 'Presa in carico rimossa'], ['Ship taken in charge', 'Charge removed']),
 
   // ── Scraping (VF / MT / Equasis / backfill) ──
   'scrape.requested': { it: (p) => `${p.source} richiesto per ${p.name}`, en: (p) => `${p.source} requested for ${p.name}` },

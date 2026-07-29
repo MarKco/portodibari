@@ -27,13 +27,15 @@ Nessuno spazio oggi per annotazioni testuali libere, tipo "controllata, ok" o "s
 - **Perché**: comunicazione asincrona tra membri senza uscire dall'app.
 - **Trade-off**: superficie UI nuova (textarea + lista note in dettaglio nave/area).
 
-## 4. Assegnazione nave → membro
+## 4. Assegnazione nave → membro — ✅ implementato (variante)
 
 Oggi la divisione del lavoro è solo binaria (vista/non vista).
 
 - **Cosa**: campo `assigned_to` per nave nel contesto di un gruppo, visibile in tabella/dettaglio.
 - **Perché**: triage esplicito ("questa la controlla Mario") invece di solo vista/non vista.
 - **Trade-off**: si sovrappone parzialmente a #1 (audit log) e #3 (note) — valutare se serve come feature separata o è coperta da quelle.
+
+**Implementato con una variante rispetto alla proposta**: non un singolo `assigned_to`, ma una tabella `user_ship_charges` (many-to-many) — più membri possono "prendere in carico" la stessa nave insieme, ciascuno può prendersi in carico da solo o essere assegnato da un co-membro, e chiunque nel gruppo può togliere la presa in carico di chiunque (stesso modello aperto di flag/follow/mute/vista). Non è un mirror write-through come le altre risorse di gruppo: ogni riga appartiene a chi l'ha presa, non è un'unione propagata a tutti. Copre il gap di #1 riusando lo stesso `group_activity_log` (azioni `charge_on`/`charge_off`/`charge_assign`) invece di introdurre una feature a parte — nessuna sovrapposizione irrisolta con #1. Dettagli: [`docs/technical/README.it.md` §Gruppi di utenti](technical/README.it.md#-gruppi-di-utenti).
 
 ## 5. Webhook condiviso di gruppo
 

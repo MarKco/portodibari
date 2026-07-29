@@ -54,6 +54,16 @@ function decorate(s, sets, lang, withDirection) {
   return base;
 }
 
+// Overlay the "taken in charge" tag list onto an already-decorated batch of
+// ships — one query for the whole page (db.getChargesForMmsis), not one per
+// row. Separate from decorate() because it needs the full ship list up front
+// (batch by mmsi) rather than being computed per-row like the boolean flags.
+function attachCharges(ships) {
+  const charges = db.getChargesForMmsis(ships.map((s) => s.mmsi));
+  for (const s of ships) s.chargedBy = charges[s.mmsi] || [];
+  return ships;
+}
+
 function userSets(userId) {
   return {
     flags: db.getUserFlaggedMmsis(userId),
@@ -155,6 +165,7 @@ router.get('/ships/active', (req, res) => {
     .getActiveShips(null, userScope(req))
     .map((s) => decorate(s, sets, lang, true))
     .sort(flaggedFirst);
+  attachCharges(ships);
   // Trail data costs a batch query — only computed when the client actually
   // wants it (area-map trail toggle is opt-in, default off).
   if (req.query.trails === '1') {
@@ -177,6 +188,7 @@ router.get('/ships/past', (req, res) => {
     .getPastShips(null, userScope(req))
     .map((s) => decorate(s, sets, lang, false))
     .sort(flaggedFirst);
+  attachCharges(ships);
   res.json({ ships });
 });
 
@@ -208,6 +220,7 @@ router.get('/ships/followed/active', (req, res) => {
     if (decorated.last_seen_at === db.NEVER_SEEN_AIS) decorated.last_seen_at = null;
     return decorated;
   }).sort(flaggedFirst);
+  attachCharges(ships);
   res.json({ ships });
 });
 
@@ -219,6 +232,7 @@ router.get('/ships/followed/past', (req, res) => {
     if (decorated.last_seen_at === db.NEVER_SEEN_AIS) decorated.last_seen_at = null;
     return decorated;
   }).sort(flaggedFirst);
+  attachCharges(ships);
   res.json({ ships });
 });
 
@@ -538,6 +552,7 @@ router.get('/ships/:mmsi', (req, res) => {
     sf_last_at: sfBadgeAt(mmsi, ship.last_seen_at),
     mst_last_at: mstBadgeAt(mmsi, ship.last_seen_at),
     notif_muted: db.isUserMuted(uid, mmsi) ? 1 : 0,
+    chargedBy: db.getUsersCharging(mmsi),
     destination_label: destinationLabel(ship.destination),
     // [lat, lon] of the declared destination when it's a LOCODE we have
     // coordinates for (≈75%), else null → the client falls back to an OSM
@@ -754,6 +769,30 @@ router.patch('/ships/:mmsi/notif-muted', (req, res) => {
   groupSync.syncMute(req.user.id, mmsi, !!notif_muted); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.notif_muted', { on: !!notif_muted }), { mmsi });
   res.json({ ok: true });
+});
+
+// "Taken in charge" — group triage. Self-take: {on} with no targetUserId.
+// Assign/unassign a co-member: {on, targetUserId}. Unlike flag/follow/mute/seen
+// this is never mirrored group-wide (see group-sync.js) — it only ever touches
+// the ONE targetUserId row. Any group member may set/clear any co-member's row
+// (same open model as the other per-user tags), but the target must actually be
+// a co-member — this is the only guard, since without it a user could plant or
+// clear a charge row for an arbitrary account outside their group.
+router.patch('/ships/:mmsi/charge', (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
+  const { on } = req.body;
+  const actorId = req.user.id;
+  const targetUserId = req.body.targetUserId != null ? Number(req.body.targetUserId) : actorId;
+  if (targetUserId !== actorId) {
+    const gid = db.getUserGroupId(actorId);
+    const members = gid ? db.getGroupMembers(gid) : [];
+    if (!members.includes(targetUserId)) return res.status(403).json({ error: 'Utente non nel tuo gruppo' });
+  }
+  db.setUserShipCharge(targetUserId, mmsi, !!on, targetUserId === actorId ? null : actorId);
+  groupSync.logCharge(actorId, targetUserId, mmsi, !!on);
+  appLog.info('SHIP', appLog.t('ship.charge', { on: !!on }), { mmsi });
+  res.json({ ok: true, chargedBy: db.getUsersCharging(mmsi) });
 });
 
 router.patch('/ships/:mmsi/notes', (req, res) => {

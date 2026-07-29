@@ -6,6 +6,7 @@ import { el } from './dom.js';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { escHtml, formatTime } from './helpers.js';
+import { displayName } from './group.js';
 
 const PAGE_SIZE = 50;
 
@@ -13,11 +14,6 @@ let loading = false;
 let membersById = new Map();
 let loadedRows = []; // every row fetched so far, across "Carica altro" pages
 let query = '';
-
-function displayName(u) {
-  if (!u) return '?';
-  return u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : (u.username || u.email);
-}
 
 function shipLabel(detail, targetId) {
   if (detail?.shipName) return t('groupActivity.shipNamed', { name: escHtml(detail.shipName) });
@@ -55,7 +51,14 @@ function buildActionText(row) {
     case 'mute_off':
     case 'seen_on':
     case 'seen_off':
+    case 'charge_on':
       return t(`groupActivity.msg.${row.action}`, { ship: shipLabel(d, row.target_id) });
+    case 'charge_assign':
+      return t('groupActivity.msg.charge_assign', { ship: shipLabel(d, row.target_id), target: escHtml(displayName(membersById.get(d.targetUserId))) });
+    case 'charge_off':
+      return d.targetUserId === row.user_id
+        ? t('groupActivity.msg.charge_off_self', { ship: shipLabel(d, row.target_id) })
+        : t('groupActivity.msg.charge_off_other', { ship: shipLabel(d, row.target_id), target: escHtml(displayName(membersById.get(d.targetUserId))) });
     case 'settings_change':
       return t('groupActivity.msg.settings_change', { details: settingsDetails(d) });
     default:
@@ -96,6 +99,7 @@ function matchesQuery(row) {
     d.areaName,
     d.mmsi,
     row.target_id,
+    displayName(membersById.get(d.targetUserId)),
     ...(d.values ? Object.keys(d.values) : []),
     buildActionText(row).replace(/<[^>]*>/g, ''),
   ]

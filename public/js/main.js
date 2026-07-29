@@ -3,7 +3,7 @@ import { S, PAGE_SIZE } from './store.js';
 import { api } from './api.js';
 import { showToast, showAlert } from './toast.js';
 import { showView } from './views.js';
-import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData } from './ships.js';
+import { loadActive, loadPast, loadPastCount, loadDetail, loadVfData, loadMtData, loadSfData, locateSf, loadMstData, locateMst, loadEquasisData, loadGfwData, initGroupCharge } from './ships.js';
 import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons, fitTrackToView } from './maps.js';
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
@@ -1926,6 +1926,7 @@ initWebhooks();
 initAppConfig();
 initCollapsibleSections();
 initDetailTabs();
+initGroupCharge();
 
 // Areas added/removed at runtime → refresh the dropdown, monitor toggles and
 // stream status everywhere.

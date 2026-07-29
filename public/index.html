@@ -222,6 +222,7 @@
           <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
           <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
         </select>
+        <select id="active-charge" class="list-band charge-filter hidden"></select>
         <label class="list-check"><input type="checkbox" id="active-inport"><span data-i18n="filter.inPort">Solo in porto</span></label>
         <label class="list-check"><input type="checkbox" id="active-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
         <label class="list-check"><input type="checkbox" id="active-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
@@ -278,6 +279,7 @@
           <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
           <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
         </select>
+        <select id="past-charge" class="list-band charge-filter hidden"></select>
         <label class="list-check"><input type="checkbox" id="past-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
         <label class="list-check"><input type="checkbox" id="past-seen"><span data-i18n="filter.showSeen">Navi segnate come viste</span></label>
         <span class="list-toolbar-spacer"></span>
@@ -347,6 +349,7 @@
             <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
             <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
           </select>
+          <select id="foll-active-charge" class="list-band charge-filter hidden"></select>
           <label class="list-check"><input type="checkbox" id="foll-active-inport"><span data-i18n="filter.inPort">Solo in porto</span></label>
           <label class="list-check"><input type="checkbox" id="foll-active-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
           <span class="list-toolbar-spacer"></span>
@@ -386,6 +389,7 @@
             <option value="med" data-i18n="filter.bandMed">Giallo (31–70)</option>
             <option value="high" data-i18n="filter.bandHigh">Rosso (71–100)</option>
           </select>
+          <select id="foll-past-charge" class="list-band charge-filter hidden"></select>
           <label class="list-check"><input type="checkbox" id="foll-past-flagged"><span data-i18n="filter.flagged">Solo segnalate</span></label>
           <span class="list-toolbar-spacer"></span>
           <span id="foll-past-filter-count" class="list-filter-count"></span>
@@ -430,6 +434,16 @@
           <button id="btn-military-detail" class="military-btn" title="Segna come nave militare">🪖 <span id="military-btn-label">Segna come nave militare</span></button>
           <button id="btn-notif-mute-detail" class="notif-mute-btn"
                   data-i18n-title="detail.notifMuteAdd" title="Silenzia notifiche">🔔</button>
+          <span id="charge-controls-detail" class="charge-controls hidden">
+            <span id="charge-tags-detail" class="charge-tags"></span>
+            <button id="btn-charge-detail" class="charge-btn" type="button"
+                    data-i18n-title="detail.chargeAdd" title="Prendi in carico">🧑‍✈️</button>
+            <div id="charge-assign-detail" class="charge-assign-dropdown">
+              <button id="btn-charge-assign-detail" class="btn btn-secondary btn-sm" type="button"
+                      data-i18n-title="detail.chargeAssignTitle" title="Assegna ad un membro del gruppo">👥 <span data-i18n="detail.chargeAssign">Assegna</span></button>
+              <div id="charge-assign-menu-detail" class="charge-assign-menu hidden"></div>
+            </div>
+          </span>
           <a id="btn-vf-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"
              data-i18n-title="detail.vfLink" title="Vedi su VesselFinder">⧉ VesselFinder</a>
           <a id="btn-mt-detail" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener"

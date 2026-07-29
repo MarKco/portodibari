@@ -659,6 +659,14 @@
         (la riga si attenua). Utile per non perdere le novità.</li>
         <li><strong>⧉ VesselFinder</strong> — apre la scheda della nave
         sul sito VesselFinder.</li>
+        <li><strong>🧑‍✈️ Prendi in carico</strong> — <em>(solo se il tuo
+        account fa parte di un gruppo)</em> prendi in carico la nave per
+        dividerti il lavoro di triage con gli altri membri; più persone
+        possono prenderla in carico insieme. Se qualcuno l’ha già presa,
+        accanto compaiono i suoi tag col nome; la ✕ su un tag toglie
+        quella persona dalla presa in carico. Per assegnarla a un membro
+        specifico (invece che a te stesso), usa il menu nel <a
+        href="#dettaglio-nave">dettaglio nave</a>.</li>
         </ul>
         <p><strong>Colori delle righe:</strong></p>
         <table>
@@ -682,10 +690,14 @@
         <td>Nave segnalata manualmente</td>
         </tr>
         <tr class="even">
+        <td>Verde acqua</td>
+        <td>Presa in carico da uno o più membri del gruppo</td>
+        </tr>
+        <tr class="odd">
         <td>Attenuata</td>
         <td>Nave marcata come “vista”</td>
         </tr>
-        <tr class="odd">
+        <tr class="even">
         <td>Badge ⚓ In porto</td>
         <td>Nave attualmente ormeggiata</td>
         </tr>
@@ -694,11 +706,15 @@
         <p><strong>Clicca su una riga</strong> per aprire il <a
         href="#dettaglio-nave">dettaglio completo</a>.</p>
         <p><strong>Filtri (barra sopra la tabella):</strong> ricerca per
-        nome/MMSI/IMO/destinazione, filtro per fascia di rischio,
+        nome/MMSI/IMO/destinazione (e, se sei in un gruppo, anche per
+        nome di chi ha preso in carico), filtro per fascia di rischio,
         <strong>Solo in porto</strong>, <strong>Solo segnalate</strong>,
         <strong>Navi segnate come viste</strong>, e la casella
-        <strong>Banchine</strong> per l’overlay degli attracchi. A
-        destra i pulsanti <strong>⚓ Banchine</strong>, <strong>⬇
+        <strong>Banchine</strong> per l’overlay degli attracchi. Se il
+        tuo account fa parte di un gruppo compare anche un menu
+        <strong>presa in carico</strong> (tutte / prese in carico da me
+        / non prese in carico / un membro specifico). A destra i
+        pulsanti <strong>⚓ Banchine</strong>, <strong>⬇
         Esporta…</strong> e <strong>▶ Replay</strong>.</p>
         <h4
         id="banchine-caratterizzazione-automatica-degli-attracchi">Banchine
@@ -917,6 +933,10 @@
         tragitto recente</strong>, utile per capire da dove sta
         arrivando la nave. La scelta resta ricordata per i tuoi accessi
         successivi.</p>
+        <p>Le tabelle di entrambe le sotto-schede hanno gli stessi
+        pulsanti, colori riga e filtri di <a href="#navi-presenti">“Navi
+        presenti”</a> — incluso, se sei in un gruppo, il pulsante
+        <strong>🧑‍✈️ Prendi in carico</strong> e il relativo filtro.</p>
         <h3 id="cerca-e-segui-una-nave">Cerca e segui una nave</h3>
         <p>In cima alla sezione c’è una <strong>barra di
         ricerca</strong>: digita <strong>nome</strong> o
@@ -967,7 +987,13 @@
         seguite”. I membri di un gruppo condividono aree, navi
         seguite/segnalate/silenziate/viste e alcune impostazioni: questa
         sezione ti aiuta a capire <strong>chi ha fatto cosa</strong>
-        invece di doverti fidare ciecamente dello stato condiviso.</p>
+        invece di doverti fidare ciecamente dello stato condiviso. La
+        <strong>presa in carico</strong> (vedi <a
+        href="#navi-presenti">Navi presenti</a> e <a
+        href="#dettaglio-nave">Dettaglio nave</a>) fa eccezione: non è
+        condivisa allo stesso modo — più membri possono prendere la
+        stessa nave insieme — ma ogni presa/rilascio/assegnazione
+        compare comunque qui sotto.</p>
         <p>La sezione ha due tab:</p>
         <h3 id="dati-gruppo">Dati gruppo</h3>
         <p>Mostra il <strong>nome del gruppo</strong> e l’elenco dei
@@ -985,13 +1011,13 @@
         <strong>Utente</strong>, <strong>Azione</strong>:
         aggiunta/rimozione di un’area condivisa, inizio/fine del seguire
         una nave, segnalazione, silenziamento notifiche, marcatura
-        vista, cambio di un’impostazione condivisa. La colonna Azione è
-        una frase leggibile — ad esempio <em>“Ha iniziato a seguire la
-        nave BODAN: il gruppo riceverà notifiche sui suoi
-        movimenti.”</em> Il campo di ricerca sopra la tabella filtra le
-        righe per nave, area, utente o tipo di azione. Il pulsante
-        <strong>Carica altro</strong> in fondo recupera le azioni più
-        vecchie.</p>
+        vista, presa/rilascio/assegnazione in carico di una nave, cambio
+        di un’impostazione condivisa. La colonna Azione è una frase
+        leggibile — ad esempio <em>“Ha iniziato a seguire la nave BODAN:
+        il gruppo riceverà notifiche sui suoi movimenti.”</em> Il campo
+        di ricerca sopra la tabella filtra le righe per nave, area,
+        utente o tipo di azione. Il pulsante <strong>Carica
+        altro</strong> in fondo recupera le azioni più vecchie.</p>
         <figure>
         <img src="images/37b-attivita_gruppo_azioni.png"
         alt="Tab “Azioni intraprese dai membri”: elenco cronologico delle azioni del gruppo." />
@@ -1023,6 +1049,14 @@
         nave come militare (riga rossa, rischio massimo)</li>
         <li><strong>🔔 / 🔕</strong> — silenzia o riabilita le notifiche
         automatiche per questa nave</li>
+        <li><strong>🧑‍✈️ Prendi in carico / Assegna</strong> — <em>(solo
+        se il tuo account fa parte di un gruppo)</em> accanto ai tag di
+        chi ha già preso in carico la nave, trovi il pulsante per
+        prenderla in carico tu stesso e il pulsante
+        <strong>Assegna</strong> che apre un menu con gli altri membri
+        del gruppo: clicca un nome per assegnargliela (o toglierla, se è
+        già segnato con ✓). Chiunque nel gruppo può togliere la presa in
+        carico di chiunque altro, cliccando la ✕ sul suo tag.</li>
         <li><strong>⧉ VesselFinder / MarineTraffic / ShipFinder /
         MyShipTracking</strong> — apri la scheda esterna</li>
         <li><strong>Report</strong> — genera un report della nave</li>

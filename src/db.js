@@ -394,6 +394,20 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_user_seen_user ON user_seen(user_id);
 
+  -- "Taken in charge" (group triage): unlike the tables above, several users can
+  -- hold this tag on the SAME ship at once, and it is never mirrored group-wide
+  -- by group-sync.js — a row here is who actually took (or was assigned) the
+  -- ship, not shared state. assigned_by_id is NULL when a user took charge of a
+  -- ship themselves rather than being assigned by a co-member.
+  CREATE TABLE IF NOT EXISTS user_ship_charges (
+    user_id INTEGER NOT NULL,
+    mmsi INTEGER NOT NULL,
+    assigned_by_id INTEGER,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, mmsi)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_ship_charges_mmsi ON user_ship_charges(mmsi);
+
   CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER NOT NULL,
     key TEXT NOT NULL,
@@ -793,7 +807,7 @@ const deleteUserSessionsStmt = db.prepare('DELETE FROM sessions WHERE user_id = 
 // Cascade a user's per-user data on delete (no FKs in this schema). Areas left
 // memberless are re-homed to the admin by migrateMultiUser on the next boot.
 function deleteUser(id) {
-  for (const t of ['sessions', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'notifications']) {
+  for (const t of ['sessions', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_ship_charges', 'user_settings', 'notifications']) {
     db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(id);
   }
   deleteUserStmt.run(id);
@@ -1232,6 +1246,41 @@ const removeUserSeenStmt = db.prepare('DELETE FROM user_seen WHERE user_id = ? A
 function setUserSeen(userId, mmsi, on) {
   if (on) addUserSeenStmt.run(userId, mmsi, new Date().toISOString());
   else removeUserSeenStmt.run(userId, mmsi);
+}
+
+// ── Per-user "taken in charge" (group triage, see schema comment above) ─────
+const addUserChargeStmt = db.prepare(
+  `INSERT INTO user_ship_charges (user_id, mmsi, assigned_by_id, created_at) VALUES (?, ?, ?, ?)
+   ON CONFLICT(user_id, mmsi) DO UPDATE SET assigned_by_id = excluded.assigned_by_id, created_at = excluded.created_at`
+);
+const removeUserChargeStmt = db.prepare('DELETE FROM user_ship_charges WHERE user_id = ? AND mmsi = ?');
+/** Take/release a ship on behalf of `userId`. `assignedById` is the acting user
+ *  when it differs from `userId` (assigning a co-member), else null (self-take). */
+function setUserShipCharge(userId, mmsi, on, assignedById) {
+  if (on) addUserChargeStmt.run(userId, mmsi, assignedById == null ? null : assignedById, new Date().toISOString());
+  else removeUserChargeStmt.run(userId, mmsi);
+}
+
+/** Users who have taken charge of a given ship — drives the ship-detail "presa
+ *  in carico da" tag list. Oldest first (first to take charge shown first). */
+function getUsersCharging(mmsi) {
+  return db
+    .prepare('SELECT user_id AS userId, assigned_by_id AS assignedById, created_at AS createdAt FROM user_ship_charges WHERE mmsi = ? ORDER BY created_at ASC')
+    .all(mmsi);
+}
+
+/** Batch version of getUsersCharging for a page of ships (active/past lists) —
+ *  one query for the whole page rather than one per row.
+ *  Returns { [mmsi]: [{userId, assignedById}, ...] }. */
+function getChargesForMmsis(mmsis) {
+  if (!mmsis.length) return {};
+  const ph = mmsis.map(() => '?').join(', ');
+  const rows = db
+    .prepare(`SELECT mmsi, user_id AS userId, assigned_by_id AS assignedById FROM user_ship_charges WHERE mmsi IN (${ph})`)
+    .all(...mmsis);
+  const out = {};
+  for (const r of rows) (out[r.mmsi] || (out[r.mmsi] = [])).push({ userId: r.userId, assignedById: r.assignedById });
+  return out;
 }
 
 // ── Per-user track cuts (ship detail replay segments) ───────────────────────
@@ -2905,7 +2954,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'group_activity_log', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'user_track_cuts'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'group_activity_log', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_ship_charges', 'user_settings', 'user_track_cuts'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3249,6 +3298,9 @@ module.exports = {
   getUserSeenMmsis,
   isUserSeen,
   setUserSeen,
+  setUserShipCharge,
+  getUsersCharging,
+  getChargesForMmsis,
   getTrackCuts,
   addTrackCut,
   deleteTrackCut,

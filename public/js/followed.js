@@ -16,6 +16,7 @@ import {
   sortShips,
   updateFilterCount,
   exportShipsCsv,
+  populateChargeFilterSelect,
 } from './ships.js';
 import {
   escHtml,
@@ -80,7 +81,7 @@ function renderFollowedActiveTable(ships) {
   el.follActiveBody.innerHTML = sorted
     .map(
       (s) => `
-    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.search_mode ? 'follow-searching-row' : ''}" data-mmsi="${s.mmsi}">
+    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.chargedBy?.length ? 'charged-row' : ''} ${s.search_mode ? 'follow-searching-row' : ''}" data-mmsi="${s.mmsi}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td>${s.search_mode ? '🔍' : formatTime(s.last_seen_at)}${(s.sf_last_at || s.mst_last_at) && s.last_seen_at ? `<div class="ship-name-sub"><span class="ais-lost-badge" data-tip="${t('follow.aisLostTip')}">${t('follow.aisLost', { ago: formatAgo(s.last_seen_at) })}</span></div>` : ''}</td>
       <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}${s.search_mode ? ` <span class="follow-search-badge" data-tip="${staleMonthsLabel()}">${t('follow.searchBadge')}</span>` : ''}${s.sf_last_at ? `<div class="ship-name-sub"><span class="follow-search-badge follow-sf-badge" data-tip="${t('follow.sfSeenTip')}">📍 ${t('follow.sfSeen', { time: formatTime(s.sf_last_at) })}</span></div>` : ''}${s.mst_last_at ? `<div class="ship-name-sub"><span class="follow-search-badge follow-sf-badge" data-tip="${t('follow.mstSeenTip')}">📍 ${t('follow.mstSeen', { time: formatTime(s.mst_last_at) })}</span></div>` : ''}</td>
@@ -113,7 +114,7 @@ function renderFollowedPastTable(ships) {
   el.follPastBody.innerHTML = sorted
     .map(
       (s) => `
-    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''}" data-mmsi="${s.mmsi}">
+    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.chargedBy?.length ? 'charged-row' : ''}" data-mmsi="${s.mmsi}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td class="ship-name">${escHtml(s.ship_name) || '—'}</td>
       <td class="mono">${s.mmsi}</td>
@@ -207,12 +208,14 @@ if (el.tabFollPast) el.tabFollPast.addEventListener('click', () => switchFollowe
   const a = {
     search: document.getElementById('foll-active-search'),
     band: document.getElementById('foll-active-band'),
+    charge: document.getElementById('foll-active-charge'),
     inport: document.getElementById('foll-active-inport'),
     flagged: document.getElementById('foll-active-flagged'),
     exp: document.getElementById('foll-active-export'),
   };
   if (a.search) a.search.addEventListener('input', () => { S.followedFilter.q = a.search.value; renderFollowedActiveTable(follActiveData); });
   if (a.band) a.band.addEventListener('change', () => { S.followedFilter.band = a.band.value; renderFollowedActiveTable(follActiveData); });
+  if (a.charge) a.charge.addEventListener('change', () => { S.followedFilter.charge = a.charge.value; renderFollowedActiveTable(follActiveData); });
   if (a.inport) a.inport.addEventListener('change', () => { S.followedFilter.inPort = a.inport.checked; renderFollowedActiveTable(follActiveData); });
   if (a.flagged) a.flagged.addEventListener('change', () => { S.followedFilter.flagged = a.flagged.checked; renderFollowedActiveTable(follActiveData); });
   if (a.exp) a.exp.addEventListener('click', () => {
@@ -223,14 +226,23 @@ if (el.tabFollPast) el.tabFollPast.addEventListener('click', () => switchFollowe
   const p = {
     search: document.getElementById('foll-past-search'),
     band: document.getElementById('foll-past-band'),
+    charge: document.getElementById('foll-past-charge'),
     flagged: document.getElementById('foll-past-flagged'),
     exp: document.getElementById('foll-past-export'),
   };
   if (p.search) p.search.addEventListener('input', () => { S.followedPastFilter.q = p.search.value; renderFollowedPastTable(follPastData); });
   if (p.band) p.band.addEventListener('change', () => { S.followedPastFilter.band = p.band.value; renderFollowedPastTable(follPastData); });
+  if (p.charge) p.charge.addEventListener('change', () => { S.followedPastFilter.charge = p.charge.value; renderFollowedPastTable(follPastData); });
   if (p.flagged) p.flagged.addEventListener('change', () => { S.followedPastFilter.flagged = p.flagged.checked; renderFollowedPastTable(follPastData); });
   if (p.exp) p.exp.addEventListener('click', () => {
     const sorted = sortShips(filterShips(follPastData, S.followedPastFilter), follPastSort.col, follPastSort.dir);
     exportShipsCsv(sorted, 'navi-seguite-passate');
   });
 }
+
+window.addEventListener('group-state-loaded', () => {
+  populateChargeFilterSelect('foll-active-charge', S.followedFilter);
+  populateChargeFilterSelect('foll-past-charge', S.followedPastFilter);
+  renderFollowedActiveTable(follActiveData);
+  renderFollowedPastTable(follPastData);
+});

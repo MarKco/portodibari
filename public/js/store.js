@@ -67,10 +67,10 @@ export const S = {
   // List filters (client-side, applied before sort/render). `showSeen` controls
   // whether ships marked as seen are listed; default off (they are hidden, with
   // flagged ships always kept visible). Persisted in localStorage — see below.
-  activeFilter: { q: '', band: '', inPort: false, flagged: false, showSeen: false },
-  pastFilter: { q: '', band: '', flagged: false, showSeen: false },
-  followedFilter: { q: '', band: '', inPort: false, flagged: false },
-  followedPastFilter: { q: '', band: '', flagged: false },
+  activeFilter: { q: '', band: '', charge: '', inPort: false, flagged: false, showSeen: false },
+  pastFilter: { q: '', band: '', charge: '', flagged: false, showSeen: false },
+  followedFilter: { q: '', band: '', charge: '', inPort: false, flagged: false },
+  followedPastFilter: { q: '', band: '', charge: '', flagged: false },
   followedSubview: 'active', // 'active' | 'past' within the Navi seguite section
   allStreamStatus: {},
   presets: {},

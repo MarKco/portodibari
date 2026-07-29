@@ -193,6 +193,7 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 - **☆ / ★ Flag** — highlights the ship in purple as "to review". Click again to remove.
 - **✓ Seen** — marks the ship as already reviewed (the row is dimmed). Useful for not missing new arrivals.
 - **⧉ VesselFinder** — opens the ship's page on the VesselFinder site.
+- **🧑‍✈️ Take charge** — *(only if your account is part of a group)* take charge of the ship to split triage work with the other members; more than one person can take charge of the same ship together. If someone already has it, their name tags appear next to it; the ✕ on a tag removes that person from the charge. To assign it to a specific member (instead of yourself), use the menu in the [ship detail](#ship-detail).
 
 **Row colors:**
 
@@ -201,12 +202,13 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 | Red 🪖 | Military ship (auto-flagged) |
 | Red | High risk score (71–100) |
 | Purple | Manually flagged ship |
+| Teal | Taken in charge by one or more group members |
 | Dimmed | Ship marked as "seen" |
 | Badge ⚓ In port | Ship currently moored |
 
 **Click a row** to open the [full detail](#ship-detail).
 
-**Filters (bar above the table):** search by name/MMSI/IMO/destination, filter by risk band, **In port only**, **Flagged only**, **Ships marked as seen**, and the **Berths** checkbox for the mooring overlay. On the right: **⚓ Berths**, **⬇ Export…**, and **▶ Replay** buttons.
+**Filters (bar above the table):** search by name/MMSI/IMO/destination (and, if you're in a group, also by the name of whoever took charge), filter by risk band, **In port only**, **Flagged only**, **Ships marked as seen**, and the **Berths** checkbox for the mooring overlay. If your account is part of a group, a **taken in charge** dropdown also appears (all / taken by me / not taken / a specific member). On the right: **⚓ Berths**, **⬇ Export…**, and **▶ Replay** buttons.
 
 #### Berths (automatic mooring characterization)
 
@@ -292,6 +294,8 @@ Two sub-tabs: **Followed** (currently tracked) and **Previously followed** (hist
 
 On the **Followed** sub-tab's map, two buttons in the top-right corner (**🏷** and **〰**, hover over them to see what they do) show/hide the **name next to each marker** and a small **recent-track breadcrumb**, useful to see where a ship is coming from. Your choice is remembered for future visits.
 
+Both sub-tabs' tables have the same buttons, row colors and filters as ["Current ships"](#current-ships) — including, if you're in a group, the **🧑‍✈️ Take charge** button and its filter.
+
 ### Searching for and following a ship
 
 At the top of the section there's a **search bar**: type **name** or **MMSI** and press **🔍 Search**.
@@ -316,7 +320,7 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 ## Group activity
 
-If your account is part of a **group** (created by an administrator), the sidebar shows a **👥 Group activity** entry right below "Followed ships". Group members share areas, followed/flagged/muted/seen ships and some settings: this section helps you see **who did what** instead of just trusting the shared state blindly.
+If your account is part of a **group** (created by an administrator), the sidebar shows a **👥 Group activity** entry right below "Followed ships". Group members share areas, followed/flagged/muted/seen ships and some settings: this section helps you see **who did what** instead of just trusting the shared state blindly. **Taken in charge** (see [Current ships](#current-ships) and [Ship detail](#ship-detail)) is an exception: it isn't shared the same way — several members can take the same ship together — but every take/release/assignment still shows up here.
 
 The section has two tabs:
 
@@ -328,7 +332,7 @@ Shows the **group name** and the list of **members** (your own name is marked "(
 
 ### Actions taken by members
 
-A table, newest-first, of every group action a member has taken — columns **Date and time**, **User**, **Action**: adding/removing a shared area, starting/stopping following a ship, flagging, muting notifications, marking as seen, changing a shared setting. The Action column is a readable sentence — e.g. *"Started following ship BODAN: the group will get notified of its movements."* The search box above the table filters rows by ship, area, user or action type. The **Load more** button at the bottom fetches older actions.
+A table, newest-first, of every group action a member has taken — columns **Date and time**, **User**, **Action**: adding/removing a shared area, starting/stopping following a ship, flagging, muting notifications, marking as seen, taking/releasing/assigning charge of a ship, changing a shared setting. The Action column is a readable sentence — e.g. *"Started following ship BODAN: the group will get notified of its movements."* The search box above the table filters rows by ship, area, user or action type. The **Load more** button at the bottom fetches older actions.
 
 ![The "Actions taken by members" tab: chronological list of the group's actions.](images/37b-attivita_gruppo_azioni.en.png)
 
@@ -346,6 +350,7 @@ Clicking any table row (or a ship's notification) opens the full detail card, or
 - **★ Flag** / **✓ Seen** — flag / mark as reviewed
 - **🪖 Mark as military ship** — classifies the ship as military (red row, maximum risk)
 - **🔔 / 🔕** — mute or re-enable automatic notifications for this ship
+- **🧑‍✈️ Take charge / Assign** — *(only if your account is part of a group)* next to the tags of whoever already took charge of the ship, you'll find a button to take charge yourself and an **Assign** button that opens a menu with the group's other members: click a name to assign it to them (or to remove it, if already checked ✓). Any group member can remove anyone else's charge by clicking the ✕ on their tag.
 - **⧉ VesselFinder / MarineTraffic / ShipFinder / MyShipTracking** — open the external page
 - **Report** — generates a report for the ship
 

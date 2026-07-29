@@ -53,7 +53,7 @@ The browser **cannot** connect directly to AISStream (CORS policy). The backend 
 │   │   ├── gfw.js             # Global Fishing Watch API client: vessel identity + behavioural events (encounters, loitering, port visits, AIS gaps)
 │   │   ├── proximity.js       # Ship-to-ship rendezvous detection (periodic per-area scan, ship-to-ship transshipment signature)
 │   │   ├── webhooks.js        # Per-user outbound webhooks (Slack/Discord/SIEM/custom; formats, HMAC signature, SSRF guard)
-│   │   ├── group-sync.js      # User groups: union + write-through sync of areas/follows/flags/mutes + shared preferences
+│   │   ├── group-sync.js      # User groups: union + write-through sync of areas/follows/flags/mutes + shared preferences; "taken in charge" activity log (not mirrored)
 │   │   ├── equasis-log.js     # Append-only audit log of Equasis lookups (equasis.log)
 │   │   ├── locode.js          # UN/LOCODE → human-readable port name lookup (loads data/locode.json on demand)
 │   │   └── scrapers/
@@ -851,6 +851,7 @@ Each user has **their own** data:
 - their **areas** (monitoring bounding boxes);
 - their **settings** (notification preferences, OpenSeaMap map-display options, language, default area);
 - their **flagged** ships ★, **followed** ships, and ships marked **seen** 👁;
+- ships they have **taken in charge** 🧑‍✈️ (only within a group — see below);
 - their own **notifications** feed.
 
 Ship visibility is **geographic**: a user sees AIS data whose position falls inside one of their areas' bounding boxes.
@@ -885,6 +886,8 @@ These stay **personal** (never synced): each user's **Telegram connection** (lin
 **The 2-member rule:** a removal that would drop a group to 1 is **blocked** — to break up a 2-member group use **"Dissolve group"** (everyone reverts to solo, keeping their data). The only exception: **deleting** a user is an explicit destructive action, so if the deletion leaves the group with a single member the group is **dissolved automatically**.
 
 **Group activity log** (table `group_activity_log`, populated by [`src/services/group-sync.js`](../../src/services/group-sync.js)): the write-through mirror is silent by itself, so every mirrored action — area add/remove, follow/unfollow, flag/unflag, mute/unmute, seen/unseen, a shared-setting change (including the default area) — is also recorded with **who** did it, **when**, and the data needed to build a readable sentence (ship/area name **resolved at write time**, so the row stays readable even if the ship/area is later renamed or removed). Retention is configurable (`GROUP_ACTIVITY_LOG_RETENTION_DAYS` in `app.config.properties`, default 90 days — periodic cleanup, same pattern as the other historical tables); included in `BACKUP_TABLES` and in `pruneOrphans()` (rows left behind by a dissolved group). Every user in a group sees this log — newest first, paginated ("Load more") — in the sidebar's **Group activity** section (below Monitoring/Followed ships, visible only to users in a group), which also shows the group name and member list in a separate tab. API: `GET /api/group` (group info + members) and `GET /api/group/activity?limit=&offset=` (paginated feed) — both resolve the logged-in user's own group, no group id is accepted as input.
+
+**Taking a ship in charge** (group triage, table `user_ship_charges`: `user_id, mmsi, assigned_by_id, created_at`): unlike the five resource sets above, this is **not** mirror-shared — several members can hold the same ship "in charge" at once, and each row belongs to whoever actually took it (or was assigned it), not a union propagated to the whole group. Any member can **take charge of a ship themselves** or **assign** it to a co-member; any group member may remove anyone's charge (same open model as flag/follow/mute/seen — [`src/services/group-sync.js`](../../src/services/group-sync.js) `logCharge` only writes the audit-log entry, the actual row is written by `routes/ships.js`, which checks the target is a co-member). Visible in the ship-detail header (tags of who has it + a "take charge" 🧑‍✈️ button + an "assign to a member" menu), and in the lists (Monitoring/Followed ships, active and past) as a dedicated background/icon (`.charged-row`, teal) + user tags on the row. Filterable both from the free-text search box (matches user names) and from a dedicated dropdown (all / taken by me / not taken / a specific member). Every change is still logged to the group activity feed (`charge_on`/`charge_off`/`charge_assign`), same mechanism as the paragraph above. API: `PATCH /api/ships/:mmsi/charge {on, targetUserId?}` (`targetUserId` absent = self; if present it must be a co-member, else 403). Table included in `BACKUP_TABLES` and in the `deleteUser` cascade; no impact on restoring older backups (new table, the restore loop skips it when absent from the backup).
 
 ### Forgot password
 
@@ -1133,6 +1136,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/ships/expected` | Expected ships in the area (`?area=`): destination = preset keyword, departed < 48h ago |
 | PATCH | `/api/ships/:mmsi/flag` | Set flagged flag `{flagged: 0\|1}` |
 | PATCH | `/api/ships/:mmsi/seen` | Set seen flag `{seen: 0\|1}`, per-user (`user_seen`), group-mirrored |
+| PATCH | `/api/ships/:mmsi/charge` | Group triage "take charge" `{on: 0\|1, targetUserId?}`, per-user (`user_ship_charges`), NOT mirrored — `targetUserId` absent = self, otherwise must be a co-member (403 otherwise) |
 | PATCH | `/api/ships/:mmsi/notes` | Set free-form notes `{notes: "…"}` |
 | PATCH | `/api/ships/:mmsi/military` | Set manual military flag `{is_military: 0\|1}` → forces score 100 and red row |
 | GET | `/api/readings` | Global readings (`?type=&limit=50&offset=0`) |

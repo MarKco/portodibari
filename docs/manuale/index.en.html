@@ -628,6 +628,14 @@
         (the row is dimmed). Useful for not missing new arrivals.</li>
         <li><strong>⧉ VesselFinder</strong> — opens the ship’s page on
         the VesselFinder site.</li>
+        <li><strong>🧑‍✈️ Take charge</strong> — <em>(only if your account
+        is part of a group)</em> take charge of the ship to split triage
+        work with the other members; more than one person can take
+        charge of the same ship together. If someone already has it,
+        their name tags appear next to it; the ✕ on a tag removes that
+        person from the charge. To assign it to a specific member
+        (instead of yourself), use the menu in the <a
+        href="#ship-detail">ship detail</a>.</li>
         </ul>
         <p><strong>Row colors:</strong></p>
         <table>
@@ -651,10 +659,14 @@
         <td>Manually flagged ship</td>
         </tr>
         <tr class="even">
+        <td>Teal</td>
+        <td>Taken in charge by one or more group members</td>
+        </tr>
+        <tr class="odd">
         <td>Dimmed</td>
         <td>Ship marked as “seen”</td>
         </tr>
-        <tr class="odd">
+        <tr class="even">
         <td>Badge ⚓ In port</td>
         <td>Ship currently moored</td>
         </tr>
@@ -663,10 +675,14 @@
         <p><strong>Click a row</strong> to open the <a
         href="#ship-detail">full detail</a>.</p>
         <p><strong>Filters (bar above the table):</strong> search by
-        name/MMSI/IMO/destination, filter by risk band, <strong>In port
-        only</strong>, <strong>Flagged only</strong>, <strong>Ships
-        marked as seen</strong>, and the <strong>Berths</strong>
-        checkbox for the mooring overlay. On the right: <strong>⚓
+        name/MMSI/IMO/destination (and, if you’re in a group, also by
+        the name of whoever took charge), filter by risk band,
+        <strong>In port only</strong>, <strong>Flagged only</strong>,
+        <strong>Ships marked as seen</strong>, and the
+        <strong>Berths</strong> checkbox for the mooring overlay. If
+        your account is part of a group, a <strong>taken in
+        charge</strong> dropdown also appears (all / taken by me / not
+        taken / a specific member). On the right: <strong>⚓
         Berths</strong>, <strong>⬇ Export…</strong>, and <strong>▶
         Replay</strong> buttons.</p>
         <h4 id="berths-automatic-mooring-characterization">Berths
@@ -870,6 +886,10 @@
         small <strong>recent-track breadcrumb</strong>, useful to see
         where a ship is coming from. Your choice is remembered for
         future visits.</p>
+        <p>Both sub-tabs’ tables have the same buttons, row colors and
+        filters as <a href="#current-ships">“Current ships”</a> —
+        including, if you’re in a group, the <strong>🧑‍✈️ Take
+        charge</strong> button and its filter.</p>
         <h3 id="searching-for-and-following-a-ship">Searching for and
         following a ship</h3>
         <p>At the top of the section there’s a <strong>search
@@ -922,8 +942,13 @@
         activity</strong> entry right below “Followed ships”. Group
         members share areas, followed/flagged/muted/seen ships and some
         settings: this section helps you see <strong>who did
-        what</strong> instead of just trusting the shared state
-        blindly.</p>
+        what</strong> instead of just trusting the shared state blindly.
+        <strong>Taken in charge</strong> (see <a
+        href="#current-ships">Current ships</a> and <a
+        href="#ship-detail">Ship detail</a>) is an exception: it isn’t
+        shared the same way — several members can take the same ship
+        together — but every take/release/assignment still shows up
+        here.</p>
         <p>The section has two tabs:</p>
         <h3 id="group-info">Group info</h3>
         <p>Shows the <strong>group name</strong> and the list of
@@ -939,7 +964,8 @@
         taken — columns <strong>Date and time</strong>,
         <strong>User</strong>, <strong>Action</strong>: adding/removing
         a shared area, starting/stopping following a ship, flagging,
-        muting notifications, marking as seen, changing a shared
+        muting notifications, marking as seen,
+        taking/releasing/assigning charge of a ship, changing a shared
         setting. The Action column is a readable sentence —
         e.g. <em>“Started following ship BODAN: the group will get
         notified of its movements.”</em> The search box above the table
@@ -975,6 +1001,14 @@
         ship as military (red row, maximum risk)</li>
         <li><strong>🔔 / 🔕</strong> — mute or re-enable automatic
         notifications for this ship</li>
+        <li><strong>🧑‍✈️ Take charge / Assign</strong> — <em>(only if your
+        account is part of a group)</em> next to the tags of whoever
+        already took charge of the ship, you’ll find a button to take
+        charge yourself and an <strong>Assign</strong> button that opens
+        a menu with the group’s other members: click a name to assign it
+        to them (or to remove it, if already checked ✓). Any group
+        member can remove anyone else’s charge by clicking the ✕ on
+        their tag.</li>
         <li><strong>⧉ VesselFinder / MarineTraffic / ShipFinder /
         MyShipTracking</strong> — open the external page</li>
         <li><strong>Report</strong> — generates a report for the

@@ -101,6 +101,16 @@ function syncSeen(actorId, mmsi, on) {
   logActivity(actorId, on ? 'seen_on' : 'seen_off', 'ship', mmsi, shipLabel(mmsi));
 }
 
+// "Taken in charge" is NOT mirrored like the sets above — each row belongs to
+// whoever actually took (or was assigned) the ship, so several co-members can
+// hold it on the same ship at once. Only the audit-log entry is written here;
+// the actual user_ship_charges row is written by the caller (routes/ships.js),
+// which also resolves/authorizes `targetUserId` against the group roster.
+function logCharge(actorId, targetUserId, mmsi, on) {
+  const action = !on ? 'charge_off' : (targetUserId === actorId ? 'charge_on' : 'charge_assign');
+  logActivity(actorId, action, 'ship', mmsi, { ...shipLabel(mmsi), targetUserId });
+}
+
 /** Mirror a settings patch onto co-members — only the SHARED keys, by value.
  *  `patch` is the raw request patch; non-shared keys are silently ignored. */
 function syncSettings(actorId, patch) {
@@ -196,6 +206,7 @@ module.exports = {
   syncFlag,
   syncMute,
   syncSeen,
+  logCharge,
   syncSettings,
   formGroup,
   joinGroup,

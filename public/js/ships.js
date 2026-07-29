@@ -6,6 +6,7 @@ import { renderActiveMap, renderSfPositions, renderMstPositions, seekTrackTo } f
 import { showView } from './views.js';
 import { t, getLang } from './i18n.js';
 import { exportShips, exportTrack, exportBerths } from './geoexport.js';
+import { loadGroupState, getGroupState, displayName } from './group.js';
 import {
   escHtml,
   formatTime,
@@ -84,6 +85,58 @@ export function updateDetailNotifMuteBtn(muted) {
   el.btnNotifMuteDetail.title = muted ? t('detail.notifMuteRemove') : t('detail.notifMuteAdd');
 }
 
+// ── "Taken in charge" (group triage) ────────────────────────────────────────
+// Whole cluster (tags + self-take button + assign dropdown) only makes sense
+// for a user bound to a group — hidden entirely otherwise (see CLAUDE.md
+// "Gruppi utenti").
+function chargeUserLabel(userId) {
+  const grp = getGroupState();
+  return userId === grp.youId ? t('groupActivity.you') : displayName(grp.membersById.get(userId));
+}
+
+function renderDetailChargeTags(chargedBy) {
+  if (!el.chargeTagsDetail) return;
+  el.chargeTagsDetail.innerHTML = (chargedBy || [])
+    .map(
+      (c) => `
+      <span class="charge-tag">${escHtml(chargeUserLabel(c.userId))}
+        <button type="button" class="charge-tag-remove" data-uid="${c.userId}" title="${escHtml(t('detail.chargeRemoveOther'))}">✕</button>
+      </span>`
+    )
+    .join('');
+}
+
+function renderDetailChargeAssignMenu(chargedBy) {
+  if (!el.chargeAssignMenuDetail) return;
+  const grp = getGroupState();
+  const chargedIds = new Set((chargedBy || []).map((c) => c.userId));
+  const others = grp.members.filter((m) => m.id !== grp.youId);
+  if (!others.length) {
+    el.chargeAssignMenuDetail.innerHTML = `<div class="charge-assign-empty">${escHtml(t('detail.chargeAssignEmpty'))}</div>`;
+    return;
+  }
+  el.chargeAssignMenuDetail.innerHTML = others
+    .map((m) => {
+      const active = chargedIds.has(m.id);
+      return `<button type="button" data-uid="${m.id}" class="${active ? 'charge-assign-active' : ''}">${active ? '✓ ' : ''}${escHtml(displayName(m))}</button>`;
+    })
+    .join('');
+}
+
+export function updateDetailChargeControls(shipData) {
+  if (!el.chargeControlsDetail) return;
+  const grp = getGroupState();
+  el.chargeControlsDetail.classList.toggle('hidden', !grp.inGroup);
+  if (!grp.inGroup) return;
+  const chargedBy = shipData?.chargedBy || [];
+  const chargedByMe = chargedBy.some((c) => c.userId === grp.youId);
+  el.btnChargeDetail.dataset.charged = chargedByMe ? '1' : '0';
+  el.btnChargeDetail.classList.toggle('charged-by-me', chargedByMe);
+  el.btnChargeDetail.title = chargedByMe ? t('detail.chargeRemove') : t('detail.chargeAdd');
+  renderDetailChargeTags(chargedBy);
+  renderDetailChargeAssignMenu(chargedBy);
+}
+
 // Wrap a detail-action click handler: ignore re-entrant clicks, disable the
 // button while the PATCH is in flight (no double-submit), and surface an error
 // toast instead of leaving an unhandled rejection when the request fails.
@@ -107,6 +160,60 @@ guardDetailBtn(el.btnNotifMuteDetail, async () => {
   updateDetailNotifMuteBtn(newMuted);
   if (S.detailShipData) S.detailShipData.notif_muted = newMuted;
 });
+
+if (el.btnChargeDetail) {
+  guardDetailBtn(el.btnChargeDetail, async () => {
+    const newCharged = el.btnChargeDetail.dataset.charged === '1' ? 0 : 1;
+    const res = await api(`/api/ships/${S.detailMmsi}/charge`, 'PATCH', { on: !!newCharged });
+    if (S.detailShipData) S.detailShipData.chargedBy = res.chargedBy || [];
+    updateDetailChargeControls(S.detailShipData);
+  });
+}
+
+// Assign-to-member dropdown: toggle open/closed, apply on click, close on any
+// outside click. Any group member may assign/unassign any co-member (same
+// open model as flag/follow/mute/seen) — routes/ships.js only checks that the
+// target actually belongs to the group.
+if (el.btnChargeAssignDetail) {
+  el.btnChargeAssignDetail.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.chargeAssignMenuDetail.classList.toggle('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (el.chargeAssignDetail && !el.chargeAssignDetail.contains(e.target)) {
+      el.chargeAssignMenuDetail.classList.add('hidden');
+    }
+  });
+  el.chargeAssignMenuDetail.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-uid]');
+    if (!btn || S.detailMmsi == null) return;
+    const targetUserId = Number(btn.dataset.uid);
+    const alreadyCharged = btn.classList.contains('charge-assign-active');
+    el.chargeAssignMenuDetail.classList.add('hidden');
+    try {
+      const res = await api(`/api/ships/${S.detailMmsi}/charge`, 'PATCH', { on: !alreadyCharged, targetUserId });
+      if (S.detailShipData) S.detailShipData.chargedBy = res.chargedBy || [];
+      updateDetailChargeControls(S.detailShipData);
+    } catch (err) {
+      showAlert(t('error.action'), escHtml(err.message || String(err)));
+    }
+  });
+}
+
+if (el.chargeTagsDetail) {
+  el.chargeTagsDetail.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.charge-tag-remove');
+    if (!btn || S.detailMmsi == null) return;
+    const targetUserId = Number(btn.dataset.uid);
+    try {
+      const res = await api(`/api/ships/${S.detailMmsi}/charge`, 'PATCH', { on: false, targetUserId });
+      if (S.detailShipData) S.detailShipData.chargedBy = res.chargedBy || [];
+      updateDetailChargeControls(S.detailShipData);
+    } catch (err) {
+      showAlert(t('error.action'), escHtml(err.message || String(err)));
+    }
+  });
+}
 
 guardDetailBtn(el.btnFlagDetail, async () => {
   const newFlag = el.btnFlagDetail.dataset.flagged === '1' ? 0 : 1;
@@ -220,6 +327,7 @@ export function sortShips(ships, col, dir) {
 // ── List filters (client-side) ─────────────────────────────────────────────────
 export function filterShips(ships, f, opts = {}) {
   const q = (f.q || '').trim().toLowerCase();
+  const grp = getGroupState();
   return ships.filter((s) => {
     if (f.band && s.risk?.band !== f.band) return false;
     if (f.flagged && !s.flagged) return false;
@@ -229,8 +337,19 @@ export function filterShips(ships, f, opts = {}) {
     // have no such field and keep showing seen ships.
     if ('showSeen' in f && !f.showSeen && s.seen && !s.flagged) return false;
     if (opts.inPort && f.inPort && !s.in_port) return false;
+    if (f.charge) {
+      const chargedBy = s.chargedBy || [];
+      if (f.charge === 'me') {
+        if (!chargedBy.some((c) => c.userId === grp.youId)) return false;
+      } else if (f.charge === 'none') {
+        if (chargedBy.length) return false;
+      } else if (!chargedBy.some((c) => c.userId === Number(f.charge))) {
+        return false;
+      }
+    }
     if (q) {
-      const hay = [s.ship_name, s.mmsi, s.imo_number, s.destination, s.call_sign]
+      const chargeNames = (s.chargedBy || []).map((c) => displayName(grp.membersById.get(c.userId))).join(' ');
+      const hay = [s.ship_name, s.mmsi, s.imo_number, s.destination, s.call_sign, chargeNames]
         .map((v) => (v == null ? '' : String(v).toLowerCase()))
         .join(' ');
       if (!hay.includes(q)) return false;
@@ -342,6 +461,34 @@ export async function loadActive() {
   }
 }
 
+// Row-level "taken in charge" fragment: a self-take toggle button (only for a
+// user bound to a group) + the tag list of whoever already has it. Assigning to
+// a SPECIFIC co-member needs more room than a table cell offers, so that only
+// lives in the detail header (see updateDetailChargeControls) — the row only
+// offers "take/release for myself" plus removing anyone's tag.
+function chargeCellHtml(s) {
+  const grp = getGroupState();
+  if (!grp.inGroup) return '';
+  const chargedBy = s.chargedBy || [];
+  const chargedByMe = chargedBy.some((c) => c.userId === grp.youId);
+  const btn = `
+    <button class="charge-btn ${chargedByMe ? 'charged-by-me' : ''}"
+            data-mmsi="${s.mmsi}" data-charged="${chargedByMe ? 1 : 0}"
+            title="${chargedByMe ? t('detail.chargeRemove') : t('detail.chargeAdd')}">
+      🧑‍✈️
+    </button>`;
+  if (!chargedBy.length) return btn;
+  const tags = chargedBy
+    .map(
+      (c) => `
+      <span class="charge-tag">${escHtml(chargeUserLabel(c.userId))}
+        <button type="button" class="charge-tag-remove" data-mmsi="${s.mmsi}" data-uid="${c.userId}" title="${escHtml(t('detail.chargeRemoveOther'))}">✕</button>
+      </span>`
+    )
+    .join('');
+  return `${btn}<span class="charge-tags">${tags}</span>`;
+}
+
 export function flagSeenButtonsHtml(s) {
   return `
     <button class="flag-btn ${s.flagged ? 'flagged' : ''}"
@@ -360,7 +507,8 @@ export function flagSeenButtonsHtml(s) {
       🗺
     </button>
     <a class="vf-link" href="https://www.vesselfinder.com/vessels/details/${s.mmsi}"
-       target="_blank" rel="noopener" title="${t('detail.vfLink')}">⧉</a>`;
+       target="_blank" rel="noopener" title="${t('detail.vfLink')}">⧉</a>
+    ${chargeCellHtml(s)}`;
 }
 
 export function bindFlagSeenButtons(tbody, reload) {
@@ -391,6 +539,24 @@ export function bindFlagSeenButtons(tbody, reload) {
       reload();
     });
   });
+  tbody.querySelectorAll('.charge-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const mmsi = Number(btn.dataset.mmsi);
+      const newCharged = Number(btn.dataset.charged) ? 0 : 1;
+      await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: !!newCharged });
+      reload();
+    });
+  });
+  tbody.querySelectorAll('.charge-tag-remove').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const mmsi = Number(btn.dataset.mmsi);
+      const targetUserId = Number(btn.dataset.uid);
+      await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: false, targetUserId });
+      reload();
+    });
+  });
 }
 
 function renderActiveTable(ships) {
@@ -409,7 +575,7 @@ function renderActiveTable(ships) {
   el.activeBody.innerHTML = sorted
     .map(
       (s) => `
-    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''}" data-mmsi="${s.mmsi}">
+    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.chargedBy?.length ? 'charged-row' : ''}" data-mmsi="${s.mmsi}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td>${formatTime(s.last_seen_at)}</td>
       <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}</td>
@@ -468,6 +634,7 @@ function renderActiveTable(ships) {
   const a = {
     search: document.getElementById('active-search'),
     band: document.getElementById('active-band'),
+    charge: document.getElementById('active-charge'),
     inport: document.getElementById('active-inport'),
     flagged: document.getElementById('active-flagged'),
     seen: document.getElementById('active-seen'),
@@ -480,6 +647,7 @@ function renderActiveTable(ships) {
   if (a.seen) a.seen.checked = !!S.activeFilter.showSeen;
   if (a.search) a.search.addEventListener('input', () => { S.activeFilter.q = a.search.value; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.band) a.band.addEventListener('change', () => { S.activeFilter.band = a.band.value; saveShipFilters(); renderActiveTable(activeShipsData); });
+  if (a.charge) a.charge.addEventListener('change', () => { S.activeFilter.charge = a.charge.value; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.inport) a.inport.addEventListener('change', () => { S.activeFilter.inPort = a.inport.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.flagged) a.flagged.addEventListener('change', () => { S.activeFilter.flagged = a.flagged.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
   if (a.seen) a.seen.addEventListener('change', () => { S.activeFilter.showSeen = a.seen.checked; saveShipFilters(); renderActiveTable(activeShipsData); });
@@ -503,6 +671,7 @@ function renderActiveTable(ships) {
   const p = {
     search: document.getElementById('past-search'),
     band: document.getElementById('past-band'),
+    charge: document.getElementById('past-charge'),
     flagged: document.getElementById('past-flagged'),
     seen: document.getElementById('past-seen'),
   };
@@ -512,6 +681,7 @@ function renderActiveTable(ships) {
   if (p.seen) p.seen.checked = !!S.pastFilter.showSeen;
   if (p.search) p.search.addEventListener('input', () => { S.pastFilter.q = p.search.value; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.band) p.band.addEventListener('change', () => { S.pastFilter.band = p.band.value; saveShipFilters(); renderPastTable(pastShipsData); });
+  if (p.charge) p.charge.addEventListener('change', () => { S.pastFilter.charge = p.charge.value; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.flagged) p.flagged.addEventListener('change', () => { S.pastFilter.flagged = p.flagged.checked; saveShipFilters(); renderPastTable(pastShipsData); });
   if (p.seen) p.seen.addEventListener('change', () => { S.pastFilter.showSeen = p.seen.checked; saveShipFilters(); renderPastTable(pastShipsData); });
   const pastExpSel = document.getElementById('past-export-sel');
@@ -524,6 +694,41 @@ function renderActiveTable(ships) {
     else if (!exportShips(sorted, fmt, 'navi-passate')) showAlert(t('export.empty'));
   });
 }
+
+// Populate/hide one "filtra per chi l'ha presa in carico" <select> from the
+// current group roster and reflect the persisted filter value. Hidden entirely
+// for a solo user. Shared with followed.js (its own two lists reuse this).
+export function populateChargeFilterSelect(selId, filterState) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const grp = getGroupState();
+  sel.classList.toggle('hidden', !grp.inGroup);
+  if (!grp.inGroup) return;
+  const opts = [
+    `<option value="">${escHtml(t('filter.chargeAll'))}</option>`,
+    `<option value="me">${escHtml(t('filter.chargeMe'))}</option>`,
+    `<option value="none">${escHtml(t('filter.chargeNone'))}</option>`,
+    ...grp.members.filter((m) => m.id !== grp.youId).map((m) => `<option value="${m.id}">${escHtml(displayName(m))}</option>`),
+  ];
+  sel.innerHTML = opts.join('');
+  sel.value = filterState.charge || '';
+}
+
+// Loaded once at app init (see main.js): fetches the group roster; the
+// 'group-state-loaded' listener below (fired by group.js once it resolves)
+// (re)populates the charge-filter dropdowns and re-renders the currently
+// cached lists/detail so tags/rows pick up member names once available.
+export function initGroupCharge() {
+  loadGroupState();
+}
+
+window.addEventListener('group-state-loaded', () => {
+  populateChargeFilterSelect('active-charge', S.activeFilter);
+  populateChargeFilterSelect('past-charge', S.pastFilter);
+  renderActiveTable(activeShipsData);
+  renderPastTable(pastShipsData);
+  if (S.view === 'detail' && S.detailShipData) updateDetailChargeControls(S.detailShipData);
+});
 
 // ── Past ships ───────────────────────────────────────────────────────────────
 export async function loadPastCount() {
@@ -562,7 +767,7 @@ function renderPastTable(ships) {
   el.pastBody.innerHTML = sorted
     .map(
       (s) => `
-    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''}" data-mmsi="${s.mmsi}" data-name="${escHtml(s.ship_name || '')}">
+    <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.chargedBy?.length ? 'charged-row' : ''}" data-mmsi="${s.mmsi}" data-name="${escHtml(s.ship_name || '')}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td class="ship-name">${escHtml(s.ship_name) || '—'}</td>
       <td class="mono">${s.mmsi}</td>
@@ -583,7 +788,7 @@ function renderPastTable(ships) {
 export function bindShipRows(tbody, fromView, ships) {
   tbody.querySelectorAll('.ship-row').forEach((tr) => {
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.follow-btn') || e.target.closest('.vf-link'))
+      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.follow-btn') || e.target.closest('.vf-link') || e.target.closest('.charge-btn') || e.target.closest('.charge-tag-remove'))
         return;
       S.detailFrom = fromView;
       const mmsi = Number(tr.dataset.mmsi);
@@ -617,6 +822,7 @@ export async function loadDetail() {
       updateDetailFollowStatus(shipData);
       updateDetailMilitaryBtn(shipData.is_military);
       updateDetailNotifMuteBtn(shipData.notif_muted);
+      updateDetailChargeControls(shipData);
       if (el.detailNotesEl !== document.activeElement) {
         el.detailNotesEl.value = shipData.notes || '';
       }

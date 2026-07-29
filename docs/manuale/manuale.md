@@ -195,6 +195,7 @@ Le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo reale.
 - **☆ / ★ Segnala** — evidenzia la nave in viola come "da esaminare". Clicca di nuovo per togliere.
 - **✓ Vista** — segna la nave come già esaminata (la riga si attenua). Utile per non perdere le novità.
 - **⧉ VesselFinder** — apre la scheda della nave sul sito VesselFinder.
+- **🧑‍✈️ Prendi in carico** — *(solo se il tuo account fa parte di un gruppo)* prendi in carico la nave per dividerti il lavoro di triage con gli altri membri; più persone possono prenderla in carico insieme. Se qualcuno l'ha già presa, accanto compaiono i suoi tag col nome; la ✕ su un tag toglie quella persona dalla presa in carico. Per assegnarla a un membro specifico (invece che a te stesso), usa il menu nel [dettaglio nave](#dettaglio-nave).
 
 **Colori delle righe:**
 
@@ -203,12 +204,13 @@ Le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo reale.
 | Rosso 🪖 | Nave militare (segnalata automaticamente) |
 | Rosso | Punteggio di rischio alto (71–100) |
 | Viola | Nave segnalata manualmente |
+| Verde acqua | Presa in carico da uno o più membri del gruppo |
 | Attenuata | Nave marcata come "vista" |
 | Badge ⚓ In porto | Nave attualmente ormeggiata |
 
 **Clicca su una riga** per aprire il [dettaglio completo](#dettaglio-nave).
 
-**Filtri (barra sopra la tabella):** ricerca per nome/MMSI/IMO/destinazione, filtro per fascia di rischio, **Solo in porto**, **Solo segnalate**, **Navi segnate come viste**, e la casella **Banchine** per l'overlay degli attracchi. A destra i pulsanti **⚓ Banchine**, **⬇ Esporta…** e **▶ Replay**.
+**Filtri (barra sopra la tabella):** ricerca per nome/MMSI/IMO/destinazione (e, se sei in un gruppo, anche per nome di chi ha preso in carico), filtro per fascia di rischio, **Solo in porto**, **Solo segnalate**, **Navi segnate come viste**, e la casella **Banchine** per l'overlay degli attracchi. Se il tuo account fa parte di un gruppo compare anche un menu **presa in carico** (tutte / prese in carico da me / non prese in carico / un membro specifico). A destra i pulsanti **⚓ Banchine**, **⬇ Esporta…** e **▶ Replay**.
 
 #### Banchine (caratterizzazione automatica degli attracchi)
 
@@ -296,6 +298,8 @@ Due sotto-schede: **Seguite** (attualmente tracciate) e **Seguite in passato** (
 
 Sulla mappa della sotto-scheda **Seguite**, due pulsanti in alto a destra (**🏷** e **〰**, passaci sopra col mouse per vedere a cosa servono) mostrano/nascondono rispettivamente il **nome accanto a ogni marker** e una piccola **scia del tragitto recente**, utile per capire da dove sta arrivando la nave. La scelta resta ricordata per i tuoi accessi successivi.
 
+Le tabelle di entrambe le sotto-schede hanno gli stessi pulsanti, colori riga e filtri di ["Navi presenti"](#navi-presenti) — incluso, se sei in un gruppo, il pulsante **🧑‍✈️ Prendi in carico** e il relativo filtro.
+
 ### Cerca e segui una nave
 
 In cima alla sezione c'è una **barra di ricerca**: digita **nome** o **MMSI** e premi **🔍 Cerca**.
@@ -320,7 +324,7 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il dettagli
 
 ## Attività di gruppo
 
-Se il tuo account fa parte di un **gruppo** (creato da un amministratore), nella barra laterale trovi la voce **👥 Attività di gruppo**, subito sotto "Navi seguite". I membri di un gruppo condividono aree, navi seguite/segnalate/silenziate/viste e alcune impostazioni: questa sezione ti aiuta a capire **chi ha fatto cosa** invece di doverti fidare ciecamente dello stato condiviso.
+Se il tuo account fa parte di un **gruppo** (creato da un amministratore), nella barra laterale trovi la voce **👥 Attività di gruppo**, subito sotto "Navi seguite". I membri di un gruppo condividono aree, navi seguite/segnalate/silenziate/viste e alcune impostazioni: questa sezione ti aiuta a capire **chi ha fatto cosa** invece di doverti fidare ciecamente dello stato condiviso. La **presa in carico** (vedi [Navi presenti](#navi-presenti) e [Dettaglio nave](#dettaglio-nave)) fa eccezione: non è condivisa allo stesso modo — più membri possono prendere la stessa nave insieme — ma ogni presa/rilascio/assegnazione compare comunque qui sotto.
 
 La sezione ha due tab:
 
@@ -332,7 +336,7 @@ Mostra il **nome del gruppo** e l'elenco dei **membri** (il tuo nome è indicato
 
 ### Azioni intraprese dai membri
 
-Una tabella, dalla più recente, di ogni azione di gruppo compiuta da un membro — colonne **Data e ora**, **Utente**, **Azione**: aggiunta/rimozione di un'area condivisa, inizio/fine del seguire una nave, segnalazione, silenziamento notifiche, marcatura vista, cambio di un'impostazione condivisa. La colonna Azione è una frase leggibile — ad esempio *"Ha iniziato a seguire la nave BODAN: il gruppo riceverà notifiche sui suoi movimenti."* Il campo di ricerca sopra la tabella filtra le righe per nave, area, utente o tipo di azione. Il pulsante **Carica altro** in fondo recupera le azioni più vecchie.
+Una tabella, dalla più recente, di ogni azione di gruppo compiuta da un membro — colonne **Data e ora**, **Utente**, **Azione**: aggiunta/rimozione di un'area condivisa, inizio/fine del seguire una nave, segnalazione, silenziamento notifiche, marcatura vista, presa/rilascio/assegnazione in carico di una nave, cambio di un'impostazione condivisa. La colonna Azione è una frase leggibile — ad esempio *"Ha iniziato a seguire la nave BODAN: il gruppo riceverà notifiche sui suoi movimenti."* Il campo di ricerca sopra la tabella filtra le righe per nave, area, utente o tipo di azione. Il pulsante **Carica altro** in fondo recupera le azioni più vecchie.
 
 ![Tab "Azioni intraprese dai membri": elenco cronologico delle azioni del gruppo.](images/37b-attivita_gruppo_azioni.png)
 
@@ -350,6 +354,7 @@ Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la s
 - **★ Segnala** / **✓ Vista** — segnalazione / marca come esaminata
 - **🪖 Segna come nave militare** — classifica la nave come militare (riga rossa, rischio massimo)
 - **🔔 / 🔕** — silenzia o riabilita le notifiche automatiche per questa nave
+- **🧑‍✈️ Prendi in carico / Assegna** — *(solo se il tuo account fa parte di un gruppo)* accanto ai tag di chi ha già preso in carico la nave, trovi il pulsante per prenderla in carico tu stesso e il pulsante **Assegna** che apre un menu con gli altri membri del gruppo: clicca un nome per assegnargliela (o toglierla, se è già segnato con ✓). Chiunque nel gruppo può togliere la presa in carico di chiunque altro, cliccando la ✕ sul suo tag.
 - **⧉ VesselFinder / MarineTraffic / ShipFinder / MyShipTracking** — apri la scheda esterna
 - **Report** — genera un report della nave
 
