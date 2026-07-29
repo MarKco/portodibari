@@ -69,6 +69,9 @@ async function init() {
   // user-manual link, which stays visible for everyone).
   if (me.isAdmin) document.getElementById('link-manual-admin')?.style.setProperty('display', '');
 
+  // "Attività di gruppo" only makes sense for users bound to a group.
+  if (me.inGroup) document.getElementById('btn-group-activity')?.style.setProperty('display', '');
+
   if (me.isImpersonating) {
     document.body.classList.add('impersonating');
     const banner = document.createElement('div');

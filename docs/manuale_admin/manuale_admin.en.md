@@ -43,6 +43,8 @@ In practice: if one member adds an area, follows a ship, or enables a notificati
 
 > A removal that would leave **only 1 member** is blocked: in that case, **dissolve** the group instead. If an administrator removes a user from a group, that user **keeps** everything that was shared up to that point (areas, ships, settings): they simply stop syncing with the others.
 
+**Group activity log:** every write-through share is also recorded (who, when, what) — members review it themselves in the [Group activity](../manuale/index.en.html#group-activity) section (visible to anyone in a group, no admin action needed). Rows older than `GROUP_ACTIVITY_LOG_RETENTION_DAYS` days (default 90, in `app.config.properties`) are deleted automatically.
+
 ---
 
 ## Coverage map — administrator controls
@@ -166,6 +168,7 @@ Contains thresholds and parameters (time windows, radii, retention, berths, scor
 | `BERTH_RECOMPUTE_MIN` | Minutes between one automatic berth recomputation and the next | `30` |
 | `HEATMAP_GRID_DEG` | Coverage map cell size, in degrees (~28 km) | `0.25` |
 | `HEATMAP_FLUSH_SEC` | How often (seconds) counts are written to disk | `10` |
+| `GROUP_ACTIVITY_LOG_RETENTION_DAYS` | Retention (days) of the group activity log (see above) | `90` |
 | `RISK_*` | Risk score weights and thresholds (see comments in the file) | various |
 
 ### `bounding-boxes.json` — area definitions

@@ -60,6 +60,11 @@
         <span class="sb-icon">🗺</span>
         <span class="sb-label" data-i18n="sidebar.followed">Navi seguite</span>
       </button>
+      <button id="btn-group-activity" class="btn btn-secondary sb-btn" style="display:none"
+              data-i18n-title="sidebar.groupActivity" title="Attività di gruppo">
+        <span class="sb-icon">👥</span>
+        <span class="sb-label" data-i18n="sidebar.groupActivity">Attività di gruppo</span>
+      </button>
       <button id="btn-coverage" class="btn btn-secondary sb-btn"
               data-i18n-title="sidebar.coverage" title="Mappa delle zone coperte">
         <span class="sb-icon">🌐</span>
@@ -868,6 +873,41 @@
           </span>
           <span id="cov-legend-max" class="coverage-msg" style="margin-left:auto"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- View: group activity -->
+    <div id="view-group-activity" class="hidden">
+      <div class="tabs" id="ga-tabs">
+        <button id="tab-ga-info" class="tab tab-active" data-i18n="groupActivity.tab.info">Dati gruppo</button>
+        <button id="tab-ga-log" class="tab" data-i18n="groupActivity.tab.log">Azioni intraprese dai membri</button>
+      </div>
+
+      <div id="ga-info-view">
+        <h3 id="ga-group-name"></h3>
+        <p id="ga-group-desc" class="ga-group-desc"></p>
+        <h4 id="ga-members-title"></h4>
+        <ul id="ga-members-list" class="ga-members-list"></ul>
+      </div>
+
+      <div id="ga-log-view" class="hidden">
+        <input type="search" id="ga-log-search" class="list-search"
+               data-i18n-placeholder="groupActivity.searchPlaceholder" placeholder="Cerca per nave, area, utente, azione…">
+        <div id="table-wrap-ga-log">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="groupActivity.col.time">Data e ora</th>
+                <th data-i18n="groupActivity.col.user">Utente</th>
+                <th data-i18n="groupActivity.col.action">Azione</th>
+              </tr>
+            </thead>
+            <tbody id="ga-log-body">
+              <tr><td colspan="3" class="empty" data-i18n="groupActivity.empty">Nessuna azione registrata finora.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button id="btn-ga-load-more" class="btn btn-secondary hidden" data-i18n="groupActivity.loadMore">Carica altro</button>
       </div>
     </div>
 

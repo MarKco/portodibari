@@ -15,6 +15,7 @@ const ACTIVE_WINDOW_HOURS = numOr(cfg.ACTIVE_WINDOW_HOURS, 6);
 const PORT_WINDOW_HOURS = numOr(cfg.PORT_WINDOW_HOURS, 24);
 const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
 const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 1000);
+const GROUP_ACTIVITY_LOG_RETENTION_DAYS = numOr(cfg.GROUP_ACTIVITY_LOG_RETENTION_DAYS, 90);
 const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
 
 function haversineM(lat1, lon1, lat2, lon2) {
@@ -289,6 +290,24 @@ db.exec(`
     created_by INTEGER,
     created_at TEXT NOT NULL
   );
+
+  -- Audit trail of group-sync mirror actions (services/group-sync.js): one row
+  -- per member action that gets mirrored to co-members, so the group can see
+  -- WHO did WHAT and WHEN instead of just silently inheriting shared state.
+  -- 'detail' is a JSON blob with display data resolved at write time (ship
+  -- name, area name, ...) so the log stays readable even if the ship/area is
+  -- later renamed or removed.
+  CREATE TABLE IF NOT EXISTS group_activity_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    detail TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_activity_log_group ON group_activity_log(group_id, id DESC);
 `);
 
 // `sessions.last_seen_at`: timestamp of the session's most recent request,
@@ -839,6 +858,38 @@ function getUserGroupId(userId) {
 
 function groupMemberCount(groupId) {
   return db.prepare('SELECT COUNT(*) AS n FROM users WHERE group_id = ?').get(groupId).n;
+}
+
+const insertGroupActivityStmt = db.prepare(
+  'INSERT INTO group_activity_log (group_id, user_id, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+let groupActivityInsertCount = 0;
+
+/** Append one row to the group activity audit trail; prunes rows older than
+ *  GROUP_ACTIVITY_LOG_RETENTION_DAYS every 20 inserts (same pattern as api_log). */
+function logGroupActivity({ groupId, userId, action, targetType = null, targetId = null, detail = null }) {
+  const createdAt = new Date().toISOString();
+  insertGroupActivityStmt.run(
+    groupId, userId, action, targetType, targetId != null ? String(targetId) : null,
+    detail != null ? JSON.stringify(detail) : null, createdAt
+  );
+  if (++groupActivityInsertCount % 20 === 0) {
+    const cutoff = new Date(Date.now() - GROUP_ACTIVITY_LOG_RETENTION_DAYS * 24 * 3600 * 1000).toISOString();
+    db.prepare('DELETE FROM group_activity_log WHERE created_at < ?').run(cutoff);
+  }
+}
+
+/** Paginated activity feed for a group, newest first. `detail` is parsed back
+ *  into an object (null if absent/corrupt). */
+function getGroupActivityLog(groupId, limit, offset) {
+  const rows = db.prepare(
+    'SELECT * FROM group_activity_log WHERE group_id = ? ORDER BY id DESC LIMIT ? OFFSET ?'
+  ).all(groupId, limit, offset);
+  return rows.map((r) => {
+    let detail = null;
+    try { detail = r.detail ? JSON.parse(r.detail) : null; } catch { /* corrupt row, ignore */ }
+    return { ...r, detail };
+  });
 }
 
 // Sessions ────────────────────────────────────────────────────────────────────
@@ -2794,6 +2845,9 @@ function pruneOrphans() {
     counts.notif_from_area = run(
       "UPDATE notifications SET from_area = NULL WHERE from_area IS NOT NULL AND from_area != '' AND from_area NOT IN (SELECT key FROM areas)"
     );
+    // A dissolved group leaves its activity log behind (deleteGroup only clears
+    // users.group_id, it doesn't touch the log — see comment there).
+    counts.group_activity_log = run('DELETE FROM group_activity_log WHERE group_id NOT IN (SELECT id FROM groups)');
   });
   sweep();
   counts.total = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -2851,7 +2905,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'user_track_cuts'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'group_activity_log', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_settings', 'user_track_cuts'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3171,6 +3225,8 @@ module.exports = {
   getGroupMembers,
   getUserGroupId,
   groupMemberCount,
+  logGroupActivity,
+  getGroupActivityLog,
   // Area catalog & per-user ownership
   getAllAreas,
   upsertArea,

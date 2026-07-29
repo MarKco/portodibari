@@ -318,6 +318,26 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il dettagli
 
 ---
 
+## Attività di gruppo
+
+Se il tuo account fa parte di un **gruppo** (creato da un amministratore), nella barra laterale trovi la voce **👥 Attività di gruppo**, subito sotto "Navi seguite". I membri di un gruppo condividono aree, navi seguite/segnalate/silenziate/viste e alcune impostazioni: questa sezione ti aiuta a capire **chi ha fatto cosa** invece di doverti fidare ciecamente dello stato condiviso.
+
+La sezione ha due tab:
+
+### Dati gruppo
+
+Mostra il **nome del gruppo** e l'elenco dei **membri** (il tuo nome è indicato con "(tu)").
+
+![Tab "Dati gruppo": nome del gruppo e lista dei membri.](images/37-attivita_gruppo_info.png)
+
+### Azioni intraprese dai membri
+
+Una tabella, dalla più recente, di ogni azione di gruppo compiuta da un membro — colonne **Data e ora**, **Utente**, **Azione**: aggiunta/rimozione di un'area condivisa, inizio/fine del seguire una nave, segnalazione, silenziamento notifiche, marcatura vista, cambio di un'impostazione condivisa. La colonna Azione è una frase leggibile — ad esempio *"Ha iniziato a seguire la nave BODAN: il gruppo riceverà notifiche sui suoi movimenti."* Il campo di ricerca sopra la tabella filtra le righe per nave, area, utente o tipo di azione. Il pulsante **Carica altro** in fondo recupera le azioni più vecchie.
+
+![Tab "Azioni intraprese dai membri": elenco cronologico delle azioni del gruppo.](images/37b-attivita_gruppo_azioni.png)
+
+---
+
 ## Dettaglio nave
 
 Cliccando qualsiasi riga della tabella (o una notifica di una nave) si apre la scheda completa, organizzata in **tab**: **Generale**, **Letture**, più un tab per ciascuna fonte esterna abilitata (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). Il tab di una fonte disattivata nelle Impostazioni non compare.

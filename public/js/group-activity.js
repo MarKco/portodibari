@@ -1,0 +1,177 @@
+// "Attività di gruppo": own-group roster + a human-readable feed of the
+// group_activity_log audit trail (mirror actions from services/group-sync.js).
+// Two tabs: group info (name + members) and the paginated action log.
+
+import { el } from './dom.js';
+import { api } from './api.js';
+import { t } from './i18n.js';
+import { escHtml, formatTime } from './helpers.js';
+
+const PAGE_SIZE = 50;
+
+let loading = false;
+let membersById = new Map();
+let loadedRows = []; // every row fetched so far, across "Carica altro" pages
+let query = '';
+
+function displayName(u) {
+  if (!u) return '?';
+  return u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : (u.username || u.email);
+}
+
+function shipLabel(detail, targetId) {
+  if (detail?.shipName) return t('groupActivity.shipNamed', { name: escHtml(detail.shipName) });
+  return t('groupActivity.shipFallback', { mmsi: detail?.mmsi ?? targetId ?? '?' });
+}
+
+// Renders the changed-settings list of a 'settings_change' row as a
+// human-readable, comma-joined fragment (e.g. "notifica rientro nave: attivata").
+function settingsDetails(detail) {
+  const values = detail?.values || {};
+  const parts = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (key === 'defaultArea') {
+      parts.push(t('groupActivity.setting.defaultArea', { area: escHtml(detail.areaName || value) }));
+      continue;
+    }
+    const label = t(`groupActivity.setting.${key}`);
+    parts.push(typeof value === 'boolean' ? `${label}: ${value ? t('groupActivity.on') : t('groupActivity.off')}` : label);
+  }
+  return parts.join(', ');
+}
+
+// The "Azione" cell text — no user name in it (that's its own column).
+function buildActionText(row) {
+  const d = row.detail || {};
+  switch (row.action) {
+    case 'area_add':
+    case 'area_remove':
+      return t(`groupActivity.msg.${row.action}`, { area: escHtml(d.areaName || d.areaKey || row.target_id) });
+    case 'follow_on':
+    case 'follow_off':
+    case 'flag_on':
+    case 'flag_off':
+    case 'mute_on':
+    case 'mute_off':
+    case 'seen_on':
+    case 'seen_off':
+      return t(`groupActivity.msg.${row.action}`, { ship: shipLabel(d, row.target_id) });
+    case 'settings_change':
+      return t('groupActivity.msg.settings_change', { details: settingsDetails(d) });
+    default:
+      return escHtml(row.action);
+  }
+}
+
+function renderInfo(data) {
+  if (!data.group) {
+    el.gaGroupName.textContent = '';
+    el.gaGroupDesc.textContent = '';
+    el.gaMembersTitle.textContent = '';
+    el.gaMembersList.innerHTML = '';
+    return;
+  }
+  el.gaGroupName.textContent = data.group.name;
+  el.gaGroupDesc.textContent = data.group.description || '';
+  el.gaMembersTitle.textContent = t('groupActivity.members', { n: data.members.length });
+  el.gaMembersList.innerHTML = data.members
+    .map((m) => {
+      const you = m.id === data.youId ? `<span class="ga-you">(${t('groupActivity.you')})</span>` : '';
+      return `<li>${escHtml(displayName(m))}${you}</li>`;
+    })
+    .join('');
+}
+
+// Whether `row` matches the current search query — checked against the
+// user's display name, the raw fields (ship/area name, mmsi, the changed
+// settings) AND the actual rendered "Azione" sentence (tags stripped), so a
+// search for a word that only appears in the translated verb (e.g. IT
+// "segnalato", EN "flagged") matches too, in whichever language is active.
+function matchesQuery(row) {
+  if (!query) return true;
+  const d = row.detail || {};
+  const hay = [
+    displayName(membersById.get(row.user_id)),
+    d.shipName,
+    d.areaName,
+    d.mmsi,
+    row.target_id,
+    ...(d.values ? Object.keys(d.values) : []),
+    buildActionText(row).replace(/<[^>]*>/g, ''),
+  ]
+    .map((v) => (v == null ? '' : String(v).toLowerCase()))
+    .join(' ');
+  return hay.includes(query);
+}
+
+function renderFilteredLog() {
+  if (!loadedRows.length) {
+    el.gaLogBody.innerHTML = `<tr><td colspan="3" class="empty">${t('groupActivity.empty')}</td></tr>`;
+    return;
+  }
+  const filtered = loadedRows.filter(matchesQuery);
+  if (!filtered.length) {
+    el.gaLogBody.innerHTML = `<tr><td colspan="3" class="empty">${t('groupActivity.noMatch')}</td></tr>`;
+    return;
+  }
+  el.gaLogBody.innerHTML = filtered
+    .map((row) => `
+      <tr class="ga-log-row">
+        <td class="ga-log-time">${formatTime(row.created_at)}</td>
+        <td>${escHtml(displayName(membersById.get(row.user_id)))}</td>
+        <td class="ga-log-action">${buildActionText(row)}</td>
+      </tr>`)
+    .join('');
+}
+
+async function loadLogPage() {
+  if (loading) return;
+  loading = true;
+  try {
+    const data = await api(`/api/group/activity?limit=${PAGE_SIZE}&offset=${loadedRows.length}`);
+    loadedRows = loadedRows.concat(data.rows);
+    renderFilteredLog();
+    el.btnGaLoadMore.classList.toggle('hidden', !data.hasMore);
+  } catch (e) {
+    el.gaLogBody.innerHTML = `<tr><td colspan="3" class="empty">${t('groupActivity.loadFail')}${escHtml(e.message)}</td></tr>`;
+  } finally {
+    loading = false;
+  }
+}
+
+function switchTab(tab) {
+  el.gaTabInfo.classList.toggle('tab-active', tab === 'info');
+  el.gaTabLog.classList.toggle('tab-active', tab === 'log');
+  el.gaInfoView.classList.toggle('hidden', tab !== 'info');
+  el.gaLogView.classList.toggle('hidden', tab !== 'log');
+}
+
+let wired = false;
+function wireOnce() {
+  if (wired) return;
+  wired = true;
+  el.gaTabInfo.addEventListener('click', () => switchTab('info'));
+  el.gaTabLog.addEventListener('click', () => switchTab('log'));
+  el.btnGaLoadMore.addEventListener('click', () => loadLogPage());
+  el.gaLogSearch.addEventListener('input', () => {
+    query = el.gaLogSearch.value.trim().toLowerCase();
+    renderFilteredLog();
+  });
+}
+
+export async function enterGroupActivityView() {
+  wireOnce();
+  switchTab('info');
+  loadedRows = [];
+  query = '';
+  el.gaLogSearch.value = '';
+  el.btnGaLoadMore.classList.add('hidden');
+  try {
+    const data = await api('/api/group');
+    membersById = new Map((data.members || []).map((m) => [m.id, m]));
+    renderInfo(data);
+  } catch {
+    /* ignore — info tab just stays empty */
+  }
+  loadLogPage();
+}

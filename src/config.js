@@ -302,6 +302,10 @@ const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
 // older rows are pruned on every insert (see db.js) so the table can't grow
 // unbounded. Default 1000 — enough to inspect recent activity without bloat.
 const MAX_API_LOG_RECORDS = num('MAX_API_LOG_RECORDS', 1000);
+// Group activity audit trail (group_activity_log table, services/group-sync.js):
+// rows older than this are pruned periodically (see db.js) so the table can't
+// grow unbounded.
+const GROUP_ACTIVITY_LOG_RETENTION_DAYS = num('GROUP_ACTIVITY_LOG_RETENTION_DAYS', 90);
 const POLL_INTERVAL_MS = num('POLL_INTERVAL_MS', 300000);
 const TRACK_MERGE_RADIUS_M = num('TRACK_MERGE_RADIUS_M', 100);
 const TRACK_DEFAULT_LIMIT = num('TRACK_DEFAULT_LIMIT', 500);
@@ -1111,6 +1115,7 @@ module.exports = {
   AIS_UPTIME_SELFHOST_URL,
   MAX_READINGS_PER_TYPE,
   MAX_API_LOG_RECORDS,
+  GROUP_ACTIVITY_LOG_RETENTION_DAYS,
   POLL_INTERVAL_MS,
   TRACK_MERGE_RADIUS_M,
   TRACK_DEFAULT_LIMIT,

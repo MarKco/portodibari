@@ -43,6 +43,8 @@ In pratica: se un membro aggiunge un'area, segue una nave o abilita una notifica
 
 > Una rimozione che lascerebbe **1 solo membro** è bloccata: in quel caso si **scioglie** il gruppo. Se un amministratore toglie un utente dal gruppo, quell'utente **mantiene** tutto ciò che nel frattempo era stato condiviso (aree, navi, impostazioni): semplicemente smette di sincronizzarsi con gli altri.
 
+**Log delle azioni di gruppo:** ogni condivisione write-through viene anche registrata (chi, quando, cosa) — i membri la consultano da soli nella sezione [Attività di gruppo](../manuale/index.html#attività-di-gruppo) (visibile a chiunque sia in un gruppo, nessuna azione richiesta dall'amministratore). Le righe più vecchie di `GROUP_ACTIVITY_LOG_RETENTION_DAYS` giorni (default 90, in `app.config.properties`) vengono eliminate automaticamente.
+
 ---
 
 ## Mappa delle zone coperte — controlli amministratore
@@ -166,6 +168,7 @@ Contiene soglie e parametri (finestre temporali, raggi, retention, banchine, pes
 | `BERTH_RECOMPUTE_MIN` | Minuti tra un ricalcolo automatico delle banchine e il successivo | `30` |
 | `HEATMAP_GRID_DEG` | Dimensione delle celle della mappa di copertura, in gradi (~28 km) | `0.25` |
 | `HEATMAP_FLUSH_SEC` | Ogni quanti secondi i conteggi vengono scritti su disco | `10` |
+| `GROUP_ACTIVITY_LOG_RETENTION_DAYS` | Giorni di retention del log delle azioni di gruppo (vedi sopra) | `90` |
 | `RISK_*` | Pesi e soglie dello score di rischio (vedi commenti nel file) | vari |
 
 ### `bounding-boxes.json` — definizione delle aree

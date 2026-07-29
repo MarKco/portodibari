@@ -561,6 +561,31 @@ select:focus { outline: none; border-color: var(--border-focus); }
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Attività di gruppo ───────────────────────────────────────────────── */
+#ga-group-name { margin-bottom: 0.5rem; }
+.ga-group-desc { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 2rem; }
+.ga-members-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ga-members-list li {
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.ga-members-list .ga-you { color: var(--text-muted); font-size: 0.75rem; margin-left: 0.35rem; }
+#ga-log-search { display: block; margin-bottom: 1rem; }
+#table-wrap-ga-log { margin-bottom: 1rem; }
+.ga-log-row { cursor: default; }
+.ga-log-row .ga-log-action { white-space: normal; line-height: 1.4; }
+.ga-log-row .ga-log-time { white-space: nowrap; color: var(--text-muted); }
+
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 .tabs {
   display: flex;
@@ -603,6 +628,7 @@ select:focus { outline: none; border-color: var(--border-focus); }
 #table-wrap-detail,
 #table-wrap-foll-active,
 #table-wrap-foll-past,
+#table-wrap-ga-log,
 #table-wrap {
   overflow-x: auto;
   border-radius: var(--r-md);

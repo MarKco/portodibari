@@ -1689,6 +1689,7 @@ function initToolbar() {
   el.btnHome.addEventListener('click', () => showView('active'));
   if (el.btnFollowed) el.btnFollowed.addEventListener('click', () => showView('followed'));
   if (el.btnCoverage) el.btnCoverage.addEventListener('click', () => showView('coverage'));
+  if (el.btnGroupActivity) el.btnGroupActivity.addEventListener('click', () => showView('group-activity'));
   el.btnAreas.addEventListener('click', () => showView('areas'));
 
   el.btnBack.addEventListener('click', () => showView(S.detailFrom));
@@ -1967,7 +1968,7 @@ api('/api/config').then((cfg) => {
 }).catch(() => {}).finally(async () => {
   await loadSettings();
   updateStatus();
-  const RESTORABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage'];
+  const RESTORABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage', 'group-activity'];
   const hashView = location.hash.slice(1);
   showView(RESTORABLE.includes(hashView) ? hashView : 'active');
   loadPastCount();

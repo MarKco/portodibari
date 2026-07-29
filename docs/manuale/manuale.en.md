@@ -314,6 +314,26 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 ---
 
+## Group activity
+
+If your account is part of a **group** (created by an administrator), the sidebar shows a **👥 Group activity** entry right below "Followed ships". Group members share areas, followed/flagged/muted/seen ships and some settings: this section helps you see **who did what** instead of just trusting the shared state blindly.
+
+The section has two tabs:
+
+### Group info
+
+Shows the **group name** and the list of **members** (your own name is marked "(you)").
+
+![The "Group info" tab: group name and member list.](images/37-attivita_gruppo_info.en.png)
+
+### Actions taken by members
+
+A table, newest-first, of every group action a member has taken — columns **Date and time**, **User**, **Action**: adding/removing a shared area, starting/stopping following a ship, flagging, muting notifications, marking as seen, changing a shared setting. The Action column is a readable sentence — e.g. *"Started following ship BODAN: the group will get notified of its movements."* The search box above the table filters rows by ship, area, user or action type. The **Load more** button at the bottom fetches older actions.
+
+![The "Actions taken by members" tab: chronological list of the group's actions.](images/37b-attivita_gruppo_azioni.en.png)
+
+---
+
 ## Ship detail
 
 Clicking any table row (or a ship's notification) opens the full detail card, organized into **tabs**: **General**, **Readings**, plus one tab per enabled external source (VesselFinder, MarineTraffic, ShipFinder, MyShipTracking, Equasis, Global Fishing Watch). A source disabled in Settings has no tab.

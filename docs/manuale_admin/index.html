@@ -272,6 +272,15 @@
         condiviso (aree, navi, impostazioni): semplicemente smette di
         sincronizzarsi con gli altri.</p>
         </blockquote>
+        <p><strong>Log delle azioni di gruppo:</strong> ogni
+        condivisione write-through viene anche registrata (chi, quando,
+        cosa) — i membri la consultano da soli nella sezione <a
+        href="../manuale/index.html#attività-di-gruppo">Attività di
+        gruppo</a> (visibile a chiunque sia in un gruppo, nessuna azione
+        richiesta dall’amministratore). Le righe più vecchie di
+        <code>GROUP_ACTIVITY_LOG_RETENTION_DAYS</code> giorni (default
+        90, in <code>app.config.properties</code>) vengono eliminate
+        automaticamente.</p>
         <hr />
         <h2 id="mappa-delle-zone-coperte-controlli-amministratore">Mappa
         delle zone coperte — controlli amministratore</h2>
@@ -687,6 +696,12 @@
         <td><code>10</code></td>
         </tr>
         <tr class="odd">
+        <td><code>GROUP_ACTIVITY_LOG_RETENTION_DAYS</code></td>
+        <td>Giorni di retention del log delle azioni di gruppo (vedi
+        sopra)</td>
+        <td><code>90</code></td>
+        </tr>
+        <tr class="even">
         <td><code>RISK_*</code></td>
         <td>Pesi e soglie dello score di rischio (vedi commenti nel
         file)</td>

@@ -145,6 +145,7 @@ router.get('/api/auth/me', (req, res) => {
     isImpersonating: !!req.isImpersonating,
     realUser: req.isImpersonating ? publicUser(req.realUser) : null,
     isAdmin: !!(req.realUser && req.realUser.role === 'admin'),
+    inGroup: req.user.group_id != null,
     testerLimits: req.user.role === 'tester'
       ? { maxAreas: TESTER_MAX_AREAS, maxAreaKm2: TESTER_MAX_AREA_KM2, maxFollows: TESTER_MAX_FOLLOWS }
       : null,

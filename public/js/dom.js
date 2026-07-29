@@ -124,6 +124,21 @@ export const el = {
   btnCoverage: $('btn-coverage'),
   viewCoverage: $('view-coverage'),
 
+  // Group activity view
+  btnGroupActivity: $('btn-group-activity'),
+  viewGroupActivity: $('view-group-activity'),
+  gaTabInfo: $('tab-ga-info'),
+  gaTabLog: $('tab-ga-log'),
+  gaInfoView: $('ga-info-view'),
+  gaLogView: $('ga-log-view'),
+  gaGroupName: $('ga-group-name'),
+  gaGroupDesc: $('ga-group-desc'),
+  gaMembersTitle: $('ga-members-title'),
+  gaMembersList: $('ga-members-list'),
+  gaLogSearch: $('ga-log-search'),
+  gaLogBody: $('ga-log-body'),
+  btnGaLoadMore: $('btn-ga-load-more'),
+
   // Notifications
   btnNotifications: $('btn-notifications'),
   btnNotifClear: $('btn-notif-clear'),

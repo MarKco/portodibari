@@ -21,6 +21,7 @@
 
 const db = require('../db');
 const userPrefs = require('./user-prefs');
+const { BBOX_PRESETS } = require('../config');
 
 // Personal-preference keys that propagate within a group. Everything not listed
 // here (telegramEnabled, telegramChatId, telegramLinkCode, lang) stays personal.
@@ -45,14 +46,36 @@ function coMembers(actorId) {
   return db.getGroupMembers(gid).filter((id) => id !== actorId);
 }
 
+// Audit trail (group_activity_log, see db.js): one row per actor action that
+// gets mirrored, so co-members can see who did what. No-op for solo users
+// (mirrors `coMembers` above, but must stand on its own since `applyUnion`
+// callers don't go through it — see the admin lifecycle section).
+function logActivity(actorId, action, targetType, targetId, detail) {
+  const gid = db.getUserGroupId(actorId);
+  if (!gid) return;
+  db.logGroupActivity({ groupId: gid, userId: actorId, action, targetType, targetId, detail });
+}
+
+function shipLabel(mmsi) {
+  const ship = db.getShip(mmsi);
+  return { mmsi, shipName: ship?.ship_name || null };
+}
+
+function areaLabel(areaKey) {
+  return { areaKey, areaName: BBOX_PRESETS[areaKey]?.name || areaKey };
+}
+
 // ── Ongoing edit propagation (actor already wrote its own row) ────────────────
 
 function syncAreaAdd(actorId, areaKey) {
   for (const uid of coMembers(actorId)) db.addUserArea(uid, areaKey);
+  logActivity(actorId, 'area_add', 'area', areaKey, areaLabel(areaKey));
 }
 
 function syncAreaRemove(actorId, areaKey) {
+  const detail = areaLabel(areaKey); // resolve the name before the catalog entry can be purged
   for (const uid of coMembers(actorId)) db.removeUserArea(uid, areaKey);
+  logActivity(actorId, 'area_remove', 'area', areaKey, detail);
 }
 
 function syncFollow(actorId, mmsi, on) {
@@ -60,18 +83,22 @@ function syncFollow(actorId, mmsi, on) {
   // mirroring the follow onto co-members doesn't change the bbox set — no extra
   // ship-follow.refresh() needed beyond the one applyFollow already fired.
   for (const uid of coMembers(actorId)) db.setUserFollow(uid, mmsi, !!on);
+  logActivity(actorId, on ? 'follow_on' : 'follow_off', 'ship', mmsi, shipLabel(mmsi));
 }
 
 function syncFlag(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserFlag(uid, mmsi, !!on);
+  logActivity(actorId, on ? 'flag_on' : 'flag_off', 'ship', mmsi, shipLabel(mmsi));
 }
 
 function syncMute(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserMute(uid, mmsi, !!on);
+  logActivity(actorId, on ? 'mute_on' : 'mute_off', 'ship', mmsi, shipLabel(mmsi));
 }
 
 function syncSeen(actorId, mmsi, on) {
   for (const uid of coMembers(actorId)) db.setUserSeen(uid, mmsi, !!on);
+  logActivity(actorId, on ? 'seen_on' : 'seen_off', 'ship', mmsi, shipLabel(mmsi));
 }
 
 /** Mirror a settings patch onto co-members — only the SHARED keys, by value.
@@ -82,6 +109,9 @@ function syncSettings(actorId, patch) {
   for (const k of Object.keys(patch)) if (SHARED_SETTING_KEYS.has(k)) shared[k] = patch[k];
   if (!Object.keys(shared).length) return;
   for (const uid of coMembers(actorId)) userPrefs.set(uid, shared);
+  const detail = { values: shared };
+  if ('defaultArea' in shared) detail.areaName = BBOX_PRESETS[shared.defaultArea]?.name || shared.defaultArea;
+  logActivity(actorId, 'settings_change', 'setting', null, detail);
 }
 
 // ── Union + baseline (used by the admin lifecycle below) ──────────────────────
