@@ -17,6 +17,14 @@ const MAX_READINGS_PER_TYPE = numOr(cfg.MAX_READINGS_PER_TYPE, 10000);
 const MAX_API_LOG_RECORDS = numOr(cfg.MAX_API_LOG_RECORDS, 1000);
 const GROUP_ACTIVITY_LOG_RETENTION_DAYS = numOr(cfg.GROUP_ACTIVITY_LOG_RETENTION_DAYS, 90);
 const DB_SOG_FERMA = numOr(cfg.SOG_FERMA, 0.5);
+const TRANSIT = {
+  STOP_MIN_H: numOr(cfg.TRANSIT?.STOP_MIN_H, 3),
+  STOP_MAX_SOG_KN: numOr(cfg.TRANSIT?.STOP_MAX_SOG_KN, 0.5),
+  MIN_KN: numOr(cfg.TRANSIT?.MIN_KN, 4),
+  MIN_SLACK_H: numOr(cfg.TRANSIT?.MIN_SLACK_H, 12),
+  MAX_GAP_DAYS: numOr(cfg.TRANSIT?.MAX_GAP_DAYS, 30),
+  MAX_ROWS: numOr(cfg.TRANSIT?.MAX_ROWS, 500),
+};
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000, toRad = Math.PI / 180;
@@ -518,6 +526,19 @@ for (const col of ["area TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec(`ALTER TABLE readings ADD COLUMN ${col}`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE port_events ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
+
+// Stop evidence for a completed visit, written on the 'departed' event (see
+// checkAndLogDepartures): stop_min_sog = the lowest speed the ship broadcast
+// while inside the area, stopped = 1 when the visit was a real call (dwell over
+// TRANSIT_STOP_MIN_H and, when speeds are known, actually stationary) rather
+// than a mere crossing of the bbox. Both stay NULL for events logged before
+// this version (and whenever the visit's readings were already pruned) — the
+// transit search then falls back to dwell alone, which is why they are nullable
+// instead of NOT NULL DEFAULT 0: "unknown" must not read as "did not stop".
+for (const col of ['stop_min_sog REAL', 'stopped INTEGER']) {
+  try { db.exec(`ALTER TABLE port_events ADD COLUMN ${col}`); } catch { /* already exists */ }
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_port_events_area_mmsi ON port_events(area, mmsi, ts)');
 
 // Provenance of a position row. 'ais' (default) = broadcast we received live;
 // non-'ais' (e.g. 'sf' = ShipFinder) = a position obtained by scraping to re-locate
@@ -1625,6 +1646,83 @@ const insertPortEventStmt = db.prepare(
   'INSERT INTO port_events (mmsi, ship_name, event_type, ts, ship_type, destination, draught, area) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 );
 
+// Same as above but for a 'departed' event, which also carries the stop evidence
+// of the visit that just closed (stop_min_sog / stopped, see the ALTER above).
+const insertDepartureStmt = db.prepare(
+  `INSERT INTO port_events (mmsi, ship_name, event_type, ts, ship_type, destination, draught, area, stop_min_sog, stopped)
+   VALUES (?, ?, 'departed', ?, ?, ?, ?, ?, ?, ?)`
+);
+
+// Start of the visit that ended at `ts`: the ship's last recorded arrival in that
+// area at or before it. Null for a departure with no matching arrival (possible
+// for rows restored from a backup that predates the area tagging).
+const lastArrivalBeforeStmt = db.prepare(
+  `SELECT ts FROM port_events
+   WHERE mmsi = ? AND area = ? AND event_type = 'arrived' AND ts <= ?
+   ORDER BY ts DESC LIMIT 1`
+);
+
+// Slowest speed the ship broadcast inside the area during one visit, plus how
+// many positions back it. Only AIS fixes count (scraped SF/MST positions carry a
+// coarser, less trustworthy speed). n = 0 means the visit left no usable speed —
+// the caller then stores NULL rather than a guess.
+const visitMinSogStmt = db.prepare(
+  `SELECT MIN(sog) AS min_sog, COUNT(sog) AS n FROM readings
+   WHERE mmsi = ? AND area = ? AND source = 'ais' AND sog IS NOT NULL
+     AND received_at >= ? AND received_at <= ?`
+);
+
+// Stop evidence for a visit [fromIso..toIso] of `mmsi` in `area`, evaluated when
+// its departure is logged: { minSog, stopped }. `stopped` is null when the visit
+// left no speed data behind (the readings were pruned, or it never broadcast a
+// speed) — the transit search then judges it by dwell alone.
+function visitStopEvidence(mmsi, area, fromIso, toIso) {
+  if (!area || !fromIso) return { minSog: null, stopped: null };
+  const dwellH = (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 3600000;
+  if (!Number.isFinite(dwellH)) return { minSog: null, stopped: null };
+  const row = visitMinSogStmt.get(mmsi, area, fromIso, toIso);
+  if (!row || !row.n) return { minSog: null, stopped: null };
+  const minSog = row.min_sog;
+  return { minSog, stopped: dwellH >= TRANSIT.STOP_MIN_H && minSog <= TRANSIT.STOP_MAX_SOG_KN ? 1 : 0 };
+}
+
+// First departure logged for `area` at or after `ts` — closes the visit that
+// started with the arrival at `ts`.
+const departureAfterStmt = db.prepare(
+  `SELECT ts, stopped FROM port_events
+   WHERE mmsi = ? AND area = ? AND event_type = 'departed' AND ts >= ?
+   ORDER BY ts ASC LIMIT 1`
+);
+
+/**
+ * Did this ship actually CALL at `area` on its latest visit there (as opposed to
+ * merely crossing the bbox)? `lastSeenIso` is when the ship was last seen before
+ * the message being processed — i.e. the end of that visit when it has no
+ * departure row yet.
+ *
+ * Gates the "cambio area" notification: a bbox is an area of interest, often
+ * hundreds of km wide, so "moved from X to Y" was firing for ships that only
+ * transited X — reported by a user for the wide "Israele" box, where traffic
+ * bound for Turkish or Lebanese ports crosses the rectangle without ever calling
+ * inside it.
+ *
+ * Requires POSITIVE evidence: with no recorded arrival to point at (history
+ * pruned by an area deletion, or predating area tagging) it returns false rather
+ * than claiming a call nobody can verify.
+ */
+function lastAreaVisitWasStop(mmsi, area, lastSeenIso) {
+  if (!area) return false;
+  const arrival = lastArrivalBeforeStmt.get(mmsi, area, lastSeenIso || new Date().toISOString());
+  if (!arrival) return false;
+  const departure = departureAfterStmt.get(mmsi, area, arrival.ts);
+  // Visits closed by this version carry the measured verdict (dwell + min speed).
+  if (departure && departure.stopped != null) return !!departure.stopped;
+  const endIso = departure ? departure.ts : lastSeenIso;
+  if (!endIso) return false;
+  const dwellH = (new Date(endIso).getTime() - new Date(arrival.ts).getTime()) / 3600000;
+  return Number.isFinite(dwellH) && dwellH >= TRANSIT.STOP_MIN_H;
+}
+
 // How many times this MMSI has already been recorded arriving in a given area —
 // used to detect a re-visit (an arrival where it had been seen before).
 const countPriorArrivalsStmt = db.prepare(
@@ -1747,7 +1845,28 @@ function insert(parsed, areaKey = '') {
     // one this message belongs to. Checked before the upsert overwrites last_area.
     const prevArea = existing?.last_area || '';
     if (prevArea && areaKey && prevArea !== areaKey) {
-      areaChange = { mmsi: row.mmsi, fromArea: prevArea, toArea: areaKey };
+      // Two questions the notifier needs answered before it can honestly say
+      // "moved from X to Y": did the ship actually CALL at X (or just cross the
+      // bbox), and is that call recent enough to explain its presence here now?
+      // The gap is measured from the last sighting in X to this message, and
+      // compared with how long the passage may plausibly take (areaHopGate).
+      const gate = areaHopGate(prevArea, areaKey);
+      const gapH = existing?.last_seen_at
+        ? (new Date(row.received_at).getTime() - new Date(existing.last_seen_at).getTime()) / 3600000
+        : null;
+      areaChange = {
+        mmsi: row.mmsi,
+        fromArea: prevArea,
+        toArea: areaKey,
+        fromWasStop: lastAreaVisitWasStop(row.mmsi, prevArea, existing?.last_seen_at || null),
+        fromLastSeenAt: existing?.last_seen_at || null,
+        gapH,
+        gateH: gate.gateH,
+        distNm: gate.distNm,
+        timePlausible: gapH != null && gapH >= 0 && gapH <= gate.gateH,
+        // Same water in both areas → this is not a move at all (see boxesOverlap).
+        overlappingAreas: gate.overlap,
+      };
     }
 
     upsertShipStmt.run(
@@ -1970,15 +2089,21 @@ function checkAndLogDepartures() {
     .all();
 
   for (const ship of departed) {
-    insertPortEventStmt.run(
+    const area = ship.last_area || '';
+    // Judge the visit that just closed while its positions are still in DB
+    // (readings are capped globally, so this evidence is only obtainable now).
+    const arrival = area ? lastArrivalBeforeStmt.get(ship.mmsi, area, ship.last_seen_at) : null;
+    const ev = visitStopEvidence(ship.mmsi, area, arrival?.ts || null, ship.last_seen_at);
+    insertDepartureStmt.run(
       ship.mmsi,
       ship.ship_name,
-      'departed',
       ship.last_seen_at,
       ship.ship_type,
       ship.destination,
       ship.max_draught ?? null,
-      ship.last_area || ''
+      area,
+      ev.minSog,
+      ev.stopped
     );
   }
   // One per-minute summary line instead of one per ship (mirrors arrivals).
@@ -2296,6 +2421,186 @@ function getShipEvents(mmsi) {
   `
     )
     .all(mmsi);
+}
+
+// ── Transit search between two areas ─────────────────────────────────────────
+// "Ricerca navi per aree di transito": which ships called at BOTH of two
+// monitored areas, and how many times they sailed straight from one to the
+// other. Built on port_events (arrivals/departures), the only long-lived history
+// we keep — readings are capped globally (MAX_READINGS_PER_TYPE) so a
+// position-based reconstruction would only ever see the last few days.
+//
+// A visit = an 'arrived' row plus the next 'departed' row for the same area (or
+// still open, if the ship is there now). It counts as a STOP — the area was the
+// destination, not a bbox the ship crossed — when:
+//   · the departure carries stop evidence (port_events.stopped, written live
+//     since this version): use it verbatim; else
+//   · dwell >= TRANSIT_STOP_MIN_H (the only signal available for older rows).
+// A LEG is a pair of consecutive stops in DIFFERENT of the two chosen areas,
+// with no stop in ANY other catalog area in between (all areas are considered,
+// including other users': port_events are global) and an elapsed time compatible
+// with a direct passage — gap <= max(TRANSIT_MIN_SLACK_H, distance_nm /
+// TRANSIT_MIN_KN). A ship that merely crossed a third area without stopping does
+// not break a leg; one that called somewhere we monitor, or vanished for far
+// longer than the crossing takes, does.
+
+const transitEventsStmt = db.prepare(
+  `SELECT mmsi, area, event_type, ts, stopped, stop_min_sog
+   FROM port_events
+   WHERE ts >= ? AND mmsi IN (
+     SELECT mmsi FROM port_events WHERE area = ? AND event_type = 'arrived' AND ts >= ?
+     INTERSECT
+     SELECT mmsi FROM port_events WHERE area = ? AND event_type = 'arrived' AND ts >= ?
+   )
+   ORDER BY mmsi, ts, id`
+);
+
+/** Great-circle distance in nautical miles between two area centroids. */
+function areaDistanceNm(a, b) {
+  if (!a || !b) return 0;
+  const cLat = (r) => (r.sw_lat + r.ne_lat) / 2;
+  const cLon = (r) => (r.sw_lon + r.ne_lon) / 2;
+  return haversineM(cLat(a), cLon(a), cLat(b), cLon(b)) / 1852;
+}
+
+/** Collapse a ship's ordered event list into visits: { area, from, to, open, stopped }. */
+function eventsToVisits(events, nowMs) {
+  const visits = [];
+  let open = null; // arrival waiting for its departure
+  for (const e of events) {
+    if (e.event_type === 'arrived') {
+      // Two arrivals with no departure in between (signal gap inside the area):
+      // the earlier visit closes at the later arrival, its dwell unknown-but-real.
+      if (open) visits.push({ ...open, to: e.ts, open: false });
+      open = { area: e.area, from: e.ts, stopped: null, minSog: null };
+    } else if (e.event_type === 'departed') {
+      if (open && open.area === e.area) {
+        visits.push({ ...open, to: e.ts, open: false, stopped: e.stopped, minSog: e.stop_min_sog });
+        open = null;
+      }
+      // A departure with no matching arrival (restored partial history) is dropped.
+    }
+  }
+  if (open) visits.push({ ...open, to: new Date(nowMs).toISOString(), open: true });
+  return visits;
+}
+
+/** Did this visit qualify as a stop? Live flag when present, dwell otherwise. */
+function visitIsStop(v) {
+  if (v.stopped != null) return !!v.stopped;
+  const dwellH = (new Date(v.to).getTime() - new Date(v.from).getTime()) / 3600000;
+  return Number.isFinite(dwellH) && dwellH >= TRANSIT.STOP_MIN_H;
+}
+
+/**
+ * How long a ship may plausibly take to get from one area to the other, in hours:
+ * max(TRANSIT_MIN_SLACK_H, distance_nm / TRANSIT_MIN_KN), capped at
+ * TRANSIT_MAX_GAP_DAYS. MIN_KN is deliberately far below cruising speed (a real
+ * ship does 10–14 kn) so a voyage with intermediate calls still fits; the slack
+ * floor keeps nearby areas from getting a threshold of minutes; the cap stops a
+ * far-apart pair from allowing a "came from there" claim months later.
+ *
+ * Shared by the transit search (is this pair of calls one leg?) and by the
+ * "cambio area" notification (is the origin call recent enough to be the reason
+ * this ship is here now?) — same question, so the same threshold.
+ */
+function areaHopGate(areaA, areaB, areas = null) {
+  const rows = areas || getAllAreasStmt.all();
+  const rowA = rows.find((a) => a.key === areaA);
+  const rowB = rows.find((a) => a.key === areaB);
+  const distNm = areaDistanceNm(rowA, rowB);
+  const speedH = TRANSIT.MIN_KN > 0 ? distNm / TRANSIT.MIN_KN : 0;
+  const gateH = Math.min(Math.max(TRANSIT.MIN_SLACK_H, speedH), TRANSIT.MAX_GAP_DAYS * 24);
+  return {
+    distNm,
+    gateH,
+    overlap: boxesOverlap(rowA, rowB),
+    minKn: TRANSIT.MIN_KN,
+    minSlackH: TRANSIT.MIN_SLACK_H,
+    maxGapDays: TRANSIT.MAX_GAP_DAYS,
+    stopMinH: TRANSIT.STOP_MIN_H,
+  };
+}
+
+/**
+ * Do the two areas' boxes share any water (intersect, containment included)?
+ *
+ * Overlapping areas make "cambio area" meaningless: the SAME position belongs to
+ * both, so which area a message is credited to depends on which subscription
+ * delivered it, and a ship sitting still at a berth flips back and forth between
+ * them. Observed in production with "porto di livorno" nested inside "prova
+ * livorno" (a ship moored there generated a stream of area changes, in one case
+ * one direction at 07:00 and the other at 07:05) — 198 of 229 area-change
+ * notifications in a one-day sample were between two such nested pairs.
+ */
+function boxesOverlap(a, b) {
+  if (!a || !b) return false;
+  return (
+    a.sw_lat <= b.ne_lat && a.ne_lat >= b.sw_lat && a.sw_lon <= b.ne_lon && a.ne_lon >= b.sw_lon
+  );
+}
+
+/**
+ * Ships that stopped in both `areaA` and `areaB` since `sinceIso` (null = all
+ * history), with their stop counts, the legs between the two areas and the last
+ * one. Rows are NOT filtered by legs here — the route decides whether to keep
+ * the leg-less ones. Returns { rows, gate } where gate documents the temporal
+ * threshold used (for the UI to explain the result).
+ */
+function getAreaTransits(areaA, areaB, sinceIso = null) {
+  const since = sinceIso || '0000-01-01T00:00:00.000Z';
+  const areas = getAllAreasStmt.all();
+  const gate = areaHopGate(areaA, areaB, areas);
+  const gateH = gate.gateH;
+
+  const events = transitEventsStmt.all(since, areaA, since, areaB, since);
+  const nowMs = Date.now();
+  const rows = [];
+
+  let i = 0;
+  while (i < events.length) {
+    const mmsi = events[i].mmsi;
+    let j = i;
+    while (j < events.length && events[j].mmsi === mmsi) j++;
+    const stops = eventsToVisits(events.slice(i, j), nowMs).filter(visitIsStop);
+    i = j;
+
+    let stopsA = 0, stopsB = 0;
+    for (const s of stops) {
+      if (s.area === areaA) stopsA++;
+      else if (s.area === areaB) stopsB++;
+    }
+    if (!stopsA || !stopsB) continue; // stopped in both areas is the entry ticket
+
+    let legs = 0, lastLeg = null;
+    for (let k = 1; k < stops.length; k++) {
+      const prev = stops[k - 1], cur = stops[k];
+      const pair = (prev.area === areaA && cur.area === areaB) || (prev.area === areaB && cur.area === areaA);
+      if (!pair) continue; // consecutive stops elsewhere → not a straight leg
+      const gapH = (new Date(cur.from).getTime() - new Date(prev.to).getTime()) / 3600000;
+      if (!Number.isFinite(gapH) || gapH < 0 || gapH > gateH) continue;
+      legs++;
+      lastLeg = { from: prev.area, to: cur.area, departedAt: prev.to, arrivedAt: cur.from, hours: gapH };
+    }
+
+    rows.push({ mmsi, stopsA, stopsB, legs, lastLeg, lastStopAt: stops[stops.length - 1]?.from || null });
+  }
+  return { rows, gate };
+}
+
+/**
+ * Has this ship ever called at (or been recorded in) one of the user's areas?
+ * Widens detail-view visibility beyond "its CURRENT position is in my box": a
+ * ship surfaced by the transit search may be anywhere in the world now, but its
+ * history in the user's own areas is exactly why they may inspect it.
+ */
+const shipAreaHistoryStmt = db.prepare(
+  `SELECT 1 FROM port_events pe
+   JOIN user_areas ua ON ua.area_key = pe.area
+   WHERE pe.mmsi = ? AND ua.user_id = ? LIMIT 1`
+);
+function hasShipAreaHistory(userId, mmsi) {
+  return !!shipAreaHistoryStmt.get(mmsi, userId);
 }
 
 // ── Moorings & berths ────────────────────────────────────────────────────────
@@ -2848,13 +3153,25 @@ function reconcileAreasByCoords(areaForPoint) {
       moved++;
     }
   }
-  // Realign port_events to their ship's (corrected) area.
+  // Re-home only the port_events that have NO usable area of their own: empty, or
+  // pointing at an area key that no longer exists. Their ship's current area is
+  // the sole clue available (port_events carry no coordinates), so it is used as
+  // a fallback here — but ONLY for those rows.
+  //
+  // It must never touch a row that already carries a valid area: an arrival is
+  // tagged at insert time by the stream that received it, and a ship that has
+  // since sailed elsewhere still called at the area recorded on the row. Blindly
+  // rewriting every event to the ship's last_area (what this did before) collapsed
+  // the whole visit history of every multi-area ship onto wherever it happens to
+  // be now, breaking per-area arrival history, revisit detection and the
+  // "ricerca navi per aree di transito" (which is entirely built on it).
   db.prepare(
     `UPDATE port_events SET area = (SELECT last_area FROM ships WHERE ships.mmsi = port_events.mmsi)
-     WHERE EXISTS (
-       SELECT 1 FROM ships
-       WHERE ships.mmsi = port_events.mmsi AND ships.last_area != '' AND ships.last_area != port_events.area
-     )`
+     WHERE (area = '' OR area NOT IN (SELECT key FROM areas))
+       AND EXISTS (
+         SELECT 1 FROM ships
+         WHERE ships.mmsi = port_events.mmsi AND ships.last_area != '' AND ships.last_area != port_events.area
+       )`
   ).run();
   return moved;
 }
@@ -3248,6 +3565,8 @@ module.exports = {
   setNotifMuted,
   getPortEvents,
   getShipEvents,
+  getAreaTransits,
+  hasShipAreaHistory,
   getArrivalsForArea,
   getStayCentroid,
   replaceMoorings,

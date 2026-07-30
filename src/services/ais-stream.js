@@ -12,7 +12,7 @@ const { computeRiskScore, computeRiskScoreCached, invalidateRiskCache } = requir
 const { shouldNotifyShip } = require('./notify-categories');
 const appLog = require('./app-log');
 const { broadcastLog, pushAlert } = require('../realtime');
-const { API_KEY, API_KEY_SOURCE, maskKey, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS } = require('../config');
+const { API_KEY, API_KEY_SOURCE, maskKey, AIS_URL, MSG_TYPES, MAX_BODY, BBOX_PRESETS, AREA_CHANGE_REQUIRE_STOP, AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME, AREA_CHANGE_SKIP_OVERLAPPING } = require('../config');
 const { destinationLabel } = require('./locode');
 const { keyAbuseReason, backoffDelay, closeSocket } = require('./ais-backoff');
 const { traceKey } = require('./key-trace');
@@ -310,7 +310,45 @@ function connect() {
             }
           }
         }
+        // "Cambio area" must describe a real voyage between two distinct places.
+        // Three ways it doesn't, checked in this order (each would otherwise be
+        // reported with the wrong reason by the next one):
+        //   overlap  → the two areas share water, so the tag flipped because
+        //              another subscription delivered the message; the ship may
+        //              not have moved at all (nested boxes, ~0 nm apart).
+        //   transito → the ship only CROSSED the origin bbox without calling
+        //              (Israele is ~500x200 km: traffic for Turkish and Lebanese
+        //              ports transits it), so "moved from there" claims a call
+        //              that never happened.
+        //   stale    → it did call there, but too long ago to explain being here
+        //              now; whatever it did in between happened outside every
+        //              monitored area, so we cannot name its provenance.
+        // Each skip is logged, so the filtering is visible in the activity log.
+        let skipReason = null;
         if (areaChange) {
+          if (AREA_CHANGE_SKIP_OVERLAPPING && areaChange.overlappingAreas) skipReason = 'overlap';
+          else if (AREA_CHANGE_REQUIRE_STOP && !areaChange.fromWasStop) skipReason = 'transito';
+          else if (AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME && !areaChange.timePlausible) skipReason = 'stale';
+        }
+        if (skipReason) {
+          const shipName = db.getShip(areaChange.mmsi)?.ship_name || areaChange.mmsi;
+          const msg = {
+            overlap: () => appLog.t('port.area_change_overlap', { name: shipName, from: areaChange.fromArea, to: areaChange.toArea }),
+            transito: () => appLog.t('port.area_change_transit', { name: shipName, from: areaChange.fromArea }),
+            stale: () => appLog.t('port.area_change_stale', {
+              name: shipName,
+              from: areaChange.fromArea,
+              days: Math.round((areaChange.gapH || 0) / 24),
+              max: Math.round(areaChange.gateH / 24),
+            }),
+          }[skipReason]();
+          appLog.info('PORTO', msg, {
+            mmsi: areaChange.mmsi, da: areaChange.fromArea, a: areaChange.toArea, motivo: skipReason,
+            gapOre: skipReason === 'stale' ? Math.round(areaChange.gapH) : undefined,
+            limiteOre: skipReason === 'stale' ? Math.round(areaChange.gateH) : undefined,
+          });
+        }
+        if (areaChange && !skipReason) {
           const ship = db.getShip(areaChange.mmsi);
           if (ship) {
             const risk = computeRiskScore(ship, 'it');

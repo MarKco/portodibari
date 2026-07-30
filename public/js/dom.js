@@ -47,6 +47,22 @@ export const el = {
   follActiveBody: $('foll-active-body'),
   follPastBody: $('foll-past-body'),
 
+  // Ricerca navi per aree di transito
+  btnTransits: $('btn-transits'),
+  viewTransits: $('view-transits'),
+  btnTransitsBack: $('btn-transits-back'),
+  transitsAreaA: $('transits-area-a'),
+  transitsAreaB: $('transits-area-b'),
+  transitsPeriod: $('transits-period'),
+  btnTransitsSearch: $('btn-transits-search'),
+  transitsResults: $('transits-results'),
+  transitsSearch: $('transits-search'),
+  transitsNoLeg: $('transits-no-leg'),
+  transitsFilterCount: $('transits-filter-count'),
+  transitsGate: $('transits-gate'),
+  transitsThLegs: $('transits-th-legs'),
+  transitsBody: $('transits-body'),
+
   // Ship search (cerca + segui una nave)
   shipSearchBar: $('ship-search-bar'),
   shipSearchInput: $('ship-search-input'),

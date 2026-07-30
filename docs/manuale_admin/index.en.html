@@ -379,6 +379,14 @@
         admin). The log can also be viewed from the <strong>🪵 Activity
         log</strong> overlay in the sidebar and can be
         <strong>cleared</strong>.</p>
+        <p>The log also records the <strong>area-change notifications
+        discarded</strong> by the filters
+        (<code>Area change not notified: …</code>) with the reason:
+        <code>overlapping areas</code>, <code>only crossed</code>,
+        <code>call too old</code>. That is where to look when a user
+        reports a missing alert they expected — see the
+        <code>AREA_CHANGE_*</code> parameters in <a
+        href="#app.config.properties-operating-parameters"><code>app.config.properties</code></a>.</p>
         <h3 id="api-log">API log</h3>
         <figure>
         <img src="images/25-impostazioni-log-api.png"
@@ -674,6 +682,60 @@
         <td><code>90</code></td>
         </tr>
         <tr class="even">
+        <td><code>TRANSIT_STOP_MIN_H</code></td>
+        <td>Minimum hours in an area for a visit to count as a
+        <strong>call</strong> rather than a mere crossing (transit-area
+        search and area-change notification)</td>
+        <td><code>3</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_STOP_MAX_SOG_KN</code></td>
+        <td>Minimum observed speed below which the ship counts as
+        genuinely stopped (recent visits only, whose positions are still
+        stored)</td>
+        <td><code>0.5</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>TRANSIT_MIN_KN</code></td>
+        <td>Minimum implied average speed of a direct passage between
+        two areas: below it, the elapsed time counts as too long</td>
+        <td><code>4</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_MIN_SLACK_H</code></td>
+        <td>Floor of the time limit, so nearby areas are not
+        penalised</td>
+        <td><code>12</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>TRANSIT_MAX_GAP_DAYS</code></td>
+        <td>Cap of the time limit, whatever the distance</td>
+        <td><code>30</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_MAX_ROWS</code></td>
+        <td>Maximum ships returned by one transit-area search</td>
+        <td><code>500</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AREA_CHANGE_REQUIRE_STOP</code></td>
+        <td>Fire the area-change notification only if the ship
+        <strong>called</strong> at the origin area</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME</code></td>
+        <td>Fire it only if the origin call is recent enough to explain
+        the arrival</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AREA_CHANGE_SKIP_OVERLAPPING</code></td>
+        <td>No area-change notification between two areas whose boxes
+        overlap</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="odd">
         <td><code>RISK_*</code></td>
         <td>Risk score weights and thresholds (see comments in the
         file)</td>

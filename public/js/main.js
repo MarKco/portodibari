@@ -9,6 +9,7 @@ import { refreshTrack, syncFollowedMapToggleButtons, syncActiveMapToggleButtons,
 import { loadTraffco } from './traffico.js';
 import { initBerths, loadBerths } from './berths.js';
 import { initReplay, exitReplay } from './replay.js';
+import { initTransits } from './transits.js';
 import { initWebhooks } from './webhooks.js';
 import { initAppConfig, loadAppConfig } from './app-config.js';
 import { initLogPanel, openLogs, closeLogs } from './logs.js';
@@ -1768,6 +1769,9 @@ function initToolbar() {
   if (el.btnFollowed) el.btnFollowed.addEventListener('click', () => showView('followed'));
   if (el.btnCoverage) el.btnCoverage.addEventListener('click', () => showView('coverage'));
   if (el.btnGroupActivity) el.btnGroupActivity.addEventListener('click', () => showView('group-activity'));
+  if (el.btnTransits) el.btnTransits.addEventListener('click', () => showView('transits'));
+  // Back from the transit search goes to the section that owns it (Navi seguite).
+  if (el.btnTransitsBack) el.btnTransitsBack.addEventListener('click', () => showView('followed'));
   el.btnAreas.addEventListener('click', () => showView('areas'));
 
   el.btnBack.addEventListener('click', () => showView(S.detailFrom));
@@ -2000,6 +2004,7 @@ initRiskTooltip();
 initGlossaryTooltip();
 initBerths();
 initReplay();
+initTransits();
 initWebhooks();
 initAppConfig();
 initCollapsibleSections();
@@ -2054,7 +2059,7 @@ api('/api/config').then((cfg) => {
 }).catch(() => {}).finally(async () => {
   await loadSettings();
   updateStatus();
-  const RESTORABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage', 'group-activity'];
+  const RESTORABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage', 'group-activity', 'transits'];
   const hashView = location.hash.slice(1);
   showView(RESTORABLE.includes(hashView) ? hashView : 'active');
   loadPastCount();

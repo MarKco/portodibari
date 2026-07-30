@@ -234,7 +234,7 @@ Le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo reale.
 
 | Colonna | Significato |
 |---|---|
-| Icone azione | Segnala ★, marca come vista ✓, apri su VesselFinder ⧉ |
+| Icone azione | Segnala ★, marca come vista ✓, segui 🗺 |
 | Ultimo avv. | Data e ora dell'ultima posizione ricevuta |
 | Nome nave | Nome dell'imbarcazione |
 | MMSI | Codice identificativo univoco |
@@ -250,7 +250,6 @@ Le navi rilevate nell'area nelle ultime ore, con mappa e tabella in tempo reale.
 
 - **☆ / ★ Segnala** — evidenzia la nave in viola come "da esaminare". Clicca di nuovo per togliere.
 - **✓ Vista** — segna la nave come già esaminata (la riga si attenua). Utile per non perdere le novità.
-- **⧉ VesselFinder** — apre la scheda della nave sul sito VesselFinder.
 - **🧑‍✈️ Prendi in carico** — *(solo se il tuo account fa parte di un gruppo)* prendi in carico la nave per dividerti il lavoro di triage con gli altri membri; più persone possono prenderla in carico insieme. Se qualcuno l'ha già presa, accanto compaiono i suoi tag col nome; la ✕ su un tag toglie quella persona dalla presa in carico. Per assegnarla a un membro specifico (invece che a te stesso), usa il menu nel [dettaglio nave](#dettaglio-nave).
 
 **Colori delle righe:**
@@ -375,6 +374,38 @@ Quando ri-segui una nave che era tra le **Seguite in passato** (apri il dettagli
 
 - se la nave sta trasmettendo, resta tra le seguite e la posizione si aggiorna;
 - se entro ~90 secondi **non** trasmette, **torna tra le "Seguite in passato"** e ricevi una **notifica** di mancato ritrovamento.
+
+### 🔀 Ricerca navi per aree di transito
+
+Sotto la barra di ricerca c'è il pulsante **🔀 Ricerca navi per aree di transito**. Serve a **scoprire** le navi che fanno la rotta fra due delle tue aree, comprese quelle che non hai mai seguito e che magari non hai mai notato.
+
+![Ricerca navi per aree di transito: selettori delle due aree, periodo e tabella dei risultati.](images/39-ricerca_aree_transito.png)
+
+Scegli **Area A**, **Area B** e un **Periodo** (tutto lo storico, oppure ultimi 12 / 6 / 3 mesi / 30 giorni), poi premi **🔍 Cerca**.
+
+**Cosa cerca.** Compaiono solo le navi che si sono **fermate** in entrambe le aree e che hanno fatto almeno un **tragitto** da una all'altra:
+
+- **Sosta** = la nave è rimasta nell'area almeno 3 ore (soglia configurabile dall'amministratore). Una nave che ha solo attraversato il rettangolo dell'area senza fermarsi **non** conta: le aree sono rettangoli che possono coprire molto mare aperto, e il passaggio non significa che la nave fosse diretta lì.
+- **Tragitto** = due soste consecutive, una in ciascuna delle due aree, senza soste in **nessun'altra** area monitorata (da chiunque) nel mezzo, e con un tempo trascorso compatibile con la traversata. La riga sotto i filtri ti ricorda i valori usati: distanza fra le due aree e tempo massimo ammesso.
+
+Una nave che si è fermata in entrambe le aree ma non ha mai fatto la tratta diretta (nel mezzo è andata altrove, o è passato troppo tempo) è comunque recuperabile con la spunta **Mostra anche navi senza tragitti fra le due aree**.
+
+**La tabella** usa gli stessi pulsanti, colori riga, ordinamento e filtro di ricerca delle altre liste — puoi quindi **segnalare**, **segnare come vista**, **seguire** o **prendere in carico** una nave direttamente da qui, senza aprirla. Le colonne specifiche sono:
+
+| Colonna | Significato |
+|---|---|
+| Tragitti A ↔ B | Quante volte la nave ha fatto la tratta fra le due aree, in un verso o nell'altro. Passandoci sopra col mouse vedi anche quante soste ha fatto in ciascuna area |
+| Ultimo tragitto | Data di arrivo dell'ultimo tragitto e verso (es. "Toscana → Ravenna"), più il pulsante **▶ Tragitto** |
+
+Un clic su una riga apre il **[dettaglio della nave](#dettaglio-nave)** come nelle altre tabelle.
+
+**▶ Tragitto** apre una finestra con la **mappa dell'ultimo tragitto** e un comando di riproduzione: **▶** avvia l'animazione, la barra permette di spostarsi nel tempo, e accanto viene mostrata la data del momento riprodotto.
+
+![Finestra del replay dell'ultimo tragitto: mappa con partenza, arrivo e tratto stimato.](images/40-replay_tragitto.png)
+
+> ⚠️ **Il tratto tratteggiato grigio è una stima.** Le posizioni vengono registrate solo dentro le aree monitorate: in mare aperto non c'è alcun dato, quindi il collegamento fra l'uscita da un'area e l'arrivo nell'altra è una linea retta ipotetica, non la rotta reale. La nota sotto la mappa indica quante posizioni reali esistono e quante ore del tragitto sono stimate. Le date di partenza e arrivo, invece, sono reali.
+
+> 💡 I conteggi di questa ricerca si basano sugli **eventi di porto** (arrivi e partenze), che restano in archivio a lungo; le **posizioni** hanno invece una conservazione molto più breve. Per questo può capitare che un tragitto sia elencato ma la sua mappa abbia poche posizioni o nessuna: la finestra te lo dice esplicitamente.
 
 ---
 
@@ -637,7 +668,7 @@ Qui decidi **quali eventi** generano una notifica nella barra laterale (e, se co
 |---|---|
 | **Notifiche** | Interruttore generale: spento, non arriva nessuna notifica in-app (indipendentemente dai toggle sotto). |
 | **Notifica rientro nave** | Avvisa quando una nave **già vista in passato** nella stessa area vi rientra dopo un periodo di assenza. |
-| **Notifica cambio area** | Avvisa quando una nave che monitoravi in un'area viene rilevata in **un'altra** delle tue aree. |
+| **Notifica cambio area** | Avvisa quando una nave **che ha fatto scalo** in una tua area viene rilevata in **un'altra** delle tue aree. Non scatta per le navi che hanno solo attraversato l'area di partenza senza fermarsi, né quando lo scalo di partenza è troppo vecchio per spiegare l'arrivo attuale, né fra due aree che si sovrappongono (vedi [Quando scatta il cambio area](#quando-scatta-il-cambio-area)). |
 | **Notifica score alto** | Avvisa quando una nave **arriva** con punteggio di rischio in fascia rossa (71–100). La più utile per il triage rapido: non serve stare a guardare la tabella per accorgersene. |
 | **Notifica nuova banchina** | Avvisa quando l'app individua automaticamente una **nuova banchina** in un'area (un cluster di ormeggi non ancora visto). |
 | **Notifica caratterizzazione banchina** | Avvisa quando una banchina (automatica o corretta a mano) viene **classificata per la prima volta** per categoria di navi prevalente (es. "Cargo", "Passeggeri"). |
@@ -746,8 +777,22 @@ Oltre agli avvisi temporanei in sovrimpressione, l'app tiene uno **storico delle
 Eventi nave:
 
 - **Rientro nave** — una nave già vista in un'area torna a essere rilevata nella stessa area.
-- **Cambio area** — una nave vista in un'area viene rilevata in un'**altra** area.
+- **Cambio area** — una nave che ha fatto **scalo** in una tua area viene rilevata in un'**altra** area (vedi [Quando scatta il cambio area](#quando-scatta-il-cambio-area)).
 - **Score alto** — una nave arriva con score in fascia rossa (71–100).
+
+#### Quando scatta il cambio area
+
+La notifica di **cambio area** vuole dire una cosa precisa: *questa nave si era fermata in una tua area, e ora è arrivata in un'altra*. Perché il messaggio sia affidabile, l'app scarta tre situazioni in cui l'affermazione sarebbe fuorviante:
+
+| Situazione | Perché non arriva la notifica |
+|---|---|
+| La nave ha solo **attraversato** l'area di partenza | Un'area è un rettangolo di interesse, non un porto: può coprire centinaia di km di mare aperto. Una nave che ci passa in mezzo mentre è diretta altrove non "viene" da lì. Serve una sosta di almeno 3 ore |
+| Lo scalo di partenza è **troppo vecchio** | Se dall'ultima sosta è passato molto più tempo di quanto richieda la traversata (il limite dipende dalla distanza fra le due aree), nel frattempo la nave è stata altrove — e dove, non lo sappiamo, perché fuori dalle aree monitorate non riceviamo posizioni |
+| Le due aree si **sovrappongono** | Se un'area contiene l'altra (o le due si intersecano), la stessa posizione appartiene a entrambe: la nave non si è spostata affatto, cambia solo l'etichetta. Senza questo filtro una nave ormeggiata genererebbe una raffica di finti spostamenti |
+
+Le soglie sono regolabili dall'amministratore, che può anche verificare nel registro delle attività quali notifiche sono state scartate e perché — utile se ti aspettavi un avviso che non è arrivato.
+
+> ℹ️ Anche quando la notifica arriva, "da *Area A*" significa **"ha fatto scalo dentro il rettangolo dell'Area A"**, non necessariamente in un porto specifico: se l'area copre più porti (anche di paesi diversi), il nome dell'area non identifica lo scalo. Il [dettaglio della nave](#dettaglio-nave) mostra lo storico completo delle visite.
 
 Eventi banchina:
 

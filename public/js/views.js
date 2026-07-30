@@ -24,6 +24,7 @@ import { loadFollowed } from './followed.js';
 import { enterAreasView, commitPendingDelete } from './areas.js';
 import { enterCoverageView, leaveCoverageView } from './coverage.js';
 import { enterGroupActivityView } from './group-activity.js';
+import { enterTransitsView } from './transits.js';
 import { closeSettingsLog } from './app-log.js';
 import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
@@ -57,7 +58,7 @@ export function showView(v, mmsi, shipData) {
   }
 
   S.view = v;
-  const HASHABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage', 'group-activity'];
+  const HASHABLE = ['active', 'past', 'traffico', 'followed', 'areas', 'coverage', 'group-activity', 'transits'];
   if (HASHABLE.includes(v)) location.hash = v;
   el.viewActive.classList.toggle('hidden', v !== 'active');
   el.viewPast.classList.toggle('hidden', v !== 'past');
@@ -67,10 +68,11 @@ export function showView(v, mmsi, shipData) {
   el.viewAreas.classList.toggle('hidden', v !== 'areas');
   if (el.viewCoverage) el.viewCoverage.classList.toggle('hidden', v !== 'coverage');
   if (el.viewGroupActivity) el.viewGroupActivity.classList.toggle('hidden', v !== 'group-activity');
+  if (el.viewTransits) el.viewTransits.classList.toggle('hidden', v !== 'transits');
   el.viewSettings.classList.toggle('hidden', v !== 'settings');
   // Hide the Monitoraggi tab bar outside the active/past/traffico section
   // (the Navi seguite section carries its own tab bar).
-  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'followed' || v === 'areas' || v === 'coverage' || v === 'group-activity' || v === 'settings');
+  el.mainTabs.classList.toggle('hidden', v === 'detail' || v === 'followed' || v === 'areas' || v === 'coverage' || v === 'group-activity' || v === 'transits' || v === 'settings');
 
   el.tabActive.classList.toggle('tab-active', v === 'active');
   el.tabPast.classList.toggle('tab-active', v === 'past');
@@ -124,5 +126,7 @@ export function showView(v, mmsi, shipData) {
     enterCoverageView();
   } else if (v === 'group-activity') {
     enterGroupActivityView();
+  } else if (v === 'transits') {
+    enterTransitsView();
   }
 }

@@ -328,6 +328,11 @@
         <button type="submit" id="ship-search-btn" class="btn btn-primary btn-sm" data-i18n="search.btn">🔍 Cerca</button>
       </form>
 
+      <div class="transits-entry">
+        <button id="btn-transits" class="btn btn-secondary btn-sm" data-i18n="transits.open">🔀 Ricerca navi per aree di transito</button>
+        <span class="search-hint" data-i18n="transits.entryHint">Scopri le navi che fanno la rotta fra due tue aree, anche se non le hai mai seguite.</span>
+      </div>
+
       <div class="tabs" id="followed-tabs">
         <button id="tab-foll-active" class="tab tab-active">
           <span data-i18n="tab.followActive">Seguite</span>
@@ -889,6 +894,67 @@
             <span class="cov-scale" data-i18n="coverage.legendScale">bassa → alta (scala log)</span>
           </span>
           <span id="cov-legend-max" class="coverage-msg" style="margin-left:auto"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: ricerca navi per aree di transito -->
+    <div id="view-transits" class="hidden">
+      <div class="detail-nav">
+        <button id="btn-transits-back" class="btn btn-secondary" data-i18n="detail.back">← Indietro</button>
+        <h3 class="transits-title" data-i18n="transits.title">Ricerca navi per aree di transito</h3>
+      </div>
+
+      <p class="search-hint" data-i18n="transits.hint">Scegli due aree fra quelle che monitori: la ricerca elenca le navi che si sono fermate in entrambe (non quelle che sono solo transitate) e quanti tragitti hanno fatto da una all'altra.</p>
+
+      <div class="transits-form">
+        <label class="transits-field">
+          <span data-i18n="transits.areaA">Area A</span>
+          <select id="transits-area-a" class="list-band"></select>
+        </label>
+        <label class="transits-field">
+          <span data-i18n="transits.areaB">Area B</span>
+          <select id="transits-area-b" class="list-band"></select>
+        </label>
+        <label class="transits-field">
+          <span data-i18n="transits.period">Periodo</span>
+          <select id="transits-period" class="list-band">
+            <option value="all" data-i18n="transits.periodAll">Tutto lo storico</option>
+            <option value="12m" data-i18n="transits.period12m">Ultimi 12 mesi</option>
+            <option value="6m" data-i18n="transits.period6m">Ultimi 6 mesi</option>
+            <option value="3m" data-i18n="transits.period3m">Ultimi 3 mesi</option>
+            <option value="30d" data-i18n="transits.period30d">Ultimi 30 giorni</option>
+          </select>
+        </label>
+        <button id="btn-transits-search" class="btn btn-primary" data-i18n="transits.search">🔍 Cerca</button>
+      </div>
+
+      <div id="transits-results" class="hidden">
+        <div class="list-toolbar">
+          <input type="search" id="transits-search" class="list-search"
+                 data-i18n-placeholder="filter.searchHolder" placeholder="Cerca nome, MMSI, IMO, destinazione…">
+          <label class="list-check"><input type="checkbox" id="transits-no-leg"><span data-i18n="transits.includeNoLeg">Mostra anche navi senza tragitti fra le due aree</span></label>
+          <span class="list-toolbar-spacer"></span>
+          <span id="transits-filter-count" class="list-filter-count"></span>
+        </div>
+        <p id="transits-gate" class="transits-gate"></p>
+        <div id="table-wrap-transits">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-flags" data-i18n="col.flags">Flag</th>
+                <th data-col="ship_name" data-i18n="col.shipName">Nome nave</th>
+                <th data-col="mmsi" data-i18n="col.mmsi">MMSI</th>
+                <th data-col="ship_type" data-i18n="col.shipType">Tipo nave</th>
+                <th data-col="legs" id="transits-th-legs"></th>
+                <th data-col="lastLeg" data-i18n="transits.colLastLeg">Ultimo tragitto</th>
+                <th data-col="risk" data-i18n="col.risk">Rischio</th>
+              </tr>
+            </thead>
+            <tbody id="transits-body">
+              <tr><td colspan="7" class="empty" data-i18n="transits.empty">Nessuna nave si è fermata in entrambe le aree nel periodo scelto.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

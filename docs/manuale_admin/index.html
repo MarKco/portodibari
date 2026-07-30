@@ -394,6 +394,15 @@
         nel tab Generali, admin). Il registro è consultabile anche
         dall’overlay <strong>🪵 Log attività</strong> nella barra
         laterale e si può <strong>svuotare</strong>.</p>
+        <p>Il registro riporta anche le notifiche di <strong>cambio area
+        scartate</strong> dai filtri
+        (<code>Cambio area non notificato: …</code>) con il motivo:
+        <code>aree sovrapposte</code>,
+        <code>ha solo attraversato</code>,
+        <code>sosta troppo vecchia</code>. È il posto dove guardare
+        quando un utente segnala di non aver ricevuto un avviso che si
+        aspettava — vedi i parametri <code>AREA_CHANGE_*</code> in <a
+        href="#app.config.properties-parametri-di-funzionamento"><code>app.config.properties</code></a>.</p>
         <h3 id="log-api">Log API</h3>
         <figure>
         <img src="images/25-impostazioni-log-api.png"
@@ -702,6 +711,63 @@
         <td><code>90</code></td>
         </tr>
         <tr class="even">
+        <td><code>TRANSIT_STOP_MIN_H</code></td>
+        <td>Ore di permanenza minime perché una visita in area conti
+        come <strong>sosta</strong> e non come semplice attraversamento
+        (ricerca per aree di transito e notifica cambio area)</td>
+        <td><code>3</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_STOP_MAX_SOG_KN</code></td>
+        <td>Velocità minima osservata sotto cui la nave è considerata
+        davvero ferma (solo per le visite recenti, con posizioni ancora
+        in archivio)</td>
+        <td><code>0.5</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>TRANSIT_MIN_KN</code></td>
+        <td>Velocità media minima implicita di una traversata diretta
+        fra due aree: sotto questa, il tempo trascorso è considerato
+        troppo lungo</td>
+        <td><code>4</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_MIN_SLACK_H</code></td>
+        <td>Soglia minima del limite temporale, per non penalizzare le
+        aree vicine</td>
+        <td><code>12</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>TRANSIT_MAX_GAP_DAYS</code></td>
+        <td>Tetto massimo del limite temporale, qualunque sia la
+        distanza</td>
+        <td><code>30</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>TRANSIT_MAX_ROWS</code></td>
+        <td>Numero massimo di navi restituite da una ricerca per aree di
+        transito</td>
+        <td><code>500</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AREA_CHANGE_REQUIRE_STOP</code></td>
+        <td>Notifica cambio area solo se la nave ha
+        <strong>sostato</strong> nell’area di partenza</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME</code></td>
+        <td>Notifica cambio area solo se lo scalo di partenza è
+        abbastanza recente da spiegare l’arrivo</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AREA_CHANGE_SKIP_OVERLAPPING</code></td>
+        <td>Nessuna notifica cambio area fra due aree le cui bbox si
+        sovrappongono</td>
+        <td><code>true</code></td>
+        </tr>
+        <tr class="odd">
         <td><code>RISK_*</code></td>
         <td>Pesi e soglie dello score di rischio (vedi commenti nel
         file)</td>

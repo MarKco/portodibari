@@ -90,6 +90,8 @@ Logs are **shared** and visible **only to administrators**, as tabs in Settings.
 
 Records the app's significant operations (streams, data fetching, sanctions, backups, errors) in a file with **automatic rotation** (max ~5 MB). On by default (**Activity log** toggle in the General tab, admin). The log can also be viewed from the **🪵 Activity log** overlay in the sidebar and can be **cleared**.
 
+The log also records the **area-change notifications discarded** by the filters (`Area change not notified: …`) with the reason: `overlapping areas`, `only crossed`, `call too old`. That is where to look when a user reports a missing alert they expected — see the `AREA_CHANGE_*` parameters in [`app.config.properties`](#app.config.properties-operating-parameters).
+
 ### API log
 
 ![Settings — API log: list of /api calls with method, path, and outcome.](images/25-impostazioni-log-api.png)
@@ -169,6 +171,15 @@ Contains thresholds and parameters (time windows, radii, retention, berths, scor
 | `HEATMAP_GRID_DEG` | Coverage map cell size, in degrees (~28 km) | `0.25` |
 | `HEATMAP_FLUSH_SEC` | How often (seconds) counts are written to disk | `10` |
 | `GROUP_ACTIVITY_LOG_RETENTION_DAYS` | Retention (days) of the group activity log (see above) | `90` |
+| `TRANSIT_STOP_MIN_H` | Minimum hours in an area for a visit to count as a **call** rather than a mere crossing (transit-area search and area-change notification) | `3` |
+| `TRANSIT_STOP_MAX_SOG_KN` | Minimum observed speed below which the ship counts as genuinely stopped (recent visits only, whose positions are still stored) | `0.5` |
+| `TRANSIT_MIN_KN` | Minimum implied average speed of a direct passage between two areas: below it, the elapsed time counts as too long | `4` |
+| `TRANSIT_MIN_SLACK_H` | Floor of the time limit, so nearby areas are not penalised | `12` |
+| `TRANSIT_MAX_GAP_DAYS` | Cap of the time limit, whatever the distance | `30` |
+| `TRANSIT_MAX_ROWS` | Maximum ships returned by one transit-area search | `500` |
+| `AREA_CHANGE_REQUIRE_STOP` | Fire the area-change notification only if the ship **called** at the origin area | `true` |
+| `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME` | Fire it only if the origin call is recent enough to explain the arrival | `true` |
+| `AREA_CHANGE_SKIP_OVERLAPPING` | No area-change notification between two areas whose boxes overlap | `true` |
 | `RISK_*` | Risk score weights and thresholds (see comments in the file) | various |
 
 ### `bounding-boxes.json` — area definitions

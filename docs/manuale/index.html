@@ -232,6 +232,8 @@
         <li><a
         href="#ri-seguire-una-nave-dalle-seguite-in-passato">Ri-seguire
         una nave dalle “Seguite in passato”</a></li>
+        <li><a href="#ricerca-navi-per-aree-di-transito">🔀 Ricerca navi
+        per aree di transito</a></li>
         </ul></li>
         <li><a href="#attività-di-gruppo">Attività di gruppo</a>
         <ul>
@@ -748,7 +750,7 @@
         <tbody>
         <tr class="odd">
         <td>Icone azione</td>
-        <td>Segnala ★, marca come vista ✓, apri su VesselFinder ⧉</td>
+        <td>Segnala ★, marca come vista ✓, segui 🗺</td>
         </tr>
         <tr class="even">
         <td>Ultimo avv.</td>
@@ -795,8 +797,6 @@
         come “da esaminare”. Clicca di nuovo per togliere.</li>
         <li><strong>✓ Vista</strong> — segna la nave come già esaminata
         (la riga si attenua). Utile per non perdere le novità.</li>
-        <li><strong>⧉ VesselFinder</strong> — apre la scheda della nave
-        sul sito VesselFinder.</li>
         <li><strong>🧑‍✈️ Prendi in carico</strong> — <em>(solo se il tuo
         account fa parte di un gruppo)</em> prendi in carico la nave per
         dividerti il lavoro di triage con gli altri membri; più persone
@@ -1117,6 +1117,110 @@
         <strong>torna tra le “Seguite in passato”</strong> e ricevi una
         <strong>notifica</strong> di mancato ritrovamento.</li>
         </ul>
+        <h3 id="ricerca-navi-per-aree-di-transito">🔀 Ricerca navi per
+        aree di transito</h3>
+        <p>Sotto la barra di ricerca c’è il pulsante <strong>🔀 Ricerca
+        navi per aree di transito</strong>. Serve a
+        <strong>scoprire</strong> le navi che fanno la rotta fra due
+        delle tue aree, comprese quelle che non hai mai seguito e che
+        magari non hai mai notato.</p>
+        <figure>
+        <img src="images/39-ricerca_aree_transito.png"
+        alt="Ricerca navi per aree di transito: selettori delle due aree, periodo e tabella dei risultati." />
+        <figcaption aria-hidden="true">Ricerca navi per aree di
+        transito: selettori delle due aree, periodo e tabella dei
+        risultati.</figcaption>
+        </figure>
+        <p>Scegli <strong>Area A</strong>, <strong>Area B</strong> e un
+        <strong>Periodo</strong> (tutto lo storico, oppure ultimi 12 / 6
+        / 3 mesi / 30 giorni), poi premi <strong>🔍 Cerca</strong>.</p>
+        <p><strong>Cosa cerca.</strong> Compaiono solo le navi che si
+        sono <strong>fermate</strong> in entrambe le aree e che hanno
+        fatto almeno un <strong>tragitto</strong> da una all’altra:</p>
+        <ul>
+        <li><strong>Sosta</strong> = la nave è rimasta nell’area almeno
+        3 ore (soglia configurabile dall’amministratore). Una nave che
+        ha solo attraversato il rettangolo dell’area senza fermarsi
+        <strong>non</strong> conta: le aree sono rettangoli che possono
+        coprire molto mare aperto, e il passaggio non significa che la
+        nave fosse diretta lì.</li>
+        <li><strong>Tragitto</strong> = due soste consecutive, una in
+        ciascuna delle due aree, senza soste in
+        <strong>nessun’altra</strong> area monitorata (da chiunque) nel
+        mezzo, e con un tempo trascorso compatibile con la traversata.
+        La riga sotto i filtri ti ricorda i valori usati: distanza fra
+        le due aree e tempo massimo ammesso.</li>
+        </ul>
+        <p>Una nave che si è fermata in entrambe le aree ma non ha mai
+        fatto la tratta diretta (nel mezzo è andata altrove, o è passato
+        troppo tempo) è comunque recuperabile con la spunta
+        <strong>Mostra anche navi senza tragitti fra le due
+        aree</strong>.</p>
+        <p><strong>La tabella</strong> usa gli stessi pulsanti, colori
+        riga, ordinamento e filtro di ricerca delle altre liste — puoi
+        quindi <strong>segnalare</strong>, <strong>segnare come
+        vista</strong>, <strong>seguire</strong> o <strong>prendere in
+        carico</strong> una nave direttamente da qui, senza aprirla. Le
+        colonne specifiche sono:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Colonna</th>
+        <th>Significato</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Tragitti A ↔︎ B</td>
+        <td>Quante volte la nave ha fatto la tratta fra le due aree, in
+        un verso o nell’altro. Passandoci sopra col mouse vedi anche
+        quante soste ha fatto in ciascuna area</td>
+        </tr>
+        <tr class="even">
+        <td>Ultimo tragitto</td>
+        <td>Data di arrivo dell’ultimo tragitto e verso (es. “Toscana →
+        Ravenna”), più il pulsante <strong>▶ Tragitto</strong></td>
+        </tr>
+        </tbody>
+        </table>
+        <p>Un clic su una riga apre il <strong><a
+        href="#dettaglio-nave">dettaglio della nave</a></strong> come
+        nelle altre tabelle.</p>
+        <p><strong>▶ Tragitto</strong> apre una finestra con la
+        <strong>mappa dell’ultimo tragitto</strong> e un comando di
+        riproduzione: <strong>▶</strong> avvia l’animazione, la barra
+        permette di spostarsi nel tempo, e accanto viene mostrata la
+        data del momento riprodotto.</p>
+        <figure>
+        <img src="images/40-replay_tragitto.png"
+        alt="Finestra del replay dell’ultimo tragitto: mappa con partenza, arrivo e tratto stimato." />
+        <figcaption aria-hidden="true">Finestra del replay dell’ultimo
+        tragitto: mappa con partenza, arrivo e tratto
+        stimato.</figcaption>
+        </figure>
+        <blockquote>
+        <p>⚠️ <strong>Il tratto tratteggiato grigio è una
+        stima.</strong> Le posizioni vengono registrate solo dentro le
+        aree monitorate: in mare aperto non c’è alcun dato, quindi il
+        collegamento fra l’uscita da un’area e l’arrivo nell’altra è una
+        linea retta ipotetica, non la rotta reale. La nota sotto la
+        mappa indica quante posizioni reali esistono e quante ore del
+        tragitto sono stimate. Le date di partenza e arrivo, invece,
+        sono reali.</p>
+        </blockquote>
+        <blockquote>
+        <p>💡 I conteggi di questa ricerca si basano sugli
+        <strong>eventi di porto</strong> (arrivi e partenze), che
+        restano in archivio a lungo; le <strong>posizioni</strong> hanno
+        invece una conservazione molto più breve. Per questo può
+        capitare che un tragitto sia elencato ma la sua mappa abbia
+        poche posizioni o nessuna: la finestra te lo dice
+        esplicitamente.</p>
+        </blockquote>
         <hr />
         <h2 id="attività-di-gruppo">Attività di gruppo</h2>
         <p>Se il tuo account fa parte di un <strong>gruppo</strong>
@@ -1817,8 +1921,14 @@
         </tr>
         <tr class="odd">
         <td><strong>Notifica cambio area</strong></td>
-        <td>Avvisa quando una nave che monitoravi in un’area viene
-        rilevata in <strong>un’altra</strong> delle tue aree.</td>
+        <td>Avvisa quando una nave <strong>che ha fatto scalo</strong>
+        in una tua area viene rilevata in <strong>un’altra</strong>
+        delle tue aree. Non scatta per le navi che hanno solo
+        attraversato l’area di partenza senza fermarsi, né quando lo
+        scalo di partenza è troppo vecchio per spiegare l’arrivo
+        attuale, né fra due aree che si sovrappongono (vedi <a
+        href="#quando-scatta-il-cambio-area">Quando scatta il cambio
+        area</a>).</td>
         </tr>
         <tr class="even">
         <td><strong>Notifica score alto</strong></td>
@@ -2128,11 +2238,72 @@
         <ul>
         <li><strong>Rientro nave</strong> — una nave già vista in
         un’area torna a essere rilevata nella stessa area.</li>
-        <li><strong>Cambio area</strong> — una nave vista in un’area
-        viene rilevata in un’<strong>altra</strong> area.</li>
+        <li><strong>Cambio area</strong> — una nave che ha fatto
+        <strong>scalo</strong> in una tua area viene rilevata in
+        un’<strong>altra</strong> area (vedi <a
+        href="#quando-scatta-il-cambio-area">Quando scatta il cambio
+        area</a>).</li>
         <li><strong>Score alto</strong> — una nave arriva con score in
         fascia rossa (71–100).</li>
         </ul>
+        <h4 id="quando-scatta-il-cambio-area">Quando scatta il cambio
+        area</h4>
+        <p>La notifica di <strong>cambio area</strong> vuole dire una
+        cosa precisa: <em>questa nave si era fermata in una tua area, e
+        ora è arrivata in un’altra</em>. Perché il messaggio sia
+        affidabile, l’app scarta tre situazioni in cui l’affermazione
+        sarebbe fuorviante:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Situazione</th>
+        <th>Perché non arriva la notifica</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>La nave ha solo <strong>attraversato</strong> l’area di
+        partenza</td>
+        <td>Un’area è un rettangolo di interesse, non un porto: può
+        coprire centinaia di km di mare aperto. Una nave che ci passa in
+        mezzo mentre è diretta altrove non “viene” da lì. Serve una
+        sosta di almeno 3 ore</td>
+        </tr>
+        <tr class="even">
+        <td>Lo scalo di partenza è <strong>troppo vecchio</strong></td>
+        <td>Se dall’ultima sosta è passato molto più tempo di quanto
+        richieda la traversata (il limite dipende dalla distanza fra le
+        due aree), nel frattempo la nave è stata altrove — e dove, non
+        lo sappiamo, perché fuori dalle aree monitorate non riceviamo
+        posizioni</td>
+        </tr>
+        <tr class="odd">
+        <td>Le due aree si <strong>sovrappongono</strong></td>
+        <td>Se un’area contiene l’altra (o le due si intersecano), la
+        stessa posizione appartiene a entrambe: la nave non si è
+        spostata affatto, cambia solo l’etichetta. Senza questo filtro
+        una nave ormeggiata genererebbe una raffica di finti
+        spostamenti</td>
+        </tr>
+        </tbody>
+        </table>
+        <p>Le soglie sono regolabili dall’amministratore, che può anche
+        verificare nel registro delle attività quali notifiche sono
+        state scartate e perché — utile se ti aspettavi un avviso che
+        non è arrivato.</p>
+        <blockquote>
+        <p>ℹ️ Anche quando la notifica arriva, “da <em>Area A</em>”
+        significa <strong>“ha fatto scalo dentro il rettangolo dell’Area
+        A”</strong>, non necessariamente in un porto specifico: se
+        l’area copre più porti (anche di paesi diversi), il nome
+        dell’area non identifica lo scalo. Il <a
+        href="#dettaglio-nave">dettaglio della nave</a> mostra lo
+        storico completo delle visite.</p>
+        </blockquote>
         <p>Eventi banchina:</p>
         <ul>
         <li><strong>Nuova banchina</strong> — durante il ricalcolo viene

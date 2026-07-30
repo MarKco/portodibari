@@ -153,6 +153,18 @@ const MESSAGES = {
   'port.departures': { it: (p) => `${p.count} partenze: ${p.list}`, en: (p) => `${p.count} departures: ${p.list}` },
   'port.high_risk': { it: (p) => `Nave ad alto rischio in arrivo: ${p.name}`, en: (p) => `High-risk vessel arriving: ${p.name}` },
   'port.area_change': { it: (p) => `Nave spostata tra aree: ${p.name}`, en: (p) => `Vessel moved between areas: ${p.name}` },
+  'port.area_change_overlap': {
+    it: (p) => `Cambio area non notificato: ${p.from} e ${p.to} si sovrappongono, ${p.name} non ha cambiato luogo`,
+    en: (p) => `Area change not notified: ${p.from} and ${p.to} overlap, ${p.name} did not change location`,
+  },
+  'port.area_change_stale': {
+    it: (p) => `Cambio area non notificato: ${p.name} ha sostato in ${p.from} ${p.days} giorni fa, troppo per un tragitto diretto (max ${p.max})`,
+    en: (p) => `Area change not notified: ${p.name} called at ${p.from} ${p.days} days ago, too long for a direct passage (max ${p.max})`,
+  },
+  'port.area_change_transit': {
+    it: (p) => `Cambio area non notificato: ${p.name} ha solo attraversato ${p.from}, senza sostare`,
+    en: (p) => `Area change not notified: ${p.name} only crossed ${p.from} without calling`,
+  },
 
   // ── Telegram bot ──
   'telegram.disabled': { it: 'Bot Telegram disabilitato: TELEGRAM_BOT_TOKEN non impostato', en: 'Telegram bot disabled: TELEGRAM_BOT_TOKEN not set' },

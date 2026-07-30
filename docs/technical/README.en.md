@@ -213,6 +213,15 @@ Max 10,000 records per message type. Automatic rotation (deletes oldest) every 5
 | Rendezvous scan interval        | `app.config.properties`           | `PROXIMITY_SCAN_MIN` (0 = off)        | 10 min         |
 | Rendezvous pair distance        | `app.config.properties`           | `PROXIMITY_DIST_M`                    | 500 m          |
 | Rendezvous min. dwell           | `app.config.properties`           | `PROXIMITY_MIN_MINUTES`               | 10 min         |
+| Minimum call in area (transit search + area change) | `app.config.properties` | `TRANSIT_STOP_MIN_H`             | 3 hours        |
+| Speed below which the ship is "stopped" in the visit | `app.config.properties` | `TRANSIT_STOP_MAX_SOG_KN`     | 0.5 kn         |
+| Minimum average speed of a direct passage | `app.config.properties`       | `TRANSIT_MIN_KN`                      | 4 kn           |
+| Floor of the time limit between two areas | `app.config.properties`       | `TRANSIT_MIN_SLACK_H`                 | 12 hours       |
+| Cap of the time limit between two areas | `app.config.properties`         | `TRANSIT_MAX_GAP_DAYS`                | 30 days        |
+| Max ships per transit search    | `app.config.properties`           | `TRANSIT_MAX_ROWS`                    | 500            |
+| Area change only on a real call | `app.config.properties`           | `AREA_CHANGE_REQUIRE_STOP`            | `true`         |
+| Area change only if the call is recent | `app.config.properties`    | `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME`  | `true`         |
+| Area change: skip overlapping areas | `app.config.properties`       | `AREA_CHANGE_SKIP_OVERLAPPING`        | `true`         |
 | Replay: max positions per query | `app.config.properties`           | `REPLAY_MAX_POINTS`                   | 40,000         |
 | Replay: max gap (hide ship)     | `app.config.properties`           | `REPLAY_MAX_GAP_MIN`                  | 30 min         |
 | Replay: trail length            | `app.config.properties`           | `REPLAY_TAIL_MIN`                     | 20 min         |
@@ -689,6 +698,33 @@ A rendezvous on the open sea — two distinct vessels lingering side by side off
 
 **Ship detail** — a **Rendezvous** section lists the vessel's confirmed encounters (other ship, date/time, minimum distance, area); each row is clickable and opens the partner ship's detail.
 
+## 🔀 Ship search by transit areas
+
+Discovery of ships linking two monitored areas, including never-followed ones: `public/js/transits.js` (view `#transits`, opened from the button in **Followed ships**), route `src/routes/transits.js`, engine `db.getAreaTransits(areaA, areaB, sinceIso)`.
+
+**Why port events and not positions.** `readings` has a global per-message-type cap (`MAX_READINGS_PER_TYPE`, default 10,000) and is pruned continuously: it covers days, not months. `port_events`, on the other hand, has **no time-based retention** — it is the only long history available, so counts and legs are rebuilt from it.
+
+**Visit** = an `arrived` plus the first following `departed` in the same area (or still open, if the ship is there now).
+
+**Call** (the visit was a destination, not a crossing of the bbox):
+
+- if the departure carries the measured evidence (columns `port_events.stop_min_sog` / `stopped`, written by `checkAndLogDepartures` while the visit's positions are still in the DB), that decides: dwell ≥ `TRANSIT_STOP_MIN_H` **and** minimum speed ≤ `TRANSIT_STOP_MAX_SOG_KN`;
+- otherwise dwell alone ≥ `TRANSIT_STOP_MIN_H`. `stopped` is **nullable**: NULL means "not measured" (rows predating this version, or positions already pruned), not "did not stop".
+
+**Leg** = two consecutive calls in the two chosen areas, with no call at **any other** catalog area in between (`port_events` are global, so other users' areas count too), and elapsed time within the gate from `db.areaHopGate(a, b)`:
+
+```
+gateH = min( max(TRANSIT_MIN_SLACK_H, distance_nm / TRANSIT_MIN_KN), TRANSIT_MAX_GAP_DAYS × 24 )
+```
+
+`TRANSIT_MIN_KN` (4 kn) is far below real cruising speed, so a voyage with intermediate calls still fits; the floor avoids thresholds of minutes between nearby areas; the cap prevents treating a leg months apart as direct. **The same gate feeds the area-change notification filter**, so the two criteria cannot drift apart.
+
+**Route.** `GET /api/transits?a=KEY&b=KEY&period=all|12m|6m|3m|30d&includeNoLeg=0|1` — 400 when areas are missing or identical, 403 when the user does not monitor both. It answers with ships decorated as in the other lists (`flagged`/`seen`/`followed`/`risk`/`chargedBy` via batch queries), sorted by number of legs, `truncated` past `TRANSIT_MAX_ROWS`. Ships with zero legs are excluded by default (`includeNoLeg=1` includes them).
+
+**Leg replay** — the **▶ Trip** button opens `#modal-overlay` with a Leaflet map (created once and re-attached on every open, so no dead instances pile up in the `tiles.js` layer registry) and reuses `GET /api/ships/:mmsi/track?from&to&scraped=1`. Segments whose time gap exceeds `REPLAY_MAX_GAP_MIN` are drawn as a **dashed grey** line and labelled as estimated: outside the monitored areas no positions exist, so the offshore route is a hypothetical straight line.
+
+**Visibility.** `canSeeShip` (in `src/routes/ships.js`) also accepts ships with a recorded call in one of the user's areas (`db.hasShipAreaHistory`): a ship discovered here may be anywhere in the world, and without this its detail page would answer 404.
+
 ## 📋 Port events, statistics and alerts
 
 **Port events** (table `port_events`) — the backend automatically detects:
@@ -706,7 +742,17 @@ A rendezvous on the open sea — two distinct vessels lingering side by side off
 **Notifications** (table `notifications`, `/api/notifications`) — persistent history shown in an **overlay window** (the same `#modal-overlay` used for reading detail / berth / backup restore, so it's responsive on mobile by default) opened from the **🔔 Notifications** sidebar button; the button only carries the unread badge, content loads fresh on every open (no live refresh while it stays open). Six notification types are generated (each can be enabled/disabled independently from Settings, on top of the master `notificationsEnabled` switch):
 
 - `revisit` — a ship **that already arrived in the same area in the past** returns to it after an absence (`db.insert` returns `revisit`); controlled by `notifyRevisit` / `NOTIFY_REVISIT`.
-- `area_change` — a ship seen in one area is later detected in a **different** area (`db.insert` returns `areaChange` by comparing the ship's `last_area` with the message's area before the upsert); the notification stores the origin area in `from_area` and the destination in `area`; controlled by `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
+- `area_change` — a ship that **called** at one area is later detected in a **different** area (`db.insert` returns `areaChange` by comparing the ship's `last_area` with the message's area before the upsert); the notification stores the origin area in `from_area` and the destination in `area`; controlled by `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
+
+  Before the fan-out, `ais-stream.js` discards the event in three cases, in this order (each would otherwise be reported with the wrong reason by the next one). Every skip is written to the activity log with its reason:
+
+  | Reason | Condition | Why |
+  |---|---|---|
+  | `overlap` | `areaChange.overlappingAreas` (`db.boxesOverlap`), disable with `AREA_CHANGE_SKIP_OVERLAPPING=false` | Two intersecting boxes hold the same positions: the area credited depends on which subscription delivered the message, and a ship moored in the shared part "changes area" while standing still |
+  | `transito` | `!areaChange.fromWasStop` (`db.lastAreaVisitWasStop`), disable with `AREA_CHANGE_REQUIRE_STOP=false` | An area is a rectangle of interest, possibly hundreds of km wide: announcing "moved from X" for a ship that only crossed X claims a call that never happened. Positive evidence is required: with no recorded arrival to point at, the event is dropped |
+  | `stale` | `!areaChange.timePlausible` (gate from `db.areaHopGate`, see [Ship search by transit areas](#-ship-search-by-transit-areas)), disable with `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME=false` | The origin call is too old to explain the ship being here: whatever it did in between happened outside the monitored areas, so its provenance is not ours to state |
+
+  Recipients are still those from `db.getUsersWithBothAreas` (you must monitor **both** areas by key): the two mechanisms are complementary — one decides *whether the event exists*, the other *who receives it*.
 - `high_risk` — a ship **arrives** (new, or after > 60 min absence, `db.insert` returns `arrived`) with a **risk score in the red band** (71–100); controlled by `notifyHighRisk` / `NOTIFY_HIGH_RISK`. Useful for immediate triage of critical cases without waiting for the Traffic view.
 - `berth_new` — during the berth recompute (`berths.recomputeArea`) a **new automatic berth** is detected (a cluster with no inherited identity); controlled by `notifyBerthNew` / `NOTIFY_BERTH_NEW`.
 - `berth_characterized` — a berth (automatic or manual) is **characterized for the first time** (its computed `char_label` goes from `NULL` to a category); the category is stored in `band`; controlled by `notifyBerthChar` / `NOTIFY_BERTH_CHAR`.
@@ -1107,7 +1153,7 @@ Auxiliary table **`ship_scrape_cache`** — cache of data downloaded from Vessel
 
 Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lookups per `(mmsi, source)`, with `failed_at` and `reason`. The backfill skips a ship while its failure is newer than `SCRAPE_NEG_CACHE_DAYS`; a successful fetch deletes the row. Avoids re-contacting, on every re-enable, the ships the sources don't know.
 
-**`port_events`** — automatically detected arrival/departure events: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area where the event occurred).
+**`port_events`** — automatically detected arrival/departure events: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area where the event occurred), plus the stop evidence written on the `departed` row: `stop_min_sog REAL` (minimum speed observed during the visit) and `stopped INTEGER` (1 = real call, 0 = crossing). Both **nullable**: NULL = not measured (rows older than this version, or positions already pruned by departure time), not "did not stop" — readers fall back to dwell alone.
 
 **`api_log`** — HTTP request log (max 1,000, automatic rotation): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
@@ -1135,6 +1181,7 @@ Auxiliary table **`ship_scrape_failures`** — negative cache of failed VF/MT lo
 | GET | `/api/ships/:mmsi/readings` | Readings for a ship (`?limit=50&offset=0`), includes `source` (`ais`/`sf`/`mst`) |
 | GET | `/api/ships/:mmsi/track` | Position points for map track (`?limit=500`) |
 | GET | `/api/replay` | Historical positions of all ships in an area for the replay (`?area=KEY&window=1h\|6h\|24h\|all` or `&from=ISO&to=ISO`), grouped by ship + available range. With `&scraped=1` it also folds in SF/MST positions (enabled integrations); response carries `extraAvailable` |
+| GET | `/api/transits` | Ships that called at **two** of the user's monitored areas and the legs between them (`?a=KEY&b=KEY&period=all\|12m\|6m\|3m\|30d&includeNoLeg=0\|1`). 400 for missing/identical areas, 403 when the user doesn't monitor both; response carries `gate` (thresholds used) and `truncated` |
 | GET | `/api/ships/:mmsi/vfdata` | Data downloaded from VesselFinder (with cache) |
 | GET | `/api/ships/:mmsi/mtdata` | Data downloaded from MarineTraffic (with cache); resolves and saves `mt_ship_id` |
 | GET | `/api/ships/:mmsi/equasis` | Equasis data (ownership/management) from cache; scrapes only with `?fetch=1` (detail button). Never automatic, no expiry |

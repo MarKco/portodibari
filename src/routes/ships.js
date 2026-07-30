@@ -133,10 +133,18 @@ function scrapeFallbackFix(mmsi, lastSeenAt) {
 }
 
 // May the current user open this ship's detail? Visible if it's in one of their
-// areas, or they follow/flag it (a followed ship roams outside the areas).
+// areas, or they follow/flag it (a followed ship roams outside the areas), or it
+// has a recorded call in one of their areas: the transit search surfaces ships
+// that are now anywhere in the world, and their history inside the user's own
+// areas is precisely what earns them a detail page.
 function canSeeShip(req, mmsi) {
   const uid = req.user.id;
-  return db.isShipVisible(uid, mmsi) || db.getUserFollowedMmsis(uid).has(mmsi) || db.getUserFlaggedMmsis(uid).has(mmsi);
+  return (
+    db.isShipVisible(uid, mmsi) ||
+    db.getUserFollowedMmsis(uid).has(mmsi) ||
+    db.getUserFlaggedMmsis(uid).has(mmsi) ||
+    db.hasShipAreaHistory(uid, mmsi)
+  );
 }
 
 // Reject a non-numeric :mmsi once for every route below, so handlers never bind

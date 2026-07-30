@@ -413,6 +413,43 @@ const REPLAY = {
   TAIL_MIN: num('REPLAY_TAIL_MIN', 20),
 };
 
+// ── "Ricerca navi per aree di transito" (see db.getAreaTransits) ─────────────
+// A visit counts as a STOP (the area was the destination, not just a bbox the
+// ship crossed) when it lasted at least STOP_MIN_H; visits closed after the
+// port_events.stopped column exists also require the minimum observed speed to
+// be under STOP_MAX_SOG_KN (readings are still in DB when departure is logged,
+// so that flag is accurate — older visits fall back to dwell alone).
+// A leg between the two areas counts when no stop in ANY other catalog area sits
+// in between and the elapsed time is compatible with a direct passage:
+// gap <= max(MIN_SLACK_H, distance_nm / MIN_KN).
+// "Cambio area": fire the notification only when the ship actually CALLED at the
+// origin area (same stop criterion as the transit search, TRANSIT_STOP_MIN_H).
+// A bbox is an area of interest, not a port: without this, a ship that merely
+// crossed a wide area on its way elsewhere is announced as "moved from" it.
+// Set AREA_CHANGE_REQUIRE_STOP=false to go back to notifying on every crossing.
+const AREA_CHANGE_REQUIRE_STOP = appCfg.AREA_CHANGE_REQUIRE_STOP !== 'false';
+// Same notification, second condition: the origin call must be recent enough to
+// explain the ship being here now — elapsed time within what the passage
+// plausibly takes (db.areaHopGate, driven by TRANSIT_MIN_KN / MIN_SLACK_H /
+// MAX_GAP_DAYS). Without it, a call weeks old is announced as if it were the
+// ship's provenance, while whatever it did in between happened outside our areas.
+const AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME = appCfg.AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME !== 'false';
+// Same notification, third condition: the two areas must not share water. Two
+// overlapping (or nested) boxes contain the same positions, so which area a
+// message belongs to depends on which subscription delivered it — a ship moored
+// in the shared part flips between them and generates a stream of bogus
+// "movements" while standing still. See db.boxesOverlap.
+const AREA_CHANGE_SKIP_OVERLAPPING = appCfg.AREA_CHANGE_SKIP_OVERLAPPING !== 'false';
+
+const TRANSIT = {
+  STOP_MIN_H: num('TRANSIT_STOP_MIN_H', 3),
+  STOP_MAX_SOG_KN: num('TRANSIT_STOP_MAX_SOG_KN', 0.5),
+  MIN_KN: num('TRANSIT_MIN_KN', 4),
+  MIN_SLACK_H: num('TRANSIT_MIN_SLACK_H', 12),
+  MAX_GAP_DAYS: num('TRANSIT_MAX_GAP_DAYS', 30),
+  MAX_ROWS: num('TRANSIT_MAX_ROWS', 500),
+};
+
 // ── Risk score weights (from app.config.properties) ──────────────────────────
 const RISK = {
   DARK_MAX:          num('RISK_DARK_MAX', 25),
@@ -1137,6 +1174,10 @@ module.exports = {
   BERTH,
   PROXIMITY,
   REPLAY,
+  TRANSIT,
+  AREA_CHANGE_REQUIRE_STOP,
+  AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME,
+  AREA_CHANGE_SKIP_OVERLAPPING,
   RISK,
   BBOX_PRESETS,
   state,

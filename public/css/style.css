@@ -631,6 +631,7 @@ select:focus { outline: none; border-color: var(--border-focus); }
 #table-wrap-foll-active,
 #table-wrap-foll-past,
 #table-wrap-ga-log,
+#table-wrap-transits,
 #table-wrap {
   overflow-x: auto;
   border-radius: var(--r-md);
@@ -3240,3 +3241,69 @@ html[data-theme="light"] #theme-toggle .icon-moon { display: none; }
   font-weight: 600;
 }
 .dest-popover .dp-osm:hover { background: var(--accent); color: #fff; }
+
+/* ── Ricerca navi per aree di transito ─────────────────────────────────────── */
+.transits-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.9rem;
+}
+.transits-entry .search-hint { margin: 0; }
+.transits-title { margin: 0; font-size: 1rem; }
+.transits-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin: 0.6rem 0 0.4rem;
+}
+.transits-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.transits-field select { min-width: 170px; }
+.transits-gate {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+ /* La colonna "ultimo tragitto" impila data, verso e pulsante: in orizzontale
+   spingerebbe fuori vista il pulsante replay e la colonna Rischio. */
+.transits-lastleg { white-space: normal; min-width: 9rem; }
+.transits-lastleg .leg-dir {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+/* Le intestazioni contengono i nomi delle aree scelte: lasciale andare a capo
+   invece di allargare la tabella oltre lo schermo. */
+#table-wrap-transits thead th { white-space: normal; max-width: 9rem; }
+.leg-replay-btn { white-space: nowrap; }
+
+/* Overlay del replay di un tragitto (dentro il modal condiviso) */
+.leg-replay-map {
+  height: min(52vh, 420px);
+  width: 100%;
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.leg-replay-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0 0.3rem;
+}
+.leg-replay-bar input[type='range'] { flex: 1 1 auto; min-width: 0; }
+.leg-clock { font-size: 0.8rem; color: var(--text); white-space: nowrap; }
+.leg-replay-info {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

@@ -228,6 +228,8 @@
         <li><a
         href="#re-following-a-ship-from-previously-followed">Re-following
         a ship from “Previously followed”</a></li>
+        <li><a href="#search-ships-by-transit-areas">🔀 Search ships by
+        transit areas</a></li>
         </ul></li>
         <li><a href="#group-activity">Group activity</a>
         <ul>
@@ -715,7 +717,7 @@
         <tbody>
         <tr class="odd">
         <td>Action icons</td>
-        <td>Flag ★, mark as seen ✓, open on VesselFinder ⧉</td>
+        <td>Flag ★, mark as seen ✓, follow 🗺</td>
         </tr>
         <tr class="even">
         <td>Last seen</td>
@@ -761,8 +763,6 @@
         as “to review”. Click again to remove.</li>
         <li><strong>✓ Seen</strong> — marks the ship as already reviewed
         (the row is dimmed). Useful for not missing new arrivals.</li>
-        <li><strong>⧉ VesselFinder</strong> — opens the ship’s page on
-        the VesselFinder site.</li>
         <li><strong>🧑‍✈️ Take charge</strong> — <em>(only if your account
         is part of a group)</em> take charge of the ship to split triage
         work with the other members; more than one person can take
@@ -1070,6 +1070,106 @@
         it <strong>goes back to “Previously followed”</strong> and you
         get a <strong>notification</strong> that it wasn’t found.</li>
         </ul>
+        <h3 id="search-ships-by-transit-areas">🔀 Search ships by
+        transit areas</h3>
+        <p>Below the search bar there is a <strong>🔀 Search ships by
+        transit areas</strong> button. It is there to
+        <strong>discover</strong> the ships sailing between two of your
+        areas, including ones you never followed and may never have
+        noticed.</p>
+        <figure>
+        <img src="images/39-ricerca_aree_transito.en.png"
+        alt="Search ships by transit areas: the two area pickers, period and the results table." />
+        <figcaption aria-hidden="true">Search ships by transit areas:
+        the two area pickers, period and the results table.</figcaption>
+        </figure>
+        <p>Pick <strong>Area A</strong>, <strong>Area B</strong> and a
+        <strong>Period</strong> (whole history, or last 12 / 6 / 3
+        months / 30 days), then press <strong>🔍 Search</strong>.</p>
+        <p><strong>What it looks for.</strong> Only ships that
+        <strong>called</strong> at both areas and made at least one
+        <strong>trip</strong> from one to the other are listed:</p>
+        <ul>
+        <li><strong>Call</strong> = the ship stayed in the area for at
+        least 3 hours (threshold configurable by the administrator). A
+        ship that merely crossed the area’s rectangle without stopping
+        does <strong>not</strong> count: areas are rectangles that can
+        cover a lot of open sea, and passing through does not mean the
+        ship was headed there.</li>
+        <li><strong>Trip</strong> = two consecutive calls, one in each
+        of the two areas, with no call at <strong>any other</strong>
+        monitored area (anyone’s) in between, and an elapsed time
+        compatible with the passage. The line under the filters recalls
+        the values used: distance between the two areas and maximum time
+        allowed.</li>
+        </ul>
+        <p>A ship that called at both areas but never made the direct
+        leg (it went elsewhere in between, or too much time passed) can
+        still be listed with the <strong>Also show ships with no trip
+        between the two areas</strong> checkbox.</p>
+        <p><strong>The table</strong> uses the same buttons, row colors,
+        sorting and search filter as the other lists — so you can
+        <strong>flag</strong>, <strong>mark as seen</strong>,
+        <strong>follow</strong> or <strong>take charge of</strong> a
+        ship straight from here, without opening it. The specific
+        columns are:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Column</th>
+        <th>Meaning</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>Trips A ↔︎ B</td>
+        <td>How many times the ship sailed between the two areas, in
+        either direction. Hover over it to also see how many calls it
+        made in each area</td>
+        </tr>
+        <tr class="even">
+        <td>Last trip</td>
+        <td>Arrival date of the last trip and its direction
+        (e.g. “Toscana → Ravenna”), plus the <strong>▶ Trip</strong>
+        button</td>
+        </tr>
+        </tbody>
+        </table>
+        <p>Clicking a row opens the <strong><a href="#ship-detail">ship
+        detail</a></strong> as in the other tables.</p>
+        <p><strong>▶ Trip</strong> opens a window with the <strong>map
+        of the last trip</strong> and a playback control:
+        <strong>▶</strong> starts the animation, the slider moves
+        through time, and the date of the moment being played is shown
+        next to it.</p>
+        <figure>
+        <img src="images/40-replay_tragitto.en.png"
+        alt="Last-trip replay window: map with departure, arrival and the estimated stretch." />
+        <figcaption aria-hidden="true">Last-trip replay window: map with
+        departure, arrival and the estimated stretch.</figcaption>
+        </figure>
+        <blockquote>
+        <p>⚠️ <strong>The dashed grey stretch is an estimate.</strong>
+        Positions are only recorded inside the monitored areas: out on
+        the open sea there is no data at all, so the link between
+        leaving one area and arriving in the other is a hypothetical
+        straight line, not the real route. The note under the map states
+        how many real positions exist and how many hours of the trip are
+        estimated. The departure and arrival dates, on the other hand,
+        are real.</p>
+        </blockquote>
+        <blockquote>
+        <p>💡 The counts in this search are based on <strong>port
+        events</strong> (arrivals and departures), which are kept for a
+        long time; <strong>positions</strong> are kept for a much
+        shorter period. That is why a trip can be listed while its map
+        holds few positions or none: the window tells you so
+        explicitly.</p>
+        </blockquote>
         <hr />
         <h2 id="group-activity">Group activity</h2>
         <p>If your account is part of a <strong>group</strong> (created
@@ -1689,8 +1789,13 @@
         </tr>
         <tr class="odd">
         <td><strong>Area change notification</strong></td>
-        <td>Alerts when a ship you were monitoring in one area is
-        detected in <strong>another</strong> of your areas.</td>
+        <td>Alerts when a ship that <strong>called</strong> at one of
+        your areas is detected in <strong>another</strong> of your
+        areas. It does not fire for ships that merely crossed the origin
+        area without stopping, nor when the origin call is too old to
+        explain the current arrival, nor between two overlapping areas
+        (see <a href="#when-an-area-change-fires">When an area change
+        fires</a>).</td>
         </tr>
         <tr class="even">
         <td><strong>High score notification</strong></td>
@@ -1976,11 +2081,70 @@
         <ul>
         <li><strong>Ship return</strong> — a ship already seen in an
         area is detected again in the same area.</li>
-        <li><strong>Area change</strong> — a ship seen in one area is
-        detected in a <strong>different</strong> one.</li>
+        <li><strong>Area change</strong> — a ship that
+        <strong>called</strong> at one of your areas is detected in a
+        <strong>different</strong> one (see <a
+        href="#when-an-area-change-fires">When an area change
+        fires</a>).</li>
         <li><strong>High score</strong> — a ship arrives with a score in
         the red band (71–100).</li>
         </ul>
+        <h4 id="when-an-area-change-fires">When an area change
+        fires</h4>
+        <p>The <strong>area change</strong> notification is meant to say
+        something precise: <em>this ship had called at one of your
+        areas, and has now arrived in another one</em>. To keep that
+        claim reliable, the app discards three situations in which it
+        would be misleading:</p>
+        <table>
+        <colgroup>
+        <col style="width: 50%" />
+        <col style="width: 50%" />
+        </colgroup>
+        <thead>
+        <tr class="header">
+        <th>Situation</th>
+        <th>Why no notification arrives</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr class="odd">
+        <td>The ship only <strong>crossed</strong> the origin area</td>
+        <td>An area is a rectangle of interest, not a port: it may cover
+        hundreds of km of open sea. A ship passing through it on its way
+        elsewhere does not “come” from there. A call of at least 3 hours
+        is required</td>
+        </tr>
+        <tr class="even">
+        <td>The origin call is <strong>too old</strong></td>
+        <td>If far more time has passed since the last call than the
+        passage requires (the limit depends on the distance between the
+        two areas), the ship has been elsewhere in the meantime — and we
+        cannot say where, because outside the monitored areas we receive
+        no positions</td>
+        </tr>
+        <tr class="odd">
+        <td>The two areas <strong>overlap</strong></td>
+        <td>If one area contains the other (or the two intersect), the
+        same position belongs to both: the ship has not moved at all,
+        only the label changes. Without this filter a moored ship would
+        generate a stream of fake movements</td>
+        </tr>
+        </tbody>
+        </table>
+        <p>The thresholds are adjustable by the administrator, who can
+        also check in the activity log which notifications were
+        discarded and why — useful when you expected an alert that never
+        came.</p>
+        <blockquote>
+        <p>ℹ️ Even when the notification does arrive, “from <em>Area
+        A</em>” means <strong>“it called inside the Area A
+        rectangle”</strong>, not necessarily at a specific port: if the
+        area covers several ports (possibly in different countries), the
+        area name does not identify the call. The <a
+        href="#ship-detail">ship detail</a> shows the full visit
+        history.</p>
+        </blockquote>
         <p>Berth events:</p>
         <ul>
         <li><strong>New berth</strong> — a new berth is detected during

@@ -90,6 +90,8 @@ I log sono **condivisi** e visibili **solo agli amministratori**, come schede ne
 
 Registra le operazioni significative dell'app (stream, recupero dati, sanzioni, backup, errori) in un file con **rotazione automatica** (max ~5 MB). Attivo per impostazione predefinita (toggle **Log attività** nel tab Generali, admin). Il registro è consultabile anche dall'overlay **🪵 Log attività** nella barra laterale e si può **svuotare**.
 
+Il registro riporta anche le notifiche di **cambio area scartate** dai filtri (`Cambio area non notificato: …`) con il motivo: `aree sovrapposte`, `ha solo attraversato`, `sosta troppo vecchia`. È il posto dove guardare quando un utente segnala di non aver ricevuto un avviso che si aspettava — vedi i parametri `AREA_CHANGE_*` in [`app.config.properties`](#app.config.properties-parametri-di-funzionamento).
+
 ### Log API
 
 ![Impostazioni — Log API: elenco delle chiamate /api con metodo, percorso ed esito.](images/25-impostazioni-log-api.png)
@@ -169,6 +171,15 @@ Contiene soglie e parametri (finestre temporali, raggi, retention, banchine, pes
 | `HEATMAP_GRID_DEG` | Dimensione delle celle della mappa di copertura, in gradi (~28 km) | `0.25` |
 | `HEATMAP_FLUSH_SEC` | Ogni quanti secondi i conteggi vengono scritti su disco | `10` |
 | `GROUP_ACTIVITY_LOG_RETENTION_DAYS` | Giorni di retention del log delle azioni di gruppo (vedi sopra) | `90` |
+| `TRANSIT_STOP_MIN_H` | Ore di permanenza minime perché una visita in area conti come **sosta** e non come semplice attraversamento (ricerca per aree di transito e notifica cambio area) | `3` |
+| `TRANSIT_STOP_MAX_SOG_KN` | Velocità minima osservata sotto cui la nave è considerata davvero ferma (solo per le visite recenti, con posizioni ancora in archivio) | `0.5` |
+| `TRANSIT_MIN_KN` | Velocità media minima implicita di una traversata diretta fra due aree: sotto questa, il tempo trascorso è considerato troppo lungo | `4` |
+| `TRANSIT_MIN_SLACK_H` | Soglia minima del limite temporale, per non penalizzare le aree vicine | `12` |
+| `TRANSIT_MAX_GAP_DAYS` | Tetto massimo del limite temporale, qualunque sia la distanza | `30` |
+| `TRANSIT_MAX_ROWS` | Numero massimo di navi restituite da una ricerca per aree di transito | `500` |
+| `AREA_CHANGE_REQUIRE_STOP` | Notifica cambio area solo se la nave ha **sostato** nell'area di partenza | `true` |
+| `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME` | Notifica cambio area solo se lo scalo di partenza è abbastanza recente da spiegare l'arrivo | `true` |
+| `AREA_CHANGE_SKIP_OVERLAPPING` | Nessuna notifica cambio area fra due aree le cui bbox si sovrappongono | `true` |
 | `RISK_*` | Pesi e soglie dello score di rischio (vedi commenti nel file) | vari |
 
 ### `bounding-boxes.json` — definizione delle aree

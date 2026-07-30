@@ -17,6 +17,7 @@ router.use(require('./telegram'));
 router.use(require('./webhooks'));
 router.use(require('./app-config'));
 router.use(require('./areas'));
+router.use(require('./transits'));
 router.use(require('./group'));
 router.use(require('./berths'));
 router.use(require('./export'));

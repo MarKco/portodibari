@@ -20,6 +20,7 @@ Areas are added and removed at runtime — no restart, no code changes — so th
 - **Risk score (0–100)** — from AIS behaviour + external data; signal weights editable live.
 - **Sanctions & PSC screening**, **Global Fishing Watch** behavioural events, **Equasis** ownership lookup.
 - **Automatic berth detection**, **ship-to-ship rendezvous** detection, **historical replay**.
+- **Transit-area search** — find the ships that called at two of your areas and sailed between them, with a replay of the last trip.
 - **Notifications** — in-app, Telegram (with static maps), and outbound webhooks (Slack/Discord/SIEM).
 - **Coverage heatmap**, **GeoJSON/KML export**, **installable PWA**, multi-user auth with roles and groups.
 

@@ -232,7 +232,7 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 
 | Column | Meaning |
 |---|---|
-| Action icons | Flag ★, mark as seen ✓, open on VesselFinder ⧉ |
+| Action icons | Flag ★, mark as seen ✓, follow 🗺 |
 | Last seen | Date and time of the last position received |
 | Ship name | Name of the vessel |
 | MMSI | Unique identification code |
@@ -248,7 +248,6 @@ Ships detected in the area over the last few hours, with a real-time map and tab
 
 - **☆ / ★ Flag** — highlights the ship in purple as "to review". Click again to remove.
 - **✓ Seen** — marks the ship as already reviewed (the row is dimmed). Useful for not missing new arrivals.
-- **⧉ VesselFinder** — opens the ship's page on the VesselFinder site.
 - **🧑‍✈️ Take charge** — *(only if your account is part of a group)* take charge of the ship to split triage work with the other members; more than one person can take charge of the same ship together. If someone already has it, their name tags appear next to it; the ✕ on a tag removes that person from the charge. To assign it to a specific member (instead of yourself), use the menu in the [ship detail](#ship-detail).
 
 **Row colors:**
@@ -371,6 +370,38 @@ When you re-follow a ship that was in **Previously followed** (open its detail a
 
 - if the ship is transmitting, it stays among the followed ones and the position updates;
 - if it does **not** transmit within ~90 seconds, it **goes back to "Previously followed"** and you get a **notification** that it wasn't found.
+
+### 🔀 Search ships by transit areas
+
+Below the search bar there is a **🔀 Search ships by transit areas** button. It is there to **discover** the ships sailing between two of your areas, including ones you never followed and may never have noticed.
+
+![Search ships by transit areas: the two area pickers, period and the results table.](images/39-ricerca_aree_transito.en.png)
+
+Pick **Area A**, **Area B** and a **Period** (whole history, or last 12 / 6 / 3 months / 30 days), then press **🔍 Search**.
+
+**What it looks for.** Only ships that **called** at both areas and made at least one **trip** from one to the other are listed:
+
+- **Call** = the ship stayed in the area for at least 3 hours (threshold configurable by the administrator). A ship that merely crossed the area's rectangle without stopping does **not** count: areas are rectangles that can cover a lot of open sea, and passing through does not mean the ship was headed there.
+- **Trip** = two consecutive calls, one in each of the two areas, with no call at **any other** monitored area (anyone's) in between, and an elapsed time compatible with the passage. The line under the filters recalls the values used: distance between the two areas and maximum time allowed.
+
+A ship that called at both areas but never made the direct leg (it went elsewhere in between, or too much time passed) can still be listed with the **Also show ships with no trip between the two areas** checkbox.
+
+**The table** uses the same buttons, row colors, sorting and search filter as the other lists — so you can **flag**, **mark as seen**, **follow** or **take charge of** a ship straight from here, without opening it. The specific columns are:
+
+| Column | Meaning |
+|---|---|
+| Trips A ↔ B | How many times the ship sailed between the two areas, in either direction. Hover over it to also see how many calls it made in each area |
+| Last trip | Arrival date of the last trip and its direction (e.g. "Toscana → Ravenna"), plus the **▶ Trip** button |
+
+Clicking a row opens the **[ship detail](#ship-detail)** as in the other tables.
+
+**▶ Trip** opens a window with the **map of the last trip** and a playback control: **▶** starts the animation, the slider moves through time, and the date of the moment being played is shown next to it.
+
+![Last-trip replay window: map with departure, arrival and the estimated stretch.](images/40-replay_tragitto.en.png)
+
+> ⚠️ **The dashed grey stretch is an estimate.** Positions are only recorded inside the monitored areas: out on the open sea there is no data at all, so the link between leaving one area and arriving in the other is a hypothetical straight line, not the real route. The note under the map states how many real positions exist and how many hours of the trip are estimated. The departure and arrival dates, on the other hand, are real.
+
+> 💡 The counts in this search are based on **port events** (arrivals and departures), which are kept for a long time; **positions** are kept for a much shorter period. That is why a trip can be listed while its map holds few positions or none: the window tells you so explicitly.
 
 ---
 
@@ -615,7 +646,7 @@ Here you decide **which events** raise a notification in the sidebar (and, if li
 |---|---|
 | **Notifications** | Master switch: off, no in-app notification arrives at all (regardless of the toggles below). |
 | **Ship revisit notification** | Alerts when a ship **already seen before** in the same area returns to it after a period of absence. |
-| **Area change notification** | Alerts when a ship you were monitoring in one area is detected in **another** of your areas. |
+| **Area change notification** | Alerts when a ship that **called** at one of your areas is detected in **another** of your areas. It does not fire for ships that merely crossed the origin area without stopping, nor when the origin call is too old to explain the current arrival, nor between two overlapping areas (see [When an area change fires](#when-an-area-change-fires)). |
 | **High score notification** | Alerts when a ship **arrives** with a risk score in the red band (71–100). The most useful one for quick triage: no need to watch the table to notice it. |
 | **New berth notification** | Alerts when the app automatically detects a **new berth** in an area (a mooring cluster not seen before). |
 | **Berth characterization notification** | Alerts when a berth (automatic or manually corrected) is **classified for the first time** by its dominant ship category (e.g. "Cargo", "Passenger"). |
@@ -720,8 +751,22 @@ Besides temporary on-screen alerts, the app keeps a **notification history**: th
 Ship events:
 
 - **Ship return** — a ship already seen in an area is detected again in the same area.
-- **Area change** — a ship seen in one area is detected in a **different** one.
+- **Area change** — a ship that **called** at one of your areas is detected in a **different** one (see [When an area change fires](#when-an-area-change-fires)).
 - **High score** — a ship arrives with a score in the red band (71–100).
+
+#### When an area change fires
+
+The **area change** notification is meant to say something precise: *this ship had called at one of your areas, and has now arrived in another one*. To keep that claim reliable, the app discards three situations in which it would be misleading:
+
+| Situation | Why no notification arrives |
+|---|---|
+| The ship only **crossed** the origin area | An area is a rectangle of interest, not a port: it may cover hundreds of km of open sea. A ship passing through it on its way elsewhere does not "come" from there. A call of at least 3 hours is required |
+| The origin call is **too old** | If far more time has passed since the last call than the passage requires (the limit depends on the distance between the two areas), the ship has been elsewhere in the meantime — and we cannot say where, because outside the monitored areas we receive no positions |
+| The two areas **overlap** | If one area contains the other (or the two intersect), the same position belongs to both: the ship has not moved at all, only the label changes. Without this filter a moored ship would generate a stream of fake movements |
+
+The thresholds are adjustable by the administrator, who can also check in the activity log which notifications were discarded and why — useful when you expected an alert that never came.
+
+> ℹ️ Even when the notification does arrive, "from *Area A*" means **"it called inside the Area A rectangle"**, not necessarily at a specific port: if the area covers several ports (possibly in different countries), the area name does not identify the call. The [ship detail](#ship-detail) shows the full visit history.
 
 Berth events:
 

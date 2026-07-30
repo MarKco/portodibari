@@ -226,6 +226,15 @@ Max 10.000 record per tipo di messaggio. Rotazione automatica (cancella i più v
 | Distanza coppia rendezvous      | `app.config.properties`           | `PROXIMITY_DIST_M`                    | 500 m          |
 | Esclusione rendezvous in porto  | `app.config.properties`           | `PROXIMITY_BERTH_M`                   | 600 m          |
 | Permanenza min. rendezvous      | `app.config.properties`           | `PROXIMITY_MIN_MINUTES`               | 10 min         |
+| Sosta minima in area (ricerca transiti + cambio area) | `app.config.properties`  | `TRANSIT_STOP_MIN_H`                  | 3 ore          |
+| Velocità sotto cui la nave è "ferma" nella visita | `app.config.properties` | `TRANSIT_STOP_MAX_SOG_KN`         | 0.5 kn         |
+| Velocità media minima di una traversata diretta | `app.config.properties`  | `TRANSIT_MIN_KN`                      | 4 kn           |
+| Pavimento del limite temporale fra due aree | `app.config.properties`     | `TRANSIT_MIN_SLACK_H`                 | 12 ore         |
+| Tetto del limite temporale fra due aree | `app.config.properties`         | `TRANSIT_MAX_GAP_DAYS`                | 30 giorni      |
+| Max navi per ricerca transiti   | `app.config.properties`           | `TRANSIT_MAX_ROWS`                    | 500            |
+| Cambio area solo su scalo reale | `app.config.properties`           | `AREA_CHANGE_REQUIRE_STOP`            | `true`         |
+| Cambio area solo se lo scalo è recente | `app.config.properties`    | `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME`  | `true`         |
+| Cambio area: salta le aree sovrapposte | `app.config.properties`    | `AREA_CHANGE_SKIP_OVERLAPPING`        | `true`         |
 | Auto-ripristino DB dopo deploy  | `app.config.properties`           | `AUTO_RESTORE_ON_DEPLOY`              | `true`         |
 | Intervallo auto-backup su disco | `app.config.properties`           | `BACKUP_INTERVAL_MIN`                 | 120 min (2h)   |
 | Max byte body request/response nel log | `app.config.properties`    | `MAX_BODY_BYTES`                      | 2048           |
@@ -742,6 +751,33 @@ Il box di follow stretto da 0.5° è **centrato sull'ultima posizione nota**: se
 
 > ⚠️ **Limite intrinseco.** Se una nave è davvero **fuori dalla copertura dei ricevitori AISstream** (mare aperto senza copertura satellitare nel piano in uso), nessun box la recupera: AISstream non riceve i suoi frame, punti dove punti. Questa ri-acquisizione risolve il caso "buco temporaneo / nave migrata fuori dal box stretto", non l'assenza totale di copertura. Recuperare la posizione da fonti terze (VesselFinder/MarineTraffic) richiederebbe le loro **API a pagamento** — gli endpoint gratuiti restituiscono timestamp/rotta/velocità/destinazione ma **mai le coordinate**.
 
+## 🔀 Ricerca navi per aree di transito
+
+Scoperta di navi che collegano due aree monitorate, anche mai seguite: `public/js/transits.js` (vista `#transits`, aperta dal bottone in **Navi seguite**), rotta `src/routes/transits.js`, motore `db.getAreaTransits(areaA, areaB, sinceIso)`.
+
+**Perché sugli eventi porto e non sulle posizioni.** `readings` ha un tetto globale per tipo messaggio (`MAX_READINGS_PER_TYPE`, default 10.000) e viene potato di continuo: copre giorni, non mesi. `port_events` invece **non ha retention temporale** — è l'unico storico lungo disponibile, quindi conteggi e tragitti si ricostruiscono da lì.
+
+**Visita** = un `arrived` più il primo `departed` successivo nella stessa area (o ancora aperta, se la nave è lì adesso).
+
+**Sosta** (la visita era una destinazione, non un attraversamento della bbox):
+
+- se la partenza porta l'evidenza misurata (colonne `port_events.stop_min_sog` / `stopped`, scritte da `checkAndLogDepartures` quando le posizioni della visita sono ancora in DB) vale quella: permanenza ≥ `TRANSIT_STOP_MIN_H` **e** velocità minima ≤ `TRANSIT_STOP_MAX_SOG_KN`;
+- altrimenti decide la sola permanenza ≥ `TRANSIT_STOP_MIN_H`. `stopped` è **nullable**: NULL significa "non misurato" (righe precedenti a questa versione o posizioni già potate), non "non si è fermata".
+
+**Tragitto (leg)** = due soste consecutive nelle due aree scelte, senza soste in **nessun'altra** area del catalogo nel mezzo (i `port_events` sono globali: si considerano anche le aree di altri utenti), con tempo trascorso entro il gate di `db.areaHopGate(a, b)`:
+
+```
+gateH = min( max(TRANSIT_MIN_SLACK_H, distanza_nm / TRANSIT_MIN_KN), TRANSIT_MAX_GAP_DAYS × 24 )
+```
+
+`TRANSIT_MIN_KN` (4 kn) è molto sotto la velocità di crociera reale, così un viaggio con scali intermedi passa comunque; il pavimento evita soglie di minuti fra aree vicine; il tetto impedisce di considerare "diretta" una tratta a mesi di distanza. **Lo stesso gate alimenta il filtro della notifica cambio area**, così i due criteri non possono divergere.
+
+**Rotta.** `GET /api/transits?a=KEY&b=KEY&period=all|12m|6m|3m|30d&includeNoLeg=0|1` — 400 se le aree mancano o coincidono, 403 se l'utente non monitora entrambe. Risponde con le navi decorate come nelle altre liste (`flagged`/`seen`/`followed`/`risk`/`chargedBy` in query batch), ordinate per numero di tragitti, `truncated` oltre `TRANSIT_MAX_ROWS`. Di default sono escluse le navi con zero tragitti (`includeNoLeg=1` le include).
+
+**Replay del tragitto** — il bottone **▶ Tragitto** apre `#modal-overlay` con una mappa Leaflet (creata una volta e ri-agganciata a ogni apertura, per non lasciare istanze morte nel registro layer di `tiles.js`) e riusa `GET /api/ships/:mmsi/track?from&to&scraped=1`. I segmenti con buco temporale oltre `REPLAY_MAX_GAP_MIN` sono disegnati **tratteggiati in grigio** ed etichettati come stimati: fuori dalle aree monitorate non esistono posizioni, quindi la rotta d'altura è una retta ipotetica.
+
+**Visibilità.** `canSeeShip` (in `src/routes/ships.js`) accetta anche le navi con uno scalo registrato in un'area dell'utente (`db.hasShipAreaHistory`): una nave scoperta qui può trovarsi ovunque nel mondo, e senza questo il suo dettaglio risponderebbe 404.
+
 ## 📋 Eventi porto, statistiche e alert
 
 **Eventi porto** (tabella `port_events`) — il backend rileva automaticamente:
@@ -759,7 +795,17 @@ Il box di follow stretto da 0.5° è **centrato sull'ultima posizione nota**: se
 **Notifiche** (tabella `notifications`, `/api/notifications`) — storico persistente mostrato in una **finestra overlay** (stesso `#modal-overlay` usato per il dettaglio lettura/banchina/restore backup, quindi già responsive su mobile) aperta dal bottone **🔔 Notifiche** nella barra laterale; il bottone porta solo il badge non-lette, il contenuto si carica ad ogni apertura (nessun refresh mentre resta aperta). Sei tipi di notifica vengono generati (tutti abilitabili/disabilitabili indipendentemente dalle Impostazioni, oltre all'interruttore generale `notificationsEnabled`):
 
 - `revisit` — una nave **già arrivata in passato nella stessa area** vi rientra dopo un'assenza (`db.insert` ritorna `revisit`); controllata da `notifyRevisit` / `NOTIFY_REVISIT`.
-- `area_change` — una nave vista in un'area viene poi rilevata in un'**altra** area (`db.insert` ritorna `areaChange` confrontando `last_area` della nave con l'area del messaggio prima dell'upsert); la notifica memorizza l'area di partenza in `from_area` e quella di arrivo in `area`; controllata da `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
+- `area_change` — una nave che ha fatto **scalo** in un'area viene poi rilevata in un'**altra** area (`db.insert` ritorna `areaChange` confrontando `last_area` della nave con l'area del messaggio prima dell'upsert); la notifica memorizza l'area di partenza in `from_area` e quella di arrivo in `area`; controllata da `notifyAreaChange` / `NOTIFY_AREA_CHANGE`.
+
+  Prima del fan-out, `ais-stream.js` scarta l'evento in tre casi, in quest'ordine (ognuno verrebbe altrimenti riportato col motivo sbagliato da quello dopo). Ogni scarto finisce nel log attività col suo motivo:
+
+  | Motivo | Condizione | Perché |
+  |---|---|---|
+  | `overlap` | `areaChange.overlappingAreas` (`db.boxesOverlap`), disattivabile con `AREA_CHANGE_SKIP_OVERLAPPING=false` | Due bbox che si intersecano contengono le stesse posizioni: l'area attribuita dipende da quale sottoscrizione ha consegnato il messaggio, e una nave ormeggiata nella parte comune "cambia area" stando ferma |
+  | `transito` | `!areaChange.fromWasStop` (`db.lastAreaVisitWasStop`), disattivabile con `AREA_CHANGE_REQUIRE_STOP=false` | Un'area è un rettangolo di interesse largo anche centinaia di km: annunciare "spostata da X" per una nave che X l'ha solo attraversata afferma uno scalo mai avvenuto. Richiede evidenza positiva: senza un arrivo registrato a cui puntare, l'evento viene scartato |
+  | `stale` | `!areaChange.timePlausible` (gate di `db.areaHopGate`, vedi [Ricerca navi per aree di transito](#-ricerca-navi-per-aree-di-transito)), disattivabile con `AREA_CHANGE_REQUIRE_PLAUSIBLE_TIME=false` | Lo scalo di partenza è troppo vecchio per spiegare la presenza attuale: quel che la nave ha fatto nel frattempo è successo fuori dalle aree monitorate, quindi la provenienza non è nostra da dichiarare |
+
+  I destinatari restano quelli di `db.getUsersWithBothAreas` (serve monitorare **entrambe** le aree per chiave): i due meccanismi sono complementari — uno decide *se l'evento esiste*, l'altro *a chi va*.
 - `high_risk` — una nave **arriva** (nuova o dopo > 60 min di assenza, `db.insert` ritorna `arrived`) con **score di rischio in fascia rossa** (71–100); controllata da `notifyHighRisk` / `NOTIFY_HIGH_RISK`. Utile per il triage immediato dei casi critici senza aspettare la vista Traffico.
 - `berth_new` — durante il ricalcolo banchine (`berths.recomputeArea`) viene rilevata una **nuova banchina automatica** (cluster senza identità ereditata); controllata da `notifyBerthNew` / `NOTIFY_BERTH_NEW`.
 - `berth_characterized` — una banchina (automatica o manuale) viene **caratterizzata per la prima volta** (il `char_label` calcolato passa da `NULL` a una categoria); la categoria è memorizzata in `band`; controllata da `notifyBerthChar` / `NOTIFY_BERTH_CHAR`.
@@ -1205,7 +1251,7 @@ Tabella ausiliaria **`ship_scrape_cache`** — cache dei dati scaricati da Vesse
 
 Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/MT falliti per `(mmsi, source)`, con `failed_at` e `reason`. Il backfill salta una nave finché il fallimento è più recente di `SCRAPE_NEG_CACHE_DAYS`; un fetch riuscito cancella la riga. Evita di ri-contattare a ogni riabilitazione le navi che le fonti non conoscono.
 
-**`port_events`** — eventi arrivo/partenza rilevati automaticamente: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area in cui è avvenuto l'evento).
+**`port_events`** — eventi arrivo/partenza rilevati automaticamente: `mmsi`, `ship_name`, `event_type` (`arrived`/`departed`), `ts`, `ship_type`, `destination`, `draught`, `area TEXT NOT NULL DEFAULT ''` (area in cui è avvenuto l'evento), più l'evidenza di sosta scritta sulla riga `departed`: `stop_min_sog REAL` (velocità minima osservata durante la visita) e `stopped INTEGER` (1 = scalo vero, 0 = attraversamento). Entrambe **nullable**: NULL = non misurato (righe più vecchie di questa versione, o posizioni già potate al momento della partenza), non "non si è fermata" — chi legge ricade sulla sola permanenza.
 
 **`api_log`** — log delle richieste HTTP (max 1.000, rotazione automatica): `ts`, `method`, `path`, `status`, `duration_ms`, `request_body`, `response_body`.
 
@@ -1233,6 +1279,7 @@ Tabella ausiliaria **`ship_scrape_failures`** — negative cache dei lookup VF/M
 | GET | `/api/ships/:mmsi/readings` | Letture di una nave (`?limit=50&offset=0`), include `source` (`ais`/`sf`/`mst`) |
 | GET | `/api/ships/:mmsi/track` | Punti posizione per il tracciato mappa (`?limit=500`) |
 | GET | `/api/replay` | Posizioni storiche di tutte le navi in un'area per il replay (`?area=KEY&window=1h\|6h\|24h\|all` o `&from=ISO&to=ISO`), raggruppate per nave + intervallo disponibile. Con `&scraped=1` include anche le posizioni SF/MST (integrazioni abilitate); risposta con `extraAvailable` |
+| GET | `/api/transits` | Navi che hanno fatto scalo in **due** aree monitorate dall'utente e tragitti fra le due (`?a=KEY&b=KEY&period=all\|12m\|6m\|3m\|30d&includeNoLeg=0\|1`). 400 aree mancanti/uguali, 403 se non le monitora entrambe; risposta con `gate` (soglie usate) e `truncated` |
 | GET | `/api/ships/search/candidates` | Cerca navi per nome/MMSI/IMO (`?q=`) su flotta locale + MarineTraffic → `{candidates, mt}` |
 | GET | `/api/ships/search/recover` | **SSE**: recupera identità (VF/MT/GFW) + screening + posizione live via lookup AISstream (`?mmsi=` o `?mtShipId=`). Chiudere lo stream annulla il lookup |
 | GET | `/api/ships/:mmsi/vfdata` | Dati scaricati da VesselFinder (con cache) |

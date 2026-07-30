@@ -506,8 +506,6 @@ export function flagSeenButtonsHtml(s) {
             title="${s.followed ? t('detail.followRemove') : t('detail.followAdd')}">
       🗺
     </button>
-    <a class="vf-link" href="https://www.vesselfinder.com/vessels/details/${s.mmsi}"
-       target="_blank" rel="noopener" title="${t('detail.vfLink')}">⧉</a>
     ${chargeCellHtml(s)}`;
 }
 
@@ -788,7 +786,7 @@ function renderPastTable(ships) {
 export function bindShipRows(tbody, fromView, ships) {
   tbody.querySelectorAll('.ship-row').forEach((tr) => {
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.follow-btn') || e.target.closest('.vf-link') || e.target.closest('.charge-btn') || e.target.closest('.charge-tag-remove'))
+      if (e.target.closest('.flag-btn') || e.target.closest('.seen-btn') || e.target.closest('.follow-btn') || e.target.closest('.charge-btn') || e.target.closest('.charge-tag-remove'))
         return;
       S.detailFrom = fromView;
       const mmsi = Number(tr.dataset.mmsi);
