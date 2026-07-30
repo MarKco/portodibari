@@ -79,7 +79,9 @@ function groupNotifMessage(n) {
   const { membersById } = getGroupState();
   const detail = { areaName: areaName(n.area), areaKey: n.area, shipName: n.ship_name, mmsi: n.mmsi, targetUserId: n.target_user_id };
   const targetId = n.mmsi || n.area || null;
-  const actor = displayName(membersById.get(n.actor_id));
+  // The actor isn't always a co-member: an area edit notifies every owner of
+  // that area, group or not — hence the server-resolved `actor_name` fallback.
+  const actor = membersById.has(n.actor_id) ? displayName(membersById.get(n.actor_id)) : (n.actor_name || '—');
   return `<strong>${escHtml(actor)}</strong> ${actionText(action, detail, targetId, n.actor_id, membersById)}`;
 }
 
@@ -100,6 +102,11 @@ function createFeed({ kind, btn, badgeEl, titleKey, buildMessage, isGroup }) {
     try {
       const data = await api(`/api/notifications?kind=${kind}`);
       updateBadge(badgeEl, data.unread || 0);
+      // A solo user's first group notification (a shared area edited by an
+      // outsider) has to reveal the entry that holds it, without a reload.
+      if (isGroup && (data.notifications || []).length) {
+        el.groupNotifControls?.style.setProperty('display', '');
+      }
     } catch {
       /* ignore */
     }

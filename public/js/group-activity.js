@@ -46,6 +46,7 @@ export function actionText(action, detail, targetId, actorId, membersById) {
   switch (action) {
     case 'area_add':
     case 'area_remove':
+    case 'area_edit':
       return t(`groupActivity.msg.${action}`, { area: escHtml(d.areaName || d.areaKey || targetId) });
     case 'follow_on':
     case 'follow_off':

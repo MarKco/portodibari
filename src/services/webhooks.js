@@ -25,7 +25,7 @@ const appLog = require('./app-log');
 
 const SETTING_KEY = 'webhooks';
 const GROUP_EVENT_TYPES = [
-  'group_area_add', 'group_area_remove', 'group_follow_on', 'group_follow_off',
+  'group_area_add', 'group_area_remove', 'group_area_edit', 'group_follow_on', 'group_follow_off',
   'group_flag_on', 'group_flag_off', 'group_mute_on', 'group_mute_off',
   'group_seen_on', 'group_seen_off', 'group_charge_on', 'group_charge_off', 'group_charge_assign',
 ];
@@ -37,6 +37,7 @@ const FORMATS = ['generic', 'slack', 'discord'];
 // this map and stay ungated, exactly as before this feature.
 const GROUP_PREF_KEY = {
   group_area_add: 'webhookNotifyGroupArea', group_area_remove: 'webhookNotifyGroupArea',
+  group_area_edit: 'webhookNotifyGroupArea',
   group_follow_on: 'webhookNotifyGroupFollow', group_follow_off: 'webhookNotifyGroupFollow',
   group_flag_on: 'webhookNotifyGroupFlag', group_flag_off: 'webhookNotifyGroupFlag',
   group_mute_on: 'webhookNotifyGroupMute', group_mute_off: 'webhookNotifyGroupMute',

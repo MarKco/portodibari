@@ -146,6 +146,10 @@ router.get('/api/auth/me', (req, res) => {
     realUser: req.isImpersonating ? publicUser(req.realUser) : null,
     isAdmin: !!(req.realUser && req.realUser.role === 'admin'),
     inGroup: req.user.group_id != null,
+    // A solo user can still receive one group-feed notification: an edit to an
+    // area they monitor, made by someone outside their group. Without this the
+    // sidebar entry holding it would stay hidden.
+    hasGroupNotifications: db.getNotifications(req.user.id, 1, true).length > 0,
     testerLimits: req.user.role === 'tester'
       ? { maxAreas: TESTER_MAX_AREAS, maxAreaKm2: TESTER_MAX_AREA_KM2, maxFollows: TESTER_MAX_FOLLOWS }
       : null,

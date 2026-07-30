@@ -19,13 +19,15 @@ function initAreasMap() {
 }
 
 // Draw a rectangle per existing area; green = stream active, violet = the area
-// currently in view, blue otherwise. Frames the map to contain them all.
+// currently in view, blue otherwise. Frames the map to contain them all — except
+// while an area is being edited, where the map stays framed on that one area.
 function renderAreaRectangles() {
   if (!S.areasLayer) return;
   S.areasLayer.clearLayers();
   const bounds = [];
   for (const a of S.areasList) {
     if (S.pendingDelete && S.pendingDelete.key === a.key) continue; // hide the one being deleted
+    if (S.areaEditKey === a.key) continue; // the dashed candidate rectangle stands in for it
     const [[swLat, swLon], [neLat, neLon]] = a.bbox;
     const color = a.current ? '#a78bfa' : a.active ? '#34d399' : '#3b82f6';
     L.rectangle([[swLat, swLon], [neLat, neLon]], { color, weight: 2, fillOpacity: 0.08 })
@@ -33,10 +35,17 @@ function renderAreaRectangles() {
       .addTo(S.areasLayer);
     bounds.push([swLat, swLon], [neLat, neLon]);
   }
-  if (bounds.length) {
+  if (bounds.length && !S.areaEditKey) {
     const b = L.latLngBounds(bounds);
     if (b.isValid()) S.areasMap.fitBounds(b, { padding: [40, 40], maxZoom: 11 });
   }
+}
+
+// Zoom the map onto one bbox (used when an area is picked from the list).
+function frameBbox(bbox) {
+  if (!S.areasMap) return;
+  const b = L.latLngBounds(bbox);
+  if (b.isValid()) S.areasMap.fitBounds(b, { padding: [40, 40], maxZoom: 12 });
 }
 
 // Read the four coordinate inputs → [[swLat,swLon],[neLat,neLon]] or null.
@@ -95,7 +104,10 @@ function renderAreasList() {
           ships: fmtCount(c.ships),
         });
         const disabled = only || pending ? ' disabled' : '';
-        return `<tr class="${pending ? 'area-row-pending' : ''}">
+        const cls = [pending ? 'area-row-pending' : '', S.areaEditKey === a.key ? 'area-row-editing' : '']
+          .filter(Boolean)
+          .join(' ');
+        return `<tr class="area-row ${cls}" data-key="${escHtml(a.key)}" title="${escHtml(t('areas.rowHint'))}">
           <td>${escHtml(a.name)}${a.current ? ` <span class="area-current-tag" data-i18n="areas.inUse">${t('areas.inUse')}</span>` : ''}</td>
           <td class="mono">${swLat.toFixed(4)}, ${swLon.toFixed(4)}</td>
           <td class="mono">${neLat.toFixed(4)}, ${neLon.toFixed(4)}</td>
@@ -113,6 +125,13 @@ export async function loadAreas() {
   try {
     const data = await api('/api/areas');
     S.areasList = data.areas || [];
+    // The edited area may have disappeared meanwhile (deleted here or by a
+    // group co-member) → fall back to "add" mode instead of editing a ghost.
+    if (S.areaEditKey && !S.areasList.some((a) => a.key === S.areaEditKey)) {
+      setEditMode(null);
+      clearForm();
+      updateCandidate();
+    }
     renderAreasList();
     renderAreaRectangles();
   } catch {
@@ -120,30 +139,85 @@ export async function loadAreas() {
   }
 }
 
-// ── Add ───────────────────────────────────────────────────────────────────────
+// ── Add / edit ────────────────────────────────────────────────────────────────
 function showAddError(msg) {
   el.areaAddError.textContent = msg;
   el.areaAddError.classList.toggle('hidden', !msg);
 }
 
-async function submitAdd() {
+function clearForm() {
+  [el.areaName, el.areaKeyword, el.areaSwLat, el.areaSwLon, el.areaNeLat, el.areaNeLon].forEach(
+    (i) => (i.value = '')
+  );
+}
+
+// The single form doubles as the editor: switching mode only swaps its labels
+// (and the visibility of the cancel button), so the map preview and the
+// coordinate validation stay shared between "add" and "edit".
+function setEditMode(area) {
+  S.areaEditKey = area ? area.key : null;
+  el.areasFormTitle.textContent = area ? t('areas.editTitle', { name: area.name }) : t('areas.addTitle');
+  el.areasFormHint.textContent = t(area ? 'areas.editHint' : 'areas.addHint');
+  el.btnAreaAdd.textContent = t(area ? 'areas.save' : 'areas.add');
+  el.btnAreaCancel.classList.toggle('hidden', !area);
+}
+
+// Tap on a list row → load that area into the form, frame it on the map.
+function startEdit(key) {
+  const a = S.areasList.find((x) => x.key === key);
+  if (!a) return;
+  if (S.pendingDelete && S.pendingDelete.key === key) return; // being deleted — nothing to edit
+  if (S.areaEditKey === key) return cancelEdit(); // tapping the same row again closes the editor
+  const [[swLat, swLon], [neLat, neLon]] = a.bbox;
+  el.areaName.value = a.name;
+  el.areaKeyword.value = a.keyword || '';
+  el.areaSwLat.value = swLat;
+  el.areaSwLon.value = swLon;
+  el.areaNeLat.value = neLat;
+  el.areaNeLon.value = neLon;
+  showAddError('');
+  setEditMode(a);
+  if (a.sharedWith > 0) el.areasFormHint.textContent += ' ' + t('areas.editSharedHint', { count: a.sharedWith });
+  updateCandidate();
+  renderAreasList();
+  renderAreaRectangles();
+  frameBbox(a.bbox);
+  el.areasFormTitle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelEdit() {
+  if (!S.areaEditKey) return;
+  setEditMode(null);
+  clearForm();
+  showAddError('');
+  updateCandidate();
+  renderAreasList();
+  renderAreaRectangles();
+}
+
+async function submitForm() {
   const name = el.areaName.value.trim();
   if (!name) return showAddError(t('areas.errName'));
   const c = readCandidate();
   if (!c) return showAddError(t('areas.errCoords'));
+  const editKey = S.areaEditKey;
+  // Editing an area other users monitor moves it for them too (the catalog is
+  // global) — ask twice, then let the server notify them.
+  if (editKey) {
+    const shared = S.areasList.find((a) => a.key === editKey)?.sharedWith || 0;
+    if (shared > 0) {
+      if (!window.confirm(t('areas.editSharedConfirm1', { count: shared }))) return;
+      if (!window.confirm(t('areas.editSharedConfirm2'))) return;
+    }
+  }
   showAddError('');
   el.btnAreaAdd.disabled = true;
   try {
-    await api('/api/areas', 'POST', {
-      name,
-      keyword: el.areaKeyword.value.trim() || null,
-      sw: c[0],
-      ne: c[1],
-    });
-    // Reset form
-    [el.areaName, el.areaKeyword, el.areaSwLat, el.areaSwLon, el.areaNeLat, el.areaNeLon].forEach(
-      (i) => (i.value = '')
-    );
+    const body = { name, keyword: el.areaKeyword.value.trim() || null, sw: c[0], ne: c[1] };
+    if (editKey) await api(`/api/areas/${encodeURIComponent(editKey)}`, 'PATCH', body);
+    else await api('/api/areas', 'POST', body);
+    setEditMode(null);
+    clearForm();
     updateCandidate();
     await loadAreas();
     window.dispatchEvent(new CustomEvent('areas-changed'));
@@ -160,6 +234,7 @@ async function submitAdd() {
 function requestDelete(key, name) {
   if (S.areasList.length <= 1) return; // never drop the last area
   commitPendingDelete(); // flush any previous pending deletion first
+  if (S.areaEditKey === key) cancelEdit(); // don't keep editing what's going away
 
   const toast = showUndoToast({
     message: t('areas.deleting', { name }),
@@ -199,6 +274,7 @@ function undoPendingDelete() {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 export function enterAreasView() {
+  cancelEdit(); // always land on the plain "add" form
   initAreasMap();
   // Map container was hidden until now; let Leaflet recompute its size.
   setTimeout(() => S.areasMap && S.areasMap.invalidateSize(), 60);
@@ -207,15 +283,20 @@ export function enterAreasView() {
 
 export function initAreas() {
   el.btnAreaCapture.addEventListener('click', captureView);
-  el.btnAreaAdd.addEventListener('click', submitAdd);
+  el.btnAreaAdd.addEventListener('click', submitForm);
+  el.btnAreaCancel.addEventListener('click', cancelEdit);
   [el.areaSwLat, el.areaSwLon, el.areaNeLat, el.areaNeLon].forEach((i) =>
     i.addEventListener('input', updateCandidate)
   );
 
   el.areasBody.addEventListener('click', (e) => {
     const btn = e.target.closest('.area-del-btn');
-    if (!btn || btn.disabled) return;
-    requestDelete(btn.dataset.key, btn.dataset.name);
+    if (btn) {
+      if (!btn.disabled) requestDelete(btn.dataset.key, btn.dataset.name);
+      return;
+    }
+    const row = e.target.closest('tr.area-row');
+    if (row) startEdit(row.dataset.key);
   });
 
   // Browser close / reload during the undo window → commit immediately so the

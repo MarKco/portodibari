@@ -33,7 +33,22 @@
            background:var(--surface-2); color:var(--text); cursor:pointer; font-size:.8rem; }
   button:hover { border-color:var(--accent); }
   button.danger:hover { border-color:var(--red); color:#fca5a5; }
-  .acts { display:flex; gap:.35rem; flex-wrap:wrap; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+  /* One row of actions per table row: at most one inline button + an overflow
+     menu, so the cell never degenerates into a stack of wrapped buttons. */
+  .acts { display:flex; gap:.35rem; flex-wrap:nowrap; justify-content:flex-end; align-items:center; }
+  .kebab { padding:.28rem .5rem; line-height:1; letter-spacing:.08em; }
+  /* The menu is appended to <body>, not to the cell: .tablewrap scrolls
+     (overflow-x:auto) and would clip an absolutely-positioned dropdown. */
+  .menu-pop { position:fixed; z-index:100; min-width:200px; display:flex; flex-direction:column; padding:.25rem;
+              background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+              box-shadow:0 12px 32px rgba(0,0,0,.5); }
+  .menu-pop button { border:1px solid transparent; background:transparent; text-align:left; width:100%; padding:.42rem .6rem; }
+  .menu-pop button:hover { border-color:transparent; background:rgba(59,130,246,.16); }
+  .menu-pop button.danger:hover { background:rgba(239,68,68,.16); color:#fca5a5; }
+  .menu-pop .sep { height:1px; background:var(--border); margin:.25rem .3rem; }
+  .menu-pop .lbl { color:var(--text-muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; padding:.35rem .6rem .15rem; }
   .msg { margin:.8rem 0; min-height:1.2em; font-size:.85rem; }
   .msg.err { color:var(--red); } .msg.ok { color:var(--green); }
   .me { color:var(--text-muted); font-size:.85rem; }
@@ -132,16 +147,11 @@
       const tr = document.createElement('tr');
       const name = `${esc(u.first_name || '')} ${esc(u.last_name || '')}`.trim() || '—';
       const acts = [];
-      if (u.status === 'pending') acts.push(`<button data-act="approve" data-id="${u.id}">Approva</button>`);
-      if (u.status === 'pending') acts.push(`<button data-act="approve-tester" data-id="${u.id}">Approva come tester</button>`);
-      if (u.status === 'active') acts.push(`<button data-act="disable" data-id="${u.id}">Disabilita</button>`);
-      if (u.status === 'disabled') acts.push(`<button data-act="enable" data-id="${u.id}">Riabilita</button>`);
-      if (u.role === 'admin') acts.push(`<button data-act="role" data-id="${u.id}" data-role="user">Rendi utente</button>`);
-      else if (u.role === 'tester') acts.push(`<button data-act="role" data-id="${u.id}" data-role="user">Rimuovi tester</button>`);
-      else acts.push(`<button data-act="role" data-id="${u.id}" data-role="admin">Rendi admin</button>`);
-      acts.push(`<button data-act="reset" data-id="${u.id}">Reset password</button>`);
-      if (u.id !== ME && u.status === 'active') acts.push(`<button data-act="impersonate" data-id="${u.id}">Impersona</button>`);
-      if (u.id !== ME) acts.push(`<button class="danger" data-act="delete" data-id="${u.id}">Elimina</button>`);
+      // Inline: only the one action this row is actually waiting for. Everything
+      // else lives in the ⋯ menu (see userMenuItems).
+      if (u.status === 'pending') acts.push(`<button class="primary" data-act="approve" data-id="${u.id}">Approva</button>`);
+      else if (u.status === 'disabled') acts.push(`<button data-act="enable" data-id="${u.id}">Riabilita</button>`);
+      acts.push(`<button class="kebab" data-menu="user" data-id="${u.id}" title="Altre azioni" aria-label="Altre azioni">···</button>`);
       const gName = u.group_id != null ? groupName(u.group_id) : null;
       tr.innerHTML =
         `<td>${name}${u.id === ME ? ' <span class="me">(tu)</span>' : ''}</td>` +
@@ -283,9 +293,73 @@
     } catch (e) { show(e.message, false); }
   }
 
-  document.getElementById('rows').addEventListener('click', async (e) => {
+  // ── Row overflow menu ───────────────────────────────────────────────────────
+  // Actions grouped by intent (stato → ruolo → utilità → distruttive), same
+  // order for every row so the admin builds muscle memory.
+  function userMenuItems(u) {
+    const items = [];
+    if (u.status === 'pending') {
+      items.push({ act: 'approve', label: 'Approva' });
+      items.push({ act: 'approve-tester', label: 'Approva come tester' });
+    }
+    if (u.status === 'active') items.push({ act: 'disable', label: 'Disabilita' });
+    if (u.status === 'disabled') items.push({ act: 'enable', label: 'Riabilita' });
+    items.push({ sep: true, lbl: 'Ruolo' });
+    if (u.role === 'admin') items.push({ act: 'role', role: 'user', label: 'Revoca amministratore' });
+    else if (u.role === 'tester') items.push({ act: 'role', role: 'user', label: 'Promuovi a utente' });
+    else items.push({ act: 'role', role: 'admin', label: 'Rendi amministratore' });
+    items.push({ sep: true, lbl: 'Utilità' });
+    items.push({ act: 'reset', label: 'Reset password' });
+    if (u.id !== ME && u.status === 'active') items.push({ act: 'impersonate', label: 'Impersona' });
+    if (u.id !== ME) {
+      items.push({ sep: true });
+      items.push({ act: 'delete', label: 'Elimina utente', cls: 'danger' });
+    }
+    return items;
+  }
+
+  let openMenu = null;
+  function closeMenu() { if (openMenu) { openMenu.remove(); openMenu = null; } }
+  function openUserMenu(btn) {
+    closeMenu();
+    const u = USERS.find((x) => x.id === Number(btn.dataset.id));
+    if (!u) return;
+    const pop = document.createElement('div');
+    pop.className = 'menu-pop';
+    pop.innerHTML = userMenuItems(u).map((it) => {
+      if (it.sep) return `<div class="sep"></div>` + (it.lbl ? `<div class="lbl">${it.lbl}</div>` : '');
+      return `<button class="${it.cls || ''}" data-act="${it.act}" data-id="${u.id}"` +
+             `${it.role ? ` data-role="${it.role}"` : ''}>${it.label}</button>`;
+    }).join('');
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+    const below = r.bottom + 4;
+    pop.style.top = (below + pop.offsetHeight > window.innerHeight - 8
+      ? Math.max(8, r.top - 4 - pop.offsetHeight) : below) + 'px';
+    openMenu = pop;
+  }
+  document.addEventListener('click', (e) => {
+    if (openMenu && !e.target.closest('.menu-pop') && !e.target.closest('[data-menu]')) closeMenu();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  window.addEventListener('resize', closeMenu);
+  window.addEventListener('scroll', closeMenu, true);
+
+  document.getElementById('rows').addEventListener('click', (e) => {
+    const kb = e.target.closest('button[data-menu="user"]');
+    if (kb) { openUserMenu(kb); return; }
     const btn = e.target.closest('button[data-act]');
+    if (btn) runUserAction(btn);
+  });
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.menu-pop button[data-act]');
     if (!btn) return;
+    closeMenu();
+    runUserAction(btn);
+  });
+
+  async function runUserAction(btn) {
     const id = btn.dataset.id;
     const act = btn.dataset.act;
     try {
@@ -299,12 +373,13 @@
       else if (act === 'delete') { if (!confirm('Eliminare definitivamente questo utente e i suoi dati?')) return; await api('DELETE', `/api/admin/users/${id}`); show('Utente eliminato', true); }
       load();
     } catch (err) { show(err.message, false); }
-  });
+  }
 
   // Keep the "online" dots fresh: re-fetch just the users (not groups, to avoid
   // clobbering an open group editor) every 30s, but only while this tab is
   // visible — no point polling when the admin isn't looking at the list.
   async function refreshUsers() {
+    if (openMenu) return; // don't re-render rows under an open action menu
     try {
       const data = await api('GET', '/api/admin/users');
       ME = data.me;

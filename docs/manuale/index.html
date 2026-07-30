@@ -273,6 +273,7 @@
         <li><a href="#gestione-aree">Gestione aree</a>
         <ul>
         <li><a href="#aggiungere-unarea">Aggiungere un’area</a></li>
+        <li><a href="#modificare-unarea">Modificare un’area</a></li>
         <li><a href="#rimuovere-unarea">Rimuovere un’area</a></li>
         </ul></li>
         <li><a href="#mappa-delle-zone-coperte">Mappa delle zone
@@ -1690,13 +1691,16 @@
         <p>La schermata contiene:</p>
         <ul>
         <li>un <strong>pannello “Aggiungi area”</strong> (in alto a
-        sinistra);</li>
+        sinistra), che fa anche da <strong>editor</strong> dell’area
+        selezionata;</li>
         <li>una <strong>mappa</strong> con tutte le aree come rettangoli
         (verde = stream attivo, viola = area in vista, blu =
         altre);</li>
         <li>una <strong>tabella</strong> con nome, coordinate SW e NE,
         parola chiave, stato stream, dati salvati e pulsante di
-        eliminazione.</li>
+        eliminazione. <strong>Le righe sono cliccabili</strong>: un clic
+        carica l’area nel pannello in alto (vedi <a
+        href="#modificare-unarea">Modificare un’area</a>).</li>
         </ul>
         <h3 id="aggiungere-unarea">Aggiungere un’area</h3>
         <ol type="1">
@@ -1722,6 +1726,33 @@
         longitudine da -180 a 180 (positiva a Est). Gli angoli possono
         essere inseriti in qualsiasi ordine: vengono riordinati
         automaticamente.</p>
+        </blockquote>
+        <h3 id="modificare-unarea">Modificare un’area</h3>
+        <p><strong>Clicca (o tocca) una riga della tabella</strong>:
+        l’area viene caricata nel pannello in alto — che diventa
+        <strong>“Modifica area: <nome>”</strong> — e la mappa si porta
+        sui suoi confini, mostrandoli come rettangolo tratteggiato.</p>
+        <p>Da lì puoi cambiare <strong>nome</strong>, <strong>parola
+        chiave</strong> e <strong>coordinate</strong> (a mano o con
+        <strong>🎯 Cattura vista corrente</strong>, dopo aver inquadrato
+        i nuovi confini). Premi <strong>💾 Salva modifiche</strong> per
+        applicare, oppure <strong>Annulla modifica</strong> (o un altro
+        clic sulla stessa riga) per uscire senza salvare.</p>
+        <blockquote>
+        <p><strong>Lo storico non si perde.</strong> L’area resta la
+        stessa: letture, navi ed eventi già raccolti restano associati
+        anche se sposti i confini. Se lo stream dell’area è attivo,
+        riparte subito sui nuovi confini. Le letture raccolte quando
+        l’area era più larga restano nello storico, anche se cadono
+        fuori dai confini nuovi.</p>
+        </blockquote>
+        <blockquote>
+        <p><strong>Aree condivise.</strong> Se altri utenti monitorano
+        la stessa area, la modifica vale anche per loro. Prima di
+        salvare ti viene chiesta una <strong>doppia conferma</strong>, e
+        a modifica avvenuta ogni altro utente che monitora quell’area
+        riceve una notifica in <strong>👥 Notifiche attività di
+        gruppo</strong>.</p>
         </blockquote>
         <h3 id="rimuovere-unarea">Rimuovere un’area</h3>
         <p>Premi 🗑 sulla riga dell’area. <strong>Insieme all’area viene
@@ -2391,6 +2422,16 @@
         scegliere cosa <strong>ricevere tu</strong>, ma non puoi
         impedire alle tue azioni di notificare gli altri membri — le
         regole sono le stesse per tutto il gruppo.</p>
+        <blockquote>
+        <p><strong>Anche senza gruppo.</strong> C’è un caso in cui
+        questo pulsante compare pure se non fai parte di nessun gruppo:
+        quando un altro utente <strong>modifica un’area che stai
+        monitorando anche tu</strong> (vedi <a
+        href="#modificare-unarea">Modificare un’area</a>). La notifica
+        arriva in questo feed e ti dice chi ha modificato quale area,
+        così scopri subito perché i confini del tuo monitoraggio sono
+        cambiati.</p>
+        </blockquote>
         <hr />
         <h2 id="esportare-i-dati">Esportare i dati</h2>
         <p>Tutti gli export vengono scaricati direttamente dal

@@ -1684,6 +1684,12 @@ pre {
 .area-data-cell { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .area-row-pending { opacity: 0.45; text-decoration: line-through; }
 .area-del-btn { padding: 0.25rem 0.55rem; font-size: 0.9rem; }
+/* The whole row is the "open this area in the editor" target (the delete button
+   stops the click), so it has to look clickable and mark the one being edited. */
+.area-row { cursor: pointer; }
+.area-row:hover td { background: var(--row-hover, rgba(148, 163, 184, 0.12)); }
+.area-row-editing td { background: rgba(251, 191, 36, 0.14); }
+.area-row-editing td:first-child { box-shadow: inset 3px 0 0 #fbbf24; }
 
 /* ── Undo toast ───────────────────────────────────────────────────────── */
 .undo-toast {

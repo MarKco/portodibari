@@ -518,7 +518,15 @@ export default {
 
   // ── Areas screen ───────────────────────────────────────────────────────────
   'areas.addTitle':          'Add area',
-  'areas.addHint':           'Enter coordinates in decimal degrees, or frame the area on the map and press "Capture current view".',
+  'areas.addHint':           'Enter coordinates in decimal degrees, or frame the area on the map and press "Capture current view". Tap a row in the list to load it here and edit it.',
+  'areas.editTitle':         'Edit area: {name}',
+  'areas.editHint':          'Change the name, keyword or coordinates, then save. Coordinates can also be re-taken from the map with "Capture current view". The history collected so far stays attached to the area.',
+  'areas.save':              '💾 Save changes',
+  'areas.cancelEdit':        'Cancel edit',
+  'areas.rowHint':           'Click to show and edit this area',
+  'areas.editSharedHint':    'Careful: this area is also monitored by {count} other users — the change applies to them too and will be notified.',
+  'areas.editSharedConfirm1':'This area is also monitored by {count} other users: the change moves the area for them too and they will get a group-activity notification. Continue?',
+  'areas.editSharedConfirm2':'Final confirmation: apply the change to the shared area?',
   'areas.fieldName':         'Area name',
   'areas.fieldNameHolder':   'E.g. Port of Ancona',
   'areas.fieldKeyword':      'Keyword (optional)',
@@ -682,6 +690,7 @@ export default {
   'webhook.event.outage':     'AIS outage',
   'webhook.event.group_area_add':      'Group · area added',
   'webhook.event.group_area_remove':   'Group · area removed',
+  'webhook.event.group_area_edit':     'Group · area edited',
   'webhook.event.group_follow_on':     'Group · ship followed',
   'webhook.event.group_follow_off':    'Group · ship unfollowed',
   'webhook.event.group_flag_on':       'Group · ship flagged',
@@ -1200,6 +1209,7 @@ export default {
 
   'groupActivity.msg.area_add':      'Added area "{area}" to the group\'s shared monitoring.',
   'groupActivity.msg.area_remove':   'Removed area "{area}" from the group\'s shared monitoring.',
+  'groupActivity.msg.area_edit':     'Edited area "{area}" (name, keyword or boundaries): the change applies to everyone monitoring it.',
   'groupActivity.msg.follow_on':     'Started following {ship}: the group will get notified of its movements.',
   'groupActivity.msg.follow_off':    'Stopped following {ship}.',
   'groupActivity.msg.flag_on':       'Flagged {ship} as suspicious.',

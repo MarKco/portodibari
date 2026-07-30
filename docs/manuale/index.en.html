@@ -264,6 +264,7 @@
         <li><a href="#managing-areas">Managing areas</a>
         <ul>
         <li><a href="#adding-an-area">Adding an area</a></li>
+        <li><a href="#editing-an-area">Editing an area</a></li>
         <li><a href="#removing-an-area">Removing an area</a></li>
         </ul></li>
         <li><a href="#coverage-map">Coverage map</a></li>
@@ -1565,11 +1566,16 @@
         </figure>
         <p>The screen contains:</p>
         <ul>
-        <li>an <strong>“Add area” panel</strong> (top left);</li>
+        <li>an <strong>“Add area” panel</strong> (top left), which
+        doubles as the <strong>editor</strong> for the selected
+        area;</li>
         <li>a <strong>map</strong> with all areas as rectangles (green =
         stream active, purple = area in view, blue = others);</li>
         <li>a <strong>table</strong> with name, SW and NE coordinates,
-        keyword, stream status, saved data, and delete button.</li>
+        keyword, stream status, saved data, and delete button.
+        <strong>Rows are clickable</strong>: one click loads the area
+        into the panel above (see <a href="#editing-an-area">Editing an
+        area</a>).</li>
         </ul>
         <h3 id="adding-an-area">Adding an area</h3>
         <ol type="1">
@@ -1593,6 +1599,32 @@
         <p>Latitude ranges from -90 to 90 (positive to the North),
         longitude from -180 to 180 (positive to the East). Corners can
         be entered in any order: they are automatically reordered.</p>
+        </blockquote>
+        <h3 id="editing-an-area">Editing an area</h3>
+        <p><strong>Click (or tap) a row in the table</strong>: the area
+        is loaded into the panel above — which turns into <strong>“Edit
+        area: <name>”</strong> — and the map moves onto its boundaries,
+        showing them as a dashed rectangle.</p>
+        <p>From there you can change the <strong>name</strong>, the
+        <strong>keyword</strong> and the <strong>coordinates</strong>
+        (by hand or with <strong>🎯 Capture current view</strong>, after
+        framing the new boundaries). Press <strong>💾 Save
+        changes</strong> to apply, or <strong>Cancel edit</strong> (or
+        click the same row again) to leave without saving.</p>
+        <blockquote>
+        <p><strong>The history is not lost.</strong> The area stays the
+        same one: readings, ships and events collected so far remain
+        attached to it even if you move its boundaries. If the area’s
+        stream is running, it restarts immediately on the new
+        boundaries. Readings collected while the area was wider stay in
+        the history, even if they fall outside the new boundaries.</p>
+        </blockquote>
+        <blockquote>
+        <p><strong>Shared areas.</strong> If other users monitor the
+        same area, the change applies to them too. Before saving you are
+        asked to <strong>confirm twice</strong>, and once saved every
+        other user monitoring that area gets a notification in
+        <strong>👥 Group activity notifications</strong>.</p>
         </blockquote>
         <h3 id="removing-an-area">Removing an area</h3>
         <p>Press 🗑 on the area’s row. <strong>Removing the area also
@@ -2229,6 +2261,15 @@
         choose what <strong>you</strong> receive, but you can’t stop
         your own actions from notifying the other members — the rules
         are the same for the whole group.</p>
+        <blockquote>
+        <p><strong>Even without a group.</strong> There is one case
+        where this button shows up even if you belong to no group: when
+        another user <strong>edits an area you are monitoring
+        too</strong> (see <a href="#editing-an-area">Editing an
+        area</a>). The notification lands in this feed and tells you who
+        edited which area, so you immediately know why your monitoring
+        boundaries changed.</p>
+        </blockquote>
         <hr />
         <h2 id="exporting-data">Exporting data</h2>
         <p>All exports are downloaded directly from the browser:</p>

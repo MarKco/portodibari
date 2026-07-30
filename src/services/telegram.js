@@ -303,6 +303,10 @@ const MSG = {
     it: (p) => `👥 <b>${esc(p.actorName)}</b> ha rimosso l'area <b>${esc(p.area)}</b> dal monitoraggio del gruppo.`,
     en: (p) => `👥 <b>${esc(p.actorName)}</b> removed area <b>${esc(p.area)}</b> from the group's monitoring.`,
   },
+  group_area_edit: {
+    it: (p) => `👥 <b>${esc(p.actorName)}</b> ha modificato l'area <b>${esc(p.area)}</b> che stai monitorando.`,
+    en: (p) => `👥 <b>${esc(p.actorName)}</b> edited area <b>${esc(p.area)}</b>, which you are monitoring.`,
+  },
   group_follow_on: {
     it: (p) => `👥 <b>${esc(p.actorName)}</b> ha iniziato a seguire <b>${esc(p.ship_name || p.mmsi)}</b>.`,
     en: (p) => `👥 <b>${esc(p.actorName)}</b> started following <b>${esc(p.ship_name || p.mmsi)}</b>.`,
@@ -361,6 +365,7 @@ const PREF_KEY = {
   area_monitor: 'telegramNotifyAreaMonitor',
   group_area_add: 'telegramNotifyGroupArea',
   group_area_remove: 'telegramNotifyGroupArea',
+  group_area_edit: 'telegramNotifyGroupArea',
   group_follow_on: 'telegramNotifyGroupFollow',
   group_follow_off: 'telegramNotifyGroupFollow',
   group_flag_on: 'telegramNotifyGroupFlag',

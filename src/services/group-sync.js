@@ -49,7 +49,7 @@ const SHARED_SETTING_KEYS = new Set([
 // modules (telegram.js PREF_KEY / webhooks.js GROUP_PREF_KEY), keyed by the
 // full 'group_<action>' type instead — this map only covers the in-app surface.
 const IN_APP_PREF_BY_ACTION = {
-  area_add: 'notifyGroupArea', area_remove: 'notifyGroupArea',
+  area_add: 'notifyGroupArea', area_remove: 'notifyGroupArea', area_edit: 'notifyGroupArea',
   follow_on: 'notifyGroupFollow', follow_off: 'notifyGroupFollow',
   flag_on: 'notifyGroupFlag', flag_off: 'notifyGroupFlag',
   mute_on: 'notifyGroupMute', mute_off: 'notifyGroupMute',
@@ -95,8 +95,11 @@ function displayName(u) {
 // webhooks.js, keyed by the full 'group_<action>' type). No-op for solo users.
 // `evp` carries whatever ship/area/target fields the action needs — same shape
 // db.addNotification expects (mmsi/ship_name, area, target_user_id).
-function notifyGroupActivity(actorId, action, evp) {
-  const members = coMembers(actorId);
+// `recipients` overrides the default co-member fan-out. Used by area edits,
+// which must also reach the owners of that area OUTSIDE the actor's group: the
+// area catalog is global, so a moved bbox changes what those users collect too.
+function notifyGroupActivity(actorId, action, evp, recipients = null) {
+  const members = recipients || coMembers(actorId);
   if (!members.length) return;
   const telegram = require('./telegram'); // lazy: avoids a load-time cycle
   const webhooks = require('./webhooks');
@@ -127,6 +130,15 @@ function syncAreaRemove(actorId, areaKey) {
   for (const uid of coMembers(actorId)) db.removeUserArea(uid, areaKey);
   logActivity(actorId, 'area_remove', 'area', areaKey, detail);
   notifyGroupActivity(actorId, 'area_remove', { area: areaKey });
+}
+
+// An area edit changes a GLOBAL catalog entry: nothing to mirror (membership is
+// unchanged), but everyone else monitoring that area — co-members and unrelated
+// users alike — gets told, since their own data collection just moved.
+function notifyAreaEdit(actorId, areaKey) {
+  const others = db.getAreaOwners(areaKey).filter((id) => id !== actorId);
+  logActivity(actorId, 'area_edit', 'area', areaKey, areaLabel(areaKey));
+  notifyGroupActivity(actorId, 'area_edit', { area: areaKey }, others);
 }
 
 function syncFollow(actorId, mmsi, on) {
@@ -267,6 +279,7 @@ module.exports = {
   notifyGroupActivity,
   syncAreaAdd,
   syncAreaRemove,
+  notifyAreaEdit,
   syncFollow,
   syncFlag,
   syncMute,

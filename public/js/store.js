@@ -127,6 +127,7 @@ export const S = {
   areaCandidateLayer: null, // dashed preview rectangle for the area being added
   areasList: [], // last-fetched area descriptors
   pendingDelete: null, // { key, timer, toast } — deletion deferred during undo window
+  areaEditKey: null, // area key currently loaded in the add/edit form (null = add mode)
 };
 
 // ── List-filter persistence ───────────────────────────────────────────────────

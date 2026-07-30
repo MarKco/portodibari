@@ -570,9 +570,9 @@ Open with **🗺 Areas**. Here you add and remove monitored areas **without rest
 
 The screen contains:
 
-- an **"Add area" panel** (top left);
+- an **"Add area" panel** (top left), which doubles as the **editor** for the selected area;
 - a **map** with all areas as rectangles (green = stream active, purple = area in view, blue = others);
-- a **table** with name, SW and NE coordinates, keyword, stream status, saved data, and delete button.
+- a **table** with name, SW and NE coordinates, keyword, stream status, saved data, and delete button. **Rows are clickable**: one click loads the area into the panel above (see [Editing an area](#editing-an-area)).
 
 ### Adding an area
 
@@ -583,6 +583,16 @@ The screen contains:
 3. Press **＋ Add area**. The area is saved and its stream starts immediately.
 
 > Latitude ranges from -90 to 90 (positive to the North), longitude from -180 to 180 (positive to the East). Corners can be entered in any order: they are automatically reordered.
+
+### Editing an area
+
+**Click (or tap) a row in the table**: the area is loaded into the panel above — which turns into **"Edit area: <name>"** — and the map moves onto its boundaries, showing them as a dashed rectangle.
+
+From there you can change the **name**, the **keyword** and the **coordinates** (by hand or with **🎯 Capture current view**, after framing the new boundaries). Press **💾 Save changes** to apply, or **Cancel edit** (or click the same row again) to leave without saving.
+
+> **The history is not lost.** The area stays the same one: readings, ships and events collected so far remain attached to it even if you move its boundaries. If the area's stream is running, it restarts immediately on the new boundaries. Readings collected while the area was wider stay in the history, even if they fall outside the new boundaries.
+
+> **Shared areas.** If other users monitor the same area, the change applies to them too. Before saving you are asked to **confirm twice**, and once saved every other user monitoring that area gets a notification in **👥 Group activity notifications**.
 
 ### Removing an area
 
@@ -799,6 +809,8 @@ Other events:
 If your account is part of a **group**, the sidebar also shows a **👥 Group activity notifications** button next to "Notifications": same behaviour (unread badge, overlay window, ✓ to mark read, 🗑 to delete with undo), but for a **separate** feed — the actions your group-mates take on areas, followed ships, flags, mutes, seen ships and ship charges (the same ones listed in [Group activity](#group-activity), here only if you've chosen to **be notified** of them). Each row names **who** performed the action, e.g. *"Anna Test started following ship AMAZONITH: the group will get notified of its movements."*
 
 Which actions notify you is decided from the **Notifications** tab in Settings (see below): you choose what **you** receive, but you can't stop your own actions from notifying the other members — the rules are the same for the whole group.
+
+> **Even without a group.** There is one case where this button shows up even if you belong to no group: when another user **edits an area you are monitoring too** (see [Editing an area](#editing-an-area)). The notification lands in this feed and tells you who edited which area, so you immediately know why your monitoring boundaries changed.
 
 ---
 

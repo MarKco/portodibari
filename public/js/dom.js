@@ -180,7 +180,10 @@ export const el = {
   areaNeLon: $('area-ne-lon'),
   btnAreaCapture: $('btn-area-capture'),
   btnAreaAdd: $('btn-area-add'),
+  btnAreaCancel: $('btn-area-cancel'),
   areaAddError: $('area-add-error'),
+  areasFormTitle: $('areas-form-title'),
+  areasFormHint: $('areas-form-hint'),
 
   // Settings view
   btnSettings: $('btn-settings'),

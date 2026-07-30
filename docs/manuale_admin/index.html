@@ -135,8 +135,11 @@
         <li><a href="#manuale-amministratore-tracker-porti">Manuale
         Amministratore — Tracker Porti</a>
         <ul>
-        <li><a href="#ruolo-amministratore">Ruolo
-        amministratore</a></li>
+        <li><a href="#ruolo-amministratore">Ruolo amministratore</a>
+        <ul>
+        <li><a href="#le-azioni-sulla-riga-utente">Le azioni sulla riga
+        utente</a></li>
+        </ul></li>
         <li><a href="#gruppi-di-utenti">Gruppi di utenti</a></li>
         <li><a
         href="#mappa-delle-zone-coperte-controlli-amministratore">Mappa
@@ -222,6 +225,37 @@
         <li>consultare i <strong>log</strong> (log attività e log API),
         condivisi e visibili solo agli amministratori.</li>
         </ul>
+        <h3 id="le-azioni-sulla-riga-utente">Le azioni sulla riga
+        utente</h3>
+        <p>Ogni riga della tabella mostra <strong>al massimo un pulsante
+        in evidenza</strong> — quello che quella riga sta aspettando:
+        <strong>Approva</strong> per una registrazione in attesa,
+        <strong>Riabilita</strong> per un account disabilitato. Tutto il
+        resto sta nel menu <strong>···</strong> in fondo alla riga,
+        sempre nello stesso ordine:</p>
+        <ol type="1">
+        <li><strong>stato</strong> — Approva / Approva come tester /
+        Disabilita / Riabilita;</li>
+        <li><strong>ruolo</strong> — Rendi amministratore, Revoca
+        amministratore oppure <strong>Promuovi a utente</strong> (per un
+        account tester);</li>
+        <li><strong>utilità</strong> — Reset password, Impersona;</li>
+        <li><strong>azione distruttiva</strong> — Elimina utente (in
+        rosso, con conferma).</li>
+        </ol>
+        <h4 id="da-tester-a-utente-normale">Da tester a utente
+        normale</h4>
+        <p>Il ruolo <strong>tester</strong> si assegna solo al momento
+        dell’approvazione, con <strong>Approva come tester</strong>: è
+        un account con limiti ridotti (numero e dimensione delle aree,
+        numero di navi seguite) pensato per le prove.</p>
+        <p>Quando vuoi togliere quei limiti, apri il menu
+        <strong>···</strong> sulla riga dell’utente e scegli
+        <strong>Promuovi a utente</strong>: l’account diventa un utente
+        normale, senza limiti tester, mantenendo aree, navi seguite e
+        impostazioni già configurate. L’operazione è reversibile solo
+        passando da una nuova approvazione, quindi il ruolo tester non
+        si può riassegnare a un account già promosso.</p>
         <p>Le impostazioni gestite dagli amministratori (sorgenti dati,
         screening sanzioni/PSC, pesi dello score di rischio) sono
         <strong>globali</strong> per tutti gli utenti. Nell’interfaccia

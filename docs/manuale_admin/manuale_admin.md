@@ -23,6 +23,21 @@ Gli amministratori vedono in alto a destra il link **Admin**, che apre la **pagi
 - **impersonare** un utente — visualizzarne aree, monitoraggi e navi seguite in **sola lettura**, con un banner in evidenza e l'uscita con un click;
 - consultare i **log** (log attività e log API), condivisi e visibili solo agli amministratori.
 
+### Le azioni sulla riga utente
+
+Ogni riga della tabella mostra **al massimo un pulsante in evidenza** — quello che quella riga sta aspettando: **Approva** per una registrazione in attesa, **Riabilita** per un account disabilitato. Tutto il resto sta nel menu **···** in fondo alla riga, sempre nello stesso ordine:
+
+1. **stato** — Approva / Approva come tester / Disabilita / Riabilita;
+2. **ruolo** — Rendi amministratore, Revoca amministratore oppure **Promuovi a utente** (per un account tester);
+3. **utilità** — Reset password, Impersona;
+4. **azione distruttiva** — Elimina utente (in rosso, con conferma).
+
+#### Da tester a utente normale
+
+Il ruolo **tester** si assegna solo al momento dell'approvazione, con **Approva come tester**: è un account con limiti ridotti (numero e dimensione delle aree, numero di navi seguite) pensato per le prove.
+
+Quando vuoi togliere quei limiti, apri il menu **···** sulla riga dell'utente e scegli **Promuovi a utente**: l'account diventa un utente normale, senza limiti tester, mantenendo aree, navi seguite e impostazioni già configurate. L'operazione è reversibile solo passando da una nuova approvazione, quindi il ruolo tester non si può riassegnare a un account già promosso.
+
 Le impostazioni gestite dagli amministratori (sorgenti dati, screening sanzioni/PSC, pesi dello score di rischio) sono **globali** per tutti gli utenti. Nell'interfaccia delle Impostazioni, le schede e i toggle riservati agli amministratori sono **nascosti** agli utenti normali (e comunque protetti anche lato server).
 
 ---

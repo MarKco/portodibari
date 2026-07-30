@@ -2765,7 +2765,7 @@ const MAX_NOTIFICATIONS = 100;
 // (separate badge/overlay, separate MAX_NOTIFICATIONS retention) so a chatty
 // group doesn't evict personal high_risk/revisit history and vice versa.
 const GROUP_NOTIF_TYPES = [
-  'area_add', 'area_remove', 'follow_on', 'follow_off', 'flag_on', 'flag_off',
+  'area_add', 'area_remove', 'area_edit', 'follow_on', 'follow_off', 'flag_on', 'flag_off',
   'mute_on', 'mute_off', 'seen_on', 'seen_off', 'charge_on', 'charge_off', 'charge_assign',
 ].map((a) => `group_${a}`);
 const GROUP_TYPES_SQL = GROUP_NOTIF_TYPES.map(() => '?').join(',');
@@ -2807,8 +2807,15 @@ function addNotification({ user_id = null, type, mmsi = null, ship_name = null, 
   return { id: Number(result.lastInsertRowid), user_id, type, mmsi, ship_name, area, from_area, band, score, berth_id, berth_lat, berth_lon, actor_id, target_user_id, ts, read: 0 };
 }
 
+// `actor_name` is resolved here rather than client-side: a group_* notification
+// can come from someone OUTSIDE the reader's group (an area edit fans out to
+// every user monitoring that area), and the client only knows its own roster.
 function getNotifications(userId, limit = MAX_NOTIFICATIONS, group = false) {
-  return db.prepare(`SELECT * FROM notifications WHERE user_id IS ? AND ${kindClause(group)} ORDER BY id DESC LIMIT ?`).all(userId, ...GROUP_NOTIF_TYPES, limit);
+  return db.prepare(
+    `SELECT n.*, COALESCE(NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), ''), u.username, u.email) AS actor_name
+     FROM notifications n LEFT JOIN users u ON u.id = n.actor_id
+     WHERE n.user_id IS ? AND ${kindClause(group).replace(/\btype\b/, 'n.type')} ORDER BY n.id DESC LIMIT ?`
+  ).all(userId, ...GROUP_NOTIF_TYPES, limit);
 }
 
 function getUnreadNotificationCount(userId, group = false) {

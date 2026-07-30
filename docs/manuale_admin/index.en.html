@@ -135,7 +135,11 @@
         <li><a href="#administrator-manual-tracker-porti">Administrator
         Manual — Tracker Porti</a>
         <ul>
-        <li><a href="#administrator-role">Administrator role</a></li>
+        <li><a href="#administrator-role">Administrator role</a>
+        <ul>
+        <li><a href="#actions-on-a-user-row">Actions on a user
+        row</a></li>
+        </ul></li>
         <li><a href="#user-groups">User groups</a></li>
         <li><a href="#coverage-map-administrator-controls">Coverage map
         — administrator controls</a></li>
@@ -217,6 +221,37 @@
         <li>consult the <strong>logs</strong> (activity log and API
         log), shared and visible only to administrators.</li>
         </ul>
+        <h3 id="actions-on-a-user-row">Actions on a user row</h3>
+        <p>Each table row shows <strong>at most one highlighted
+        button</strong> — the one that row is waiting for:
+        <strong>Approve</strong> for a pending registration,
+        <strong>Re-enable</strong> for a disabled account. Everything
+        else lives in the <strong>···</strong> menu at the end of the
+        row, always in the same order:</p>
+        <ol type="1">
+        <li><strong>status</strong> — Approve / Approve as tester /
+        Disable / Re-enable;</li>
+        <li><strong>role</strong> — Make administrator, Revoke
+        administrator, or <strong>Promote to user</strong> (for a tester
+        account);</li>
+        <li><strong>utilities</strong> — Reset password,
+        Impersonate;</li>
+        <li><strong>destructive action</strong> — Delete user (in red,
+        with confirmation).</li>
+        </ol>
+        <h4 id="from-tester-to-regular-user">From tester to regular
+        user</h4>
+        <p>The <strong>tester</strong> role is only assigned at approval
+        time, with <strong>Approve as tester</strong>: it is an account
+        with reduced limits (number and size of areas, number of
+        followed ships) meant for trials.</p>
+        <p>When you want to lift those limits, open the
+        <strong>···</strong> menu on the user’s row and choose
+        <strong>Promote to user</strong>: the account becomes a regular
+        user, with no tester limits, keeping the areas, followed ships
+        and settings already configured. The move can only be reversed
+        through a new approval, so the tester role cannot be re-assigned
+        to an account that has been promoted.</p>
         <p>Settings managed by administrators (data sources,
         sanctions/PSC screening, risk-score weights) are
         <strong>global</strong> for all users. In the Settings

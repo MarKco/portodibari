@@ -1002,6 +1002,50 @@ function addArea({ name, sw, ne, keyword }) {
 }
 
 /**
+ * Edit an existing area in place: name, keyword and/or corners. The KEY never
+ * changes (it is the foreign key of every reading/event/mooring row collected so
+ * far), so the stored history stays attached to the area even if its box moves.
+ * Only the fields present in `patch` are touched. Returns the updated descriptor
+ * plus `boxChanged`, which the caller uses to decide whether the live
+ * subscription has to be re-sent.
+ */
+function updateArea(key, { name, sw, ne, keyword } = {}) {
+  const v = BBOX_PRESETS[key];
+  if (!v) throw new Error(`Area sconosciuta: ${key}`);
+  const next = { name: v.name, keyword: v.keyword || null, box: v.box[0] };
+  if (name !== undefined) {
+    if (!String(name).trim()) throw new Error('Nome area obbligatorio');
+    next.name = String(name).trim();
+  }
+  if (keyword !== undefined) {
+    next.keyword = keyword && String(keyword).trim() ? String(keyword).trim() : null;
+  }
+  let boxChanged = false;
+  if (sw !== undefined || ne !== undefined) {
+    const ok = (c) => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isFinite(Number(n)));
+    if (!ok(sw) || !ok(ne)) throw new Error('Coordinate non valide: usa [lat, lon] in gradi decimali');
+    const swLat = Math.min(Number(sw[0]), Number(ne[0]));
+    const neLat = Math.max(Number(sw[0]), Number(ne[0]));
+    const swLon = Math.min(Number(sw[1]), Number(ne[1]));
+    const neLon = Math.max(Number(sw[1]), Number(ne[1]));
+    if (swLat < -90 || neLat > 90 || swLon < -180 || neLon > 180) {
+      throw new Error('Coordinate fuori range (lat -90..90, lon -180..180)');
+    }
+    if (swLat === neLat || swLon === neLon) throw new Error('Area degenerata: i due angoli coincidono');
+    const [[oSwLat, oSwLon], [oNeLat, oNeLon]] = v.box[0];
+    boxChanged = swLat !== oSwLat || swLon !== oSwLon || neLat !== oNeLat || neLon !== oNeLon;
+    next.box = [[swLat, swLon], [neLat, neLon]];
+  }
+  BBOX_PRESETS[key] = { box: [next.box], name: next.name, keyword: next.keyword };
+  saveBboxPresets();
+  persistAreaToDb(key);
+  // The edited area may be the active view preset: refresh the derived state
+  // (bboxName/centerLat/…) so the rest of the app sees the new name and box.
+  if (state.preset === key) applyPreset(key);
+  return { key, name: next.name, keyword: next.keyword, bbox: next.box, boxChanged };
+}
+
+/**
  * Merge a set of area definitions (the `bounding-boxes.json` shape) into the
  * current presets. Keys starting with `_` (e.g. `_comment`) are ignored. An
  * incoming key that already exists is updated in place; a new key is added.
@@ -1225,6 +1269,7 @@ module.exports = {
   bboxSignature,
   areaForPoint,
   addArea,
+  updateArea,
   removeArea,
   importAreas,
   exportAreas,

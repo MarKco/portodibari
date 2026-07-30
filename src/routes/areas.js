@@ -6,7 +6,7 @@ const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
 const telegram = require('../services/telegram');
 const groupSync = require('../services/group-sync');
-const { state, BBOX_PRESETS, addArea, removeArea, importAreas, exportAreas, TESTER_MAX_AREAS, TESTER_MAX_AREA_KM2, bboxAreaKm2 } = require('../config');
+const { state, BBOX_PRESETS, addArea, updateArea, removeArea, importAreas, exportAreas, TESTER_MAX_AREAS, TESTER_MAX_AREA_KM2, bboxAreaKm2 } = require('../config');
 
 const router = express.Router();
 
@@ -49,6 +49,9 @@ router.get('/areas', (req, res) => {
         active: !!status[key]?.active,
         current: key === state.preset,
         counts: db.getAreaCounts(key),
+        // How many OTHER users monitor this same catalog area — the client warns
+        // (twice) before an edit that would move it for them too.
+        sharedWith: Math.max(0, db.areaOwnerCount(key) - 1),
       };
     });
   // The user's effective "current" area: the global preset if they own it, else
@@ -128,6 +131,44 @@ router.post('/areas', (req, res) => {
     appLog.info('AREE', appLog.t('areas.added', { name: area.name }), { area: area.key, autostart: autostart !== false });
     if (autostart !== false) stream.startStream(area.key);
     telegram.notifyAreaMonitor(req.user.id, 'start', { area: area.name });
+    res.json({ ok: true, area });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Edit an area the current user owns: name, keyword and/or corners.
+// Body: { name?, keyword?, sw?:[lat,lon], ne?:[lat,lon] }
+// The catalog is GLOBAL: editing a SHARED area moves it for every user who
+// monitors it, so they all get a "group activity" notification (the double
+// confirmation before that happens lives client-side). The key is preserved, so
+// the history collected so far stays attached — readings taken outside the new
+// box are kept, not pruned.
+router.patch('/areas/:key', (req, res) => {
+  const { key } = req.params;
+  if (!BBOX_PRESETS[key]) return res.status(404).json({ error: 'Area sconosciuta' });
+  if (!db.getUserAreaKeys(req.user.id).includes(key)) return res.status(404).json({ error: 'Area non assegnata' });
+  const { name, keyword, sw, ne } = req.body || {};
+  try {
+    if (req.user.role === 'tester' && sw !== undefined && ne !== undefined) {
+      const ok = (c) => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isFinite(Number(n)));
+      if (ok(sw) && ok(ne)) {
+        const swLat = Math.min(Number(sw[0]), Number(ne[0]));
+        const neLat = Math.max(Number(sw[0]), Number(ne[0]));
+        const swLon = Math.min(Number(sw[1]), Number(ne[1]));
+        const neLon = Math.max(Number(sw[1]), Number(ne[1]));
+        const areaKm2 = bboxAreaKm2(swLat, neLat, swLon, neLon);
+        if (areaKm2 > TESTER_MAX_AREA_KM2) {
+          return res.status(403).json({ error: `Account tester: area troppo grande (${Math.round(areaKm2)} km², max ${TESTER_MAX_AREA_KM2} km²)` });
+        }
+      }
+    }
+    const area = updateArea(key, { name, keyword, sw, ne });
+    // A moved box must reach AISStream: startStream on an already-active area
+    // just re-sends the (now different) shared subscription.
+    if (area.boxChanged && stream.isActive(key)) stream.startStream(key);
+    groupSync.notifyAreaEdit(req.user.id, key); // tell every other owner of this area
+    appLog.info('AREE', `Area modificata: ${area.name}`, { area: key, boxChanged: area.boxChanged });
     res.json({ ok: true, area });
   } catch (e) {
     res.status(400).json({ error: e.message });

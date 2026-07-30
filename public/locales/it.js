@@ -518,7 +518,15 @@ export default {
 
   // ── Areas screen ───────────────────────────────────────────────────────────
   'areas.addTitle':          'Aggiungi area',
-  'areas.addHint':           'Inserisci le coordinate in gradi decimali, oppure inquadra l\'area sulla mappa e premi "Cattura vista corrente".',
+  'areas.addHint':           'Inserisci le coordinate in gradi decimali, oppure inquadra l\'area sulla mappa e premi "Cattura vista corrente". Tocca una riga dell\'elenco per caricarla qui e modificarla.',
+  'areas.editTitle':         'Modifica area: {name}',
+  'areas.editHint':          'Modifica nome, parola chiave o coordinate, poi salva. Le coordinate si possono anche riprendere dalla mappa con "Cattura vista corrente". Lo storico già raccolto resta associato all\'area.',
+  'areas.save':              '💾 Salva modifiche',
+  'areas.cancelEdit':        'Annulla modifica',
+  'areas.rowHint':           'Clicca per visualizzare e modificare questa area',
+  'areas.editSharedHint':    'Attenzione: quest\'area è monitorata anche da altri {count} utenti — la modifica vale anche per loro e verrà notificata.',
+  'areas.editSharedConfirm1':'Quest\'area è monitorata anche da altri {count} utenti: la modifica cambia l\'area anche per loro e riceveranno una notifica di attività di gruppo. Continuare?',
+  'areas.editSharedConfirm2':'Conferma definitiva: applico la modifica all\'area condivisa?',
   'areas.fieldName':         'Nome area',
   'areas.fieldNameHolder':   'Es. Porto di Ancona',
   'areas.fieldKeyword':      'Parola chiave (facoltativa)',
@@ -682,6 +690,7 @@ export default {
   'webhook.event.outage':     'Disservizio AIS',
   'webhook.event.group_area_add':      'Gruppo · area aggiunta',
   'webhook.event.group_area_remove':   'Gruppo · area rimossa',
+  'webhook.event.group_area_edit':     'Gruppo · area modificata',
   'webhook.event.group_follow_on':     'Gruppo · nave seguita',
   'webhook.event.group_follow_off':    'Gruppo · nave non più seguita',
   'webhook.event.group_flag_on':       'Gruppo · nave segnalata',
@@ -1200,6 +1209,7 @@ export default {
 
   'groupActivity.msg.area_add':      'Ha aggiunto l\'area "{area}" al monitoraggio condiviso del gruppo.',
   'groupActivity.msg.area_remove':   'Ha rimosso l\'area "{area}" dal monitoraggio condiviso del gruppo.',
+  'groupActivity.msg.area_edit':     'Ha modificato l\'area "{area}" (nome, parola chiave o confini): la modifica vale per tutti quelli che la monitorano.',
   'groupActivity.msg.follow_on':     'Ha iniziato a seguire la {ship}: il gruppo riceverà notifiche sui suoi movimenti.',
   'groupActivity.msg.follow_off':    'Ha smesso di seguire la {ship}.',
   'groupActivity.msg.flag_on':       'Ha segnalato la {ship} come sospetta.',

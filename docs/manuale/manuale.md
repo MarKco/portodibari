@@ -592,9 +592,9 @@ Apri con **🗺 Aree**. Qui aggiungi e rimuovi le aree monitorate **senza riavvi
 
 La schermata contiene:
 
-- un **pannello "Aggiungi area"** (in alto a sinistra);
+- un **pannello "Aggiungi area"** (in alto a sinistra), che fa anche da **editor** dell'area selezionata;
 - una **mappa** con tutte le aree come rettangoli (verde = stream attivo, viola = area in vista, blu = altre);
-- una **tabella** con nome, coordinate SW e NE, parola chiave, stato stream, dati salvati e pulsante di eliminazione.
+- una **tabella** con nome, coordinate SW e NE, parola chiave, stato stream, dati salvati e pulsante di eliminazione. **Le righe sono cliccabili**: un clic carica l'area nel pannello in alto (vedi [Modificare un'area](#modificare-unarea)).
 
 ### Aggiungere un'area
 
@@ -605,6 +605,16 @@ La schermata contiene:
 3. Premi **＋ Aggiungi area**. L'area viene salvata e il suo stream parte subito.
 
 > La latitudine va da -90 a 90 (positiva a Nord), la longitudine da -180 a 180 (positiva a Est). Gli angoli possono essere inseriti in qualsiasi ordine: vengono riordinati automaticamente.
+
+### Modificare un'area
+
+**Clicca (o tocca) una riga della tabella**: l'area viene caricata nel pannello in alto — che diventa **"Modifica area: <nome>"** — e la mappa si porta sui suoi confini, mostrandoli come rettangolo tratteggiato.
+
+Da lì puoi cambiare **nome**, **parola chiave** e **coordinate** (a mano o con **🎯 Cattura vista corrente**, dopo aver inquadrato i nuovi confini). Premi **💾 Salva modifiche** per applicare, oppure **Annulla modifica** (o un altro clic sulla stessa riga) per uscire senza salvare.
+
+> **Lo storico non si perde.** L'area resta la stessa: letture, navi ed eventi già raccolti restano associati anche se sposti i confini. Se lo stream dell'area è attivo, riparte subito sui nuovi confini. Le letture raccolte quando l'area era più larga restano nello storico, anche se cadono fuori dai confini nuovi.
+
+> **Aree condivise.** Se altri utenti monitorano la stessa area, la modifica vale anche per loro. Prima di salvare ti viene chiesta una **doppia conferma**, e a modifica avvenuta ogni altro utente che monitora quell'area riceve una notifica in **👥 Notifiche attività di gruppo**.
 
 ### Rimuovere un'area
 
@@ -825,6 +835,8 @@ Le notifiche **da leggere** sono in grassetto e contano nel badge rosso. Si cons
 Se il tuo account fa parte di un **gruppo**, in barra laterale trovi anche il pulsante **👥 Notifiche attività di gruppo**, accanto a "Notifiche": stesso comportamento (badge non lette, finestra in sovrimpressione, ✓ per segnare come letta, 🗑 per eliminare con annullamento), ma per un feed **separato** — le azioni compiute dai tuoi compagni di gruppo su aree, navi seguite, segnalazioni, silenziamenti, navi viste e prese in carico (le stesse che vedi elencate in [Attività di gruppo](#attività-di-gruppo), qui però solo se hai scelto di **esserne notificato**). Ogni riga riporta il **nome di chi** ha compiuto l'azione, ad esempio *"Anna Test ha iniziato a seguire la nave AMAZONITH: il gruppo riceverà notifiche sui suoi movimenti."*
 
 Quali azioni ti notificano si decide dalla scheda **Notifiche** delle Impostazioni (vedi sotto): puoi scegliere cosa **ricevere tu**, ma non puoi impedire alle tue azioni di notificare gli altri membri — le regole sono le stesse per tutto il gruppo.
+
+> **Anche senza gruppo.** C'è un caso in cui questo pulsante compare pure se non fai parte di nessun gruppo: quando un altro utente **modifica un'area che stai monitorando anche tu** (vedi [Modificare un'area](#modificare-unarea)). La notifica arriva in questo feed e ti dice chi ha modificato quale area, così scopri subito perché i confini del tuo monitoraggio sono cambiati.
 
 ---
 

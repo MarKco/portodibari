@@ -23,6 +23,21 @@ Administrators see the **Admin** link at the top right, which opens the **admini
 - **impersonate** a user — view their areas, monitoring, and followed ships in **read-only** mode, with a prominent banner and one-click exit;
 - consult the **logs** (activity log and API log), shared and visible only to administrators.
 
+### Actions on a user row
+
+Each table row shows **at most one highlighted button** — the one that row is waiting for: **Approve** for a pending registration, **Re-enable** for a disabled account. Everything else lives in the **···** menu at the end of the row, always in the same order:
+
+1. **status** — Approve / Approve as tester / Disable / Re-enable;
+2. **role** — Make administrator, Revoke administrator, or **Promote to user** (for a tester account);
+3. **utilities** — Reset password, Impersonate;
+4. **destructive action** — Delete user (in red, with confirmation).
+
+#### From tester to regular user
+
+The **tester** role is only assigned at approval time, with **Approve as tester**: it is an account with reduced limits (number and size of areas, number of followed ships) meant for trials.
+
+When you want to lift those limits, open the **···** menu on the user's row and choose **Promote to user**: the account becomes a regular user, with no tester limits, keeping the areas, followed ships and settings already configured. The move can only be reversed through a new approval, so the tester role cannot be re-assigned to an account that has been promoted.
+
 Settings managed by administrators (data sources, sanctions/PSC screening, risk-score weights) are **global** for all users. In the Settings interface, the tabs and toggles reserved for administrators are **hidden** from regular users (and protected server-side regardless).
 
 ---

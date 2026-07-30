@@ -817,8 +817,8 @@
     <div id="view-areas" class="hidden">
       <div class="areas-layout">
         <div class="areas-panel">
-          <h3 class="detail-section-title" data-i18n="areas.addTitle">Aggiungi area</h3>
-          <p class="areas-hint" data-i18n="areas.addHint">Inserisci le coordinate in gradi decimali, oppure inquadra l'area sulla mappa e premi "Cattura vista corrente".</p>
+          <h3 class="detail-section-title" id="areas-form-title" data-i18n="areas.addTitle">Aggiungi area</h3>
+          <p class="areas-hint" id="areas-form-hint" data-i18n="areas.addHint">Inserisci le coordinate in gradi decimali, oppure inquadra l'area sulla mappa e premi "Cattura vista corrente". Tocca una riga dell'elenco per caricarla qui e modificarla.</p>
           <div class="areas-form">
             <label class="areas-field areas-field-wide">
               <span data-i18n="areas.fieldName">Nome area</span>
@@ -836,6 +836,7 @@
           <div class="areas-actions">
             <button id="btn-area-capture" class="btn btn-secondary" data-i18n="areas.capture">🎯 Cattura vista corrente</button>
             <button id="btn-area-add" class="btn btn-primary" data-i18n="areas.add">＋ Aggiungi area</button>
+            <button id="btn-area-cancel" class="btn btn-clear hidden" data-i18n="areas.cancelEdit">Annulla modifica</button>
           </div>
           <div id="area-add-error" class="areas-error hidden"></div>
         </div>
