@@ -2,7 +2,7 @@
 // while an admin impersonates a user — a top banner with a one-click exit.
 // Self-contained (its own DOM + styles); does not touch the rest of the SPA.
 
-import { getLang } from './i18n.js';
+import { getLang, t } from './i18n.js';
 
 // Manual links default to the Italian version (index.html); point them at the
 // English one when that's the active UI language, so the sidebar always opens
@@ -52,8 +52,8 @@ async function init() {
   box.id = 'acct';
   box.innerHTML =
     `<span class="who" title="${esc(me.user.email)}">${esc(name)}</span>` +
-    (me.isAdmin ? `<a href="/admin" title="Amministrazione">Admin</a>` : '') +
-    `<button id="acct-logout" title="Esci">Esci</button>`;
+    (me.isAdmin ? `<a href="/admin" title="${esc(t('acct.admin'))}">Admin</a>` : '') +
+    `<button id="acct-logout" title="${esc(t('acct.logout'))}">${esc(t('acct.logout'))}</button>`;
   document.body.appendChild(box);
 
   document.getElementById('acct-logout').addEventListener('click', async () => {
@@ -81,7 +81,7 @@ async function init() {
     document.body.classList.add('impersonating');
     const banner = document.createElement('div');
     banner.id = 'imp-banner';
-    banner.innerHTML = `Stai impersonando <strong>${esc(me.user.email)}</strong> (sola lettura) <button id="imp-stop">Esci impersonificazione</button>`;
+    banner.innerHTML = `${t('imp.banner', { email: `<strong>${esc(me.user.email)}</strong>` })} <button id="imp-stop">${esc(t('imp.stop'))}</button>`;
     document.body.appendChild(banner);
     document.getElementById('imp-stop').addEventListener('click', async () => {
       await fetch('/api/admin/impersonate/stop', { method: 'POST' });
@@ -93,7 +93,11 @@ async function init() {
     document.body.classList.add('tester-account');
     const tb = document.createElement('div');
     tb.id = 'tester-banner';
-    tb.textContent = `Account tester — max ${me.testerLimits.maxAreas} aree (≤ ${me.testerLimits.maxAreaKm2} km²), max ${me.testerLimits.maxFollows} navi seguite`;
+    tb.textContent = t('tester.banner', {
+      maxAreas: me.testerLimits.maxAreas,
+      maxAreaKm2: me.testerLimits.maxAreaKm2,
+      maxFollows: me.testerLimits.maxFollows,
+    });
     document.body.appendChild(tb);
   }
 }

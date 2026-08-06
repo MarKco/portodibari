@@ -509,14 +509,24 @@ export function flagSeenButtonsHtml(s) {
     ${chargeCellHtml(s)}`;
 }
 
+// Bare `await api(...)` with no try/catch used to mean a rejected request (403
+// tester over quota, 404 outside area, ...) failed completely silently: the
+// promise rejected, reload() never ran, and nothing told the user their click
+// did nothing. Every handler below now reports the failure the same way
+// guardDetailBtn does for the detail-header buttons.
+function reportRowActionError(e) {
+  showAlert(t('error.action'), escHtml(e.message || String(e)));
+}
 export function bindFlagSeenButtons(tbody, reload) {
   tbody.querySelectorAll('.flag-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const mmsi = Number(btn.dataset.mmsi);
       const newFlag = Number(btn.dataset.flagged) ? 0 : 1;
-      await api(`/api/ships/${mmsi}/flag`, 'PATCH', { flagged: newFlag });
-      reload();
+      try {
+        await api(`/api/ships/${mmsi}/flag`, 'PATCH', { flagged: newFlag });
+        reload();
+      } catch (err) { reportRowActionError(err); }
     });
   });
   tbody.querySelectorAll('.seen-btn').forEach((btn) => {
@@ -524,8 +534,10 @@ export function bindFlagSeenButtons(tbody, reload) {
       e.stopPropagation();
       const mmsi = Number(btn.dataset.mmsi);
       const newSeen = Number(btn.dataset.seen) ? 0 : 1;
-      await api(`/api/ships/${mmsi}/seen`, 'PATCH', { seen: newSeen });
-      reload();
+      try {
+        await api(`/api/ships/${mmsi}/seen`, 'PATCH', { seen: newSeen });
+        reload();
+      } catch (err) { reportRowActionError(err); }
     });
   });
   tbody.querySelectorAll('.follow-btn').forEach((btn) => {
@@ -533,8 +545,10 @@ export function bindFlagSeenButtons(tbody, reload) {
       e.stopPropagation();
       const mmsi = Number(btn.dataset.mmsi);
       const newFollow = Number(btn.dataset.followed) ? 0 : 1;
-      await api(`/api/ships/${mmsi}/follow`, 'PATCH', { followed: newFollow });
-      reload();
+      try {
+        await api(`/api/ships/${mmsi}/follow`, 'PATCH', { followed: newFollow });
+        reload();
+      } catch (err) { reportRowActionError(err); }
     });
   });
   tbody.querySelectorAll('.charge-btn').forEach((btn) => {
@@ -542,8 +556,10 @@ export function bindFlagSeenButtons(tbody, reload) {
       e.stopPropagation();
       const mmsi = Number(btn.dataset.mmsi);
       const newCharged = Number(btn.dataset.charged) ? 0 : 1;
-      await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: !!newCharged });
-      reload();
+      try {
+        await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: !!newCharged });
+        reload();
+      } catch (err) { reportRowActionError(err); }
     });
   });
   tbody.querySelectorAll('.charge-tag-remove').forEach((btn) => {
@@ -551,8 +567,10 @@ export function bindFlagSeenButtons(tbody, reload) {
       e.stopPropagation();
       const mmsi = Number(btn.dataset.mmsi);
       const targetUserId = Number(btn.dataset.uid);
-      await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: false, targetUserId });
-      reload();
+      try {
+        await api(`/api/ships/${mmsi}/charge`, 'PATCH', { on: false, targetUserId });
+        reload();
+      } catch (err) { reportRowActionError(err); }
     });
   });
 }
@@ -1600,11 +1618,13 @@ export async function loadSfData(mmsi) {
   el.sfDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingSf')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/sfdata`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.sfDataSection.classList.add('hidden');
       return;
     }
-    if (S.detailMmsi === mmsi) { S.sfPositions = result.positions || []; renderSfPositions(result.positions); }
+    S.sfPositions = result.positions || [];
+    renderSfPositions(result.positions);
     if (result.error && !result.data) {
       el.sfDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
       return;
@@ -1696,11 +1716,13 @@ export async function loadMstData(mmsi) {
   el.mstDataBody.innerHTML = `<p class="vf-loading">${t('scrape.loadingMst')}</p>`;
   try {
     const result = await api(`/api/ships/${mmsi}/mstdata`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.mstDataSection.classList.add('hidden');
       return;
     }
-    if (S.detailMmsi === mmsi) { S.mstPositions = result.positions || []; renderMstPositions(result.positions); }
+    S.mstPositions = result.positions || [];
+    renderMstPositions(result.positions);
     if (result.error && !result.data) {
       el.mstDataBody.innerHTML = `<p class="vf-error">${t('scrape.errorFmt', { msg: escHtml(result.error) })}</p>`;
       return;
@@ -1790,6 +1812,7 @@ export async function loadEquasisData(mmsi, doFetch = false) {
   }
   try {
     const result = await api(`/api/ships/${mmsi}/equasis${doFetch ? '?fetch=1' : ''}`);
+    if (S.detailMmsi !== mmsi) return; // navigated away; don't paint another ship's panel
     if (!result.enabled) {
       el.equasisDataSection.classList.add('hidden');
       return;
@@ -1833,38 +1856,41 @@ export async function loadEquasisData(mmsi, doFetch = false) {
 // Glossary for the Equasis "Dati nave" (particulars) and "Performance / rischio"
 // tables. Keys are the exact labels emitted by the scraper (see
 // src/services/scrapers/equasis.js: PARTICULAR_LABELS, parseHeader, parseRisk).
-// Each entry becomes a hover "ⓘ" next to the label explaining the abbreviation.
+// Values are i18n keys (public/locales/{it,en}.js, eq.help.*) — each entry
+// becomes a hover "ⓘ" next to the label explaining the abbreviation.
 const EQ_LABEL_GLOSSARY = {
-  Name: 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO che resta invariato.',
-  'IMO number': 'Numero IMO: identificativo univoco a 7 cifre assegnato dall’Organizzazione Marittima Internazionale. Non cambia mai per tutta la vita della nave, anche se cambiano nome o bandiera.',
-  Flag: 'Stato di bandiera: il Paese in cui la nave è registrata e di cui batte bandiera. Ne determina giurisdizione, regole applicabili e regime di ispezione.',
-  'Call Sign': 'Nominativo internazionale (call sign): codice radio univoco assegnato alla nave per le comunicazioni.',
-  MMSI: 'Maritime Mobile Service Identity: identificativo numerico a 9 cifre usato da AIS e dagli apparati radio VHF/DSC. Può cambiare se cambia la bandiera.',
-  'Gross tonnage': 'Stazza lorda (GT): misura adimensionale del volume interno totale della nave. Usata per tasse, normative e dimensionamento dell’equipaggio. Non è un peso.',
-  DWT: 'Deadweight tonnage: portata lorda in tonnellate, ovvero il peso massimo trasportabile (carico + combustibile + provviste + equipaggio).',
-  'Type of ship': 'Tipo di nave secondo la classificazione Equasis (es. petroliera, portarinfuse, portacontainer, bettolina di bunkeraggio).',
-  'Year of build': 'Anno di costruzione (consegna) della nave. L’età incide su livello di rischio e frequenza delle ispezioni.',
-  Status: 'Stato operativo della nave secondo Equasis (es. In service/commission = in servizio, Laid up = in disarmo, Broken up = demolita).',
-  'Port of registry': 'Porto di immatricolazione: porto presso cui la nave è registrata, riportato sullo scafo.',
-  'Detenzioni (36 mesi)': 'Percentuale di ispezioni Port State Control che negli ultimi 36 mesi si sono concluse con un fermo (detention) della nave. Più è alta, peggiore è lo storico.',
-  'Società di classe IACS': 'Indica se la nave è classificata da almeno una società membro IACS (International Association of Classification Societies), le principali società di classifica riconosciute a livello mondiale.',
-  'Performance Paris MOU': 'Posizione della bandiera nella White/Grey/Black List del Paris MoU, il regime di Port State Control di Europa e Nord Atlantico.',
-  'Performance Tokyo MOU': 'Posizione della bandiera nella White/Grey/Black List del Tokyo MoU, il regime di Port State Control dell’area Asia-Pacifico.',
-  'Targeting USCG': 'Stato di targeting della US Coast Guard: indica se bandiera o nave rientrano tra i bersagli prioritari per le ispezioni nei porti USA, secondo la matrice di rischio USCG.',
+  Name: 'eq.help.name',
+  'IMO number': 'eq.help.imoNumber',
+  Flag: 'eq.help.flag',
+  'Call Sign': 'eq.help.callSign',
+  MMSI: 'eq.help.mmsi',
+  'Gross tonnage': 'eq.help.grossTonnage',
+  DWT: 'eq.help.dwt',
+  'Type of ship': 'eq.help.typeOfShip',
+  'Year of build': 'eq.help.yearOfBuild',
+  Status: 'eq.help.status',
+  'Port of registry': 'eq.help.portOfRegistry',
+  'Detenzioni (36 mesi)': 'eq.help.detentions36m',
+  'Società di classe IACS': 'eq.help.iacsClass',
+  'Performance Paris MOU': 'eq.help.parisMou',
+  'Performance Tokyo MOU': 'eq.help.tokyoMou',
+  'Targeting USCG': 'eq.help.targetingUscg',
 };
 
 // Glossary for cell *values* (open-set strings coming straight from Equasis).
 // Scanned in order; the first matching regex wins, so more specific patterns
-// (e.g. "non targeted", "Priority II") must precede the looser ones.
+// (e.g. "non targeted", "Priority II") must precede the looser ones. `term` is
+// a stable international label (White List, Priority I (USCG), ...) — kept as
+// a literal, language-invariant; `def` is an i18n key (eq.value.*).
 const EQ_VALUE_GLOSSARY = [
-  { re: /(not|non)[-\s]?targeted/i, term: 'Non targeted', def: 'La bandiera non figura nelle liste di targeting USCG: nessun fattore di rischio aggiuntivo derivante dallo Stato di bandiera.' },
-  { re: /priority\s*(ii|2)\b/i, term: 'Priority II (USCG)', def: 'Rischio medio: 7–16 punti nella matrice USCG. Le operazioni di carico o l’attività passeggeri possono essere limitate finché la Guardia Costiera non ispeziona la nave.' },
-  { re: /priority\s*(i|1)\b/i, term: 'Priority I (USCG)', def: 'Rischio alto: ≥17 punti nella matrice USCG. L’ingresso in porto può essere vietato finché la Guardia Costiera non ispeziona la nave.' },
-  { re: /targeted/i, term: 'Targeted flag', def: 'La bandiera figura in una lista di targeting USCG per scarse prestazioni (alto tasso di fermi): aumenta la priorità di ispezione della nave nei porti USA.' },
-  { re: /bunkering/i, term: 'Bunkering Tanker', def: 'Bettolina di bunkeraggio: nave cisterna che rifornisce di combustibile (bunker) altre navi. Tipo soggetto a maggiore attenzione ispettiva.' },
-  { re: /\bwhite\b/i, term: 'White List', def: 'White List: bandiera con buone prestazioni e basso tasso di fermi. Rischio basso, ispezioni meno frequenti.' },
-  { re: /\bgr[ae]y\b/i, term: 'Grey List', def: 'Grey List: bandiera con prestazioni intermedie, tra White List e Black List.' },
-  { re: /\bblack\b/i, term: 'Black List', def: 'Black List: bandiera con alto tasso di fermi e prestazioni scarse. Rischio alto, ispezioni più frequenti.' },
+  { re: /(not|non)[-\s]?targeted/i, term: 'Non targeted', def: 'eq.value.notTargeted' },
+  { re: /priority\s*(ii|2)\b/i, term: 'Priority II (USCG)', def: 'eq.value.priorityII' },
+  { re: /priority\s*(i|1)\b/i, term: 'Priority I (USCG)', def: 'eq.value.priorityI' },
+  { re: /targeted/i, term: 'Targeted flag', def: 'eq.value.targetedFlag' },
+  { re: /bunkering/i, term: 'Bunkering Tanker', def: 'eq.value.bunkering' },
+  { re: /\bwhite\b/i, term: 'White List', def: 'eq.value.whiteList' },
+  { re: /\bgr[ae]y\b/i, term: 'Grey List', def: 'eq.value.greyList' },
+  { re: /\bblack\b/i, term: 'Black List', def: 'eq.value.blackList' },
 ];
 
 function eqInfoIcon(term, def) {
@@ -1872,12 +1898,13 @@ function eqInfoIcon(term, def) {
   return ` <span class="eq-info" data-term="${escHtml(term)}" data-tip="${escHtml(def)}" aria-label="${escHtml(term)}: ${escHtml(def)}" role="img">ⓘ</span>`;
 }
 function eqLabelInfo(label) {
-  return eqInfoIcon(label, EQ_LABEL_GLOSSARY[label]);
+  const key = EQ_LABEL_GLOSSARY[label];
+  return eqInfoIcon(label, key ? t(key) : null);
 }
 function eqValueInfo(value) {
   if (!value) return '';
   const hit = EQ_VALUE_GLOSSARY.find((g) => g.re.test(value));
-  return hit ? eqInfoIcon(hit.term, hit.def) : '';
+  return hit ? eqInfoIcon(hit.term, t(hit.def)) : '';
 }
 
 function eqKvTable(titleKey, map) {
@@ -2003,29 +2030,27 @@ export async function loadGfwData(mmsi) {
   }
 }
 
-// Glossary for the GFW identity field labels and event-section titles. Like the
-// Equasis glossary above, the explanations are in Italian regardless of UI
-// language (same convention as EQ_LABEL_GLOSSARY / SCRAPE_LABEL_GLOSSARY).
+// Glossary for the GFW identity field labels and event-section titles. Values
+// are i18n keys (public/locales/{it,en}.js, gfw.help.*).
 const GFW_IDENTITY_GLOSSARY = {
-  flag: 'Stato di bandiera registrato in GFW (derivato dal codice MMSI e dai registri navali).',
-  type: 'Tipo di nave o attrezzo da pesca secondo la classificazione di Global Fishing Watch.',
-  year: 'Anno di costruzione (consegna) della nave secondo i dati GFW.',
-  callsign: 'Nominativo radio internazionale (call sign): codice radio univoco della nave.',
-  imo: 'Numero IMO: identificativo univoco a 7 cifre, permanente per tutta la vita della nave.',
-  mmsi: 'MMSI: identificativo AIS a 9 cifre. Le prime 3 cifre (MID) indicano il Paese di bandiera.',
+  flag: 'gfw.help.flag',
+  type: 'gfw.help.type',
+  year: 'gfw.help.year',
+  callsign: 'gfw.help.callsign',
+  imo: 'gfw.help.imo',
+  mmsi: 'gfw.help.mmsi',
 };
 const GFW_SECTION_GLOSSARY = {
-  'scrape.gfwEncounters': 'Incontro in mare: GFW ha rilevato due navi ravvicinate e quasi ferme in mare aperto per un periodo prolungato. È la firma classica di un trasbordo nave-a-nave (ship-to-ship), tecnica usata anche per eludere i controlli.',
-  'scrape.gfwLoitering': 'Loitering: la nave è rimasta a lungo quasi ferma in mare aperto, lontano dai porti. Comportamento anomalo per una nave da trasporto.',
-  'scrape.gfwPortVisits': 'Scalo in porto ricostruito da GFW dall’analisi delle tracce AIS (ingresso, sosta, uscita). Confrontato con la lista dei porti ad alto rischio.',
-  'scrape.gfwGaps': 'Evento AIS spento ("gap" / dark activity): la nave ha interrotto la trasmissione AIS mentre era in navigazione, riapparendo poi altrove. Può indicare la volontà di non farsi tracciare.',
+  'scrape.gfwEncounters': 'gfw.help.encounters',
+  'scrape.gfwLoitering': 'gfw.help.loitering',
+  'scrape.gfwPortVisits': 'gfw.help.portVisits',
+  'scrape.gfwGaps': 'gfw.help.gaps',
 };
 
-// Localised label for GFW identity rows (reuses generic detail keys where they
-// exist; falls back to a capitalised field name otherwise).
-const GFW_IDENTITY_LABEL = {
-  flag: 'Bandiera', type: 'Tipo', year: 'Anno di costruzione',
-  callsign: 'Call sign', imo: 'IMO', mmsi: 'MMSI', shipname: 'Nome',
+// GFW identity row labels: i18n key per field (public/locales/{it,en}.js, gfw.label.*).
+const GFW_IDENTITY_LABEL_KEY = {
+  flag: 'gfw.label.flag', type: 'gfw.label.type', year: 'gfw.label.year',
+  callsign: 'gfw.label.callsign', imo: 'gfw.label.imo', mmsi: 'gfw.label.mmsi', shipname: 'gfw.label.shipname',
 };
 
 function gfwPos(lat, lon) {
@@ -2097,7 +2122,8 @@ function gfwEventTable(type, titleKey, rows, cols) {
   const body = pageRows
     .map((r) => `<tr>${cols.map((c) => `<td>${c.get(r)}</td>`).join('')}</tr>`)
     .join('');
-  const info = eqInfoIcon(t(titleKey), GFW_SECTION_GLOSSARY[titleKey]);
+  const sectionHelpKey = GFW_SECTION_GLOSSARY[titleKey];
+  const info = eqInfoIcon(t(titleKey), sectionHelpKey ? t(sectionHelpKey) : null);
   const pager = sorted.length <= GFW_PAGE_SIZE ? '' : `
     <div class="gfw-pager" data-gfw-type="${type}">
       <button type="button" class="gfw-pager-btn" data-dir="-1" ${state.page <= 1 ? 'disabled' : ''}>‹ ${t('scrape.gfwPagePrev')}</button>
@@ -2150,11 +2176,12 @@ function renderGfwData(container, data) {
   let html = '';
 
   // Identity table (only the fields GFW actually returned), each with a ⓘ hint.
-  const idRows = Object.keys(GFW_IDENTITY_LABEL)
+  const idRows = Object.keys(GFW_IDENTITY_LABEL_KEY)
     .filter((k) => identity[k] != null && identity[k] !== '')
     .map((k) => {
-      const info = eqInfoIcon(GFW_IDENTITY_LABEL[k], GFW_IDENTITY_GLOSSARY[k]);
-      return `<tr><td class="vf-td-label">${escHtml(GFW_IDENTITY_LABEL[k])}${info}</td><td class="vf-td-val">${escHtml(String(identity[k]))}</td></tr>`;
+      const label = t(GFW_IDENTITY_LABEL_KEY[k]);
+      const info = eqInfoIcon(label, t(GFW_IDENTITY_GLOSSARY[k]));
+      return `<tr><td class="vf-td-label">${escHtml(label)}${info}</td><td class="vf-td-val">${escHtml(String(identity[k]))}</td></tr>`;
     })
     .join('');
   if (idRows) {
@@ -2195,68 +2222,69 @@ function renderGfwData(container, data) {
 // <tr><td>label</td><td>value</td></tr> on the page), so we match on a
 // normalised key: lowercased, unit suffixes like "(m)" / "(t)" stripped,
 // whitespace collapsed. See scrapeNormLabel.
+// Values are i18n keys (public/locales/{it,en}.js, scrape.help.*).
 const SCRAPE_LABEL_GLOSSARY = {
-  'imo number': 'Numero IMO: identificativo univoco a 7 cifre dell’Organizzazione Marittima Internazionale. Non cambia mai, anche se cambiano nome o bandiera.',
-  'imo / mmsi': 'Due identificativi: il numero IMO (7 cifre, permanente) e l’MMSI (9 cifre, usato da AIS/radio, può cambiare con la bandiera).',
-  mmsi: 'Maritime Mobile Service Identity: identificativo numerico a 9 cifre usato da AIS e radio VHF/DSC. Le prime 3 cifre (MID) indicano il Paese.',
-  'vessel name': 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO.',
-  'ship type': 'Tipo di nave secondo il database VesselFinder (es. portarinfuse, petroliera, portacontainer).',
-  'ais type': 'Tipo di nave come trasmesso nel messaggio AIS (codice impostato a bordo). Può differire dal tipo reale del database.',
-  flag: 'Stato di bandiera: il Paese in cui la nave è registrata. Determina giurisdizione e regole applicabili.',
-  'ais flag': 'Bandiera dedotta dal codice MID (prime 3 cifre dell’MMSI) trasmesso via AIS.',
-  'year of build': 'Anno di costruzione (consegna) della nave. L’età incide su rischio e frequenza delle ispezioni.',
-  'length overall': 'LOA (Length Overall): lunghezza massima della nave da prua a poppa, in metri.',
-  'length bp': 'LBP (Length Between Perpendiculars): lunghezza tra le perpendicolari (ruota di prua e asse del timone). Sempre minore della LOA.',
-  beam: 'Baglio: larghezza massima dello scafo, in metri.',
-  draught: 'Pescaggio di progetto: profondità a cui lo scafo si immerge in condizioni di pieno carico, in metri.',
-  'current draught': 'Pescaggio attuale dichiarato dall’equipaggio via AIS, in metri. Indica quanto è carica la nave in questo momento.',
-  depth: 'Altezza di costruzione (moulded depth): distanza verticale dalla chiglia al ponte principale, in metri.',
-  'gross tonnage': 'Stazza lorda (GT): misura adimensionale del volume interno totale. Usata per tasse e normative. Non è un peso.',
-  'net tonnage': 'Stazza netta (NT): volume degli spazi destinati al carico/passeggeri. Sempre minore della stazza lorda.',
-  deadweight: 'Deadweight (DWT): portata lorda in tonnellate, ovvero il peso massimo trasportabile (carico + combustibile + provviste + equipaggio).',
-  teu: 'TEU (Twenty-foot Equivalent Unit): capacità in container standard da 20 piedi. Tipico delle portacontainer.',
-  'crude oil': 'Capacità di trasporto petrolio greggio, in barili (bbl).',
-  gas: 'Capacità di trasporto gas, in metri cubi.',
-  grain: 'Capacità delle stive misurata a grano (grain), in metri cubi: volume con il carico che riempie anche gli interstizi.',
-  bale: 'Capacità delle stive misurata a balla (bale), in metri cubi: volume utile con carico in colli, esclusi gli interstizi tra le strutture.',
-  'ballast water': 'Capacità di acqua di zavorra, in metri cubi.',
-  'fresh water': 'Capacità di acqua dolce, in metri cubi.',
-  builder: 'Cantiere navale che ha costruito la nave.',
-  'place of build': 'Località di costruzione della nave.',
-  hull: 'Numero di scafo (hull number) assegnato dal cantiere.',
-  material: 'Materiale dello scafo (es. acciaio).',
-  'engine builder': 'Costruttore del motore principale.',
-  'engine type': 'Modello/tipo del motore principale.',
-  'engine power': 'Potenza del motore principale, in kW.',
-  'fuel type': 'Tipo di combustibile utilizzato dalla nave.',
-  'service speed': 'Velocità di servizio: andatura di crociera economica di progetto, in nodi (kn).',
-  propeller: 'Numero/tipo di eliche.',
-  callsign: 'Nominativo internazionale (call sign): codice radio univoco per le comunicazioni.',
-  'navigation status': 'Stato di navigazione trasmesso via AIS (es. Under way using engine = in navigazione a motore, At anchor = alla fonda, Moored = ormeggiata).',
-  destination: 'Porto di destinazione dichiarato dall’equipaggio via AIS. Inserito manualmente, può essere impreciso o obsoleto.',
-  eta: 'ETA (Estimated Time of Arrival): orario di arrivo stimato dichiarato dall’equipaggio via AIS.',
-  'predicted eta': 'Stima dell’orario di arrivo calcolata da VesselFinder in base a rotta e velocità, indipendente dal dato AIS dell’equipaggio.',
-  'distance / time': 'Distanza residua e tempo stimato fino alla destinazione.',
-  'distance / time to go': 'Distanza residua e tempo stimato fino alla destinazione.',
-  'course / speed': 'COG (Course Over Ground = rotta rispetto al fondo) e SOG (Speed Over Ground = velocità rispetto al fondo), da AIS.',
-  'position received': 'Data e ora dell’ultima posizione AIS ricevuta. Indica quanto è recente il dato.',
-  'last port': 'Ultimo porto in cui la nave ha fatto scalo.',
-  atd: 'ATD (Actual Time of Departure): orario effettivo di partenza dall’ultimo porto.',
+  'imo number': 'scrape.help.imoNumber',
+  'imo / mmsi': 'scrape.help.imoMmsi',
+  mmsi: 'scrape.help.mmsi',
+  'vessel name': 'scrape.help.vesselName',
+  'ship type': 'scrape.help.shipType',
+  'ais type': 'scrape.help.aisType',
+  flag: 'scrape.help.flag',
+  'ais flag': 'scrape.help.aisFlag',
+  'year of build': 'scrape.help.yearOfBuild',
+  'length overall': 'scrape.help.lengthOverall',
+  'length bp': 'scrape.help.lengthBp',
+  beam: 'scrape.help.beam',
+  draught: 'scrape.help.draught',
+  'current draught': 'scrape.help.currentDraught',
+  depth: 'scrape.help.depth',
+  'gross tonnage': 'scrape.help.grossTonnage',
+  'net tonnage': 'scrape.help.netTonnage',
+  deadweight: 'scrape.help.deadweight',
+  teu: 'scrape.help.teu',
+  'crude oil': 'scrape.help.crudeOil',
+  gas: 'scrape.help.gas',
+  grain: 'scrape.help.grain',
+  bale: 'scrape.help.bale',
+  'ballast water': 'scrape.help.ballastWater',
+  'fresh water': 'scrape.help.freshWater',
+  builder: 'scrape.help.builder',
+  'place of build': 'scrape.help.placeOfBuild',
+  hull: 'scrape.help.hull',
+  material: 'scrape.help.material',
+  'engine builder': 'scrape.help.engineBuilder',
+  'engine type': 'scrape.help.engineType',
+  'engine power': 'scrape.help.enginePower',
+  'fuel type': 'scrape.help.fuelType',
+  'service speed': 'scrape.help.serviceSpeed',
+  propeller: 'scrape.help.propeller',
+  callsign: 'scrape.help.callsign',
+  'navigation status': 'scrape.help.navigationStatus',
+  destination: 'scrape.help.destination',
+  eta: 'scrape.help.eta',
+  'predicted eta': 'scrape.help.predictedEta',
+  'distance / time': 'scrape.help.distanceTime',
+  'distance / time to go': 'scrape.help.distanceTimeToGo',
+  'course / speed': 'scrape.help.courseSpeed',
+  'position received': 'scrape.help.positionReceived',
+  'last port': 'scrape.help.lastPort',
+  atd: 'scrape.help.atd',
   // MarineTraffic uses its own fixed Italian labels (see MT_FIELD_LABELS in
   // src/services/scrapers/marinetraffic.js), distinct from VesselFinder's.
   // 'mmsi' is already covered above and must not be repeated here.
-  nome: 'Nome attuale della nave. Può cambiare nel tempo, a differenza del numero IMO.',
-  imo: 'Numero IMO: identificativo univoco a 7 cifre dell’Organizzazione Marittima Internazionale. Non cambia mai per tutta la vita della nave.',
-  nominativo: 'Nominativo internazionale (call sign): codice radio univoco assegnato alla nave per le comunicazioni.',
-  bandiera: 'Stato di bandiera: il Paese in cui la nave è registrata. Determina giurisdizione e regole applicabili.',
-  tipo: 'Tipo di nave secondo il database MarineTraffic.',
-  'stazza lorda': 'Stazza lorda (GT): misura adimensionale del volume interno totale della nave. Usata per tasse e normative; non è un peso.',
-  'portata lorda': 'Portata lorda (DWT, deadweight): peso massimo trasportabile in tonnellate (carico + combustibile + provviste + equipaggio).',
-  lunghezza: 'Lunghezza fuori tutto (LOA): lunghezza massima della nave da prua a poppa, in metri.',
-  larghezza: 'Baglio: larghezza massima dello scafo, in metri.',
-  'anno costruzione': 'Anno di costruzione (consegna) della nave. L’età incide su rischio e frequenza delle ispezioni.',
-  stato: 'Stato operativo della nave secondo MarineTraffic (es. in servizio, in disarmo).',
-  'porto di armamento': 'Home port: porto di armamento, base amministrativa della nave. Non indica necessariamente dove si trova ora.',
+  nome: 'scrape.help.nome',
+  imo: 'scrape.help.imo',
+  nominativo: 'scrape.help.nominativo',
+  bandiera: 'scrape.help.bandiera',
+  tipo: 'scrape.help.tipo',
+  'stazza lorda': 'scrape.help.stazzaLorda',
+  'portata lorda': 'scrape.help.portataLorda',
+  lunghezza: 'scrape.help.lunghezza',
+  larghezza: 'scrape.help.larghezza',
+  'anno costruzione': 'scrape.help.annoCostruzione',
+  stato: 'scrape.help.stato',
+  'porto di armamento': 'scrape.help.portoDiArmamento',
 };
 
 function scrapeNormLabel(label) {
@@ -2267,7 +2295,8 @@ function scrapeNormLabel(label) {
     .trim();
 }
 function scrapeLabelInfo(label) {
-  return eqInfoIcon(label, SCRAPE_LABEL_GLOSSARY[scrapeNormLabel(label)]);
+  const key = SCRAPE_LABEL_GLOSSARY[scrapeNormLabel(label)];
+  return eqInfoIcon(label, key ? t(key) : null);
 }
 
 function renderScrapedData(container, data) {

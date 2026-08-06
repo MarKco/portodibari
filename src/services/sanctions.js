@@ -276,41 +276,49 @@ async function parseOpenSanctions(filePath, label, sourceKey) {
   return entries;
 }
 
-/** Insert one parsed entry into the shared lookup index (first writer wins). */
-function indexEntry(e) {
-  if (e.imo) index.byImo.set(e.imo, e);
+/** Insert one parsed entry into `target`'s lookup maps (first writer wins). */
+function indexEntry(e, target) {
+  if (e.imo) target.byImo.set(e.imo, e);
   if (e.callSign) {
     const k = normalize(e.callSign);
-    if (k.length >= 3 && !index.byCallSign.has(k)) index.byCallSign.set(k, e);
+    if (k.length >= 3 && !target.byCallSign.has(k)) target.byCallSign.set(k, e);
   }
   for (const name of [e.name, ...e.aliases]) {
     const k = normalize(name);
-    if (k.length >= 3 && !index.byName.has(k)) index.byName.set(k, e);
+    if (k.length >= 3 && !target.byName.has(k)) target.byName.set(k, e);
   }
 }
 
 /** Load every source's cached file from disk and (re)build the index. Safe to
- *  call at startup with no network — sources with no cached file are skipped. */
+ *  call at startup with no network — sources with no cached file are skipped.
+ *  Builds into local maps and swaps them into the shared `index`/`meta` only
+ *  once every source has been parsed: clearing the shared index up front (the
+ *  previous approach) left it empty for the entire — potentially multi-second —
+ *  parse of every active list, during which matchShip() kept being called with
+ *  nothing loaded, and the resulting no-match score got cached for 10 minutes
+ *  by computeRiskScoreCached. The swap itself has no `await` in between, so no
+ *  concurrent matchShip()/getStatus() call can observe a half-built index. */
 async function loadFromDisk() {
-  for (const key of Object.keys(meta)) delete meta[key]; // drop stale (e.g. disabled) sources
-  // Index incrementally and discard each source's entries afterwards, so only
-  // the (small) vessel index is retained — never every list's rows at once.
-  index.byImo.clear();
-  index.byCallSign.clear();
-  index.byName.clear();
+  const next = { byImo: new Map(), byCallSign: new Map(), byName: new Map() };
+  const nextMeta = {};
   let total = 0; // true vessel count (rows parsed), not index-key count
   for (const key of activeKeys()) {
     const src = SOURCES[key];
     if (!fs.existsSync(src.file)) continue;
     try {
       const entries = await src.parse(src.file);
-      for (const e of entries) indexEntry(e);
-      meta[key] = { vesselCount: entries.length, lastRefreshed: fs.statSync(src.file).mtime.toISOString() };
+      for (const e of entries) indexEntry(e, next);
+      nextMeta[key] = { vesselCount: entries.length, lastRefreshed: fs.statSync(src.file).mtime.toISOString() };
       total += entries.length;
     } catch (e) {
       console.error(`[SANCTIONS:${key}] parse cached file failed: ${e.message}`);
     }
   }
+  index.byImo = next.byImo;
+  index.byCallSign = next.byCallSign;
+  index.byName = next.byName;
+  for (const key of Object.keys(meta)) delete meta[key]; // drop stale (e.g. disabled) sources
+  Object.assign(meta, nextMeta);
   // Count every parsed vessel, not just those with an IMO: a list indexed only
   // by name/call sign would otherwise return 0 and trigger a needless refresh.
   if (total) console.log(`[SANCTIONS] Loaded ${total} listed vessels from cache`);

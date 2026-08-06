@@ -48,6 +48,14 @@ const flagIndex = new Map();
 const banned = { byImo: new Map(), byName: new Map() };
 const meta = { flags: {}, banned: { count: 0, lastRefreshed: null } };
 
+// The Paris MoU banned-vessels list (the only caller, see BANNED.url below) is
+// real bulk data, unlike a scraped HTML page — generous cap, still bounded
+// instead of growing until OOM on a ~256MB heap. `timeout` below is
+// socket-inactivity only — see scrapers/http.js for why an absolute deadline
+// is also needed.
+const MAX_BODY_BYTES = 20 * 1024 * 1024;
+const ABS_DEADLINE_MS = 45000;
+
 /** Download a URL over HTTPS following redirects, resolving to the body text. */
 function download(url, depth = 0) {
   if (depth > 4) return Promise.reject(new Error('Too many redirects'));
@@ -73,8 +81,16 @@ function download(url, depth = 0) {
           return;
         }
         let body = '';
+        let bytes = 0;
         res.setEncoding('utf8');
-        res.on('data', (c) => (body += c));
+        res.on('data', (c) => {
+          bytes += Buffer.byteLength(c, 'utf8');
+          if (bytes > MAX_BODY_BYTES) {
+            req.destroy(new Error('Response body too large'));
+            return;
+          }
+          body += c;
+        });
         res.on('end', () => resolve(body));
       }
     );
@@ -83,6 +99,8 @@ function download(url, depth = 0) {
       req.destroy();
       reject(new Error('Timeout'));
     });
+    const deadline = setTimeout(() => req.destroy(new Error('Deadline exceeded')), ABS_DEADLINE_MS);
+    req.on('close', () => clearTimeout(deadline));
     req.end();
   });
 }

@@ -86,6 +86,16 @@ async function fetchSource(ship, source) {
   }
 }
 
+// fetchSource's own try/catch only covers the awaited crawl — a throw from the
+// synchronous checks BEFORE it (alreadyResolved's DB reads: SQLITE_BUSY during a
+// backup/restore/VACUUM) still rejects the promise it returns. Called
+// fire-and-forget from the AIS hot path with no caller-side await, so on Node 22
+// that unhandled rejection would kill the whole process. `.catch()` here is
+// the backstop.
+function catchFetch(ship, source) {
+  return (e) => appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: sourceName(source), name: ship.ship_name || ship.mmsi, error: e.message }), { mmsi: ship.mmsi });
+}
+
 /**
  * Trigger background enrichment for a newly-detected ship. Queries only the
  * sources the user enabled, and only when nothing is cached yet. Returns
@@ -96,11 +106,11 @@ function enrichNewShip(mmsi) {
   if (!state.importVfData && !state.importMtData && !state.importSfData && !state.importMstData && !gfwOn) return;
   const ship = db.getShip(mmsi);
   if (!ship) return;
-  if (state.importVfData) fetchSource(ship, 'vf');
-  if (state.importMtData) fetchSource(ship, 'mt');
-  if (state.importSfData) fetchSource(ship, 'sf');
-  if (state.importMstData) fetchSource(ship, 'mst');
-  if (gfwOn) fetchSource(ship, 'gfw');
+  if (state.importVfData) fetchSource(ship, 'vf').catch(catchFetch(ship, 'vf'));
+  if (state.importMtData) fetchSource(ship, 'mt').catch(catchFetch(ship, 'mt'));
+  if (state.importSfData) fetchSource(ship, 'sf').catch(catchFetch(ship, 'sf'));
+  if (state.importMstData) fetchSource(ship, 'mst').catch(catchFetch(ship, 'mst'));
+  if (gfwOn) fetchSource(ship, 'gfw').catch(catchFetch(ship, 'gfw'));
 }
 
 /**
@@ -119,7 +129,7 @@ async function enrichAllExisting(source) {
     queued++;
     // stagger requests: 2 s gap between each to avoid hammering scrapers
     await new Promise((r) => setTimeout(r, 2000));
-    fetchSource(ship, source); // fire-and-forget per ship
+    fetchSource(ship, source).catch(catchFetch(ship, source)); // fire-and-forget per ship
   }
   console.log(`[ENRICH:${source}] Backfill queued ${queued} fetches`);
 }
@@ -141,7 +151,7 @@ async function enrichActiveShips(source) {
     if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed
     queued++;
     await new Promise((r) => setTimeout(r, 2000));
-    fetchSource(ship, source); // fire-and-forget per ship
+    fetchSource(ship, source).catch(catchFetch(ship, source)); // fire-and-forget per ship
   }
   console.log(`[ENRICH:${source}] Active-only enrichment queued ${queued} fetches`);
 }

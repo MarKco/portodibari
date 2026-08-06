@@ -62,6 +62,12 @@ const ISO3_TO_NAME = {
 
 const flagName = (iso3) => (iso3 ? ISO3_TO_NAME[iso3.toUpperCase()] || iso3 : null);
 
+// A GFW JSON response is a few KB at most; generous cap against a runaway
+// response. `timeout` below is socket-inactivity only — see http.js for why an
+// absolute deadline is also needed on a ~256MB heap.
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+const ABS_DEADLINE_MS = 45000;
+
 /** GET a GFW endpoint with the Bearer token, following redirects, parsing JSON.
  *  Rejects with a clear message on 401 (bad/expired token), 429 (rate limit) and
  *  other non-2xx statuses. */
@@ -88,8 +94,16 @@ function getJson(url, depth = 0) {
           return;
         }
         let body = '';
+        let bytes = 0;
         res.setEncoding('utf8');
-        res.on('data', (c) => (body += c));
+        res.on('data', (c) => {
+          bytes += Buffer.byteLength(c, 'utf8');
+          if (bytes > MAX_BODY_BYTES) {
+            req.destroy(new Error('Risposta GFW troppo grande'));
+            return;
+          }
+          body += c;
+        });
         res.on('end', () => {
           if (res.statusCode === 401 || res.statusCode === 403) {
             return reject(new Error('Token GFW non valido o scaduto (HTTP ' + res.statusCode + ')'));
@@ -113,6 +127,8 @@ function getJson(url, depth = 0) {
       req.destroy();
       reject(new Error('Timeout GFW'));
     });
+    const deadline = setTimeout(() => req.destroy(new Error('Deadline GFW superata')), ABS_DEADLINE_MS);
+    req.on('close', () => clearTimeout(deadline));
     req.end();
   });
 }

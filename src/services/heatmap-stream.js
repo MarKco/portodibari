@@ -84,15 +84,29 @@ function isCollectingDesired() {
 function connect() {
   if (s.wsClient || !isEnabled()) return;
   s.active = true;
+  // Reset HERE, before the socket even opens — not in the 'open' handler. The
+  // close handler below reads msgReceived to decide "did the PREVIOUS session
+  // deliver data?" for backoff purposes. If the reconnection attempt is itself
+  // rejected (503, socket hang up) before 'open' ever fires, msgReceived still
+  // held the last session's count, so close saw "all fine" and backoff never
+  // escalated past 5s — an infinite fast-reconnect loop into a bad key/account.
+  s.bytesReceived = 0;
+  s.msgReceived = 0;
   traceKey(HEATMAP_API_KEY, 'heatmap', 'WS_OPEN', { riconnessione: s.reconnectCount });
-  s.wsClient = new WebSocket(AIS_URL);
+  // Bind every handler to THIS socket instance and guard on it (same pattern as
+  // ais-stream.js/ship-follow.js): an error→close sequence firing on a socket
+  // that a newer connect() has already superseded must never mutate the shared
+  // state of the current one — that race orphaned a still-open socket while a
+  // second one took its place, permanently wasting one of the account's
+  // connection slots.
+  const ws = new WebSocket(AIS_URL);
+  s.wsClient = ws;
 
-  s.wsClient.on('open', () => {
+  ws.on('open', () => {
+    if (s.wsClient !== ws) return;
     traceKey(HEATMAP_API_KEY, 'heatmap', 'OPEN_OK');
     console.log('[AIS:heatmap] Stream globale connesso');
     s.connectedAt = Date.now();
-    s.bytesReceived = 0;
-    s.msgReceived = 0;
     s.lastSample = { t: Date.now(), bytes: 0, msgs: 0 };
     if (s.isFirstConnect) s.isFirstConnect = false;
     else s.reconnectCount++;
@@ -133,7 +147,8 @@ function connect() {
     }, 60000);
   });
 
-  s.wsClient.on('message', (data) => {
+  ws.on('message', (data) => {
+    if (s.wsClient !== ws) return;
     s.bytesReceived += data.length || 0;
     let parsed;
     try {
@@ -172,7 +187,8 @@ function connect() {
     s.msgReceived++;
   });
 
-  s.wsClient.on('close', (code) => {
+  ws.on('close', (code) => {
+    if (s.wsClient !== ws) return; // a superseded socket closing; ignore
     traceKey(HEATMAP_API_KEY, 'heatmap', `CLOSE(${code})`, s.abuseReason ? { problema: s.abuseReason } : undefined);
     console.log(`[AIS:heatmap] Connessione chiusa (${code})`);
     clearInterval(s.heartbeatTimer);
@@ -222,7 +238,8 @@ function connect() {
     }
   });
 
-  s.wsClient.on('error', (err) => {
+  ws.on('error', (err) => {
+    if (s.wsClient !== ws) return;
     console.error('[AIS:heatmap] WS error:', err.message);
     s.lastError = err.message;
     s.lastErrorAt = new Date().toISOString();
@@ -233,8 +250,12 @@ function connect() {
     broadcastLog(
       db.insertLog({ method: 'AIS', path: '/ais/heatmap/ws-error', status: 500, duration_ms: 0, response_body: err.message })
     );
-    s.wsClient?.terminate();
-    s.wsClient = null;
+    // Terminate and let THIS socket's 'close' handler run the single teardown +
+    // reconnect path. Do NOT null s.wsClient here: keeping it set until close
+    // blocks a concurrent connect() from opening a second socket in the gap, and
+    // lets the (now-guarded) close handler still recognize this as the current
+    // socket and actually schedule the reconnect.
+    ws.terminate();
   });
 }
 

@@ -1531,22 +1531,22 @@ function formatFileSize(bytes) {
 function renderAutoBackupList(backups) {
   if (!el.autoBackupList) return;
   if (!backups || backups.length === 0) {
-    el.autoBackupList.innerHTML = '<p class="auto-backup-empty">Nessun backup locale disponibile.</p>';
+    el.autoBackupList.innerHTML = `<p class="auto-backup-empty">${t('settings.backup.none')}</p>`;
     return;
   }
   el.autoBackupList.innerHTML = backups.map((b) => {
     const date = new Date(b.mtime).toLocaleString();
     const size = formatFileSize(b.size);
     const isManual = b.filename.includes('-manualbackup-');
-    const label = isManual ? '🖐 Manuale' : '⏱ Auto';
+    const label = isManual ? t('settings.backup.manual') : t('settings.backup.auto');
     return `<div class="auto-backup-item">
       <div class="auto-backup-info">
         <span class="auto-backup-label${isManual ? ' manual' : ''}">${label}</span>
         <span class="auto-backup-meta">${date} &middot; ${size}</span>
       </div>
       <div class="auto-backup-actions">
-        <button class="btn-mini" data-download="${escHtml(b.filename)}" title="Scarica">⬇</button>
-        <button class="btn-mini btn-mini-clear" data-restore="${escHtml(b.filename)}">↩ Ripristina</button>
+        <button class="btn-mini" data-download="${escHtml(b.filename)}" title="${t('settings.backup.download')}">⬇</button>
+        <button class="btn-mini btn-mini-clear" data-restore="${escHtml(b.filename)}">${t('settings.backup.restore')}</button>
       </div>
     </div>`;
   }).join('');
@@ -1563,17 +1563,17 @@ async function loadAutoBackups() {
 }
 
 function showBackupRestoreDialog(filename) {
-  el.modalTitle.textContent = 'Ripristina backup';
+  el.modalTitle.textContent = t('settings.backup.restoreTitle');
   el.modalBody.innerHTML = `
-    <p style="margin-bottom:1rem">Scegli cosa ripristinare da:<br><strong>${escHtml(filename)}</strong></p>
+    <p style="margin-bottom:1rem">${t('settings.backup.restoreChoose')}<br><strong>${escHtml(filename)}</strong></p>
     <div class="restore-parts">
-      <label class="restore-part-row"><input type="checkbox" id="rp-db" checked> <span>Database (letture AIS, navi, eventi porto)</span></label>
-      <label class="restore-part-row"><input type="checkbox" id="rp-areas" checked> <span>Aree di monitoraggio</span></label>
-      <label class="restore-part-row"><input type="checkbox" id="rp-settings" checked> <span>Impostazioni</span></label>
+      <label class="restore-part-row"><input type="checkbox" id="rp-db" checked> <span>${t('settings.backup.partDb')}</span></label>
+      <label class="restore-part-row"><input type="checkbox" id="rp-areas" checked> <span>${t('settings.backup.partAreas')}</span></label>
+      <label class="restore-part-row"><input type="checkbox" id="rp-settings" checked> <span>${t('settings.backup.partSettings')}</span></label>
     </div>
     <div class="restore-dialog-actions">
-      <button id="btn-cancel-restore" class="btn btn-secondary">Annulla</button>
-      <button id="btn-confirm-restore" class="btn btn-clear">↩ Ripristina selezionati</button>
+      <button id="btn-cancel-restore" class="btn btn-secondary">${t('settings.backup.cancel')}</button>
+      <button id="btn-confirm-restore" class="btn btn-clear">${t('settings.backup.restoreSelected')}</button>
     </div>`;
 
   document.getElementById('btn-cancel-restore').addEventListener('click', () => {
@@ -1587,14 +1587,14 @@ function showBackupRestoreDialog(filename) {
     if (document.getElementById('rp-settings')?.checked) parts.push('settings');
     if (parts.length === 0) { alert(t('error.selectPart')); return; }
 
-    const partsLabel = { db: 'database', areas: 'aree', settings: 'impostazioni' };
+    const partsLabel = { db: t('settings.backup.dbShort'), areas: t('settings.backup.areasShort'), settings: t('settings.backup.settingsShort') };
     const partsStr = parts.map((p) => partsLabel[p]).join(', ');
-    if (!confirm(`Ripristinare ${partsStr} dal backup?\nL'operazione è irreversibile.`)) return;
+    if (!confirm(t('settings.backup.confirmRestore', { parts: partsStr }))) return;
 
     const btn = document.getElementById('btn-confirm-restore');
     const prev = btn.textContent;
     btn.disabled = true;
-    btn.textContent = '⏳ Ripristino…';
+    btn.textContent = t('settings.backup.restoring');
 
     try {
       const r = await api(`/api/backups/${encodeURIComponent(filename)}/restore`, 'POST', { parts });
@@ -1603,13 +1603,13 @@ function showBackupRestoreDialog(filename) {
       let msg = '';
       if (r.counts) {
         const total = Object.values(r.counts).reduce((a, b) => a + b, 0);
-        msg += `${total.toLocaleString()} righe database importate. `;
+        msg += t('settings.backup.doneRows', { n: total.toLocaleString() });
       }
       if (r.areas) {
         const n = (r.areas.added?.length || 0) + (r.areas.updated?.length || 0);
-        msg += `${n} aree ripristinate.`;
+        msg += t('settings.backup.doneAreas', { n });
       }
-      showAlert('Ripristino completato', msg.trim());
+      showAlert(t('settings.backup.doneTitle'), msg.trim());
       await loadSettings();
       if (parts.includes('areas')) window.dispatchEvent(new CustomEvent('areas-changed'));
       tick();

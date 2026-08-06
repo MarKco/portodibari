@@ -6,6 +6,15 @@ const { curly } = require('node-libcurl');
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+// A ship details page is a few hundred KB at most; this is a generous cap
+// against a runaway/anti-bot response, not a realistic expectation.
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+// `timeout` below only measures socket INACTIVITY: a slow drip that keeps
+// sending a few bytes just often enough never goes idle long enough to trip
+// it, and `body +=` would grow unbounded on a ~256MB heap. This is a hard
+// deadline on the whole request regardless of activity.
+const ABS_DEADLINE_MS = 20000;
+
 /** GET a URL over HTTPS, following up to 3 redirects, returning the body text. */
 function fetchHttp(url, depth = 0) {
   if (depth > 3) return Promise.reject(new Error('Too many redirects'));
@@ -40,8 +49,14 @@ function fetchHttp(url, depth = 0) {
         return;
       }
       let body = '';
+      let bytes = 0;
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
+        bytes += Buffer.byteLength(chunk, 'utf8');
+        if (bytes > MAX_BODY_BYTES) {
+          req.destroy(new Error('Response body too large'));
+          return;
+        }
         body += chunk;
       });
       res.on('end', () => resolve(body));
@@ -51,6 +66,8 @@ function fetchHttp(url, depth = 0) {
       req.destroy();
       reject(new Error('Timeout'));
     });
+    const deadline = setTimeout(() => req.destroy(new Error('Deadline exceeded')), ABS_DEADLINE_MS);
+    req.on('close', () => clearTimeout(deadline));
     req.end();
   });
 }
