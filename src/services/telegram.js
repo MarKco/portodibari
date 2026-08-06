@@ -481,11 +481,20 @@ function mapLink(lat, lon, lang) {
 }
 
 // ── Public notify helpers (called from the event sources) ────────────────────
+// All fire-and-forget: callers never await these. sendToUser's own try/catch
+// (above) only covers the network call — a synchronous throw before it (e.g.
+// SQLITE_BUSY from one of the DB reads) still rejects the returned promise, and
+// on Node 22 an unhandled rejection kills the whole process. `.catch()` here is
+// the backstop; a caller-side `try { } catch { }` around a fire-and-forget async
+// call cannot substitute for it (it can't catch a rejection that arrives later).
+function onTelegramSendError(e) {
+  appLog.warn('TELEGRAM', appLog.t('telegram.send_failed', { error: e.message }));
+}
 function notifyShipEvent(userId, type, params) {
-  sendToUser(userId, type, type, params);
+  return sendToUser(userId, type, type, params).catch(onTelegramSendError);
 }
 function notifyBerth(userId, type, params) {
-  sendToUser(userId, type, type, params);
+  return sendToUser(userId, type, type, params).catch(onTelegramSendError);
 }
 // Ship-to-ship rendezvous: two pins + a connecting line, centred on the midpoint.
 function notifyProximity(userId, params) {
@@ -493,21 +502,21 @@ function notifyProximity(userId, params) {
     { lat: params.latA, lon: params.lonA },
     { lat: params.latB, lon: params.lonB },
   ];
-  sendToUser(userId, 'proximity', 'proximity', { ...params, mapPoints });
+  return sendToUser(userId, 'proximity', 'proximity', { ...params, mapPoints }).catch(onTelegramSendError);
 }
 function notifyAreaMonitor(userId, action, params) {
-  sendToUser(userId, 'area_monitor', action === 'stop' ? 'area_stop' : 'area_start', params);
+  return sendToUser(userId, 'area_monitor', action === 'stop' ? 'area_stop' : 'area_start', params).catch(onTelegramSendError);
 }
 // Group activity (see group-sync.js notifyGroupActivity): no coordinates, plain text.
 function notifyGroupActivity(userId, type, params) {
-  sendToUser(userId, type, type, params);
+  return sendToUser(userId, type, type, params).catch(onTelegramSendError);
 }
 /** Outage is a global event: fan out to every linked user whose outage toggle is
  *  on. `phase` is 'start' | 'end'. */
 function broadcastOutage(phase, params) {
   if (!isConfigured()) return;
   for (const uid of db.getTelegramLinkedUserIds()) {
-    sendToUser(uid, 'outage', phase === 'end' ? 'outage_end' : 'outage_start', params || {});
+    sendToUser(uid, 'outage', phase === 'end' ? 'outage_end' : 'outage_start', params || {}).catch(onTelegramSendError);
   }
 }
 

@@ -1025,6 +1025,10 @@ function seedDefaultAdmin({ username = 'admin', email = 'admin@local', password 
   });
 }
 
+function hasAnyAdmin() {
+  return !!db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+}
+
 // ── Area catalog & per-user ownership ────────────────────────────────────────
 
 const getAllAreasStmt = db.prepare('SELECT * FROM areas ORDER BY created_at ASC, key ASC');
@@ -1554,12 +1558,13 @@ function autoStopStaleFollowsAll(hours) {
     )
     .all(`-${hours} hours`, `-${hours} hours`);
   if (stale.length) {
+    // Per (user_id, mmsi), not deduped by mmsi alone: the SELECT above already
+    // scopes staleness to each user's own follow_started_at, but an UPDATE keyed
+    // only on mmsi would stop the follow for EVERY user following that ship —
+    // including one whose own follow just started and isn't stale at all.
     const now = new Date().toISOString();
-    const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ?, search_mode = 0 WHERE mmsi = ? AND followed = 1');
-    const seen = new Set();
-    for (const s of stale) {
-      if (!seen.has(s.mmsi)) { stmt.run(now, s.mmsi); seen.add(s.mmsi); }
-    }
+    const stmt = db.prepare('UPDATE user_follows SET followed = 0, follow_ended_at = ?, search_mode = 0 WHERE user_id = ? AND mmsi = ? AND followed = 1');
+    for (const s of stale) stmt.run(now, s.user_id, s.mmsi);
   }
   return stale;
 }
@@ -3210,13 +3215,19 @@ function deleteAll(area) {
     db.prepare('DELETE FROM moorings WHERE area = ?').run(area);
     db.prepare('DELETE FROM berths WHERE area = ?').run(area);
     if (mmsis.length) {
+      // Scoped to ORPHANED rows only (tagged to an area no longer in the catalog,
+      // or the untagged legacy sentinel) — not "any row for this mmsi". A ship
+      // last seen in the deleted area can still carry months of readings/events
+      // tagged to a DIFFERENT area that still exists and is owned by someone
+      // else; an unscoped `WHERE mmsi = ?` used to wipe that history too. No
+      // area column on risk_history/ship_scrape_cache, so they're left for the
+      // daily pruneOrphans() sweep, which correctly keys off "ship no longer in
+      // `ships`" instead (true here, since the ships row was just deleted above).
       const purge = db.transaction((ids) => {
         const stmts = [
-          db.prepare('DELETE FROM readings WHERE mmsi = ?'),
-          db.prepare('DELETE FROM port_events WHERE mmsi = ?'),
-          db.prepare('DELETE FROM risk_history WHERE mmsi = ?'),
-          db.prepare('DELETE FROM moorings WHERE mmsi = ?'),
-          db.prepare('DELETE FROM ship_scrape_cache WHERE mmsi = ?'),
+          db.prepare("DELETE FROM readings WHERE mmsi = ? AND (area = '' OR area NOT IN (SELECT key FROM areas))"),
+          db.prepare("DELETE FROM port_events WHERE mmsi = ? AND (area = '' OR area NOT IN (SELECT key FROM areas))"),
+          db.prepare('DELETE FROM moorings WHERE mmsi = ? AND area NOT IN (SELECT key FROM areas)'),
         ];
         for (const m of ids) for (const s of stmts) s.run(m);
       });
@@ -3642,6 +3653,7 @@ module.exports = {
   setSessionImpersonation,
   pruneExpiredSessions,
   seedDefaultAdmin,
+  hasAnyAdmin,
   // Groups
   createGroup,
   getGroups,

@@ -728,6 +728,7 @@ router.get('/replay', (req, res) => {
 router.patch('/ships/:mmsi/flag', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { flagged } = req.body;
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   db.setUserFlag(req.user.id, mmsi, !!flagged);
   groupSync.syncFlag(req.user.id, mmsi, !!flagged); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.flag', { on: !!flagged }), { mmsi });
@@ -773,6 +774,7 @@ router.patch('/ships/:mmsi/seen', (req, res) => {
 router.patch('/ships/:mmsi/notif-muted', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   const { notif_muted } = req.body;
+  if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
   db.setUserMute(req.user.id, mmsi, !!notif_muted);
   groupSync.syncMute(req.user.id, mmsi, !!notif_muted); // mirror to group co-members
   appLog.info('SHIP', appLog.t('ship.notif_muted', { on: !!notif_muted }), { mmsi });

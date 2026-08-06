@@ -85,7 +85,10 @@ function fetchTileBuffer(url) {
       res.on('end', () => resolve(Buffer.concat(chunks)));
     });
     req.on('error', () => resolve(null));
-    req.setTimeout(FETCH_TIMEOUT_MS, () => req.destroy());
+    // destroy() with no argument fires no 'error' event (only destroy(err) does),
+    // so a stalled request left the promise pending forever, permanently holding
+    // the render concurrency gate. Passing an Error makes 'error' fire above.
+    req.setTimeout(FETCH_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
   });
 }
 

@@ -104,6 +104,18 @@ app.listen(PORT, () => {
   // its global data must land on the admin account. migrateMultiUser is
   // idempotent + self-retiring, so it is safe to run on every boot.
   const admin = db.findUserByLogin(DEFAULT_ADMIN_USERNAME);
+  // Refuse to run rather than ever create the built-in admin with an empty/weak
+  // password: seedDefaultAdmin() above silently no-ops when DEFAULT_ADMIN_PASSWORD
+  // is unset, so a deploy that forgot to configure ADMIN_PASSWORD would otherwise
+  // boot with NO admin account at all — worse, before this check existed, a
+  // hardcoded fallback password shipped in the committed source filled that gap.
+  // A restore that brought back a valid admin (or any pre-existing admin under a
+  // different username) always satisfies hasAnyAdmin() and skips this.
+  if (!admin && !DEFAULT_ADMIN_PASSWORD && !db.hasAnyAdmin()) {
+    appLog.error('AUTH', 'ADMIN_PASSWORD non configurata in local.properties: nessun amministratore esiste e non ne verrà creato uno con password debole/vuota. Imposta ADMIN_PASSWORD e riavvia.');
+    console.error('[AUTH] ADMIN_PASSWORD non configurata: avvio interrotto per sicurezza.');
+    process.exit(1);
+  }
   syncAreasWithDb(admin ? admin.id : null);
   if (admin) {
     const m = db.migrateMultiUser(admin.id);

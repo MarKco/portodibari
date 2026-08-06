@@ -122,7 +122,7 @@ La configurazione sta nel file `local.properties` nella root (formato `CHIAVE=va
 | `TELEGRAM_BOT_TOKEN` | Token del bot Telegram (da [@BotFather](https://t.me/BotFather)) per le notifiche su Telegram. Un solo bot serve tutti gli utenti; ognuno collega la propria chat dalle Impostazioni → tab **Integrazioni esterne**. Vuoto = bot disattivato. **Segreto, non committare.** Nessun URL pubblico/webhook: l'app fa long-polling | *(vuoto)* |
 | `ADMIN_USERNAME` | Username dell'amministratore predefinito, ri-seedato all'avvio se assente (vedi [Autenticazione](#-autenticazione-multi-utente)) | `admin` |
 | `ADMIN_EMAIL` | Email dell'amministratore predefinito | `admin@local` |
-| `ADMIN_PASSWORD` | Password dell'amministratore predefinito. Se vuota usa il valore di default incluso nell'app | *(default incluso)* |
+| `ADMIN_PASSWORD` | Password dell'amministratore predefinito, **obbligatoria alla prima creazione dell'account** (nessun default incluso nel codice: un deploy senza questa chiave e senza admin preesistente **non parte**, vedi sotto) | *(obbligatoria)* |
 | `COOKIE_SECURE` | Forza sempre il flag `Secure` sul cookie di sessione. **Di norma non serve**: il flag è applicato **automaticamente** quando la richiesta arriva in HTTPS (`X-Forwarded-Proto`). Impostare a `true` solo se il proxy termina il TLS ma **non** inoltra `X-Forwarded-Proto`. Lasciare `false` per deploy in chiaro/locali, altrimenti il browser scarta il cookie e il login non funziona (`true`/`false`) | `false` |
 | `SESSION_TTL_DAYS` | Durata in giorni della sessione di login | `30` |
 | `HEATMAP_AIS_API_KEY` | API key di un **account AISStream separato** per la Mappa delle zone coperte (vedi [sezione dedicata](#-mappa-delle-zone-coperte-copertura-aisstream)). Vuota = funzione disattivata. Valore nudo, niente commenti inline. | *(vuota)* |
@@ -952,7 +952,7 @@ Esistono due ruoli: **utente** (normale) e **amministratore**. Ci si registra se
 
 ### Amministratore predefinito
 
-Un amministratore **è sempre presente**: all'avvio viene **creato se mancante**. Credenziali di default: username `admin`, password `v*ZG!S@GE2^yK^`, configurabili in `local.properties` (file gitignored, mai committato):
+Un amministratore **viene creato se mancante** all'avvio, con username `admin` e la password letta da `ADMIN_PASSWORD` in `local.properties` (file gitignored, mai committato):
 
 ```properties
 ADMIN_USERNAME=admin
@@ -962,7 +962,9 @@ COOKIE_SECURE=false      # → true quando servi su HTTPS
 SESSION_TTL_DAYS=30
 ```
 
-Il login accetta indifferentemente **lo username oppure l'email**. Cambia la password di default al primo avvio in qualsiasi deployment non locale.
+Il login accetta indifferentemente **lo username oppure l'email**.
+
+> ⚠️ **`ADMIN_PASSWORD` non ha più un valore di default nel codice.** Se `ADMIN_PASSWORD` non è configurata (né in `local.properties` né come variabile d'ambiente) **e** non esiste già nessun account admin (primo avvio su DB vuoto, o restore di un backup senza utenti), il boot **si interrompe** con un errore in log — niente admin viene mai creato con una password debole o vuota. Configura `ADMIN_PASSWORD` e riavvia. Se un admin esiste già (anche sotto un altro username), il boot procede normalmente indipendentemente da questa chiave.
 
 > ⚠️ **Comportamento della password admin.** Il seed è **idempotente**: se l'account admin **esiste già**, all'avvio **non** viene toccato. `ADMIN_PASSWORD` vale quindi **solo alla prima creazione** dell'account. Una password cambiata dall'interfaccia (o via reset) **persiste** e non viene più sovrascritta ai riavvii successivi. *(In precedenza il seed reimpostava la password al valore di `ADMIN_PASSWORD`/default a ogni boot, annullando i cambi fatti dall'UI e, senza `ADMIN_PASSWORD` esplicita, lasciando l'account sulla password pubblica di default.)* Conseguenza pratica: dopo aver **importato un backup di un'altra istanza**, l'admin login diventa quello **contenuto nel backup**; per cambiarlo, entra (la tua sessione resta valida, vedi Backup/ripristino) e imposta una nuova password dall'UI — ora resta.
 

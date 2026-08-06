@@ -119,7 +119,7 @@ Configuration lives in the `local.properties` file at the project root (format `
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (from [@BotFather](https://t.me/BotFather)) for Telegram notifications. A single bot serves all users; each links their own chat from Settings → **External integrations** tab. Empty = bot off. **Secret, do not commit.** No public URL/webhook needed: the app long-polls | *(empty)* |
 | `ADMIN_USERNAME` | Username of the built-in administrator, re-seeded at startup if missing (see [Authentication](#-authentication-multi-user)) | `admin` |
 | `ADMIN_EMAIL` | Email of the built-in administrator | `admin@local` |
-| `ADMIN_PASSWORD` | Password of the built-in administrator. If empty, the shipped default value is used | *(shipped default)* |
+| `ADMIN_PASSWORD` | Password of the built-in administrator, **required for the account's first creation** (no built-in default: a deploy missing this key with no pre-existing admin **refuses to start**, see below) | *(required)* |
 | `COOKIE_SECURE` | Send the session cookie over HTTPS only — set to `true` behind TLS (`true`/`false`) | `false` |
 | `SESSION_TTL_DAYS` | Session (login) lifetime in days | `30` |
 
@@ -879,7 +879,7 @@ There are two roles: **user** (normal) and **admin**. Everyone registers as a no
 
 ### Built-in administrator
 
-A built-in administrator is **always present** (re-seeded at startup if missing). Default credentials: username `admin`, password `v*ZG!S@GE2^yK^`, configurable in `local.properties` (gitignored, never committed):
+A built-in administrator is **created at startup if missing**, with username `admin` and the password read from `ADMIN_PASSWORD` in `local.properties` (gitignored, never committed):
 
 ```properties
 ADMIN_USERNAME=admin
@@ -889,7 +889,9 @@ COOKIE_SECURE=false      # → true when serving over HTTPS
 SESSION_TTL_DAYS=30
 ```
 
-Login accepts **either the username or the email**. Change the default password on first startup in any non-local deployment.
+Login accepts **either the username or the email**.
+
+> ⚠️ **`ADMIN_PASSWORD` no longer has a default value in the code.** If `ADMIN_PASSWORD` is not configured (neither in `local.properties` nor as an environment variable) **and** no admin account exists yet (first boot on an empty DB, or restoring a backup with no users), the boot **stops** with a log error — no admin is ever created with a weak or empty password. Configure `ADMIN_PASSWORD` and restart. If an admin already exists (even under a different username), boot proceeds normally regardless of this key.
 
 ### Per-user vs global data
 

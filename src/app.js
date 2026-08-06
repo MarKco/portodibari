@@ -16,7 +16,16 @@ const { setUiLang } = require('./config');
 function createApp() {
   const app = express();
   // Behind a reverse proxy: trust X-Forwarded-* so req.ip / secure cookies work.
-  app.set('trust proxy', true);
+  // 'loopback' (not `true`, which trusts EVERY hop unconditionally) trusts
+  // X-Forwarded-* only when the direct TCP connection reaching Node comes from
+  // 127.0.0.1/::1 — i.e. a reverse proxy running on the same host (Nginx, Caddy,
+  // a locally-forwarding Cloudflare Tunnel — the setups this project documents).
+  // With `true`, any client could set its own X-Forwarded-For and get req.ip
+  // (and the login/register rate limiter, which keys on req.ip) to read
+  // whatever it wants, bypassing the limiter entirely. If Node is instead
+  // exposed directly with no local proxy, 'loopback' is a no-op: no connection
+  // arrives from loopback, so req.ip stays the real socket peer either way.
+  app.set('trust proxy', 'loopback');
 
   // Security response headers on everything (login page + static assets too).
   app.use(securityHeaders);
@@ -25,14 +34,6 @@ function createApp() {
 
   // Resolve the session cookie → req.user on every request (never blocks).
   app.use(sessionAuth.attachUser);
-
-  // Mirror the browser's active language (sent as ?lang= on every API call) so
-  // the operational log — including background events with no request — writes
-  // in whatever language the app is currently showing.
-  app.use('/api', (req, res, next) => {
-    if (req.query.lang) setUiLang(req.query.lang);
-    next();
-  });
 
   // Log + broadcast every API call (auth endpoints included; their bodies are
   // suppressed by the logger's NO_BODY_LOG list so passwords never persist).
@@ -73,6 +74,16 @@ function createApp() {
 
   // Global gate: everything past here requires an active session.
   app.use(sessionAuth.gate);
+
+  // Mirror the browser's active language (sent as ?lang= on every API call) so
+  // the operational log — including background events with no request — writes
+  // in whatever language the app is currently showing. Moved after the gate: an
+  // unauthenticated ?lang= used to reach setUiLang() → a synchronous rewrite of
+  // local.properties on every request, with no session required.
+  app.use('/api', (req, res, next) => {
+    if (req.query.lang) setUiLang(req.query.lang);
+    next();
+  });
 
   // Read-only impersonation: block state-changing requests while an admin views
   // another user's world (admin/auth surfaces stay open so they can exit).

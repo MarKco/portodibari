@@ -155,7 +155,7 @@ Contains the API key and initial preferences. Format `KEY=value`, one per line. 
 | `EQUASIS_USER` / `EQUASIS_PASSWORD` | Equasis account credentials (free registration at equasis.org) |
 | `IMPORT_GFW` | `true`/`false` — Global Fishing Watch enrichment; **default `true`** |
 | `GLOBAL_FISHING_WATCH_TOKEN` | Global Fishing Watch API (Bearer) token. Data free for non-commercial use only |
-| `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Default administrator (re-created at startup if missing). **Change the password** on a server reachable by others |
+| `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Default administrator (created at startup if missing). **`ADMIN_PASSWORD` is required**: if it isn't configured and no admin exists yet, startup stops with an error instead of creating an account with a weak password. **Change the password** on a server reachable by others |
 | `COOKIE_SECURE` | `true`/`false` — sends the session cookie only over HTTPS; set to `true` behind TLS |
 | `SESSION_TTL_DAYS` | Login session length in days. Default `30` |
 

@@ -569,7 +569,10 @@
         <tr class="odd">
         <td><code>ADMIN_USERNAME</code> / <code>ADMIN_EMAIL</code> /
         <code>ADMIN_PASSWORD</code></td>
-        <td>Default administrator (re-created at startup if missing).
+        <td>Default administrator (created at startup if missing).
+        <strong><code>ADMIN_PASSWORD</code> is required</strong>: if it
+        isn’t configured and no admin exists yet, startup stops with an
+        error instead of creating an account with a weak password.
         <strong>Change the password</strong> on a server reachable by
         others</td>
         </tr>

@@ -120,10 +120,19 @@ function getCells() {
 }
 
 // Snap a requested cell size (deg) to an achievable integer aggregation factor.
+// A non-finite/non-positive level (0, negative, NaN from a bad query param) used
+// to collapse to factor 1 — the FINEST possible grid — instead of a safe default.
+const DEFAULT_LEVEL_DEG = 1.0;
 function factorFor(level) {
-  const want = Number(level) > 0 ? Number(level) / GRID : 1;
+  const n = Number(level);
+  const want = Number.isFinite(n) && n > 0 ? n / GRID : DEFAULT_LEVEL_DEG / GRID;
   return Math.min(MAX_FACTOR, Math.max(1, Math.round(want)));
 }
+
+// Requests with no bbox (world view) are reachable unauthenticated via
+// /api/heatmap/public-cells: never let one materialize the world at a fine
+// resolution, whatever `level` claims. Floors to ~DEFAULT_LEVEL_DEG-sized cells.
+const MIN_WORLDVIEW_FACTOR = Math.max(1, Math.round(DEFAULT_LEVEL_DEG / GRID));
 
 // Clamp a viewport to the world and convert to FINE index bounds (±1 cell margin
 // so partially-visible edge cells still render).
@@ -161,9 +170,9 @@ function floorDivExpr(col, f) {
  * World-view results are cached (keyed by factor + the singleton-filter flag).
  */
 function getCellsAgg({ level, bbox, hideSingletons = false } = {}) {
-  const f = factorFor(level);
-  const gridDeg = Number((f * GRID).toFixed(6));
   const worldView = !bbox;
+  const f = worldView ? Math.max(factorFor(level), MIN_WORLDVIEW_FACTOR) : factorFor(level);
+  const gridDeg = Number((f * GRID).toFixed(6));
   const cacheKey = `${f}:${hideSingletons ? 1 : 0}`;
 
   if (worldView) {

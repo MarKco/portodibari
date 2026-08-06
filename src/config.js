@@ -130,11 +130,14 @@ const maskKey = (k) => (k ? `…${String(k).slice(-4)}` : 'none');
 
 // ── Multi-user auth (sessions) ───────────────────────────────────────────────
 // Built-in administrator account, always (re)seeded at startup if absent. The
-// password defaults to the shipped value but can be overridden via
-// local.properties / env. Login accepts this username OR the synthetic email.
+// password has NO built-in default — it must come from local.properties / env.
+// A committed literal fallback here would ship the same admin password to every
+// installation that forgets to set one, in a public git history. See server.js:
+// boot refuses to start rather than ever create the admin with an empty/weak
+// password. Login accepts this username OR the synthetic email.
 const DEFAULT_ADMIN_USERNAME = props.ADMIN_USERNAME || process.env.ADMIN_USERNAME || 'admin';
 const DEFAULT_ADMIN_EMAIL = props.ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@local';
-const DEFAULT_ADMIN_PASSWORD = props.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'v*ZG!S@GE2^yK^';
+const DEFAULT_ADMIN_PASSWORD = props.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '';
 // Session cookie name + flags. The Secure flag is applied automatically on any
 // HTTPS request (see useSecureCookie in middleware/session-auth), so a TLS
 // deploy is protected without configuration. COOKIE_SECURE=true is an override

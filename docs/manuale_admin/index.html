@@ -588,9 +588,12 @@
         <tr class="odd">
         <td><code>ADMIN_USERNAME</code> / <code>ADMIN_EMAIL</code> /
         <code>ADMIN_PASSWORD</code></td>
-        <td>Amministratore predefinito (ri-creato all’avvio se manca).
-        <strong>Cambia la password</strong> su un server raggiungibile
-        da altri</td>
+        <td>Amministratore predefinito (creato all’avvio se manca).
+        <strong><code>ADMIN_PASSWORD</code> è obbligatoria</strong>: se
+        non è configurata e non esiste già nessun admin, l’avvio si
+        interrompe con un errore invece di creare un account con
+        password debole. <strong>Cambia la password</strong> su un
+        server raggiungibile da altri</td>
         </tr>
         <tr class="even">
         <td><code>COOKIE_SECURE</code></td>
