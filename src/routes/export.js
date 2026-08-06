@@ -2,6 +2,7 @@
 
 const express = require('express');
 const archiver = require('archiver');
+const { Readable } = require('stream');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -13,6 +14,7 @@ const appLog = require('../services/app-log');
 const { state, areaForPoint, exportAreas, bboxSignature, BACKUP_INTERVAL_MIN, MAX_UPLOAD_MB, syncAreasWithDb,
   DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, SESSION_TTL_DAYS } = require('../config');
 const { flattenObject, csvEscape } = require('../lib/csv');
+const { streamUploadToFile } = require('../lib/upload-stream');
 const { importAreasAndStart } = require('./areas');
 const { exportSettings, applyImportedSettings } = require('./settings');
 const { requireAdmin, setSessionCookie } = require('../middleware/session-auth');
@@ -27,7 +29,7 @@ const BUNDLE_FORMAT = 'tracker-porti-bundle';
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'data', 'backups');
 const MAX_BACKUPS = 5;
 const BACKUP_INTERVAL_MS = BACKUP_INTERVAL_MIN * 60 * 1000;
-const UPLOAD_LIMIT = `${MAX_UPLOAD_MB}mb`;
+const UPLOAD_LIMIT_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
@@ -49,6 +51,7 @@ const BUNDLE_MAGIC = 'TPB2';
 // so a restore from an old bundle leaves the current heatmap data untouched.
 const BUNDLE_MAGIC_V3 = 'TPB3';
 const COPY_CHUNK = 1 << 20; // 1 MB
+const MAX_LEGACY_V1_BYTES = 100 * 1024 * 1024; // 100 MB — see readBundleHead
 
 // Copy `srcPath[start..EOF]` to destPath synchronously, in bounded memory.
 function copySliceSync(srcPath, start, destPath) {
@@ -179,7 +182,16 @@ function readBundleHead(bundlePath) {
       fs.closeSync(fd2);
     }
   }
-  // Legacy v1: the whole file is JSON with a base64 `db`.
+  // Legacy v1: the whole file is JSON with a base64 `db` — recognizable by its
+  // first byte ('{'), unlike a v2/v3 bundle. A file with neither a recognized
+  // magic nor a JSON-looking start (e.g. a truncated/corrupted .tpbk whose
+  // header got mangled) must NOT fall into a full-file read-as-JSON: on a
+  // multi-hundred-MB file that would OOM right on the boot path meant to
+  // recover from a wiped DB. A size cap on top guards a genuinely JSON-shaped
+  // but oversized/corrupt file.
+  if (head[0] !== 0x7b /* '{' */) throw new Error('formato backup non riconosciuto');
+  const { size } = fs.statSync(bundlePath);
+  if (size > MAX_LEGACY_V1_BYTES) throw new Error('backup legacy troppo grande per essere letto in memoria');
   let payload;
   try { payload = JSON.parse(fs.readFileSync(bundlePath, 'utf8')); } catch { throw new Error('formato backup non valido'); }
   if (!payload || payload.format !== BUNDLE_FORMAT) throw new Error('formato backup non valido');
@@ -293,31 +305,37 @@ function createAndSaveBundle(label = 'auto') {
 // when the .db file was wiped by a deploy. Areas (bounding-boxes.json) and
 // settings (local.properties) survive a deploy as plain files, so they are left
 // as-is — restoring them from an older backup could regress current config.
-// Returns { filename, counts } or null when no backup is available; throws on a
-// corrupt/unreadable backup.
+// Returns { filename, counts } or null when no backup is available; throws only
+// if EVERY saved backup (newest to oldest) fails to restore.
+//
+// Tries the most recent first, but doesn't stop there: if the last automatic
+// backup was written during a crash or with a full disk (truncated/corrupt
+// header), the older ones are otherwise-healthy backups that would never be
+// tried, and a deploy would come up with an empty database — silently losing
+// every user's history on the exact path meant to prevent that.
 function restoreDbFromLatestBackup() {
   const backups = listSavedBackups();
   if (!backups.length) return null;
-  const { filename } = backups[0];
-  const filePath = path.join(BACKUP_DIR, filename);
 
-  let head;
-  try {
-    head = readBundleHead(filePath);
-  } catch (e) {
-    throw new Error(`backup non valido (${filename}): ${e.message}`);
+  const errors = [];
+  for (const { filename } of backups) {
+    const filePath = path.join(BACKUP_DIR, filename);
+    const tmp = path.join(os.tmpdir(), `tracker-porti-autorestore-${process.pid}.db`);
+    try {
+      const head = readBundleHead(filePath);
+      extractBundleDb(filePath, head, tmp); // v2: streamed slice; v1: base64 decode
+      const counts = db.restoreFrom(tmp);
+      // v3 bundles also carry the heatmap DB — restore it too (deploys wipe its file).
+      const heatmapCells = restoreBundleHeatmap(filePath, head);
+      return { filename, counts, heatmapCells };
+    } catch (e) {
+      errors.push(`${filename}: ${e.message}`);
+      appLog.error('RESTORE', `Backup non ripristinabile, provo il precedente: ${filename} — ${e.message}`);
+    } finally {
+      fs.unlink(tmp, () => {});
+    }
   }
-
-  const tmp = path.join(os.tmpdir(), `tracker-porti-autorestore-${process.pid}.db`);
-  try {
-    extractBundleDb(filePath, head, tmp); // v2: streamed slice; v1: base64 decode
-    const counts = db.restoreFrom(tmp);
-    // v3 bundles also carry the heatmap DB — restore it too (deploys wipe its file).
-    const heatmapCells = restoreBundleHeatmap(filePath, head);
-    return { filename, counts, heatmapCells };
-  } finally {
-    fs.unlink(tmp, () => {});
-  }
+  throw new Error(`nessun backup ripristinabile tra ${backups.length}: ${errors.join(' | ')}`);
 }
 
 // After any DB restore the moorings/berths tables may be stale: an older backup
@@ -401,8 +419,65 @@ function startAutoBackup() {
   }, BACKUP_INTERVAL_MS);
 }
 
-// Stream a ZIP of one CSV per AIS message type. Each row merges the flat
-// reading columns with the flattened raw AIS payload for that type.
+// Rows for one message type, oldest-batch-at-a-time (id DESC, same order as the
+// old getAllByType), for the CSV export below. Bounded to CSV_EXPORT_BATCH rows
+// in memory at once instead of the whole type's table.
+const CSV_EXPORT_BATCH = 2000;
+async function* rowsForType(type) {
+  let beforeId = null;
+  for (;;) {
+    const rows = db.getByTypePage(type, beforeId, CSV_EXPORT_BATCH);
+    if (!rows.length) return;
+    for (const r of rows) yield r;
+    beforeId = rows[rows.length - 1].id;
+  }
+}
+
+// Reading columns + the flattened raw AIS payload for that type, as one flat object.
+function flattenReading(r) {
+  const base = {
+    id: r.id,
+    received_at: r.received_at,
+    message_type: r.message_type,
+    mmsi: r.mmsi,
+    ship_name: r.ship_name,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    navigational_status: r.navigational_status,
+    sog: r.sog,
+    cog: r.cog,
+    true_heading: r.true_heading,
+  };
+  try {
+    const raw = JSON.parse(r.raw_json);
+    const msgData = raw.Message?.[r.message_type] || {};
+    Object.assign(base, flattenObject(msgData, ''));
+  } catch {
+    /* keep base columns only if raw payload is unparseable */
+  }
+  return base;
+}
+
+// CSV text for one type, as an async generator of lines: a header row (from a
+// first pass over every row, to catch every key — a message type's shape is
+// consistent in practice, but this stays exact) followed by one data row per
+// reading, walked a second time. Two passes over the DB instead of one holding
+// every row's flattened object at once, which is what actually exhausts a
+// ~256MB heap on a large table.
+async function* csvLinesForType(type) {
+  const allKeys = new Set();
+  for await (const r of rowsForType(type)) {
+    Object.keys(flattenReading(r)).forEach((k) => allKeys.add(k));
+  }
+  const headers = Array.from(allKeys);
+  yield headers.map((h) => csvEscape(h)).join(',') + '\n';
+  for await (const r of rowsForType(type)) {
+    const row = flattenReading(r);
+    yield headers.map((h) => csvEscape(row[h] ?? '')).join(',') + '\n';
+  }
+}
+
+// Stream a ZIP of one CSV per AIS message type.
 router.get('/export', (req, res) => {
   const types = db.getDistinctTypes();
   if (types.length === 0) {
@@ -417,43 +492,8 @@ router.get('/export', (req, res) => {
   archive.pipe(res);
 
   for (const type of types) {
-    const rows = db.getAllByType(type);
-    if (rows.length === 0) continue;
-
-    const allKeys = new Set();
-    const parsed = rows.map((r) => {
-      const base = {
-        id: r.id,
-        received_at: r.received_at,
-        message_type: r.message_type,
-        mmsi: r.mmsi,
-        ship_name: r.ship_name,
-        latitude: r.latitude,
-        longitude: r.longitude,
-        navigational_status: r.navigational_status,
-        sog: r.sog,
-        cog: r.cog,
-        true_heading: r.true_heading,
-      };
-      try {
-        const raw = JSON.parse(r.raw_json);
-        const msgData = raw.Message?.[type] || {};
-        const flat = flattenObject(msgData, '');
-        Object.assign(base, flat);
-      } catch {
-        /* keep base columns only if raw payload is unparseable */
-      }
-      Object.keys(base).forEach((k) => allKeys.add(k));
-      return base;
-    });
-
-    const headers = Array.from(allKeys);
-    const csvLines = [
-      headers.map((h) => csvEscape(h)).join(','),
-      ...parsed.map((row) => headers.map((h) => csvEscape(row[h] ?? '')).join(',')),
-    ];
-
-    archive.append(csvLines.join('\n'), { name: `${type}.csv` });
+    if (!db.getByTypePage(type, null, 1).length) continue;
+    archive.append(Readable.from(csvLinesForType(type)), { name: `${type}.csv` });
   }
 
   archive.finalize();
@@ -475,19 +515,32 @@ router.get('/backup', (req, res) => {
 });
 
 // Replace the whole database with an uploaded backup (.db) file.
-// The raw file is sent as the request body (application/octet-stream).
-router.post('/restore', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
-  if (!req.body || !req.body.length) {
+// The raw file is sent as the request body (application/octet-stream), streamed
+// straight to a temp file (see lib/upload-stream) instead of buffered in the heap.
+router.post('/restore', async (req, res) => {
+  const tmp = path.join(os.tmpdir(), `tracker-porti-restore-${process.pid}-${Date.now()}.db`);
+  let ok;
+  try {
+    ok = await streamUploadToFile(req, res, tmp, UPLOAD_LIMIT_BYTES);
+  } catch (e) {
+    fs.unlink(tmp, () => {});
+    return res.status(400).json({ error: `Upload fallito: ${e.message}` });
+  }
+  if (!ok) return; // response already sent (oversized or aborted upload)
+  if (!fs.existsSync(tmp) || !fs.statSync(tmp).size) {
     return res.status(400).json({ error: 'Nessun file ricevuto' });
   }
   // SQLite files start with the 16-byte magic header "SQLite format 3\0".
-  if (req.body.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
+  const head = Buffer.alloc(15);
+  const fd = fs.openSync(tmp, 'r');
+  fs.readSync(fd, head, 0, 15, 0);
+  fs.closeSync(fd);
+  if (head.toString('latin1') !== 'SQLite format 3') {
+    fs.unlink(tmp, () => {});
     return res.status(400).json({ error: 'Il file caricato non è un database SQLite valido' });
   }
 
-  const tmp = path.join(os.tmpdir(), `tracker-porti-restore-${process.pid}-${req.body.length}.db`);
   try {
-    fs.writeFileSync(tmp, req.body);
     const counts = db.restoreFrom(tmp);
     // Righe importate da un DB pre-multi-area arrivano con area='' (default
     // colonna). Assegna l'area per coordinate (fallback area corrente) e
@@ -540,15 +593,22 @@ router.get('/bundle', (req, res) => {
 // settings. The raw file is sent as the request body (large: contains the whole
 // DB), so it bypasses the global express.json() size limit. The upload is spooled
 // to disk and the DB is streamed out of it — never base64-decoded into the heap.
-router.post('/bundle/import', express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
-  if (!req.body || !req.body.length) {
+router.post('/bundle/import', async (req, res) => {
+  const tmpBundle = path.join(os.tmpdir(), `tracker-porti-bundle-upload-${process.pid}-${Date.now()}.tpbk`);
+  const tmpDb = path.join(os.tmpdir(), `tracker-porti-bundle-restore-${process.pid}.db`);
+  let ok;
+  try {
+    ok = await streamUploadToFile(req, res, tmpBundle, UPLOAD_LIMIT_BYTES);
+  } catch (e) {
+    fs.unlink(tmpBundle, () => {});
+    return res.status(400).json({ error: `Upload fallito: ${e.message}` });
+  }
+  if (!ok) return; // response already sent (oversized or aborted upload)
+  if (!fs.existsSync(tmpBundle) || !fs.statSync(tmpBundle).size) {
     return res.status(400).json({ error: 'Nessun file ricevuto' });
   }
 
-  const tmpBundle = path.join(os.tmpdir(), `tracker-porti-bundle-upload-${process.pid}.tpbk`);
-  const tmpDb = path.join(os.tmpdir(), `tracker-porti-bundle-restore-${process.pid}.db`);
   try {
-    fs.writeFileSync(tmpBundle, req.body);
     let head;
     try {
       head = readBundleHead(tmpBundle);

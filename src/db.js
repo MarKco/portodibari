@@ -95,6 +95,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_type_time ON readings(message_type, received_at DESC);
   CREATE INDEX IF NOT EXISTS idx_mmsi ON readings(mmsi);
+  CREATE INDEX IF NOT EXISTS idx_readings_received_at ON readings(received_at);
 
   CREATE TABLE IF NOT EXISTS ships (
     mmsi INTEGER PRIMARY KEY,
@@ -487,6 +488,7 @@ for (const col of [
     /* column already exists */
   }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_ships_last_area ON ships(last_area)');
 
 for (const col of ['notif_muted INTEGER NOT NULL DEFAULT 0']) {
   try {
@@ -526,6 +528,8 @@ for (const col of ["area TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec(`ALTER TABLE readings ADD COLUMN ${col}`); } catch { /* already exists */ }
   try { db.exec(`ALTER TABLE port_events ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_readings_area ON readings(area)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_port_events_area_type ON port_events(area, event_type)');
 
 // Stop evidence for a completed visit, written on the 'departed' event (see
 // checkAndLogDepartures): stop_min_sog = the lowest speed the ship broadcast
@@ -3116,6 +3120,20 @@ function getAllByType(type) {
   return db.prepare('SELECT * FROM readings WHERE message_type = ? ORDER BY id DESC').all(type);
 }
 
+// Keyset-paginated variant of getAllByType, for streaming a large export in
+// bounded memory (see routes/export.js CSV export). `beforeId` null = start
+// from the newest row; pass the last row's id from the previous page to
+// continue. Ordering matches getAllByType (id DESC) so a full walk yields the
+// same rows in the same order, just one bounded batch at a time.
+function getByTypePage(type, beforeId, limit) {
+  if (beforeId == null) {
+    return db.prepare('SELECT * FROM readings WHERE message_type = ? ORDER BY id DESC LIMIT ?').all(type, limit);
+  }
+  return db
+    .prepare('SELECT * FROM readings WHERE message_type = ? AND id < ? ORDER BY id DESC LIMIT ?')
+    .all(type, beforeId, limit);
+}
+
 // Assign an area to rows still tagged '' (legacy data collected before
 // multi-area support, or imported from an old DB). Coordinate-aware: each row
 // goes to the box that contains it; rows outside every box fall back to
@@ -3621,6 +3639,7 @@ module.exports = {
   getTotalCount,
   getDistinctTypes,
   getAllByType,
+  getByTypePage,
   tagLegacyArea,
   reconcileAreasByCoords,
   getMeta,

@@ -639,25 +639,37 @@ function isMilitary(ship) {
 // single-ship detail view keep calling the uncached computeRiskScore so they
 // always see the freshest inputs.
 const CACHE_TTL_MS = 10 * 60 * 1000;
-const CACHE_MAX = 50000; // hard cap so a flood of distinct MMSIs can't grow it unbounded
-const _cache = new Map(); // `${mmsi}:${lang}` -> { at, val }
+// Ships, not (ship,lang) pairs — LRU-evicted one at a time, not cleared whole.
+// Nested by mmsi first (Map<mmsi, Map<lang, {at,val}>>) specifically so
+// invalidateRiskCache — called from the AIS hot path on every message — is a
+// single Map.delete instead of a full scan+startsWith over every cached key,
+// which at CACHE_MAX (was 50000) meant millions of string comparisons/sec once
+// a list/stats endpoint had scored a large fleet.
+const CACHE_MAX = 5000;
+const _cache = new Map();
 
 function computeRiskScoreCached(ship, lang) {
-  const key = `${ship.mmsi}:${lang}`;
-  const hit = _cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.val;
+  const mmsi = ship.mmsi;
+  let entry = _cache.get(mmsi);
+  if (entry) {
+    _cache.delete(mmsi);
+    _cache.set(mmsi, entry); // touch: move to the most-recently-used end
+    const hit = entry.get(lang);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.val;
+  } else {
+    entry = new Map();
+    _cache.set(mmsi, entry);
+  }
   const val = computeRiskScore(ship, lang);
-  if (_cache.size >= CACHE_MAX) _cache.clear();
-  _cache.set(key, { at: Date.now(), val });
+  entry.set(lang, { at: Date.now(), val });
+  while (_cache.size > CACHE_MAX) _cache.delete(_cache.keys().next().value); // evict LRU
   return val;
 }
 
 /** Drop cached scores for one MMSI (all languages). */
 function invalidateRiskCache(mmsi) {
   if (mmsi == null) return;
-  for (const key of _cache.keys()) {
-    if (key.startsWith(`${mmsi}:`)) _cache.delete(key);
-  }
+  _cache.delete(mmsi);
 }
 
 /** Drop the whole cache (use when a global scoring input changes). */

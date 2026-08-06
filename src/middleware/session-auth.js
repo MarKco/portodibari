@@ -30,7 +30,15 @@ function parseCookies(header) {
     if (i === -1) continue;
     const k = part.slice(0, i).trim();
     const v = part.slice(i + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
+    if (k) {
+      // A malformed value (e.g. a bare '%' from some other cookie on the same
+      // domain) throws URIError and, unguarded, took down every request via the
+      // error handler — /login included, with no way out short of clearing
+      // cookies by hand. Fall back to the raw value: our own cookie is always
+      // well-formed (see setSessionCookie), so this only ever affects a
+      // foreign cookie we don't care about anyway.
+      try { out[k] = decodeURIComponent(v); } catch { out[k] = v; }
+    }
   }
   return out;
 }

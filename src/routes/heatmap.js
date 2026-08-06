@@ -24,9 +24,10 @@ const heatmapDb = require('../heatmap-db');
 const appLog = require('../services/app-log');
 const { requireAdmin } = require('../middleware/session-auth');
 const { MAX_UPLOAD_MB } = require('../config');
+const { streamUploadToFile } = require('../lib/upload-stream');
 
 const router = express.Router();
-const UPLOAD_LIMIT = `${MAX_UPLOAD_MB}mb`;
+const UPLOAD_LIMIT_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 // Readable by any authenticated user — the map is for everyone.
 //   ?level=<deg>                          cell size to aggregate to (snapped server-side)
@@ -93,15 +94,31 @@ router.get('/api/heatmap/export', requireAdmin, (req, res) => {
   });
 });
 
-// Replace heatmap data from an uploaded .db (raw body, application/octet-stream).
-router.post('/api/heatmap/import', requireAdmin, express.raw({ type: () => true, limit: UPLOAD_LIMIT }), (req, res) => {
-  if (!req.body || !req.body.length) return res.status(400).json({ error: 'Nessun file ricevuto' });
-  if (req.body.slice(0, 15).toString('latin1') !== 'SQLite format 3') {
+// Replace heatmap data from an uploaded .db (raw body, application/octet-stream),
+// streamed straight to a temp file (see lib/upload-stream) instead of buffered
+// whole in the heap by express.raw().
+router.post('/api/heatmap/import', requireAdmin, async (req, res) => {
+  const tmp = path.join(os.tmpdir(), `tracker-porti-heatmap-import-${process.pid}-${Date.now()}.db`);
+  let ok;
+  try {
+    ok = await streamUploadToFile(req, res, tmp, UPLOAD_LIMIT_BYTES);
+  } catch (e) {
+    fs.unlink(tmp, () => {});
+    return res.status(400).json({ error: `Upload fallito: ${e.message}` });
+  }
+  if (!ok) return; // response already sent (oversized or aborted upload)
+  if (!fs.existsSync(tmp) || !fs.statSync(tmp).size) {
+    return res.status(400).json({ error: 'Nessun file ricevuto' });
+  }
+  const head = Buffer.alloc(15);
+  const fd = fs.openSync(tmp, 'r');
+  fs.readSync(fd, head, 0, 15, 0);
+  fs.closeSync(fd);
+  if (head.toString('latin1') !== 'SQLite format 3') {
+    fs.unlink(tmp, () => {});
     return res.status(400).json({ error: 'Il file caricato non è un database SQLite valido' });
   }
-  const tmp = path.join(os.tmpdir(), `tracker-porti-heatmap-import-${process.pid}-${req.body.length}.db`);
   try {
-    fs.writeFileSync(tmp, req.body);
     const n = heatmapDb.restoreFrom(tmp);
     appLog.info('HEATMAP', 'Dati mappa zone coperte importati', { celle: n });
     res.json({ ok: true, cells: n });

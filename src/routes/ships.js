@@ -602,7 +602,7 @@ router.get('/ships/:mmsi/readings', (req, res) => {
 router.get('/ships/:mmsi/track', (req, res) => {
   const mmsi = Number(req.params.mmsi);
   if (!canSeeShip(req, mmsi)) return res.status(404).json({ error: 'Not found' });
-  const limit = Math.min(Number(req.query.limit) || TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
+  const limit = clampLimit(req.query.limit, TRACK_DEFAULT_LIMIT, TRACK_MAX_LIMIT);
 
   // Optionally fold in SF/MST scraped positions (only for enabled integrations,
   // and only when the client keeps the track toggle on with ?scraped=1).
