@@ -266,6 +266,14 @@ const MSG = {
     it: () => `✅ <b>Disservizio AIS rientrato</b>\nI segnali AIS vengono nuovamente ricevuti.`,
     en: () => `✅ <b>AIS outage cleared</b>\nAIS signals are being received again.`,
   },
+  suspected_ban_start: {
+    it: (p) => `🚫 <b>Sospetto blocco: ${esc(p.source)}</b>\nTroppi errori 403/429 in modalità fallback — sorgente sospesa temporaneamente. Verifica dal pannello "Modalità fallback".`,
+    en: (p) => `🚫 <b>Suspected block: ${esc(p.source)}</b>\nToo many 403/429s in fallback mode — source paused temporarily. Check the "Fallback mode" panel.`,
+  },
+  suspected_ban_end: {
+    it: (p) => `✅ <b>${esc(p.source)}: cooldown terminato</b>\nLo scraping da questa sorgente è ripreso.`,
+    en: (p) => `✅ <b>${esc(p.source)}: cooldown ended</b>\nScraping from this source has resumed.`,
+  },
   area_start: {
     it: (p) => `📡 <b>Monitoraggio avviato</b>\nArea: <b>${esc(p.area)}</b>`,
     en: (p) => `📡 <b>Monitoring started</b>\nArea: <b>${esc(p.area)}</b>`,
@@ -362,6 +370,7 @@ const PREF_KEY = {
   berth_characterized: 'telegramNotifyBerthChar',
   proximity: 'telegramNotifyProximity',
   outage: 'telegramNotifyOutage',
+  suspected_ban: 'telegramNotifySuspectedBan',
   area_monitor: 'telegramNotifyAreaMonitor',
   group_area_add: 'telegramNotifyGroupArea',
   group_area_remove: 'telegramNotifyGroupArea',
@@ -517,6 +526,18 @@ function broadcastOutage(phase, params) {
   if (!isConfigured()) return;
   for (const uid of db.getTelegramLinkedUserIds()) {
     sendToUser(uid, 'outage', phase === 'end' ? 'outage_end' : 'outage_start', params || {}).catch(onTelegramSendError);
+  }
+}
+
+/** Operational alert for admins only (e.g. fallback-mode's per-source circuit
+ *  breaker, services/fallback-mode.js) — same fan-out shape as broadcastOutage
+ *  but restricted to db.getAdminUserIds() instead of every linked user. */
+function broadcastAdminAlert(kind, phase, params) {
+  if (!isConfigured()) return;
+  const linked = new Set(db.getTelegramLinkedUserIds());
+  for (const uid of db.getAdminUserIds()) {
+    if (!linked.has(uid)) continue;
+    sendToUser(uid, kind, `${kind}_${phase}`, params || {}).catch(onTelegramSendError);
   }
 }
 
@@ -708,4 +729,5 @@ module.exports = {
   notifyAreaMonitor,
   notifyGroupActivity,
   broadcastOutage,
+  broadcastAdminAlert,
 };

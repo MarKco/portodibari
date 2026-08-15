@@ -151,7 +151,10 @@
         <li><a href="#log-attività">Log attività</a></li>
         <li><a href="#log-api">Log API</a></li>
         </ul></li>
-        <li><a href="#diagnostica-ais">Diagnostica AIS</a></li>
+        <li><a href="#diagnostica-ais">Diagnostica AIS</a>
+        <ul>
+        <li><a href="#modalità-fallback">Modalità fallback</a></li>
+        </ul></li>
         <li><a href="#modifica-dei-file-di-configurazione">Modifica dei
         file di configurazione</a>
         <ul>
@@ -480,6 +483,54 @@
         href="../manuale/index.html#banner-di-disservizio-ais">manuale
         utente</a>; il meccanismo di conferma esterna che lo alimenta è
         nella sezione <a href="#crediti">Crediti</a> qui sotto.</p>
+        <h3 id="modalità-fallback">Modalità fallback</h3>
+        <p>Se il disservizio AIS dura più di <strong>6 ore</strong>
+        (soglia configurabile, <code>AIS_FALLBACK_HOURS</code> — vedi <a
+        href="#modifica-dei-file-di-configurazione">Modifica dei file di
+        configurazione</a>), l’app entra automaticamente in
+        <strong>modalità fallback</strong>: invece di affidarsi solo al
+        feed AIS, riposiziona le navi tramite scraping su
+        <strong>ShipFinder</strong> e <strong>MyShipTracking</strong>
+        (le due sole fonti esterne che forniscono coordinate), per
+        garantire un minimo di monitoraggio anche durante
+        un’interruzione prolungata.</p>
+        <p>La modalità fallback si avvia sempre nell’ambito più
+        prudente, <strong>“solo navi seguite”</strong>: per ampliarla, o
+        per tornare indietro, usa i due pulsanti in fondo al pannello
+        <strong>⚙ Impostazioni → Diagnostica AIS</strong> (nella stessa
+        scheda descritta sopra, sempre consultabile anche fuori da un
+        disservizio):</p>
+        <ul>
+        <li><strong>Stato</strong> — attiva/non attiva, da quando,
+        ambito corrente (“solo navi seguite” o “monitoraggio
+        completo”).</li>
+        <li><strong>Storico scraping reale</strong> — grafico a barre
+        delle richieste ShipFinder/MyShipTracking delle ultime 48
+        ore.</li>
+        <li><strong>Stima confronto modalità</strong> — due barre che
+        mostrano quante richieste/ora comporterebbe ciascun ambito
+        (“solo navi seguite” vs “monitoraggio completo”), a fianco dello
+        storico reale: prima di allargare l’ambito puoi vedere
+        concretamente di quanto salirebbe il volume di scraping, invece
+        di scegliere alla cieca. Allargare l’ambito <strong>non
+        aumenta</strong> il tetto massimo di richieste/ora
+        (<code>FALLBACK_MAX_REQ_PER_HOUR</code>) — lo ridistribuisce
+        solo su più navi, che vengono quindi rivisitate meno
+        spesso.</li>
+        <li><strong>Stato dei “circuit breaker”</strong> — se ShipFinder
+        o MyShipTracking mostrano troppi errori 403/429 ravvicinati
+        (possibile segnale di blocco), quella sorgente viene sospesa
+        temporaneamente in automatico; qui vedi se e fino a quando.</li>
+        </ul>
+        <p>Se una sorgente viene sospesa per sospetto blocco, ricevi un
+        <strong>alert dedicato — solo per gli amministratori</strong> —
+        via notifica in-app, Telegram (attivabile/disattivabile nella
+        scheda Impostazioni → Integrazioni esterne → Telegram, voce
+        “sospetto ban”) e un avviso nel banner di disservizio AIS quando
+        sei loggato come admin. La modalità fallback esce da sola quando
+        l’AIS torna stabile per un periodo continuativo (di default 20
+        minuti), per evitare di attivarsi/disattivarsi ripetutamente su
+        un’interruzione breve.</p>
         <hr />
         <h2 id="modifica-dei-file-di-configurazione">Modifica dei file
         di configurazione</h2>
@@ -696,6 +747,41 @@
         <td><code>AIS_UPTIME_URL</code></td>
         <td>URL del monitor di uptime pubblico, usato come ripiego</td>
         <td><code>https://aisuptime.buttermilkgreen.fyi</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AIS_FALLBACK_HOURS</code></td>
+        <td>Ore di disservizio AIS prima di entrare in <a
+        href="#diagnostica-ais">modalità fallback</a></td>
+        <td><code>6</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AIS_FALLBACK_EXIT_GRACE_MIN</code></td>
+        <td>Minuti di servizio stabile prima di uscire dalla modalità
+        fallback</td>
+        <td><code>20</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>FALLBACK_MAX_REQ_PER_HOUR</code></td>
+        <td>Tetto massimo di richieste/ora (ShipFinder+MyShipTracking
+        insieme) in modalità fallback</td>
+        <td><code>90</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>FALLBACK_CIRCUIT_TRIP_COUNT</code></td>
+        <td>Fallimenti 403/429 (su navi distinte) che sospendono una
+        sorgente</td>
+        <td><code>5</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>FALLBACK_CIRCUIT_TRIP_WINDOW_MIN</code></td>
+        <td>Finestra temporale entro cui contare quei fallimenti</td>
+        <td><code>10</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>FALLBACK_CIRCUIT_COOLDOWN_MIN</code></td>
+        <td>Minuti di sospensione di una sorgente dopo un sospetto
+        blocco</td>
+        <td><code>30</code></td>
         </tr>
         <tr class="odd">
         <td><code>MAX_READINGS_PER_TYPE</code></td>

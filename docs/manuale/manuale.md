@@ -749,6 +749,8 @@ Se per alcuni minuti un monitoraggio attivo non riceve **nessun segnale AIS**, l
 
 Lo stesso avviso compare anche se un monitoraggio o lo stream delle **navi seguite** resta bloccato a riconnettersi ripetutamente per alcuni minuti — senza mai stabilizzarsi, anche quando ogni singolo tentativo dura solo pochi secondi (in questo caso senza bisogno di conferma esterna, perché una nostra connessione che non si stabilizza è un segnale inequivocabile). In entrambi i casi puoi chiudere l'avviso con **✕**; scompare da solo quando la connessione torna stabile.
 
+Se il disservizio si prolunga per diverse ore, l'app passa in automatico a recuperare le posizioni delle navi tramite altre fonti (ShipFinder/MyShipTracking) invece del solo feed AIS, per continuare a garantire un minimo di monitoraggio: il banner lo segnala esplicitamente ("Modalità fallback attiva"), e torna al normale funzionamento da solo quando l'AIS si stabilizza di nuovo.
+
 ---
 
 ## Punteggio di rischio

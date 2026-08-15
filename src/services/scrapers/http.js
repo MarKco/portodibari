@@ -6,6 +6,38 @@ const { curly } = require('node-libcurl');
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+// Small pool of realistic recent desktop UAs. fetchHttp/fetchViaCurl pick one at
+// random per request instead of always sending the exact same string — a cheap
+// anti-fingerprinting measure for fallback-mode's higher scrape volume (see
+// services/fallback-mode.js). BROWSER_UA itself stays the fixed default for
+// low-volume on-demand callers (e.g. equasis.js) that don't need rotation.
+const UA_POOL = [
+  BROWSER_UA,
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+];
+function pickUA() {
+  return UA_POOL[Math.floor(Math.random() * UA_POOL.length)];
+}
+
+/** Parse a Retry-After header (seconds or HTTP-date) into a millisecond delay, or null. */
+function parseRetryAfter(value) {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (!v) return null;
+  const secs = Number(v);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? null : Math.max(0, at - Date.now());
+}
+
+/** Classify a fetch failure for backoff/circuit-breaker decisions (status-code-aware). */
+function classifyFailure(err) {
+  const status = (err && err.status) || null;
+  return { status, isBlocked: status === 403, isRateLimited: status === 429, retryAfterMs: (err && err.retryAfterMs) || null };
+}
+
 // A ship details page is a few hundred KB at most; this is a generous cap
 // against a runaway/anti-bot response, not a realistic expectation.
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -25,7 +57,7 @@ function fetchHttp(url, depth = 0) {
       path: parsed.pathname + parsed.search,
       method: 'GET',
       headers: {
-        'User-Agent': BROWSER_UA,
+        'User-Agent': pickUA(),
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'identity',
@@ -45,7 +77,10 @@ function fetchHttp(url, depth = 0) {
       }
       if (res.statusCode !== 200) {
         res.resume();
-        reject(new Error(`HTTP ${res.statusCode}`));
+        const err = new Error(`HTTP ${res.statusCode}`);
+        err.status = res.statusCode;
+        err.retryAfterMs = parseRetryAfter(res.headers['retry-after']);
+        reject(err);
         return;
       }
       let body = '';
@@ -84,12 +119,18 @@ function fetchViaCurl(url, extraHeaders = {}) {
       maxRedirs: 3,
       acceptEncoding: '', // --compressed: accept any encoding libcurl can decode
       timeout: 12,
-      userAgent: BROWSER_UA,
+      userAgent: pickUA(),
       httpHeader,
       curlyResponseBodyParser: false, // keep the body a raw Buffer; callers parse it
     })
-    .then(({ statusCode, data }) => {
-      if (statusCode !== 200) throw new Error(`HTTP ${statusCode}`);
+    .then(({ statusCode, data, headers }) => {
+      if (statusCode !== 200) {
+        const err = new Error(`HTTP ${statusCode}`);
+        err.status = statusCode;
+        const h = (Array.isArray(headers) ? headers[headers.length - 1] : headers) || {};
+        err.retryAfterMs = parseRetryAfter(h['retry-after'] || h['Retry-After']);
+        throw err;
+      }
       return data.toString('utf8');
     });
 }
@@ -157,4 +198,4 @@ function parseShipHtml(html) {
   return r;
 }
 
-module.exports = { BROWSER_UA, fetchHttp, fetchViaCurl, stripHtml, parseShipHtml };
+module.exports = { BROWSER_UA, pickUA, classifyFailure, fetchHttp, fetchViaCurl, stripHtml, parseShipHtml };

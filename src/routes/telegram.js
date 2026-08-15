@@ -23,6 +23,7 @@ const TOGGLE_KEYS = [
   'telegramNotifyProximity',
   'telegramNotifyOutage',
   'telegramNotifyAreaMonitor',
+  'telegramNotifySuspectedBan',
   'telegramSendMap',
   'telegramNotifyGroupArea',
   'telegramNotifyGroupFollow',

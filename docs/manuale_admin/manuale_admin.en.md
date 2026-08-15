@@ -129,6 +129,19 @@ The **⚙ Settings → AIS Diagnostics** tab (visible only to administrators) sh
 
 The **AIS outage banner** shown to all users on monitoring pages when an area goes quiet for a long time is described from the user's perspective in the [user manual](../manuale/index.en.html#ais-outage-banner); the external-confirmation mechanism behind it is in the [Credits](#credits) section below.
 
+### Fallback mode
+
+If the AIS outage lasts more than **6 hours** (configurable threshold, `AIS_FALLBACK_HOURS` — see [Editing configuration files](#editing-configuration-files)), the app automatically enters **fallback mode**: instead of relying only on the AIS feed, it relocates ships via scraping on **ShipFinder** and **MyShipTracking** (the only two external sources that provide coordinates), to keep a minimum level of monitoring during a prolonged outage.
+
+Fallback mode always starts in the safest scope, **"followed ships only"**: to widen it, or switch back, use the two buttons at the bottom of the **⚙ Settings → AIS Diagnostics** panel (same tab described above, always available even outside an outage):
+
+- **Status** — active/not active, since when, current scope ("followed ships only" or "full monitoring").
+- **Real scrape history** — a bar chart of ShipFinder/MyShipTracking requests over the last 48 hours.
+- **Scope comparison estimate** — two bars showing how many requests/hour each scope would take ("followed ships only" vs. "full monitoring"), next to the real history: before widening the scope you can see concretely how much the scrape volume would rise, instead of choosing blind. Widening the scope does **not** raise the hourly request cap (`FALLBACK_MAX_REQ_PER_HOUR`) — it only redistributes it over more ships, each then revisited less often.
+- **Circuit-breaker status** — if ShipFinder or MyShipTracking show too many 403/429 errors in a short window (a possible sign of blocking), that source is automatically paused for a while; here you see whether it's paused and until when.
+
+If a source is paused for suspected blocking, you get a dedicated alert — **administrators only** — via in-app notification, Telegram (toggle in Settings → External integrations → Telegram, "suspected ban" entry) and a hint in the AIS-outage banner while logged in as an admin. Fallback mode exits on its own once AIS has been continuously stable for a while (20 minutes by default), to avoid repeatedly switching on and off over a short interruption.
+
 ---
 
 ## Editing configuration files
@@ -177,6 +190,12 @@ Contains thresholds and parameters (time windows, radii, retention, berths, scor
 | `AIS_OUTAGE_SILENCE_MIN` | Minutes without signals before querying the uptime monitor | `10` |
 | `AIS_UPTIME_SELFHOST_URL` | URL of your own self-hosted uptime monitor instance (queried first) | _(empty)_ |
 | `AIS_UPTIME_URL` | URL of the public uptime monitor, used as a fallback | `https://aisuptime.buttermilkgreen.fyi` |
+| `AIS_FALLBACK_HOURS` | Hours of AIS outage before entering [fallback mode](#ais-diagnostics) | `6` |
+| `AIS_FALLBACK_EXIT_GRACE_MIN` | Minutes of stable service before exiting fallback mode | `20` |
+| `FALLBACK_MAX_REQ_PER_HOUR` | Max requests/hour (ShipFinder+MyShipTracking combined) in fallback mode | `90` |
+| `FALLBACK_CIRCUIT_TRIP_COUNT` | 403/429 failures (across distinct ships) that pause a source | `5` |
+| `FALLBACK_CIRCUIT_TRIP_WINDOW_MIN` | Time window for counting those failures | `10` |
+| `FALLBACK_CIRCUIT_COOLDOWN_MIN` | Minutes a source stays paused after a suspected block | `30` |
 | `MAX_READINGS_PER_TYPE` | Maximum readings kept per message type | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Mooring-to-berth clustering radius (meters) | `80` |
 | `BERTH_MIN_PTS` | Minimum nearby moorings to form a berth | `3` |

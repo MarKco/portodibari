@@ -251,6 +251,7 @@ export const el = {
   toggleTelegramProximity: $('toggle-telegram-proximity'),
   settingTelegramProximity: $('setting-telegram-proximity'),
   toggleTelegramOutage: $('toggle-telegram-outage'),
+  toggleTelegramSuspectedBan: $('toggle-telegram-suspected-ban'),
   settingTelegramOutage: $('setting-telegram-outage'),
   toggleTelegramAreaMonitor: $('toggle-telegram-area-monitor'),
   settingTelegramAreaMonitor: $('setting-telegram-area-monitor'),

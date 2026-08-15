@@ -296,6 +296,7 @@ const TELEGRAM_TOGGLES = [
   ['toggleTelegramBerthChar', 'telegramNotifyBerthChar'],
   ['toggleTelegramProximity', 'telegramNotifyProximity'],
   ['toggleTelegramOutage', 'telegramNotifyOutage'],
+  ['toggleTelegramSuspectedBan', 'telegramNotifySuspectedBan'],
   ['toggleTelegramAreaMonitor', 'telegramNotifyAreaMonitor'],
   ['toggleTelegramSendMap', 'telegramSendMap'],
 ];

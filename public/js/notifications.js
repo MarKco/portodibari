@@ -58,6 +58,12 @@ function personalNotifMessage(n) {
   if (n.type === 'berth_new') {
     return t('notif.berthNew', { area: escHtml(areaName(n.area)) });
   }
+  if (n.type === 'suspected_ban' || n.type === 'suspected_ban_cleared') {
+    // `band` repurposed to carry the scrape source key ('sf'|'mst') for this
+    // notification type — see services/fallback-mode.js onCircuitTransition.
+    const source = n.band === 'mst' ? 'MyShipTracking' : n.band === 'sf' ? 'ShipFinder' : (n.band || '?');
+    return t(n.type === 'suspected_ban' ? 'notif.suspectedBan' : 'notif.suspectedBanCleared', { source });
+  }
   if (n.type === 'berth_characterized') {
     const name = n.ship_name || t('berth.unnamed');
     const cat = n.band ? t(`berthcat.${n.band}`) : '';

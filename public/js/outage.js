@@ -31,30 +31,46 @@ export function setOutage(outage) {
 function currentKey(o) {
   const streamIssues = o?.streamIssues || [];
   if (o?.serviceDown) return o.since;
+  if (o?.fallbackMode?.active) return `fallback:${o.fallbackMode.since}`;
   if (streamIssues.length) return `streams:${streamIssues.join(',')}`;
   return null;
 }
 
-/** Show/hide the banner from the current outage state + active view. */
+/** Show/hide the banner from the current outage state + active view. Fallback
+ *  mode (services/fallback-mode.js) can stay active a little after serviceDown
+ *  clears (exit-grace hysteresis) — the banner keeps showing through that
+ *  window instead of disappearing while scraping is still running. */
 export function applyOutageBanner() {
   const banner = el.outageBanner;
   if (!banner) return;
   const o = S.outage;
   const streamIssues = o?.streamIssues || [];
-  const active = !!o && (o.serviceDown || streamIssues.length > 0);
+  const fb = o?.fallbackMode;
+  const active = !!o && (o.serviceDown || streamIssues.length > 0 || fb?.active);
   const key = currentKey(o);
   const show = active && MONITORING_VIEWS.has(S.view) && dismissedKey !== key;
   if (!show) {
     banner.classList.add('hidden');
     return;
   }
+  let text;
   if (o.serviceDown) {
     const when = o.checkedAt ? formatTime(o.checkedAt) : '—';
-    el.outageBannerText.textContent = t('outage.banner', { state: o.monitorState || '—', time: when });
+    text = t('outage.banner', { state: o.monitorState || '—', time: when });
+  } else if (fb?.active) {
+    text = t('outage.fallbackStillActive');
   } else {
     const names = streamIssues.map((k) => t(STREAM_LABEL_KEY[k] || k)).join(', ');
-    el.outageBannerText.textContent = t('outage.streamBanner', { stream: names });
+    text = t('outage.streamBanner', { stream: names });
   }
+  // Admin-only hint pointing at the "Modalità fallback" panel (Settings →
+  // Diagnostica AIS) — not a link (the banner shows on monitoring pages, not
+  // Settings), just enough to prompt an admin who logs in/reloads mid-outage
+  // to go check scope/circuit-breaker state.
+  if (fb?.active && S.isAdmin) {
+    text += ' ' + t('outage.fallbackAdminCta');
+  }
+  el.outageBannerText.textContent = text;
   banner.classList.remove('hidden');
 }
 

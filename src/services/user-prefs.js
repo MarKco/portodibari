@@ -39,6 +39,10 @@ const DEFAULTS = {
   telegramNotifyProximity: true,
   telegramNotifyOutage: true,
   telegramNotifyAreaMonitor: true,
+  // Fallback-mode "sospetto ban" alert (services/fallback-mode.js): only ever
+  // sent to admin users (see db.getAdminUserIds), but the toggle itself is a
+  // normal per-user setting like the others here, so it's a no-op for non-admins.
+  telegramNotifySuspectedBan: true,
   // Attach a static map image + a native location pin to Telegram notifications
   // that carry coordinates (berth + ship events). Off → those go as text only.
   telegramSendMap: true,
@@ -93,7 +97,7 @@ const BOOL_KEYS = new Set([
   'hideHeatmapSingletons',
   'telegramEnabled', 'telegramNotifyHighRisk', 'telegramNotifyRevisit',
   'telegramNotifyAreaChange', 'telegramNotifyBerthNew', 'telegramNotifyBerthChar',
-  'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramSendMap',
+  'telegramNotifyProximity', 'telegramNotifyOutage', 'telegramNotifyAreaMonitor', 'telegramNotifySuspectedBan', 'telegramSendMap',
   'notifyGroupArea', 'notifyGroupFollow', 'notifyGroupFlag', 'notifyGroupMute',
   'notifyGroupSeen', 'notifyGroupCharge',
   'telegramNotifyGroupArea', 'telegramNotifyGroupFollow', 'telegramNotifyGroupFlag',

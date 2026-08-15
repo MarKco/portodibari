@@ -23,6 +23,7 @@ const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
+const fallbackMode = require('./fallback-mode');
 const { keyAbuseReason, backoffDelay, closeSocket } = require('./ais-backoff');
 const { traceKey } = require('./key-trace');
 const {
@@ -393,7 +394,11 @@ function refresh() {
   // throttled/capped inside). Uses getAllFollowedShips so it also covers follows
   // that NEVER got an AIS fix (e.g. added by search) — ShipFinder can locate them
   // by MMSI. The worldwide AIS box recovery continues in parallel regardless.
-  if (state.importSfData || state.importMstData) {
+  // Skipped entirely while fallback-mode.js's own sweep is active (a prolonged
+  // AIS outage, see ais-uptime.js) — that sweep takes over scraping for followed
+  // ships too, with a global request budget/circuit breaker this per-ship-only
+  // throttle doesn't have.
+  if ((state.importSfData || state.importMstData) && !fallbackMode.isActive()) {
     const now = Date.now();
     const stale = db.getAllFollowedShips().filter((sh) => isStaleFollow(sh, now));
     if (stale.length && state.importSfData) reacquireStaleViaShipfinder(stale).catch((e) => console.error(`[SF:reacquire] ${e.message}`));

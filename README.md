@@ -17,6 +17,7 @@ Areas are added and removed at runtime — no restart, no code changes — so th
 - **Multi-area monitoring** — each area has its own independent AIS stream.
 - **Live map & tables** — present ships, past ships, and aggregate traffic statistics.
 - **Follow ships anywhere** — a dedicated stream tracks chosen vessels worldwide, with ShipFinder/MyShipTracking as position backup when AIS goes dark.
+- **Fallback mode** — during a prolonged AIS outage, switches to scraping-based position recovery with an hourly request budget, source rotation and a circuit breaker, keeping scrape volume ban-safe.
 - **Risk score (0–100)** — from AIS behaviour + external data; signal weights editable live.
 - **Sanctions & PSC screening**, **Global Fishing Watch** behavioural events, **Equasis** ownership lookup.
 - **Automatic berth detection**, **ship-to-ship rendezvous** detection, **historical replay**.

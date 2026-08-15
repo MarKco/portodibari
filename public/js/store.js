@@ -5,6 +5,8 @@
 export const PAGE_SIZE = 50;
 
 export const S = {
+  isAdmin: false, // set once from /api/auth/me by auth-ui.js — gates admin-only banner hints (see outage.js)
+
   // Runtime config (fetched from /api/config at startup; defaults match app.config.properties)
   pollIntervalMs: 300000,
   trackMergeRadiusM: 100,

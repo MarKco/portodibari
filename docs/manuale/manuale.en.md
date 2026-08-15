@@ -723,6 +723,8 @@ If an active monitoring session receives **no AIS signal at all** for a few minu
 
 The same warning also appears if a monitoring session or the **followed ships** stream gets stuck repeatedly reconnecting for a few minutes — never stabilizing, even when each individual attempt only lasts a few seconds (in this case, no external confirmation is needed, since one of our own connections failing to stabilize is an unambiguous signal). In both cases you can dismiss the warning with **✕**; it disappears on its own once the connection stabilizes.
 
+If the outage lasts several hours, the app automatically switches to recovering ship positions from other sources (ShipFinder/MyShipTracking) instead of the AIS feed alone, to keep a minimum level of monitoring going: the banner says so explicitly ("Fallback mode active"), and returns to normal on its own once AIS stabilizes again.
+
 ---
 
 ## Risk score

@@ -682,6 +682,21 @@ function getScrapeCounts24h() {
   return out;
 }
 
+// Same scrape_log table as getScrapeCounts24h, bucketed by hour instead of a
+// single total — feeds the fallback-mode admin panel's history chart (real
+// volume vs. the solo-follow/full-monitoring estimates). Only ~48h of history
+// exists (scrape_log is pruned above, not backed up — see its comment).
+function getScrapeCountsHourly(hours = 48) {
+  const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const rows = db
+    .prepare(
+      `SELECT strftime('%Y-%m-%dT%H:00:00Z', at) AS hour, source, COUNT(*) AS total, SUM(ok) AS ok
+       FROM scrape_log WHERE at >= ? GROUP BY hour, source ORDER BY hour`
+    )
+    .all(cutoff);
+  return rows.map((r) => ({ hour: r.hour, source: r.source, total: r.total, ok: r.ok, failed: r.total - r.ok }));
+}
+
 // ── Meta key/value ───────────────────────────────────────────────────────────
 const getMetaStmt = db.prepare('SELECT value FROM meta WHERE key = ?');
 const setMetaStmt = db.prepare(
@@ -771,6 +786,14 @@ function countUsers() {
 }
 function countAdmins() {
   return db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active'").get().n;
+}
+
+// Active admins, for system-level alerts that must reach admins only (e.g. the
+// fallback-mode "suspected ban" alert, services/fallback-mode.js) — not a
+// per-ship/per-user notification, so it doesn't go through the normal
+// notify-categories.js gate.
+function getAdminUserIds() {
+  return db.prepare("SELECT id FROM users WHERE role = 'admin' AND status = 'active'").all().map((r) => r.id);
 }
 
 const setUserStatusStmt = db.prepare('UPDATE users SET status = ? WHERE id = ?');
@@ -2148,6 +2171,25 @@ function getActiveShips(area, boxes = null) {
        ORDER BY seen ASC, last_seen_at DESC`
     )
     .all(...params);
+}
+
+// Ships "active" in any monitored area (same ACTIVE_PREDICATE as getActiveShips)
+// that are NOT already followed and have had no fix in freshMs — the area-scope
+// candidate pool for fallback-mode's scrape sweep when an admin opts into
+// "monitoraggio completo" (see services/fallback-mode.js). Followed ships are
+// excluded here since they're already covered by the followed-ships pool, so the
+// same MMSI is never scraped twice in one sweep.
+function getStaleAreaShips(freshMs) {
+  const cutoff = new Date(Date.now() - freshMs).toISOString();
+  return db
+    .prepare(
+      `SELECT mmsi, ship_name, last_seen_at, last_latitude AS lat, last_longitude AS lon
+       FROM ships
+       WHERE ${ACTIVE_PREDICATE}
+         AND (last_seen_at IS NULL OR last_seen_at < ?)
+         AND mmsi NOT IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
+    )
+    .all(cutoff);
 }
 
 function getPastShips(area, boxes = null) {
@@ -3568,6 +3610,7 @@ module.exports = {
   getAreaCounts,
   pruneOrphans,
   getActiveShips,
+  getStaleAreaShips,
   getPastShips,
   getPastShipsCount,
   getFollowedShips,
@@ -3591,6 +3634,7 @@ module.exports = {
   getAllFollowedShips,
   recordScrape,
   getScrapeCounts24h,
+  getScrapeCountsHourly,
   insertScrapedPosition,
   getScrapedPositions,
   getLatestScrapedPosition,
@@ -3654,6 +3698,7 @@ module.exports = {
   listUsers,
   countUsers,
   countAdmins,
+  getAdminUserIds,
   setUserStatus,
   approveUser,
   approveTester,

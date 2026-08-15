@@ -129,6 +129,19 @@ La scheda **⚙ Impostazioni → Diagnostica AIS** (visibile solo agli amministr
 
 Il **banner di disservizio AIS** che compare a tutti gli utenti nelle pagine di monitoraggio quando un'area resta a lungo senza segnale è descritto dal punto di vista dell'utente nel [manuale utente](../manuale/index.html#banner-di-disservizio-ais); il meccanismo di conferma esterna che lo alimenta è nella sezione [Crediti](#crediti) qui sotto.
 
+### Modalità fallback
+
+Se il disservizio AIS dura più di **6 ore** (soglia configurabile, `AIS_FALLBACK_HOURS` — vedi [Modifica dei file di configurazione](#modifica-dei-file-di-configurazione)), l'app entra automaticamente in **modalità fallback**: invece di affidarsi solo al feed AIS, riposiziona le navi tramite scraping su **ShipFinder** e **MyShipTracking** (le due sole fonti esterne che forniscono coordinate), per garantire un minimo di monitoraggio anche durante un'interruzione prolungata.
+
+La modalità fallback si avvia sempre nell'ambito più prudente, **"solo navi seguite"**: per ampliarla, o per tornare indietro, usa i due pulsanti in fondo al pannello **⚙ Impostazioni → Diagnostica AIS** (nella stessa scheda descritta sopra, sempre consultabile anche fuori da un disservizio):
+
+- **Stato** — attiva/non attiva, da quando, ambito corrente ("solo navi seguite" o "monitoraggio completo").
+- **Storico scraping reale** — grafico a barre delle richieste ShipFinder/MyShipTracking delle ultime 48 ore.
+- **Stima confronto modalità** — due barre che mostrano quante richieste/ora comporterebbe ciascun ambito ("solo navi seguite" vs "monitoraggio completo"), a fianco dello storico reale: prima di allargare l'ambito puoi vedere concretamente di quanto salirebbe il volume di scraping, invece di scegliere alla cieca. Allargare l'ambito **non aumenta** il tetto massimo di richieste/ora (`FALLBACK_MAX_REQ_PER_HOUR`) — lo ridistribuisce solo su più navi, che vengono quindi rivisitate meno spesso.
+- **Stato dei "circuit breaker"** — se ShipFinder o MyShipTracking mostrano troppi errori 403/429 ravvicinati (possibile segnale di blocco), quella sorgente viene sospesa temporaneamente in automatico; qui vedi se e fino a quando.
+
+Se una sorgente viene sospesa per sospetto blocco, ricevi un **alert dedicato — solo per gli amministratori** — via notifica in-app, Telegram (attivabile/disattivabile nella scheda Impostazioni → Integrazioni esterne → Telegram, voce "sospetto ban") e un avviso nel banner di disservizio AIS quando sei loggato come admin. La modalità fallback esce da sola quando l'AIS torna stabile per un periodo continuativo (di default 20 minuti), per evitare di attivarsi/disattivarsi ripetutamente su un'interruzione breve.
+
 ---
 
 ## Modifica dei file di configurazione
@@ -177,6 +190,12 @@ Contiene soglie e parametri (finestre temporali, raggi, retention, banchine, pes
 | `AIS_OUTAGE_SILENCE_MIN` | Minuti senza segnali prima di interrogare il monitor di uptime | `10` |
 | `AIS_UPTIME_SELFHOST_URL` | URL di una tua istanza self-hosted del monitor (interrogata per prima) | _(vuoto)_ |
 | `AIS_UPTIME_URL` | URL del monitor di uptime pubblico, usato come ripiego | `https://aisuptime.buttermilkgreen.fyi` |
+| `AIS_FALLBACK_HOURS` | Ore di disservizio AIS prima di entrare in [modalità fallback](#diagnostica-ais) | `6` |
+| `AIS_FALLBACK_EXIT_GRACE_MIN` | Minuti di servizio stabile prima di uscire dalla modalità fallback | `20` |
+| `FALLBACK_MAX_REQ_PER_HOUR` | Tetto massimo di richieste/ora (ShipFinder+MyShipTracking insieme) in modalità fallback | `90` |
+| `FALLBACK_CIRCUIT_TRIP_COUNT` | Fallimenti 403/429 (su navi distinte) che sospendono una sorgente | `5` |
+| `FALLBACK_CIRCUIT_TRIP_WINDOW_MIN` | Finestra temporale entro cui contare quei fallimenti | `10` |
+| `FALLBACK_CIRCUIT_COOLDOWN_MIN` | Minuti di sospensione di una sorgente dopo un sospetto blocco | `30` |
 | `MAX_READINGS_PER_TYPE` | Numero massimo di letture conservate per tipo di messaggio | `10000` |
 | `BERTH_CLUSTER_EPS_M` | Raggio di clustering attracchi → banchine (metri) | `80` |
 | `BERTH_MIN_PTS` | Attracchi minimi vicini per formare una banchina | `3` |

@@ -150,7 +150,10 @@
         <li><a href="#activity-log">Activity log</a></li>
         <li><a href="#api-log">API log</a></li>
         </ul></li>
-        <li><a href="#ais-diagnostics">AIS diagnostics</a></li>
+        <li><a href="#ais-diagnostics">AIS diagnostics</a>
+        <ul>
+        <li><a href="#fallback-mode">Fallback mode</a></li>
+        </ul></li>
         <li><a href="#editing-configuration-files">Editing configuration
         files</a>
         <ul>
@@ -462,6 +465,48 @@
         href="../manuale/index.en.html#ais-outage-banner">user
         manual</a>; the external-confirmation mechanism behind it is in
         the <a href="#credits">Credits</a> section below.</p>
+        <h3 id="fallback-mode">Fallback mode</h3>
+        <p>If the AIS outage lasts more than <strong>6 hours</strong>
+        (configurable threshold, <code>AIS_FALLBACK_HOURS</code> — see
+        <a href="#editing-configuration-files">Editing configuration
+        files</a>), the app automatically enters <strong>fallback
+        mode</strong>: instead of relying only on the AIS feed, it
+        relocates ships via scraping on <strong>ShipFinder</strong> and
+        <strong>MyShipTracking</strong> (the only two external sources
+        that provide coordinates), to keep a minimum level of monitoring
+        during a prolonged outage.</p>
+        <p>Fallback mode always starts in the safest scope,
+        <strong>“followed ships only”</strong>: to widen it, or switch
+        back, use the two buttons at the bottom of the <strong>⚙
+        Settings → AIS Diagnostics</strong> panel (same tab described
+        above, always available even outside an outage):</p>
+        <ul>
+        <li><strong>Status</strong> — active/not active, since when,
+        current scope (“followed ships only” or “full monitoring”).</li>
+        <li><strong>Real scrape history</strong> — a bar chart of
+        ShipFinder/MyShipTracking requests over the last 48 hours.</li>
+        <li><strong>Scope comparison estimate</strong> — two bars
+        showing how many requests/hour each scope would take (“followed
+        ships only” vs. “full monitoring”), next to the real history:
+        before widening the scope you can see concretely how much the
+        scrape volume would rise, instead of choosing blind. Widening
+        the scope does <strong>not</strong> raise the hourly request cap
+        (<code>FALLBACK_MAX_REQ_PER_HOUR</code>) — it only redistributes
+        it over more ships, each then revisited less often.</li>
+        <li><strong>Circuit-breaker status</strong> — if ShipFinder or
+        MyShipTracking show too many 403/429 errors in a short window (a
+        possible sign of blocking), that source is automatically paused
+        for a while; here you see whether it’s paused and until
+        when.</li>
+        </ul>
+        <p>If a source is paused for suspected blocking, you get a
+        dedicated alert — <strong>administrators only</strong> — via
+        in-app notification, Telegram (toggle in Settings → External
+        integrations → Telegram, “suspected ban” entry) and a hint in
+        the AIS-outage banner while logged in as an admin. Fallback mode
+        exits on its own once AIS has been continuously stable for a
+        while (20 minutes by default), to avoid repeatedly switching on
+        and off over a short interruption.</p>
         <hr />
         <h2 id="editing-configuration-files">Editing configuration
         files</h2>
@@ -672,6 +717,39 @@
         <td><code>AIS_UPTIME_URL</code></td>
         <td>URL of the public uptime monitor, used as a fallback</td>
         <td><code>https://aisuptime.buttermilkgreen.fyi</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>AIS_FALLBACK_HOURS</code></td>
+        <td>Hours of AIS outage before entering <a
+        href="#ais-diagnostics">fallback mode</a></td>
+        <td><code>6</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>AIS_FALLBACK_EXIT_GRACE_MIN</code></td>
+        <td>Minutes of stable service before exiting fallback mode</td>
+        <td><code>20</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>FALLBACK_MAX_REQ_PER_HOUR</code></td>
+        <td>Max requests/hour (ShipFinder+MyShipTracking combined) in
+        fallback mode</td>
+        <td><code>90</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>FALLBACK_CIRCUIT_TRIP_COUNT</code></td>
+        <td>403/429 failures (across distinct ships) that pause a
+        source</td>
+        <td><code>5</code></td>
+        </tr>
+        <tr class="odd">
+        <td><code>FALLBACK_CIRCUIT_TRIP_WINDOW_MIN</code></td>
+        <td>Time window for counting those failures</td>
+        <td><code>10</code></td>
+        </tr>
+        <tr class="even">
+        <td><code>FALLBACK_CIRCUIT_COOLDOWN_MIN</code></td>
+        <td>Minutes a source stays paused after a suspected block</td>
+        <td><code>30</code></td>
         </tr>
         <tr class="odd">
         <td><code>MAX_READINGS_PER_TYPE</code></td>

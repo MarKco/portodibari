@@ -5,7 +5,7 @@ const {
   state, setImportVf, setImportMt, setImportSf, setImportMst, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
-  setSfScrapeInterval, setMstScrapeInterval, setScrapeClusterRadius,
+  setSfScrapeInterval, setMstScrapeInterval, setScrapeClusterRadius, setFallbackScopeAreas,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN, REPLAY, FOLLOW_STALE_HOURS,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -34,6 +34,7 @@ const sanctions = require('../services/sanctions');
 const psc = require('../services/psc');
 const equasisLog = require('../services/equasis-log');
 const appLog = require('../services/app-log');
+const fallbackMode = require('../services/fallback-mode');
 
 const router = express.Router();
 
@@ -610,6 +611,20 @@ router.post('/settings/scrape-params', requireAdmin, (req, res) => {
   if (scrapeClusterRadiusM != null) setScrapeClusterRadius(+scrapeClusterRadiusM);
   appLog.info('SETTINGS', `Scraping params: SF ${Math.round(state.sfScrapeIntervalMs / 60000)}min, MST ${Math.round(state.mstScrapeIntervalMs / 60000)}min, cluster ${state.scrapeClusterRadiusM}m`);
   res.json({ ok: true, sfScrapeIntervalMs: state.sfScrapeIntervalMs, mstScrapeIntervalMs: state.mstScrapeIntervalMs, scrapeClusterRadiusM: state.scrapeClusterRadiusM });
+});
+
+// "Modalità fallback" admin panel: scope switch (always readable/settable, not
+// only while fallback is active — an admin can explore/test it any time) +
+// history/estimate for the comparison chart. See services/fallback-mode.js.
+router.post('/settings/fallback-scope', requireAdmin, (req, res) => {
+  const { areas } = req.body || {};
+  setFallbackScopeAreas(!!areas);
+  appLog.info('SETTINGS', `Modalità fallback: scope impostato su "${state.fallbackScopeAreas ? 'monitoraggio completo' : 'solo navi seguite'}"`);
+  res.json({ ok: true, scope: state.fallbackScopeAreas ? 'areas' : 'follow' });
+});
+
+router.get('/settings/fallback-mode/estimate', requireAdmin, (req, res) => {
+  res.json(fallbackMode.getEstimate());
 });
 
 module.exports = router;

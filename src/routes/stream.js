@@ -6,6 +6,7 @@ const stream = require('../services/ais-stream');
 const shipFollow = require('../services/ship-follow');
 const heatmap = require('../services/heatmap-stream');
 const aisUptime = require('../services/ais-uptime');
+const fallbackMode = require('../services/fallback-mode');
 const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS } = require('../config');
 
@@ -51,6 +52,8 @@ router.get('/stream/health', (req, res) => {
     follow: shipFollow.getHealth(),
     heatmap: heatmap.getHealth(),
     scrapeCounts24h: db.getScrapeCounts24h(),
+    fallbackMode: fallbackMode.getStatus(),
+    fallbackEstimate: fallbackMode.getEstimate(),
   });
 });
 

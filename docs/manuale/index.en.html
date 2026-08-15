@@ -2047,6 +2047,12 @@
         connections failing to stabilize is an unambiguous signal). In
         both cases you can dismiss the warning with <strong>✕</strong>;
         it disappears on its own once the connection stabilizes.</p>
+        <p>If the outage lasts several hours, the app automatically
+        switches to recovering ship positions from other sources
+        (ShipFinder/MyShipTracking) instead of the AIS feed alone, to
+        keep a minimum level of monitoring going: the banner says so
+        explicitly (“Fallback mode active”), and returns to normal on
+        its own once AIS stabilizes again.</p>
         <hr />
         <h2 id="risk-score">Risk score</h2>
         <p>Every ship receives a score from 0 to 100, computed

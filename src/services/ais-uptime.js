@@ -22,15 +22,19 @@
 // The monitors are probed only while we're silent (never during normal
 // traffic), and at most once per MIN_PROBE_GAP_MS, so this adds negligible load.
 
+const db = require('../db');
 const appLog = require('./app-log');
 const stream = require('./ais-stream');
 const shipFollow = require('./ship-follow');
 const heatmapStream = require('./heatmap-stream');
+const fallbackMode = require('./fallback-mode');
 const {
   AIS_OUTAGE_CHECK,
   AIS_OUTAGE_SILENCE_MIN,
   AIS_UPTIME_URL,
   AIS_UPTIME_SELFHOST_URL,
+  AIS_FALLBACK_HOURS,
+  AIS_FALLBACK_EXIT_GRACE_MIN,
 } = require('../config');
 
 const CHECK_INTERVAL_MS = 60 * 1000; // how often we re-evaluate local silence
@@ -44,10 +48,53 @@ const MIN_PROBE_GAP_MS = 60 * 1000; // don't hammer the public monitor
 //   checkedAt     — ISO time of our last evaluation
 //   since         — ISO time serviceDown first became true (null when up)
 //   silentMin     — our local silence in whole minutes
-let outage = { serviceDown: false, monitorState: null, monitorSource: null, checkedAt: null, since: null, silentMin: 0 };
+//
+// `since` is mirrored to meta key `ais_outage_since` (see setOutageSince below)
+// and re-hydrated here at module load: it has to survive a server restart,
+// otherwise every deploy would reset the AIS_FALLBACK_HOURS countdown to zero —
+// exactly the scenario a real prolonged outage (spanning several deploys) needs
+// this to get right. `serviceDown` itself is NOT rehydrated as true — the next
+// evaluate() tick (within 60s) re-derives it for real; only the "how long has
+// this been going on" timestamp needs to survive.
+let outage = {
+  serviceDown: false,
+  monitorState: null,
+  monitorSource: null,
+  checkedAt: null,
+  since: db.getMeta('ais_outage_since') || null,
+  silentMin: 0,
+};
 let lastProbeAt = 0;
 let lastProbeResult = null; // { state, lastChecked, source } from the most recent successful probe
 let timer = null;
+
+// Fallback-mode hysteresis: once a clean verdict arrives while fallback mode is
+// active, this marks when that grace period started. Only a *sustained* clean
+// verdict (AIS_FALLBACK_EXIT_GRACE_MIN minutes straight) actually exits fallback
+// mode — a brief reconnect-then-drop blip cancels the pending exit instead of
+// flipping fallback mode off and back on. In-memory only: losing it on restart
+// just restarts the grace window, never wrongly exits early.
+let fallbackExitPendingSince = null;
+
+function handleFallbackTransition(down) {
+  if (down) {
+    fallbackExitPendingSince = null;
+    if (outage.since && Date.now() - new Date(outage.since).getTime() >= AIS_FALLBACK_HOURS * 3600 * 1000) {
+      fallbackMode.enter();
+    }
+    return;
+  }
+  if (!fallbackMode.isActive()) {
+    fallbackExitPendingSince = null;
+    return;
+  }
+  if (fallbackExitPendingSince === null) {
+    fallbackExitPendingSince = Date.now();
+  } else if (Date.now() - fallbackExitPendingSince >= AIS_FALLBACK_EXIT_GRACE_MIN * 60 * 1000) {
+    fallbackMode.exit();
+    fallbackExitPendingSince = null;
+  }
+}
 
 /** Monitors to consult, highest priority first. Self-hosted instance before the
  *  public service, so a healthy private deployment never calls the public one. */
@@ -67,15 +114,21 @@ async function probeOne(base) {
     const res = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return { state: data.state || null, lastChecked: data.lastChecked || null };
+    // `lastMessageReceived` is the monitor's own last-message timestamp — the
+    // authoritative "down since" for the whole aisstream.io service, independent
+    // of when OUR instance booted or first noticed. Used (see evaluate()) to
+    // seed AIS_FALLBACK_HOURS's countdown correctly even on a first-ever deploy
+    // during an outage that's already been running for days.
+    return { state: data.state || null, lastChecked: data.lastChecked || null, lastMessageReceived: data.lastMessageReceived || null };
   } finally {
     clearTimeout(to);
   }
 }
 
 /** Probe monitors in priority order; the first that answers wins. Returns
- *  { state, lastChecked, source }. Throws only when every monitor is unreachable
- *  (its message lists each failure), so a single failed probe is never an outage. */
+ *  { state, lastChecked, lastMessageReceived, source }. Throws only when every
+ *  monitor is unreachable (its message lists each failure), so a single failed
+ *  probe is never an outage. */
 async function probe() {
   const list = monitors();
   if (!list.length) throw new Error('no uptime monitor configured');
@@ -103,6 +156,8 @@ async function evaluate() {
       require('./webhooks').broadcast('outage', { phase: 'end' });
     }
     outage = { serviceDown: false, monitorState: null, monitorSource: null, checkedAt: nowIso, since: null, silentMin: 0 };
+    db.setMeta('ais_outage_since', null);
+    handleFallbackTransition(false);
     return;
   }
 
@@ -132,14 +187,30 @@ async function evaluate() {
       require('./telegram').broadcastOutage('start', { min: silentMin });
       require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
     }
+    // Prefer the monitor's own `lastMessageReceived` — the authoritative,
+    // community-wide "down since" — over anything local: it's correct even on
+    // a first-ever deploy made days into an outage, when our own detection
+    // would otherwise start counting from nowIso. Falls back to `outage.since`
+    // (re-hydrated from meta at module load, or set on a prior tick — not
+    // `outage.serviceDown ? outage.since : nowIso`, since serviceDown starts
+    // false on the first post-restart tick even when since was re-hydrated),
+    // and finally to nowIso if neither is available. Persisted every tick while
+    // down (cheap single UPSERT); the value itself is stable while down.
+    const monitorSince =
+      lastProbeResult?.lastMessageReceived && !Number.isNaN(Date.parse(lastProbeResult.lastMessageReceived))
+        ? lastProbeResult.lastMessageReceived
+        : null;
+    const since = monitorSince || outage.since || nowIso;
+    db.setMeta('ais_outage_since', since);
     outage = {
       serviceDown: true,
       monitorState,
       monitorSource,
       checkedAt: nowIso,
-      since: outage.serviceDown ? outage.since : nowIso,
+      since,
       silentMin,
     };
+    handleFallbackTransition(true);
   } else {
     if (outage.serviceDown) {
       appLog.info('AIS', appLog.t('ais.outage_cleared'));
@@ -147,6 +218,8 @@ async function evaluate() {
       require('./webhooks').broadcast('outage', { phase: 'end' });
     }
     outage = { serviceDown: false, monitorState, monitorSource, checkedAt: nowIso, since: null, silentMin };
+    db.setMeta('ais_outage_since', null);
+    handleFallbackTransition(false);
   }
 }
 
@@ -188,7 +261,7 @@ function stuckStreams() {
  *  follow/heatmap connectivity signal fresh on every call (no interval needed —
  *  it's a plain state read, not a network probe). */
 function getOutage() {
-  return { ...outage, streamIssues: stuckStreams() };
+  return { ...outage, streamIssues: stuckStreams(), fallbackMode: fallbackMode.getStatus() };
 }
 
 /** Start the periodic silence/uptime evaluation. No-op when disabled. */

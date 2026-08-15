@@ -300,6 +300,27 @@ const AIS_OUTAGE_CHECK = (appCfg.AIS_OUTAGE_CHECK ?? 'true') !== 'false';
 const AIS_OUTAGE_SILENCE_MIN = num('AIS_OUTAGE_SILENCE_MIN', 10);
 const AIS_UPTIME_URL = (appCfg.AIS_UPTIME_URL || 'https://aisuptime.buttermilkgreen.fyi').replace(/\/+$/, '');
 const AIS_UPTIME_SELFHOST_URL = (appCfg.AIS_UPTIME_SELFHOST_URL || '').replace(/\/+$/, '');
+
+// ── Fallback mode ─────────────────────────────────────────────────────────────
+// When the outage above stays open for AIS_FALLBACK_HOURS, services/fallback-mode.js
+// switches to scraping ShipFinder/MyShipTracking to keep relocating ships instead
+// of relying solely on AIS. AIS_FALLBACK_EXIT_GRACE_MIN requires that many
+// consecutive healthy minutes before actually leaving fallback (avoids flapping
+// in/out on a brief AIS blip).
+const AIS_FALLBACK_HOURS = num('AIS_FALLBACK_HOURS', 6);
+const AIS_FALLBACK_EXIT_GRACE_MIN = num('AIS_FALLBACK_EXIT_GRACE_MIN', 20);
+// Hard ceiling on scrape requests/hour (SF+MST combined) while in fallback mode,
+// so widening scope to area ships redistributes the same budget over more ships
+// rather than multiplying total request volume.
+const FALLBACK_MAX_REQ_PER_HOUR = num('FALLBACK_MAX_REQ_PER_HOUR', 90);
+// Per-source circuit breaker: trip (pause that source for FALLBACK_CIRCUIT_COOLDOWN_MIN)
+// once FALLBACK_CIRCUIT_TRIP_COUNT distinct-ship 403/429s land within
+// FALLBACK_CIRCUIT_TRIP_WINDOW_MIN minutes — a clustered-block signal, not a
+// single flaky request.
+const FALLBACK_CIRCUIT_TRIP_COUNT = num('FALLBACK_CIRCUIT_TRIP_COUNT', 5);
+const FALLBACK_CIRCUIT_TRIP_WINDOW_MIN = num('FALLBACK_CIRCUIT_TRIP_WINDOW_MIN', 10);
+const FALLBACK_CIRCUIT_COOLDOWN_MIN = num('FALLBACK_CIRCUIT_COOLDOWN_MIN', 30);
+
 const MAX_READINGS_PER_TYPE = num('MAX_READINGS_PER_TYPE', 10000);
 // API audit trail (api_log table) is capped to the most recent N requests;
 // older rows are pruned on every insert (see db.js) so the table can't grow
@@ -599,6 +620,11 @@ const state = {
   // at runtime; persisted to local.properties so changes survive restart.
   sfScrapeIntervalMs: +(props.SF_SCRAPE_INTERVAL_MS || SF_REACQUIRE_THROTTLE_MS),
   mstScrapeIntervalMs: +(props.MST_SCRAPE_INTERVAL_MS || SF_REACQUIRE_THROTTLE_MS),
+  // Fallback-mode scraping scope: false = only followed ships (the safe default
+  // fallback-mode.js.enter() always resets to), true = also ships in monitored
+  // areas. Admin-chosen at runtime from the "Modalità fallback" panel — never a
+  // fixed startup choice, since the right scope depends on live risk tolerance.
+  fallbackScopeAreas: props.FALLBACK_SCOPE_AREAS === 'true',
   // Spatial dedup radius for scraped positions. New fix within this distance from
   // the last stored fix updates the timestamp instead of inserting a new row.
   scrapeClusterRadiusM: +(props.SCRAPE_CLUSTER_RADIUS_M || SCRAPE_CLUSTER_RADIUS_M_DEFAULT),
@@ -739,6 +765,11 @@ function setMstScrapeInterval(ms) {
 function setScrapeClusterRadius(m) {
   state.scrapeClusterRadiusM = Math.max(0, +m || SCRAPE_CLUSTER_RADIUS_M_DEFAULT);
   saveProperty('SCRAPE_CLUSTER_RADIUS_M', state.scrapeClusterRadiusM);
+}
+
+function setFallbackScopeAreas(enabled) {
+  state.fallbackScopeAreas = !!enabled;
+  saveProperty('FALLBACK_SCOPE_AREAS', state.fallbackScopeAreas);
 }
 
 function setImportSanctions(enabled) {
@@ -1197,6 +1228,12 @@ module.exports = {
   AIS_OUTAGE_SILENCE_MIN,
   AIS_UPTIME_URL,
   AIS_UPTIME_SELFHOST_URL,
+  AIS_FALLBACK_HOURS,
+  AIS_FALLBACK_EXIT_GRACE_MIN,
+  FALLBACK_MAX_REQ_PER_HOUR,
+  FALLBACK_CIRCUIT_TRIP_COUNT,
+  FALLBACK_CIRCUIT_TRIP_WINDOW_MIN,
+  FALLBACK_CIRCUIT_COOLDOWN_MIN,
   MAX_READINGS_PER_TYPE,
   MAX_API_LOG_RECORDS,
   GROUP_ACTIVITY_LOG_RETENTION_DAYS,
@@ -1236,6 +1273,7 @@ module.exports = {
   setSfScrapeInterval,
   setMstScrapeInterval,
   setScrapeClusterRadius,
+  setFallbackScopeAreas,
   setImportSanctions,
   setImportSanctionsExtra,
   setImportPsc,

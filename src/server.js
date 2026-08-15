@@ -19,6 +19,7 @@ const heatmapDb = require('./heatmap-db');
 const heatmapStream = require('./services/heatmap-stream');
 const stream = require('./services/ais-stream');
 const aisUptime = require('./services/ais-uptime');
+const fallbackMode = require('./services/fallback-mode');
 const shipFollow = require('./services/ship-follow');
 const telegram = require('./services/telegram');
 const sanctions = require('./services/sanctions');
@@ -274,6 +275,13 @@ app.listen(PORT, () => {
   setInterval(sweepHeatmap, 24 * 60 * 60 * 1000);
   // Cross-checks the public AISStream uptime monitor when our streams go silent.
   aisUptime.init();
+  // Fallback-mode scrape sweep: a no-op unless a prolonged outage has activated
+  // fallback mode (see ais-uptime.js / services/fallback-mode.js). Own interval,
+  // independent of the 60s outage check above.
+  const FALLBACK_SWEEP_MS = 3 * 60 * 1000;
+  setInterval(() => {
+    fallbackMode.sweep().catch((e) => appLog.error('SCRAPE', 'Sweep fallback fallito', { error: e.message }));
+  }, FALLBACK_SWEEP_MS);
   // Telegram bot: long-polls for /start link codes and sends per-user alerts.
   telegram.init();
   startAutoBackup();

@@ -3,6 +3,7 @@
 // Self-contained (its own DOM + styles); does not touch the rest of the SPA.
 
 import { getLang, t } from './i18n.js';
+import { S } from './store.js';
 
 // Manual links default to the Italian version (index.html); point them at the
 // English one when that's the active UI language, so the sidebar always opens
@@ -61,6 +62,8 @@ async function init() {
     window.location.href = '/login';
   });
 
+  S.isAdmin = !!me.isAdmin;
+
   // Non-admins: hide the admin-only settings tabs and the global setting rows
   // (the server enforces this too — this just keeps the UI honest).
   if (!me.isAdmin) hideAdminControls();
@@ -106,7 +109,7 @@ async function init() {
 function hideAdminControls() {
   const tabs = ['params', 'backup', 'log', 'logs', 'health'];
   for (const t of tabs) document.getElementById(`settings-tab-${t}`)?.style.setProperty('display', 'none');
-  const adminRows = ['setting-risk-weights', 'setting-cargo-weights'];
+  const adminRows = ['setting-risk-weights', 'setting-cargo-weights', 'setting-telegram-suspected-ban'];
   for (const id of adminRows) document.getElementById(id)?.style.setProperty('display', 'none');
   const adminToggles = [
     'toggle-import-vf', 'toggle-import-mt', 'toggle-import-equasis', 'toggle-import-gfw',

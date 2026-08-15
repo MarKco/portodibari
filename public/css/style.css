@@ -2114,6 +2114,8 @@ pre {
 }
 .type-bar-count { width: 30px; text-align: right; color: var(--text-dim); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
+.fallback-scope-actions { display: flex; gap: 0.6rem; margin-top: 0.75rem; }
+
 /* score band distribution tiles */
 .band-tiles {
   display: grid;

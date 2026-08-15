@@ -46,6 +46,8 @@ export default {
   'notif.followLost': '📭 <strong>{ship}</strong> not found: not transmitting, removed from followed ships.',
   'notif.berthNew': 'New berth detected in {area}',
   'notif.berthChar': 'Berth <strong>{berth}</strong> characterised as {cat} in {area}',
+  'notif.suspectedBan': '🚫 Suspected block: <strong>{source}</strong> temporarily paused (fallback mode)',
+  'notif.suspectedBanCleared': '✅ <strong>{source}</strong>: cooldown ended, scraping resumed',
 
   // ── Status badge ───────────────────────────────────────────────────────────
   'status.active':   'ACTIVE',
@@ -604,9 +606,28 @@ export default {
   'health.scrapeDesc':  'Data fetches from external vendors (not the AIS feed). Count per source over the last 24h.',
   'health.scrapeFailed': '{n} failed',
 
+  // ── Fallback mode (services/fallback-mode.js) ───────────────────────────────
+  'health.fallbackTitle':        '🔀 Fallback mode',
+  'health.fallbackDesc':         'Activates after a prolonged AIS outage: relocates ships via ShipFinder/MyShipTracking scraping instead of AIS alone.',
+  'health.fallbackStatus':       'Status',
+  'health.fallbackActive':       'Active',
+  'health.fallbackInactive':     'Not active',
+  'health.fallbackSince':        'Active since',
+  'health.fallbackScope':        'Current scope',
+  'health.fallbackModeFollow':   'Followed ships only',
+  'health.fallbackModeFull':     'Full monitoring',
+  'health.circuitOpen':          'suspected block, paused until {until}',
+  'health.circuitClosed':        'no issues',
+  'health.fallbackHistoryTitle': 'Real scrape volume (last 48h, SF+MST)',
+  'health.fallbackNoHistory':    'No scrape data in the last 48h.',
+  'health.fallbackEstimateTitle':'Scope comparison estimate (requests/hour)',
+  'health.fallbackBudgetNote':   'Configured hard cap: {n} requests/hour (SF+MST combined). "Full monitoring" scope redistributes the same cap over more ships, it does not raise it.',
+
   // ── AIS outage banner ────────────────────────────────────────────────────────
   'outage.banner':  'Possible AISStream outage: no incoming signals and the public monitor reports “{state}” (checked at {time}). Data may not be updating.',
   'outage.streamBanner': 'AIS connection problem ({stream}): reconnecting for several minutes. Data may not be updating.',
+  'outage.fallbackStillActive': 'Fallback mode active: positions are coming from ShipFinder/MyShipTracking scraping, not the AIS feed.',
+  'outage.fallbackAdminCta': 'Admin: configure scope in Settings → AIS Diagnostics.',
   'outage.dismiss': 'Hide',
 
   // ── Log panel ──────────────────────────────────────────────────────────────
@@ -786,6 +807,8 @@ export default {
   'settings.telegramProximity.desc':     'Send a ship-to-ship rendezvous detection to Telegram (with a two-point map).',
   'settings.telegramOutage.name':        'Telegram · AIS outage',
   'settings.telegramOutage.desc':        'Send to Telegram when an AIS feed outage begins and ends.',
+  'settings.telegramSuspectedBan.name':  'Telegram · suspected ban (fallback mode)',
+  'settings.telegramSuspectedBan.desc':  'Send to Telegram when ShipFinder or MyShipTracking show signs of blocking during fallback mode. Admins only.',
   'settings.telegramAreaMonitor.name':   'Telegram · area monitoring start/stop',
   'settings.telegramAreaMonitor.desc':   'Send to Telegram when you start or stop monitoring one of your areas.',
   'settings.telegramSendMap.name':       'Telegram · location map',

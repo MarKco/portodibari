@@ -16,6 +16,7 @@ const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
 const { crawlGfw } = require('./gfw');
 const { GFW_TOKEN } = require('../config');
+const fallbackMode = require('./fallback-mode');
 
 // Guards against duplicate concurrent fetches for the same ship+source.
 const inFlight = new Set();
@@ -103,11 +104,16 @@ function catchFetch(ship, source) {
  */
 function enrichNewShip(mmsi) {
   const gfwOn = state.importGfw && GFW_TOKEN;
-  if (!state.importVfData && !state.importMtData && !state.importSfData && !state.importMstData && !gfwOn) return;
+  // VF/MT add no position value (free tier has no coordinates) and carry the
+  // highest ban risk of the five sources (MT especially, via its Cloudflare TLS
+  // bypass) — suspended for the whole fallback-mode duration so all scrape
+  // budget goes to SF/MST position recovery instead. See services/fallback-mode.js.
+  const vfMtSuspended = fallbackMode.isActive();
+  if ((!state.importVfData || vfMtSuspended) && (!state.importMtData || vfMtSuspended) && !state.importSfData && !state.importMstData && !gfwOn) return;
   const ship = db.getShip(mmsi);
   if (!ship) return;
-  if (state.importVfData) fetchSource(ship, 'vf').catch(catchFetch(ship, 'vf'));
-  if (state.importMtData) fetchSource(ship, 'mt').catch(catchFetch(ship, 'mt'));
+  if (state.importVfData && !vfMtSuspended) fetchSource(ship, 'vf').catch(catchFetch(ship, 'vf'));
+  if (state.importMtData && !vfMtSuspended) fetchSource(ship, 'mt').catch(catchFetch(ship, 'mt'));
   if (state.importSfData) fetchSource(ship, 'sf').catch(catchFetch(ship, 'sf'));
   if (state.importMstData) fetchSource(ship, 'mst').catch(catchFetch(ship, 'mst'));
   if (gfwOn) fetchSource(ship, 'gfw').catch(catchFetch(ship, 'gfw'));
@@ -120,6 +126,10 @@ function enrichNewShip(mmsi) {
  * avoid hammering the scraper endpoints. Fire-and-forget.
  */
 async function enrichAllExisting(source) {
+  if ((source === 'vf' || source === 'mt') && fallbackMode.isActive()) {
+    appLog.info('SCRAPE', `Backfill ${sourceName(source)} sospeso: modalità fallback attiva.`);
+    return;
+  }
   const ships = db.getRecentShips();
   console.log(`[ENRICH:${source}] Backfill started — ${ships.length} ships to check`);
   appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
@@ -143,6 +153,10 @@ async function enrichAllExisting(source) {
  */
 async function enrichActiveShips(source) {
   if (source === 'gfw' && !GFW_TOKEN) return; // no token → nothing to do
+  if ((source === 'vf' || source === 'mt') && fallbackMode.isActive()) {
+    appLog.info('SCRAPE', `Enrichment attivi ${sourceName(source)} sospeso: modalità fallback attiva.`);
+    return;
+  }
   const ships = db.getActiveShips(); // no area → all currently-active ships
   console.log(`[ENRICH:${source}] Active-only enrichment — ${ships.length} ships to check`);
   appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
