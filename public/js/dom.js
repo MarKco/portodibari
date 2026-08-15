@@ -187,6 +187,7 @@ export const el = {
 
   // Settings view
   btnSettings: $('btn-settings'),
+  btnFallbackNav: $('btn-fallback-nav'),
   viewSettings: $('view-settings'),
   btnSettingsBack: $('btn-settings-back'),
   toggleImportVf: $('toggle-import-vf'),

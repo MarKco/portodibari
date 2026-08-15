@@ -2088,6 +2088,13 @@ pre {
   transition: height 0.4s var(--ease), filter var(--t-fast);
 }
 .hour-bar-wrap:hover .hour-bar { filter: brightness(1.25); }
+
+/* stacked ok/failed hourly bar (fallback-mode per-source charts) */
+.hour-bar-stack { width: 100%; display: flex; flex-direction: column; transition: height 0.4s var(--ease); }
+.hour-bar-ok, .hour-bar-fail { width: 100%; border-radius: 2px; min-height: 2px; }
+.hour-bar-ok { background: var(--green); }
+.hour-bar-fail { background: var(--red); margin-bottom: 2px; }
+.hour-bar-wrap:hover .hour-bar-ok, .hour-bar-wrap:hover .hour-bar-fail { filter: brightness(1.25); }
 .hour-label {
   font-size: 0.6rem;
   color: var(--text-faint);

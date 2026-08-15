@@ -499,14 +499,20 @@
         per tornare indietro, usa i due pulsanti in fondo al pannello
         <strong>⚙ Impostazioni → Diagnostica AIS</strong> (nella stessa
         scheda descritta sopra, sempre consultabile anche fuori da un
-        disservizio):</p>
+        disservizio). Mentre la modalità fallback è attiva compare anche
+        una voce dedicata <strong>🔀 Modalità fallback</strong> nel menu
+        laterale (visibile solo agli amministratori), che porta con un
+        clic dritti a questo pannello da qualunque schermata:</p>
         <ul>
         <li><strong>Stato</strong> — attiva/non attiva, da quando,
-        ambito corrente (“solo navi seguite” o “monitoraggio
-        completo”).</li>
-        <li><strong>Storico scraping reale</strong> — grafico a barre
-        delle richieste ShipFinder/MyShipTracking delle ultime 48
-        ore.</li>
+        <strong>durata della sessione corrente</strong>, ambito corrente
+        (“solo navi seguite” o “monitoraggio completo”).</li>
+        <li><strong>Storico scraping reale</strong> — un grafico a barre
+        separato per <strong>ShipFinder</strong> e
+        <strong>MyShipTracking</strong> (non più sommati insieme),
+        ultime 48 ore, con barre impilate verde/rosso per richieste
+        riuscite/fallite ed etichette orarie ogni 6 ore — passa il mouse
+        su una barra per il dettaglio esatto.</li>
         <li><strong>Stima confronto modalità</strong> — due barre che
         mostrano quante richieste/ora comporterebbe ciascun ambito
         (“solo navi seguite” vs “monitoraggio completo”), a fianco dello
@@ -517,10 +523,15 @@
         (<code>FALLBACK_MAX_REQ_PER_HOUR</code>) — lo ridistribuisce
         solo su più navi, che vengono quindi rivisitate meno
         spesso.</li>
-        <li><strong>Stato dei “circuit breaker”</strong> — se ShipFinder
-        o MyShipTracking mostrano troppi errori 403/429 ravvicinati
-        (possibile segnale di blocco), quella sorgente viene sospesa
-        temporaneamente in automatico; qui vedi se e fino a quando.</li>
+        <li><strong>Stato dei “circuit breaker” e problemi della
+        sessione</strong> — se ShipFinder o MyShipTracking mostrano
+        troppi errori 403/429 ravvicinati (possibile segnale di blocco),
+        quella sorgente viene sospesa temporaneamente in automatico; qui
+        vedi se e fino a quando, più un <strong>contatore di quanti
+        sospetti blocco si sono verificati in questa sessione</strong>
+        per ciascuna sorgente — resta visibile anche dopo che il blocco
+        si è auto-risolto, invece di sparire non appena la sorgente
+        riprende a funzionare.</li>
         </ul>
         <p>Se una sorgente viene sospesa per sospetto blocco, ricevi un
         <strong>alert dedicato — solo per gli amministratori</strong> —
@@ -531,6 +542,11 @@
         l’AIS torna stabile per un periodo continuativo (di default 20
         minuti), per evitare di attivarsi/disattivarsi ripetutamente su
         un’interruzione breve.</p>
+        <p>Un riavvio del server (es. dopo un deploy) a metà di un
+        disservizio non fa perdere lo stato: il banner e l’eventuale
+        modalità fallback già attiva riprendono subito, senza dover
+        attendere di nuovo il periodo di silenzio necessario a
+        riconfermare l’interruzione.</p>
         <hr />
         <h2 id="modifica-dei-file-di-configurazione">Modifica dei file
         di configurazione</h2>

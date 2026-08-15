@@ -479,12 +479,20 @@
         <strong>“followed ships only”</strong>: to widen it, or switch
         back, use the two buttons at the bottom of the <strong>⚙
         Settings → AIS Diagnostics</strong> panel (same tab described
-        above, always available even outside an outage):</p>
+        above, always available even outside an outage). While fallback
+        mode is active a dedicated <strong>🔀 Fallback mode</strong>
+        entry also appears in the sidebar (administrators only), jumping
+        straight to this panel from any screen:</p>
         <ul>
         <li><strong>Status</strong> — active/not active, since when,
-        current scope (“followed ships only” or “full monitoring”).</li>
-        <li><strong>Real scrape history</strong> — a bar chart of
-        ShipFinder/MyShipTracking requests over the last 48 hours.</li>
+        <strong>current session’s duration</strong>, current scope
+        (“followed ships only” or “full monitoring”).</li>
+        <li><strong>Real scrape history</strong> — a separate bar chart
+        for <strong>ShipFinder</strong> and
+        <strong>MyShipTracking</strong> (no longer summed together),
+        last 48 hours, with stacked green/red bars for succeeded/failed
+        requests and hour labels every 6 hours — hover a bar for the
+        exact breakdown.</li>
         <li><strong>Scope comparison estimate</strong> — two bars
         showing how many requests/hour each scope would take (“followed
         ships only” vs. “full monitoring”), next to the real history:
@@ -493,11 +501,14 @@
         the scope does <strong>not</strong> raise the hourly request cap
         (<code>FALLBACK_MAX_REQ_PER_HOUR</code>) — it only redistributes
         it over more ships, each then revisited less often.</li>
-        <li><strong>Circuit-breaker status</strong> — if ShipFinder or
-        MyShipTracking show too many 403/429 errors in a short window (a
-        possible sign of blocking), that source is automatically paused
-        for a while; here you see whether it’s paused and until
-        when.</li>
+        <li><strong>Circuit-breaker status and session problems</strong>
+        — if ShipFinder or MyShipTracking show too many 403/429 errors
+        in a short window (a possible sign of blocking), that source is
+        automatically paused for a while; here you see whether it’s
+        paused and until when, plus a <strong>counter of how many
+        suspected blocks happened this session</strong> per source — it
+        stays visible even after the block resolved itself, instead of
+        disappearing the moment the source recovers.</li>
         </ul>
         <p>If a source is paused for suspected blocking, you get a
         dedicated alert — <strong>administrators only</strong> — via
@@ -507,6 +518,11 @@
         exits on its own once AIS has been continuously stable for a
         while (20 minutes by default), to avoid repeatedly switching on
         and off over a short interruption.</p>
+        <p>A server restart (e.g. after a deploy) in the middle of an
+        outage doesn’t lose this state: the banner and any
+        already-active fallback mode resume immediately, without having
+        to wait again for the silence period needed to reconfirm the
+        outage.</p>
         <hr />
         <h2 id="editing-configuration-files">Editing configuration
         files</h2>

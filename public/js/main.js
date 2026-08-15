@@ -723,6 +723,17 @@ function initSettingsModal() {
     showView(S.settingsFrom || 'active');
   });
 
+  // Sidebar shortcut shown only while fallback mode is active (see outage.js
+  // applyOutageBanner) — jumps straight to the existing Diagnostica AIS panel
+  // instead of duplicating its charts in a second place.
+  el.btnFallbackNav?.addEventListener('click', () => {
+    if (S.view !== 'settings') S.settingsFrom = S.view;
+    showView('settings');
+    el.settingsTabs.querySelectorAll('.tab').forEach((b) => b.classList.remove('tab-active'));
+    document.getElementById('settings-tab-health')?.classList.add('tab-active');
+    activateSettingsPanel('health');
+  });
+
   // Settings tabs — switch between the panels
   // (general / areas / params / backup / log / logs / health).
   el.settingsTabs.addEventListener('click', (e) => {

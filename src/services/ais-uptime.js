@@ -49,21 +49,27 @@ const MIN_PROBE_GAP_MS = 60 * 1000; // don't hammer the public monitor
 //   since         — ISO time serviceDown first became true (null when up)
 //   silentMin     — our local silence in whole minutes
 //
-// `since` is mirrored to meta key `ais_outage_since` (see setOutageSince below)
-// and re-hydrated here at module load: it has to survive a server restart,
-// otherwise every deploy would reset the AIS_FALLBACK_HOURS countdown to zero —
-// exactly the scenario a real prolonged outage (spanning several deploys) needs
-// this to get right. `serviceDown` itself is NOT rehydrated as true — the next
-// evaluate() tick (within 60s) re-derives it for real; only the "how long has
-// this been going on" timestamp needs to survive.
+// `since`/`monitorState`/`monitorSource` are mirrored to meta keys
+// `ais_outage_since`, `ais_outage_monitor_state`, `ais_outage_monitor_source`
+// (see applyDown/applyUp below) and re-hydrated here at module load —
+// including `serviceDown` itself, derived from `since` — so a restart
+// mid-outage shows the banner immediately instead of going blank until local
+// silence rebuilds. `init()` below also fires one immediate reconfirmation
+// probe when we boot already believing we're down, rather than waiting up to
+// AIS_OUTAGE_SILENCE_MIN minutes for our own just-reconnected stream to go
+// silent again before even checking — see reconfirmOnBoot(). Either the
+// outage is still ongoing (probe confirms; no duplicate detection/notify since
+// serviceDown was already true) or it resolved while we were restarting (probe
+// clears it right away).
 let outage = {
   serviceDown: false,
-  monitorState: null,
-  monitorSource: null,
+  monitorState: db.getMeta('ais_outage_monitor_state') || null,
+  monitorSource: db.getMeta('ais_outage_monitor_source') || null,
   checkedAt: null,
   since: db.getMeta('ais_outage_since') || null,
   silentMin: 0,
 };
+outage.serviceDown = !!outage.since;
 let lastProbeAt = 0;
 let lastProbeResult = null; // { state, lastChecked, source } from the most recent successful probe
 let timer = null;
@@ -144,20 +150,56 @@ async function probe() {
   throw new Error(errors.join('; '));
 }
 
+/** Transition (or reconfirm) the outage verdict to "down". Shared by evaluate()
+ *  and reconfirmOnBoot() so the subtle since-fallback chain and notify-once
+ *  behavior can't drift between the two call sites. */
+function applyDown(result, nowIso, silentMin) {
+  const monitorState = result.state;
+  const monitorSource = result.source;
+  if (!outage.serviceDown) {
+    appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
+    require('./telegram').broadcastOutage('start', { min: silentMin });
+    require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
+  }
+  // Prefer the monitor's own `lastMessageReceived` — the authoritative,
+  // community-wide "down since" — over anything local: it's correct even on
+  // a first-ever deploy made days into an outage, when our own detection
+  // would otherwise start counting from nowIso. Falls back to `outage.since`
+  // (re-hydrated from meta at module load, or set on a prior tick), and
+  // finally to nowIso if neither is available. Persisted every tick while
+  // down (cheap single UPSERT); the value itself is stable while down.
+  const monitorSince =
+    result?.lastMessageReceived && !Number.isNaN(Date.parse(result.lastMessageReceived)) ? result.lastMessageReceived : null;
+  const since = monitorSince || outage.since || nowIso;
+  db.setMeta('ais_outage_since', since);
+  db.setMeta('ais_outage_monitor_state', monitorState);
+  db.setMeta('ais_outage_monitor_source', monitorSource);
+  outage = { serviceDown: true, monitorState, monitorSource, checkedAt: nowIso, since, silentMin };
+  handleFallbackTransition(true);
+}
+
+/** Transition (or reconfirm) the outage verdict to "up". Shared by evaluate()
+ *  and reconfirmOnBoot(). */
+function applyUp(monitorState, monitorSource, nowIso, silentMin) {
+  if (outage.serviceDown) {
+    appLog.info('AIS', appLog.t('ais.outage_cleared'));
+    require('./telegram').broadcastOutage('end');
+    require('./webhooks').broadcast('outage', { phase: 'end' });
+  }
+  outage = { serviceDown: false, monitorState, monitorSource, checkedAt: nowIso, since: null, silentMin };
+  db.setMeta('ais_outage_since', null);
+  db.setMeta('ais_outage_monitor_state', null);
+  db.setMeta('ais_outage_monitor_source', null);
+  handleFallbackTransition(false);
+}
+
 async function evaluate() {
   const info = stream.getSilenceInfo();
   const nowIso = new Date().toISOString();
 
   // No active stream, or the pipe is healthy → clear any standing outage.
   if (!info.active || info.silentMs < AIS_OUTAGE_SILENCE_MIN * 60 * 1000) {
-    if (outage.serviceDown) {
-      appLog.info('AIS', appLog.t('ais.outage_cleared'));
-      require('./telegram').broadcastOutage('end');
-      require('./webhooks').broadcast('outage', { phase: 'end' });
-    }
-    outage = { serviceDown: false, monitorState: null, monitorSource: null, checkedAt: nowIso, since: null, silentMin: 0 };
-    db.setMeta('ais_outage_since', null);
-    handleFallbackTransition(false);
+    applyUp(null, null, nowIso, 0);
     return;
   }
 
@@ -177,50 +219,32 @@ async function evaluate() {
     }
   }
 
-  const monitorState = lastProbeResult ? lastProbeResult.state : null;
-  const monitorSource = lastProbeResult ? lastProbeResult.source : null;
-  const down = monitorState !== null && monitorState !== 'Up';
+  const down = lastProbeResult && lastProbeResult.state !== null && lastProbeResult.state !== 'Up';
+  if (down) applyDown(lastProbeResult, nowIso, silentMin);
+  else applyUp(lastProbeResult ? lastProbeResult.state : null, lastProbeResult ? lastProbeResult.source : null, nowIso, silentMin);
+}
 
-  if (down) {
-    if (!outage.serviceDown) {
-      appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
-      require('./telegram').broadcastOutage('start', { min: silentMin });
-      require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
-    }
-    // Prefer the monitor's own `lastMessageReceived` — the authoritative,
-    // community-wide "down since" — over anything local: it's correct even on
-    // a first-ever deploy made days into an outage, when our own detection
-    // would otherwise start counting from nowIso. Falls back to `outage.since`
-    // (re-hydrated from meta at module load, or set on a prior tick — not
-    // `outage.serviceDown ? outage.since : nowIso`, since serviceDown starts
-    // false on the first post-restart tick even when since was re-hydrated),
-    // and finally to nowIso if neither is available. Persisted every tick while
-    // down (cheap single UPSERT); the value itself is stable while down.
-    const monitorSince =
-      lastProbeResult?.lastMessageReceived && !Number.isNaN(Date.parse(lastProbeResult.lastMessageReceived))
-        ? lastProbeResult.lastMessageReceived
-        : null;
-    const since = monitorSince || outage.since || nowIso;
-    db.setMeta('ais_outage_since', since);
-    outage = {
-      serviceDown: true,
-      monitorState,
-      monitorSource,
-      checkedAt: nowIso,
-      since,
-      silentMin,
-    };
-    handleFallbackTransition(true);
-  } else {
-    if (outage.serviceDown) {
-      appLog.info('AIS', appLog.t('ais.outage_cleared'));
-      require('./telegram').broadcastOutage('end');
-      require('./webhooks').broadcast('outage', { phase: 'end' });
-    }
-    outage = { serviceDown: false, monitorState, monitorSource, checkedAt: nowIso, since: null, silentMin };
-    db.setMeta('ais_outage_since', null);
-    handleFallbackTransition(false);
+// Fires once at boot when we already believe (from persisted meta) that the
+// service was down when we last shut down. Bypasses evaluate()'s local-silence
+// gate — which would otherwise force waiting AIS_OUTAGE_SILENCE_MIN minutes for
+// our just-reconnected stream to go quiet again before even checking — and
+// reconfirms against the monitor immediately instead. One extra probe call,
+// made only in this restart-mid-outage case, still respects MIN_PROBE_GAP_MS
+// pacing for every check after it. If both monitors are unreachable, the
+// rehydrated verdict is left as-is and the next scheduled evaluate() tick
+// retries normally.
+async function reconfirmOnBoot() {
+  const nowIso = new Date().toISOString();
+  lastProbeAt = Date.now();
+  try {
+    lastProbeResult = await probe();
+  } catch (e) {
+    appLog.warn('AIS', appLog.t('ais.outage_check_failed', { error: e.message }));
+    return;
   }
+  const down = lastProbeResult.state !== null && lastProbeResult.state !== 'Up';
+  if (down) applyDown(lastProbeResult, nowIso, outage.silentMin);
+  else applyUp(lastProbeResult.state, lastProbeResult.source, nowIso, 0);
 }
 
 // Follow/heatmap message silence is normal (a followed ship or a quiet grid cell
@@ -267,6 +291,7 @@ function getOutage() {
 /** Start the periodic silence/uptime evaluation. No-op when disabled. */
 function init() {
   if (!AIS_OUTAGE_CHECK || timer) return;
+  if (outage.serviceDown) reconfirmOnBoot().catch(() => {});
   timer = setInterval(() => evaluate().catch(() => {}), CHECK_INTERVAL_MS);
 }
 

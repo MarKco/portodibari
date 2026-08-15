@@ -46,6 +46,7 @@ export function applyOutageBanner() {
   const o = S.outage;
   const streamIssues = o?.streamIssues || [];
   const fb = o?.fallbackMode;
+  el.btnFallbackNav?.classList.toggle('hidden', !(fb?.active && S.isAdmin));
   const active = !!o && (o.serviceDown || streamIssues.length > 0 || fb?.active);
   const key = currentKey(o);
   const show = active && MONITORING_VIEWS.has(S.view) && dismissedKey !== key;

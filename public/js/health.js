@@ -109,6 +109,41 @@ function scrapeCountsBlock(counts) {
 // estimate — so an admin can see the risk jump before switching, not just a
 // bare toggle. Bars reuse the same CSS classes as the traffic stats charts
 // (traffico.js) — no chart library, consistent with the rest of the app.
+const FALLBACK_SOURCE_LABEL = { sf: 'ShipFinder', mst: 'MyShipTracking' };
+
+// One small-multiple hourly chart for a single source: stacked ok/failed bars
+// (status colors, not identity — the two sources are told apart by their own
+// heading, not by hue) sharing a common scale across both sources so their
+// volumes are directly comparable. Hour labels every 6h; full breakdown on hover.
+function sourceHistoryChart(source, byHour, hours, maxTotal) {
+  const bars = hours
+    .map((h, i) => {
+      const c = byHour.get(h) || { ok: 0, failed: 0 };
+      const total = c.ok + c.failed;
+      const totalPct = total ? Math.max(2, Math.round((total / maxTotal) * 100)) : 0;
+      const failPct = total ? Math.round(totalPct * (c.failed / total)) : 0;
+      const okPct = totalPct - failPct;
+      const label = i % 6 === 0 ? `<span class="hour-label">${escHtml(h.slice(11, 16))}</span>` : '';
+      return `
+      <div class="hour-bar-wrap" title="${escHtml(h.slice(0, 16).replace('T', ' '))} — ${t('health.fallbackOkLabel')}: ${c.ok} · ${t('health.fallbackFailedLabel')}: ${c.failed}">
+        <div class="hour-bar-stack" style="height:${totalPct}%">
+          ${failPct ? `<div class="hour-bar-fail" style="height:${failPct}%"></div>` : ''}
+          ${okPct ? `<div class="hour-bar-ok" style="height:${okPct}%"></div>` : ''}
+        </div>
+        ${label}
+      </div>`;
+    })
+    .join('');
+  return `
+    <p class="health-section-desc" style="margin:0.6rem 0 0.3rem"><strong>${FALLBACK_SOURCE_LABEL[source]}</strong></p>
+    <div class="hourly-bars">${bars}</div>`;
+}
+
+// "Modalità fallback" (see services/fallback-mode.js): status + duration,
+// per-source circuit breaker state + session problem count, real recent scrape
+// volume (last 48h, one small-multiple chart per source, ok/failed stacked),
+// and a comparison of the two scope options' request/hour estimate — so an
+// admin can see the risk jump before switching, not just a bare toggle.
 function fallbackModeBlock(fb, est) {
   if (!fb) return '';
   const statusVal = fb.active
@@ -116,7 +151,11 @@ function fallbackModeBlock(fb, est) {
     : `<span class="health-ok">${t('health.fallbackInactive')}</span>`;
   const rows = [`<div class="health-item"><label>${t('health.fallbackStatus')}</label><span>${statusVal}</span></div>`];
   if (fb.active && fb.since) {
-    rows.push(`<div class="health-item"><label>${t('health.fallbackSince')}</label><span>${formatTime(fb.since)}</span></div>`);
+    const durationSec = Math.max(0, Math.round((Date.now() - new Date(fb.since).getTime()) / 1000));
+    rows.push(
+      `<div class="health-item"><label>${t('health.fallbackSince')}</label><span>${formatTime(fb.since)}</span></div>`,
+      `<div class="health-item"><label>${t('health.fallbackDuration')}</label><span>${fmtUptime(durationSec)}</span></div>`
+    );
   }
   rows.push(
     `<div class="health-item"><label>${t('health.fallbackScope')}</label><span>${
@@ -125,29 +164,29 @@ function fallbackModeBlock(fb, est) {
   );
   for (const src of ['sf', 'mst']) {
     const c = fb.circuits?.[src];
-    const label = src === 'sf' ? 'ShipFinder' : 'MyShipTracking';
+    const trips = fb.tripCounts?.[src] || 0;
     const val = c?.open
       ? `<span class="health-err">${t('health.circuitOpen', { until: formatTime(c.until) })}</span>`
       : `<span class="health-ok">${t('health.circuitClosed')}</span>`;
-    rows.push(`<div class="health-item"><label>${label}</label><span>${val}</span></div>`);
+    const tripsVal = trips ? ` · <span class="health-warn">${t('health.fallbackTripCount', { n: trips })}</span>` : ` · ${t('health.fallbackNoProblems')}`;
+    rows.push(`<div class="health-item"><label>${FALLBACK_SOURCE_LABEL[src]}</label><span>${val}${tripsVal}</span></div>`);
   }
 
-  const byHour = new Map();
+  const bySourceHour = { sf: new Map(), mst: new Map() };
   for (const row of est?.recentHistory || []) {
     if (row.source !== 'sf' && row.source !== 'mst') continue;
-    byHour.set(row.hour, (byHour.get(row.hour) || 0) + row.total);
+    bySourceHour[row.source].set(row.hour, { ok: row.ok || 0, failed: row.failed || 0 });
   }
-  const hours = [...byHour.keys()].sort();
-  const maxHour = Math.max(1, ...hours.map((h) => byHour.get(h)));
+  const hours = [...new Set([...bySourceHour.sf.keys(), ...bySourceHour.mst.keys()])].sort();
+  const maxTotal = Math.max(
+    1,
+    ...hours.map((h) => (bySourceHour.sf.get(h)?.ok || 0) + (bySourceHour.sf.get(h)?.failed || 0)),
+    ...hours.map((h) => (bySourceHour.mst.get(h)?.ok || 0) + (bySourceHour.mst.get(h)?.failed || 0))
+  );
   const historyChart = hours.length
-    ? `<div class="hourly-bars">${hours
-        .map(
-          (h) => `
-      <div class="hour-bar-wrap" title="${escHtml(h)}: ${byHour.get(h)}">
-        <div class="hour-bar" style="height:${Math.max(2, Math.round((byHour.get(h) / maxHour) * 100))}%"></div>
-      </div>`
-        )
-        .join('')}</div>`
+    ? `<p class="health-section-desc">🟢 ${t('health.fallbackOkLabel')} &nbsp; 🔴 ${t('health.fallbackFailedLabel')}</p>
+       ${sourceHistoryChart('sf', bySourceHour.sf, hours, maxTotal)}
+       ${sourceHistoryChart('mst', bySourceHour.mst, hours, maxTotal)}`
     : `<p class="health-muted">${t('health.fallbackNoHistory')}</p>`;
 
   const maxEst = Math.max(1, est?.followOnly?.requestsPerHour || 0, est?.full?.requestsPerHour || 0);

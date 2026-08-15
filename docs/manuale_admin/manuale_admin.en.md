@@ -133,14 +133,16 @@ The **AIS outage banner** shown to all users on monitoring pages when an area go
 
 If the AIS outage lasts more than **6 hours** (configurable threshold, `AIS_FALLBACK_HOURS` — see [Editing configuration files](#editing-configuration-files)), the app automatically enters **fallback mode**: instead of relying only on the AIS feed, it relocates ships via scraping on **ShipFinder** and **MyShipTracking** (the only two external sources that provide coordinates), to keep a minimum level of monitoring during a prolonged outage.
 
-Fallback mode always starts in the safest scope, **"followed ships only"**: to widen it, or switch back, use the two buttons at the bottom of the **⚙ Settings → AIS Diagnostics** panel (same tab described above, always available even outside an outage):
+Fallback mode always starts in the safest scope, **"followed ships only"**: to widen it, or switch back, use the two buttons at the bottom of the **⚙ Settings → AIS Diagnostics** panel (same tab described above, always available even outside an outage). While fallback mode is active a dedicated **🔀 Fallback mode** entry also appears in the sidebar (administrators only), jumping straight to this panel from any screen:
 
-- **Status** — active/not active, since when, current scope ("followed ships only" or "full monitoring").
-- **Real scrape history** — a bar chart of ShipFinder/MyShipTracking requests over the last 48 hours.
+- **Status** — active/not active, since when, **current session's duration**, current scope ("followed ships only" or "full monitoring").
+- **Real scrape history** — a separate bar chart for **ShipFinder** and **MyShipTracking** (no longer summed together), last 48 hours, with stacked green/red bars for succeeded/failed requests and hour labels every 6 hours — hover a bar for the exact breakdown.
 - **Scope comparison estimate** — two bars showing how many requests/hour each scope would take ("followed ships only" vs. "full monitoring"), next to the real history: before widening the scope you can see concretely how much the scrape volume would rise, instead of choosing blind. Widening the scope does **not** raise the hourly request cap (`FALLBACK_MAX_REQ_PER_HOUR`) — it only redistributes it over more ships, each then revisited less often.
-- **Circuit-breaker status** — if ShipFinder or MyShipTracking show too many 403/429 errors in a short window (a possible sign of blocking), that source is automatically paused for a while; here you see whether it's paused and until when.
+- **Circuit-breaker status and session problems** — if ShipFinder or MyShipTracking show too many 403/429 errors in a short window (a possible sign of blocking), that source is automatically paused for a while; here you see whether it's paused and until when, plus a **counter of how many suspected blocks happened this session** per source — it stays visible even after the block resolved itself, instead of disappearing the moment the source recovers.
 
 If a source is paused for suspected blocking, you get a dedicated alert — **administrators only** — via in-app notification, Telegram (toggle in Settings → External integrations → Telegram, "suspected ban" entry) and a hint in the AIS-outage banner while logged in as an admin. Fallback mode exits on its own once AIS has been continuously stable for a while (20 minutes by default), to avoid repeatedly switching on and off over a short interruption.
+
+A server restart (e.g. after a deploy) in the middle of an outage doesn't lose this state: the banner and any already-active fallback mode resume immediately, without having to wait again for the silence period needed to reconfirm the outage.
 
 ---
 

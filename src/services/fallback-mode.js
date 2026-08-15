@@ -60,6 +60,12 @@ const lastScrapeAt = new Map(); // mmsi -> epoch ms of last fallback-mode scrape
 let cycleCount = 0;
 let requestTimestamps = []; // epoch ms of requests made in the trailing hour
 
+// Suspected-block count per source for the *current* session (reset on enter()),
+// surfaced to the admin diagnostics panel as an at-a-glance "problems so far".
+// In-memory only, like the circuit breaker itself — a restart mid-session just
+// restarts the count, never wrongly inflates or persists a stale one.
+let tripCounters = { sf: 0, mst: 0 };
+
 function isActive() {
   return db.getMeta(META_ACTIVE) === '1';
 }
@@ -68,6 +74,7 @@ function enter() {
   if (isActive()) return;
   db.setMeta(META_ACTIVE, '1');
   db.setMeta(META_SINCE, new Date().toISOString());
+  tripCounters = { sf: 0, mst: 0 };
   // Always the safe default, regardless of what an admin left it at last time.
   setFallbackScopeAreas(false);
   appLog.warn('AIS', 'Modalità fallback attivata: scraping ShipFinder/MyShipTracking per riposizionare le navi seguite.');
@@ -111,6 +118,7 @@ function recordFailure(source, mmsi, err) {
   if (distinctShips >= FALLBACK_CIRCUIT_TRIP_COUNT && !circuit[source].open) {
     circuit[source].open = true;
     circuit[source].until = now + FALLBACK_CIRCUIT_COOLDOWN_MIN * 60 * 1000;
+    tripCounters[source]++;
     onCircuitTransition(source, 'start');
   }
 }
@@ -241,6 +249,7 @@ function getStatus() {
       sf: { open: circuit.sf.open, until: circuit.sf.open ? new Date(circuit.sf.until).toISOString() : null },
       mst: { open: circuit.mst.open, until: circuit.mst.open ? new Date(circuit.mst.until).toISOString() : null },
     },
+    tripCounts: { sf: tripCounters.sf, mst: tripCounters.mst },
   };
 }
 
