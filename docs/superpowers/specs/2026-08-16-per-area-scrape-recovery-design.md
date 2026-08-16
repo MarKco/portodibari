@@ -89,8 +89,18 @@ Cascata di conferma, in ordine di priorità/costo:
    **auto-confermato**, nessuna fonte esterna interrogata.
 2. Altrimenti, cascata **GFW → World Port Index (NGA) → UN/LOCODE → VesselFinder**:
    - **GFW**: dataset "anchorages" pubblico di Global Fishing Watch — riusa `GFW_TOKEN`/client esistente
-     (`src/services/gfw.js`). ⚠️ *Da verificare in fase di implementazione*: se è un endpoint API o un
-     download statico; l'API vessel-events attuale è per-nave, non per-bbox.
+     (`src/services/gfw.js`). ❌ *Verificato in implementazione (2026-08-17), non disponibile via API*:
+     `GET /v3/datasets/public-anchorages:latest` → 404 (`Dataset not found with id or alias`);
+     `GET /v3/datasets/public-anchorages` (senza `:latest`) → 403 (`Not authorized by permissions`,
+     quindi il dataset esiste ma questo token/tier non ha accesso); nessuna variante di alias
+     (`:v2.0`, `:v3.0`, `public-global-anchorages*`) risolve. La pagina ufficiale GFW
+     "Datasets and Code: Anchorages, Ports and Voyages" conferma esplicitamente: *"Anchorages and
+     Voyages are not yet available in the APIs & packages"* — l'unico accesso è tramite il Data
+     Download Portal autenticato via browser (login + selezione file), fuori perimetro (niente
+     automazione browser). `getAnchoragesInBbox(sw, ne)` in `gfw.js` è quindi uno stub che ritorna
+     sempre `[]` con un commento che spiega perché — resta una sorgente candidata "best effort" nella
+     cascata, non bloccante, riattivabile in futuro se GFW espone l'endpoint o se si decide di
+     integrare un bundle statico dal Data Download Portal (come fatto per WPI).
    - **World Port Index**: dataset pubblico NGA (Pub 150), non integrato oggi. Bundle statico
      `data/wpi.json` generato una tantum da uno script `scripts/build-wpi.js` (pattern identico a
      `build-locode.js`/PSC), refresh raro (~1/anno). ✅ *Verificato in implementazione (2026-08-17)*:
@@ -222,9 +232,13 @@ migrazione o il fix necessario prima di chiudere l'implementazione — non è op
   ma non garantisce di risolvere il picco di CPU — da verificare col prossimo deploy, come da richiesta
   esplicita dell'utente.
 - **Fonti esterne da verificare in implementazione** (non bloccanti per il design, ma rischio di stima):
-  formato/accesso dataset GFW anchorages; struttura esatta pagina `/ports` di VesselFinder.
+  struttura esatta pagina `/ports` di VesselFinder resta da esplorare.
   URL/formato download World Port Index **verificato** (vedi sopra, task 3): l'endpoint API NGA
   ipotizzato nel piano si è rivelato corretto al primo tentativo, nessun fallback necessario.
+  Dataset GFW anchorages **verificato non disponibile via API** (vedi sopra, task 4): confermato non
+  raggiungibile con `GFW_TOKEN` (403/404 su tutte le varianti provate) e la stessa GFW dichiara la
+  sorgente non ancora esposta nelle API — sorgente esclusa dalla cascata per ora, funzione stub
+  presente per riattivazione futura.
 - **Rework di codice già scritto in questa sessione**: la sidebar+grafici per "modalità fallback"
   costruiti in un turno precedente vanno in gran parte rifatti (non solo estesi) per la vista multi-area.
 

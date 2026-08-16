@@ -343,4 +343,37 @@ async function crawlGfw(ship) {
   };
 }
 
-module.exports = { crawlGfw };
+// ── Anchorages (bbox lookup for port-discovery cascade) ───────────────────────
+// Verification spike (2026-08-17): GFW's own "Datasets and Code: Anchorages,
+// Ports and Voyages" page states plainly that "Anchorages and Voyages are not
+// yet available in the APIs & packages" — confirmed against the live gateway
+// too: `GET /v3/datasets/public-anchorages:latest` → 404 ("Dataset not found
+// with id or alias"); `GET /v3/datasets/public-anchorages` (no `:latest`) →
+// 403 ("Not authorized by permissions" — the raw dataset id exists but this
+// token's tier has no access to it); every alias variant tried
+// (`:v2.0`/`:v3.0`, `public-global-anchorages*`) also 404s. The only real
+// access path is GFW's Data Download Portal, which requires an authenticated
+// browser session (login + manual file selection) — out of scope here (no
+// browser automation / SPA reverse-engineering for a best-effort source).
+// This is therefore a stub: always returns [] so callers can treat GFW as one
+// candidate among several in the cascade without a hard dependency on it. If
+// GFW ever exposes this over the Events API, or a static bundle route similar
+// to World Port Index's `data/wpi.json` is built from a portal export, this is
+// the place to wire it in for real (reusing `getJson` as done elsewhere here).
+/** Anchorage points from GFW's public reference dataset, filtered to a bbox.
+ *  Currently unreachable via the API GFW exposes to this token (see comment
+ *  above) — always resolves to [], never throws. sw/ne are [lat, lon] pairs,
+ *  matching the shape used elsewhere in this codebase (bounding-boxes.json). */
+async function getAnchoragesInBbox(_sw, _ne) {
+  if (!GFW_TOKEN) return [];
+  try {
+    // No confirmed endpoint exists yet for a bbox-scoped anchorages lookup —
+    // see the verification note above. Left as an explicit no-op rather than
+    // firing a request known in advance to fail.
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+module.exports = { crawlGfw, getAnchoragesInBbox };
