@@ -37,6 +37,17 @@
 // "Nonexistentportxyz") converges to a bracketing page with zero matching
 // rows and returns [] — no exception, no infinite loop (binary search halves
 // the [low, high] range every iteration regardless of outcome).
+//
+// PACING + CACHING (post-review fix, 2026-08-17): a single search fires ~9-10
+// sequential requests (binary search + one detail-page fetch per match) —
+// the only multi-request path in this file, so it gets the same jitter
+// `fallback-mode.js` uses between its own back-to-back scrapes (`jitterMs`,
+// 1.5-4.5s). Pages are additionally cached module-wide (`pageCache`, page
+// number -> parsed rows, no eviction — lives for the process's lifetime,
+// same "build once, reuse" pattern as this project's other in-memory
+// caches): a page already seen by an earlier binary search (this call's or a
+// prior call's, e.g. Task 7 looking up many candidate names in one
+// discovery run) is reused with no network request and no added delay.
 
 const { fetchHttp, stripHtml } = require('./http');
 
@@ -56,6 +67,20 @@ const PORT_COORDS_RE =
 // shape ever stalling the range instead of shrinking it.
 const MAX_SEARCH_STEPS = 30;
 
+// Same jitter shape/magnitude as fallback-mode.js's `jitterMs` (1.5-4.5s) —
+// this file's own binary-search + detail-page requests are the only other
+// back-to-back sequential-request path in the codebase, so it paces itself
+// the same way rather than inventing a different range.
+const jitterMs = () => 1500 + Math.random() * 3000;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Module-wide cache of already-fetched /ports list pages (page number ->
+// parsed {rows, total}), no eviction — lives for the process's lifetime. A
+// caller doing many lookups in one run (Task 7's discovery cascade) reuses
+// any page already seen by an earlier binary search instead of re-fetching
+// (and re-pacing) it.
+const pageCache = new Map();
+
 /** Parse one /ports listing page: total page count (from the "page N / TOTAL"
  *  marker, present on every page) and its rows (pid, name, country). */
 function parseListPage(html) {
@@ -70,9 +95,17 @@ function parseListPage(html) {
   return { rows, total };
 }
 
+/** Fetch+parse a /ports list page, serving from `pageCache` when available.
+ *  Only a real (cache-miss) fetch is paced with jitter — a cache hit costs
+ *  neither a request nor a delay. */
 async function fetchListPage(page) {
+  const cached = pageCache.get(page);
+  if (cached) return cached;
   const html = await fetchHttp(VF_PORTS_LIST_URL(page));
-  return parseListPage(html);
+  await sleep(jitterMs());
+  const parsed = parseListPage(html);
+  pageCache.set(page, parsed);
+  return parsed;
 }
 
 /** Binary-search the alphabetically-sorted paginated index for the page whose
@@ -82,18 +115,13 @@ async function fetchListPage(page) {
 async function findBracketingPage(target) {
   const first = await fetchListPage(1);
   const total = first.total || 1;
-  const cache = new Map([[1, first]]);
   let low = 1;
   let high = total;
   let steps = 0;
   while (low <= high && steps < MAX_SEARCH_STEPS) {
     steps += 1;
     const mid = Math.floor((low + high) / 2);
-    let page = cache.get(mid);
-    if (!page) {
-      page = await fetchListPage(mid);
-      cache.set(mid, page);
-    }
+    const page = await fetchListPage(mid);
     if (!page.rows.length) {
       high = mid - 1;
       continue;
@@ -129,6 +157,7 @@ async function searchVesselFinderPorts(name) {
   const out = [];
   for (const cand of candidates) {
     const html = await fetchHttp(VF_PORT_DETAIL_URL(cand.pid));
+    await sleep(jitterMs());
     const m = html.match(PORT_COORDS_RE);
     if (!m) continue;
     const lat = Number(m[1]);
