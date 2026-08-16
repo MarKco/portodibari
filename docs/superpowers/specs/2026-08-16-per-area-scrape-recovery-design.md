@@ -139,6 +139,14 @@ Nave mai vista (mmsi nuovo) → riga `ships` creata subito, posizione iniziale =
 scraping successivo (stesso meccanismo di sezione 2) corregge la posizione col fix vero dalla pagina
 dettaglio nave.
 
+**Dedup garantito quando AISStream torna a coprire quella nave**: si riusa `ensureShipStub(mmsi, name)`
+(`db.js:1654`, già esistente per il caso "nave seguita mai vista via AIS") — `INSERT OR IGNORE`, mai un
+doppione perché `ships.mmsi` è `PRIMARY KEY`. La posizione (centroide porto, poi fix reale) si scrive
+come lettura scrape (`source='mst'`, stesso path di `insertScrapedPosition`), non nella riga `ships`
+direttamente. Quando un vero frame AIS arriva per quel mmsi, `upsertShipStmt` (`ON CONFLICT(mmsi) DO
+UPDATE ... COALESCE(excluded.x, ships.x)`) sovrascrive posizione/nome/tutto sulla **stessa riga** — nessun
+codice nuovo da scrivere per il merge, è lo stesso meccanismo già in produzione oggi.
+
 ## 6. UI
 
 - **Rimossa**: voce sidebar "🔀 Modalità fallback" e tutto il wiring aggiunto nella sessione precedente
