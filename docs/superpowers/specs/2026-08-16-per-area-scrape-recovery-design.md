@@ -111,8 +111,16 @@ Cascata di conferma, in ordine di priorità/costo:
    - **UN/LOCODE**: `scripts/build-locode.js` va esteso per **non scartare** `entry.Function` (oggi
      buttato via) — filtro bbox + function=porto marittimo. Richiede reinstallare temporaneamente il
      pacchetto dev `un-locode` per rigenerare, come da commento esistente nello script.
-   - **VesselFinder**: pagina `/ports` (verificata rispondere, 39KB) — stesso pattern di scraping di
-     ShipFinder/MyShipTracking (`scrapers/http.js`), da esplorare la struttura esatta in implementazione.
+   - **VesselFinder**: pagina `/ports` (verificata rispondere, 39KB). ✅ *Verificato in implementazione
+     (2026-08-17)*: è un indice sfogliabile paginato (20 righe/pagina, 301 pagine, ordinato
+     alfabeticamente su tutto il globale), **non** un endpoint di ricerca — `?name=`/`?q=`/`?search=`
+     sono ignorati (confermato byte-a-byte contro la pagina non filtrata, stessa lunghezza/righe). La
+     ricerca vera del sito è client-side (widget che scarica un blob binario privato e filtra in JS,
+     fuori scope: niente reverse-engineering di bundle JS). Le righe dell'indice non hanno coordinate
+     (solo name/country/PID), che stanno solo nella pagina di dettaglio `/ports/{PID}` (`var
+     port={lat,lon}`). Implementata una ricerca binaria sulle pagine (sfruttando l'ordinamento
+     alfabetico, ~9 richieste per l'intero indice) per individuare il nome cercato, poi fetch della
+     pagina di dettaglio per le coordinate reali — `scrapers/vesselfinder-ports.js`.
    - **Clustering**: candidati di fonti diverse raggruppati per prossimità geografica (~3-5km). Ogni
      cluster conta le fonti distinte che l'hanno trovato. **≥2 fonti = confermato**, altrimenti stato
      `review` (in attesa di conferma/rifiuto admin).
@@ -232,7 +240,10 @@ migrazione o il fix necessario prima di chiudere l'implementazione — non è op
   ma non garantisce di risolvere il picco di CPU — da verificare col prossimo deploy, come da richiesta
   esplicita dell'utente.
 - **Fonti esterne da verificare in implementazione** (non bloccanti per il design, ma rischio di stima):
-  struttura esatta pagina `/ports` di VesselFinder resta da esplorare.
+  struttura esatta pagina `/ports` di VesselFinder **verificata** (vedi sopra, task 5): è un indice
+  sfogliabile senza ricerca server-side funzionante; implementata ricerca binaria sulle pagine
+  ordinate alfabeticamente in sostituzione del `?name=` ipotizzato nel piano (che è risultato ignorato
+  dal server).
   URL/formato download World Port Index **verificato** (vedi sopra, task 3): l'endpoint API NGA
   ipotizzato nel piano si è rivelato corretto al primo tentativo, nessun fallback necessario.
   Dataset GFW anchorages **verificato non disponibile via API** (vedi sopra, task 4): confermato non
