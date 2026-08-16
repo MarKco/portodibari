@@ -438,6 +438,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_user_track_cuts_user ON user_track_cuts(user_id, mmsi);
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS area_ports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    area_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    sources TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'review',
+    admin_reviewed INTEGER NOT NULL DEFAULT 0,
+    mst_pid TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(area_key, name)
+  );
+  CREATE INDEX IF NOT EXISTS idx_area_ports_area ON area_ports(area_key);
+`);
+
 // One-time migration from the earlier single-cut design (user_track_resets, one
 // row per user+ship): fold each reset into a cut, then drop the old table.
 if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_track_resets'").get()) {
@@ -1156,6 +1174,53 @@ function seedAreaCatalogIfEmpty(list, createdBy = null) {
     throw e;
   }
   return list.length;
+}
+
+// ── Area ports (discovery per-area) ──────────────────────────────────────────
+const upsertAreaPortStmt = db.prepare(`
+  INSERT INTO area_ports (area_key, name, lat, lon, sources, status, admin_reviewed, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+  ON CONFLICT(area_key, name) DO UPDATE SET
+    lat = excluded.lat,
+    lon = excluded.lon,
+    sources = excluded.sources,
+    status = CASE WHEN area_ports.admin_reviewed = 1 THEN area_ports.status ELSE excluded.status END,
+    updated_at = excluded.updated_at
+`);
+// Upserts one discovered/confirmed port candidate. `sources` is an array of
+// strings (e.g. ['berths'] or ['gfw','locode']), stored as JSON. Re-running
+// discovery for the same area+name never resurrects an admin-rejected port
+// back to 'review'/'confirmed', nor downgrades an admin-confirmed one — see
+// the ON CONFLICT clause above (admin_reviewed gates it).
+function upsertAreaPort({ area_key, name, lat, lon, sources, status }) {
+  const now = new Date().toISOString();
+  upsertAreaPortStmt.run(area_key, name, lat, lon, JSON.stringify(sources), status, now, now);
+}
+
+function getAreaPorts(areaKey) {
+  return db.prepare('SELECT * FROM area_ports WHERE area_key = ? ORDER BY name').all(areaKey)
+    .map((r) => ({ ...r, sources: JSON.parse(r.sources) }));
+}
+
+function getConfirmedAreaPorts(areaKey) {
+  return db.prepare("SELECT * FROM area_ports WHERE area_key = ? AND status = 'confirmed' ORDER BY name").all(areaKey)
+    .map((r) => ({ ...r, sources: JSON.parse(r.sources) }));
+}
+
+function countAreaPorts(areaKey) {
+  return db.prepare('SELECT COUNT(*) AS n FROM area_ports WHERE area_key = ?').get(areaKey).n;
+}
+
+const setAreaPortDecisionStmt = db.prepare(
+  "UPDATE area_ports SET status = ?, admin_reviewed = 1, updated_at = ? WHERE id = ?"
+);
+function setAreaPortDecision(id, status) {
+  setAreaPortDecisionStmt.run(status, new Date().toISOString(), id);
+}
+
+const setAreaPortMstPidStmt = db.prepare('UPDATE area_ports SET mst_pid = ?, updated_at = ? WHERE id = ?');
+function setAreaPortMstPid(id, pid) {
+  setAreaPortMstPidStmt.run(pid, new Date().toISOString(), id);
 }
 
 // ── Multi-user migration (idempotent, self-retiring) ─────────────────────────
@@ -3401,7 +3466,7 @@ function clearLogs() {
 // out on startup. That leftover table (if present) is intentionally NOT in
 // BACKUP_TABLES below.
 
-const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'group_activity_log', 'areas', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_ship_charges', 'user_settings', 'user_track_cuts'];
+const BACKUP_TABLES = ['readings', 'ships', 'port_events', 'api_log', 'ship_scrape_cache', 'ship_scrape_failures', 'notifications', 'risk_history', 'moorings', 'berths', 'proximity_events', 'meta', 'users', 'sessions', 'groups', 'group_activity_log', 'areas', 'area_ports', 'user_areas', 'user_flags', 'user_follows', 'user_mutes', 'user_seen', 'user_ship_charges', 'user_settings', 'user_track_cuts'];
 
 /**
  * Write a consistent snapshot of the whole database to `dest`.
@@ -3742,6 +3807,13 @@ module.exports = {
   areaOwnerCount,
   getOrphanAreaKeys,
   seedAreaCatalogIfEmpty,
+  // Area ports (discovery per-area)
+  upsertAreaPort,
+  getAreaPorts,
+  getConfirmedAreaPorts,
+  countAreaPorts,
+  setAreaPortDecision,
+  setAreaPortMstPid,
   migrateMultiUser,
   // Per-user visibility & ship state
   getUserBoxes,
