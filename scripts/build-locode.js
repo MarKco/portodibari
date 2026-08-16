@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Builds data/locode.json (CODE → port name) and data/locode-coords.json
-// (CODE → [lat, lon]) from the un-locode npm package.
+// Builds data/locode.json (CODE → port name), data/locode-coords.json
+// (CODE → [lat, lon]) and data/locode-ports.json (array of CODEs classified
+// as maritime ports) from the un-locode npm package.
 // Run once: node scripts/build-locode.js
 // Requires: npm install --no-save un-locode  (dev-only; remove after running)
 'use strict';
@@ -49,3 +50,15 @@ console.log(`Written ${Object.keys(lookup).length} names → ${outPath} (${(fs.s
 const coordPath = path.join(__dirname, '../data/locode-coords.json');
 fs.writeFileSync(coordPath, JSON.stringify(coords));
 console.log(`Written ${Object.keys(coords).length} coordinates → ${coordPath} (${(fs.statSync(coordPath).size / 1024).toFixed(0)} KB)`);
+
+// UN/LOCODE "Function" field is an 8-char classification string; position 0
+// = '1' means "port, maritime" (e.g. "1-------"), '0'/'-' otherwise.
+const ports = [];
+for (const entry of Object.values(data)) {
+  const code = entry.Country + entry.Location;
+  if (code.length !== 5 || !entry.Name) continue;
+  if ((entry.Function || '')[0] === '1') ports.push(code);
+}
+const portsPath = path.join(__dirname, '../data/locode-ports.json');
+fs.writeFileSync(portsPath, JSON.stringify(ports));
+console.log(`Written ${ports.length} port codes → ${portsPath} (${(fs.statSync(portsPath).size / 1024).toFixed(0)} KB)`);
