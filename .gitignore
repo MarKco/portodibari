@@ -20,3 +20,4 @@ data/*
 !data/locode.json
 !data/locode-coords.json
 .playwright-mcp/
+.superpowers/
