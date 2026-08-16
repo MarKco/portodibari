@@ -139,4 +139,53 @@ async function crawlMyshiptracking(mmsi) {
   return { static: staticData, position };
 }
 
-module.exports = { crawlMyshiptracking };
+const MST_PORT_SEARCH_URL = (name) => `https://www.myshiptracking.com/ports?search=${encodeURIComponent(name)}`;
+
+/** Search MyShipTracking's port catalog by name. Returns the matches found
+ *  (each with its own `pid`, extractable from the result link
+ *  `/ports/port-of-<slug>-in-<cc>-<country>-id-<pid>`) — empty array if none. */
+async function searchPort(name) {
+  const html = await fetchHttp(MST_PORT_SEARCH_URL(name));
+  const links = [...html.matchAll(/href="\/ports\/([a-zA-Z0-9_-]+)-id-(\d+)"/g)];
+  return links.map(([, slug, pid]) => ({
+    name: slug.replace(/^(port|anchorage)-of-/, '').replace(/-in-[a-z]{2}-.*$/, '').replace(/-/g, ' '),
+    pid,
+  }));
+}
+
+/** Resolve a port's lat/lon from its MST detail page (`/ports/<slug>-id-<pid>`),
+ *  by extracting the `lat=`/`lng=` pair embedded in the page's inline
+ *  `contributorMap.php` AJAX call. null if not found. */
+async function getPortCoords(slug, pid) {
+  const html = await fetchHttp(`https://www.myshiptracking.com/ports/${slug}-id-${pid}`);
+  const m = html.match(/lat=([\d.]+)&lng=([\d.]+)/);
+  return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null;
+}
+
+const MST_PORT_ARRIVALS_URL = (pid) =>
+  `https://www.myshiptracking.com/ports-arrivals-departures/?pid=${encodeURIComponent(pid)}`;
+
+/** Recent arrival/departure events for a port (by MST `pid`). Each entry has
+ *  the ship name+mmsi (parsed from the vessel link), the event type, and the
+ *  event timestamp (site-local, not corrected — same caveat as other MST
+ *  timestamps elsewhere in this codebase). Throws on an empty/unparseable
+ *  page (negative-cached by the caller), never returns null. */
+async function crawlPortArrivals(pid) {
+  const html = await fetchHttp(MST_PORT_ARRIVALS_URL(pid));
+  // The date/time cell is e.g. `2026-08-16 <b>22:37</b>` — the date prefix sits
+  // OUTSIDE the <b>, so the whole cell must be captured and stripped rather than
+  // just the bold time (which alone would silently drop the date, live-verified
+  // against the real markup while implementing this).
+  const rows = [...html.matchAll(
+    /<td[^>]*>(Arrival|Departure)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<a href="\/vessels\/[a-zA-Z0-9-]+-mmsi-(\d+)-imo-[^"]*">([^<]+)<\/a>/g
+  )];
+  if (!rows.length) throw new Error('MyShipTracking: nessun dato arrivi/partenze (porto sconosciuto o pagina cambiata)');
+  return rows.map(([, event, time, mmsi, name]) => ({
+    mmsi: Number(mmsi),
+    name: stripHtml(name).trim(),
+    event: event.toLowerCase(),
+    at: stripHtml(time).trim(),
+  }));
+}
+
+module.exports = { crawlMyshiptracking, searchPort, getPortCoords, crawlPortArrivals };
