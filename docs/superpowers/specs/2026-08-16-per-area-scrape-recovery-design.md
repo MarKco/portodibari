@@ -93,7 +93,11 @@ Cascata di conferma, in ordine di priorità/costo:
      download statico; l'API vessel-events attuale è per-nave, non per-bbox.
    - **World Port Index**: dataset pubblico NGA (Pub 150), non integrato oggi. Bundle statico
      `data/wpi.json` generato una tantum da uno script `scripts/build-wpi.js` (pattern identico a
-     `build-locode.js`/PSC), refresh raro (~1/anno). ⚠️ *Da verificare*: URL/formato di download attuale.
+     `build-locode.js`/PSC), refresh raro (~1/anno). ✅ *Verificato in implementazione (2026-08-17)*:
+     `https://msi.nga.mil/api/publications/world-port-index?output=json` è un GET pubblico senza auth,
+     risponde `{ ports: [...] }` con 2951 porti; ogni porto include già coordinate in gradi decimali
+     (`ycoord`/`xcoord`, non serve parsare le stringhe DMS `latitude`/`longitude`). Bundle generato:
+     2951 voci `{name, lat, lon}`, 206 KB.
    - **UN/LOCODE**: `scripts/build-locode.js` va esteso per **non scartare** `entry.Function` (oggi
      buttato via) — filtro bbox + function=porto marittimo. Richiede reinstallare temporaneamente il
      pacchetto dev `un-locode` per rigenerare, come da commento esistente nello script.
@@ -218,8 +222,9 @@ migrazione o il fix necessario prima di chiudere l'implementazione — non è op
   ma non garantisce di risolvere il picco di CPU — da verificare col prossimo deploy, come da richiesta
   esplicita dell'utente.
 - **Fonti esterne da verificare in implementazione** (non bloccanti per il design, ma rischio di stima):
-  formato/accesso dataset GFW anchorages; URL/formato download World Port Index; struttura esatta pagina
-  `/ports` di VesselFinder.
+  formato/accesso dataset GFW anchorages; struttura esatta pagina `/ports` di VesselFinder.
+  URL/formato download World Port Index **verificato** (vedi sopra, task 3): l'endpoint API NGA
+  ipotizzato nel piano si è rivelato corretto al primo tentativo, nessun fallback necessario.
 - **Rework di codice già scritto in questa sessione**: la sidebar+grafici per "modalità fallback"
   costruiti in un turno precedente vanno in gran parte rifatti (non solo estesi) per la vista multi-area.
 

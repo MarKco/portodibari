@@ -20,5 +20,6 @@ data/*
 !data/locode.json
 !data/locode-coords.json
 !data/locode-ports.json
+!data/wpi.json
 .playwright-mcp/
 .superpowers/
