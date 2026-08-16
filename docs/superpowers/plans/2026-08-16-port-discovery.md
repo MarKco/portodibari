@@ -290,7 +290,7 @@ https.get("https://msi.nga.mil/Publications/WPI", { headers: { "User-Agent": "cu
 '
 ```
 
-Record the real, working URL and format found. If NGA's own site requires JS/a form POST to export and no plain GET link is discoverable within a reasonable effort, fall back to skipping this source for v1 (proceed with the 3-source cascade: GFW, LOCODE, VF — update `docs/superpowers/specs/2026-08-16-per-area-scrape-recovery-design.md`'s "da verificare" note with what was found, and tell the user directly rather than silently reducing the design) — do not fabricate a fake bundle.
+Record the real, working URL and format found. If NGA's own site requires JS/a form POST to export and no plain GET link is discoverable within a reasonable effort, fall back to skipping this source for v1 — but **still write `data/wpi.json` as `[]`** (an empty array, not a missing file): Task 7's `port-discovery.js` does `require('../../data/wpi.json')` unconditionally at module load, so a missing file would crash the whole module, not just silently contribute zero candidates. Update `docs/superpowers/specs/2026-08-16-per-area-scrape-recovery-design.md`'s "da verificare" note with what was found, and tell the user directly rather than silently reducing the design — do not fabricate a fake bundle, an empty one is the honest fallback.
 
 - [ ] **Step 2: Write the generator against the confirmed format**
 
@@ -559,6 +559,7 @@ git commit -m "feat(scrapers): ricerca porto e arrivi/partenze MyShipTracking"
 
 const db = require('../db');
 const { BBOX_PRESETS } = require('../config');
+const { haversineM } = require('./ship-analysis');
 const gfw = require('./gfw');
 const { searchVesselFinderPorts } = require('./scrapers/vesselfinder-ports');
 const mst = require('./scrapers/myshiptracking');
@@ -567,26 +568,19 @@ const locodeNames = require('../../data/locode.json');
 const locodeCoords = require('../../data/locode-coords.json');
 const locodePortCodes = new Set(require('../../data/locode-ports.json'));
 
-const EARTH_R_KM = 6371;
-function haversineKm(a, b) {
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-  const la1 = (a.lat * Math.PI) / 180;
-  const la2 = (b.lat * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_R_KM * Math.asin(Math.sqrt(h));
-}
-
-const CLUSTER_RADIUS_KM = 4;
+// Reuses the existing haversineM(lat1, lon1, lat2, lon2) from ship-analysis.js
+// (already used by proximity.js for rendezvous detection) instead of a second
+// haversine implementation — same formula, don't duplicate it.
+const CLUSTER_RADIUS_M = 4000; // 4km
 
 /** Group candidate points from possibly-different sources into clusters when
- *  they're within CLUSTER_RADIUS_KM of each other. Each output cluster keeps
+ *  they're within CLUSTER_RADIUS_M of each other. Each output cluster keeps
  *  the first-seen name/coords and the de-duplicated list of contributing
  *  source tags. */
 function clusterCandidates(candidates) {
   const clusters = [];
   for (const c of candidates) {
-    const hit = clusters.find((cl) => haversineKm(cl, c) <= CLUSTER_RADIUS_KM);
+    const hit = clusters.find((cl) => haversineM(cl.lat, cl.lon, c.lat, c.lon) <= CLUSTER_RADIUS_M);
     if (hit) {
       if (!hit.sources.includes(c.source)) hit.sources.push(c.source);
     } else {
@@ -596,7 +590,7 @@ function clusterCandidates(candidates) {
   return clusters;
 }
 
-module.exports = { clusterCandidates, haversineKm, discoverPortsForArea: null, resolveMstPidForConfirmedPorts: null };
+module.exports = { clusterCandidates, discoverPortsForArea: null, resolveMstPidForConfirmedPorts: null };
 ```
 
 (the last line's `null`s are placeholders overwritten by Steps 3-4 below — remove them once those functions exist; this step's own deliverable is just the clustering math, verified in isolation next.)
@@ -717,7 +711,7 @@ async function resolveMstPidForConfirmedPorts(areaKey) {
       const matches = await mst.searchPort(port.name);
       for (const m of matches) {
         const coords = await mst.getPortCoords(m.name.replace(/ /g, '-'), m.pid);
-        if (coords && haversineKm(coords, port) <= CLUSTER_RADIUS_KM) {
+        if (coords && haversineM(coords.lat, coords.lon, port.lat, port.lon) <= CLUSTER_RADIUS_M) {
           db.setAreaPortMstPid(port.id, m.pid);
           break;
         }
@@ -730,7 +724,7 @@ async function resolveMstPidForConfirmedPorts(areaKey) {
 - [ ] **Step 6: Fix the module.exports and verify end-to-end**
 
 ```js
-module.exports = { clusterCandidates, haversineKm, discoverPortsForArea, resolveMstPidForConfirmedPorts };
+module.exports = { clusterCandidates, discoverPortsForArea, resolveMstPidForConfirmedPorts };
 ```
 
 ```bash
