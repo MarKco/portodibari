@@ -26,6 +26,7 @@ const sanctions = require('./services/sanctions');
 const psc = require('./services/psc');
 const berths = require('./services/berths');
 const proximity = require('./services/proximity');
+const portDiscovery = require('./services/port-discovery');
 const appLog = require('./services/app-log');
 const { startAutoBackup, restoreDbFromLatestBackup } = require('./routes/export');
 const { PORT, API_KEY, API_KEY_SOURCE, state, areaForPoint, bboxSignature, BERTH, AUTO_RESTORE_ON_DEPLOY, HEATMAP,
@@ -184,6 +185,25 @@ app.listen(PORT, () => {
   };
   setTimeout(sweepOrphans, 15 * 1000);
   setInterval(sweepOrphans, 24 * 60 * 60 * 1000);
+
+  // One-time backfill for areas that predate the port-discovery feature: queued
+  // one area at a time (not parallel) so a deploy with many existing areas
+  // doesn't burst external requests (GFW/VesselFinder) all at once.
+  async function backfillAreaPorts() {
+    const keys = db.getActiveAreaKeys();
+    for (const key of keys) {
+      if (db.countAreaPorts(key) > 0) continue;
+      try {
+        await portDiscovery.discoverPortsForArea(key);
+        await portDiscovery.resolveMstPidForConfirmedPorts(key);
+        appLog.info('AREE', `Scoperta porti (backfill) completata per ${key}`);
+      } catch (e) {
+        appLog.warn('AREE', `Scoperta porti (backfill) fallita per ${key}: ${e.message}`);
+      }
+      await new Promise((r) => setTimeout(r, 30 * 1000)); // spacing between areas
+    }
+  }
+  setTimeout(() => backfillAreaPorts().catch(() => {}), 60 * 1000); // give boot (streams, DB) time to settle first
 
   // Sanctions screening: load any cached OFAC list from disk (offline-safe). If
   // enabled but no cache yet, download once in the background, then refresh daily.
