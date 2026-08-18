@@ -6,6 +6,8 @@ const stream = require('../services/ais-stream');
 const appLog = require('../services/app-log');
 const telegram = require('../services/telegram');
 const groupSync = require('../services/group-sync');
+const portDiscovery = require('../services/port-discovery');
+const { requireAdmin } = require('../middleware/session-auth');
 const { state, BBOX_PRESETS, addArea, updateArea, removeArea, importAreas, exportAreas, TESTER_MAX_AREAS, TESTER_MAX_AREA_KM2, bboxAreaKm2 } = require('../config');
 
 const router = express.Router();
@@ -130,6 +132,9 @@ router.post('/areas', (req, res) => {
     groupSync.syncAreaAdd(req.user.id, area.key); // mirror membership to group co-members
     appLog.info('AREE', appLog.t('areas.added', { name: area.name }), { area: area.key, autostart: autostart !== false });
     if (autostart !== false) stream.startStream(area.key);
+    portDiscovery.discoverPortsForArea(area.key)
+      .then(() => portDiscovery.resolveMstPidForConfirmedPorts(area.key))
+      .catch((e) => appLog.warn('AREE', `Scoperta porti fallita per ${area.key}: ${e.message}`));
     telegram.notifyAreaMonitor(req.user.id, 'start', { area: area.name });
     res.json({ ok: true, area });
   } catch (e) {
@@ -201,6 +206,35 @@ router.delete('/areas/:key', (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// List discovered port candidates for an area (any status: confirmed/review/rejected).
+router.get('/areas/:key/ports', requireAdmin, (req, res) => {
+  res.json({ ports: db.getAreaPorts(req.params.key) });
+});
+
+// Re-run port discovery for an area on demand. Fire-and-forget: the cascade can
+// take minutes (up to 20 candidates, each VesselFinder lookup itself ~10 requests
+// with its own jitter) on a fresh area with no berths yet — the exact case an
+// admin is most likely to trigger this for. Respond immediately; the client
+// re-fetches via GET /areas/:key/ports once discovery finishes in the background.
+router.post('/areas/:key/discover-ports', requireAdmin, (req, res) => {
+  const { key } = req.params;
+  portDiscovery.discoverPortsForArea(key)
+    .then(() => portDiscovery.resolveMstPidForConfirmedPorts(key))
+    .catch((e) => appLog.warn('AREE', `Scoperta porti fallita per ${key}: ${e.message}`));
+  res.json({ ok: true });
+});
+
+// Admin review decisions on a discovered port candidate.
+router.post('/areas/:key/ports/:id/confirm', requireAdmin, (req, res) => {
+  db.setAreaPortDecision(Number(req.params.id), 'confirmed');
+  res.json({ ok: true });
+});
+
+router.post('/areas/:key/ports/:id/reject', requireAdmin, (req, res) => {
+  db.setAreaPortDecision(Number(req.params.id), 'rejected');
+  res.json({ ok: true });
 });
 
 module.exports = router;
