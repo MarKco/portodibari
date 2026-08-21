@@ -702,6 +702,15 @@ export default {
   'areas.none':              'Nessuna area configurata.',
   'areas.errName':           'Inserisci un nome per l\'area.',
   'areas.errCoords':         'Coordinate non valide. Compila i quattro campi (gradi decimali) o cattura la vista.',
+  'areas.ports.title':       'Porti',
+  'areas.ports.refresh':     'Cerca porti ora',
+  'areas.ports.empty':       'Nessun porto trovato per quest\'area.',
+  'areas.ports.confirmed':   'Confermato',
+  'areas.ports.review':      'Da rivedere',
+  'areas.ports.rejected':    'Rifiutato',
+  'areas.ports.confirm':     'Conferma',
+  'areas.ports.reject':      'Rifiuta',
+  'areas.ports.sources':     'Fonti: {list}',
   'undo.btn':                '↶ Annulla',
 
   // ── Settings modal ─────────────────────────────────────────────────────────

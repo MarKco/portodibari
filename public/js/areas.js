@@ -89,6 +89,9 @@ function fmtCount(n) {
   return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
 }
 
+// One row per area, followed by a full-width row holding its ports panel
+// (list of discovered ports + manual "search now" trigger). The panel's own
+// content is filled in separately by loadAreaPorts, once per render.
 function renderAreasList() {
   const only = S.areasList.length <= 1;
   el.areasBody.innerHTML =
@@ -115,10 +118,53 @@ function renderAreasList() {
           <td>${dot} ${statusTxt}</td>
           <td class="area-data-cell">${dataTxt}</td>
           <td><button class="btn btn-clear btn-sm area-del-btn" data-key="${escHtml(a.key)}" data-name="${escHtml(a.name)}"${disabled} title="${escHtml(t('areas.delete'))}">🗑</button></td>
+        </tr>
+        <tr class="area-ports-row">
+          <td colspan="7">
+            <div class="area-ports" data-area-key="${escHtml(a.key)}">
+              <button class="btn btn-sm btn-secondary area-ports-refresh" data-i18n="areas.ports.refresh">${escHtml(t('areas.ports.refresh'))}</button>
+              <ul class="area-ports-list"></ul>
+            </div>
+          </td>
         </tr>`;
       })
       .join('') ||
     `<tr><td colspan="7" class="empty">${t('areas.none')}</td></tr>`;
+  el.areasBody
+    .querySelectorAll('.area-ports')
+    .forEach((c) => loadAreaPorts(c.dataset.areaKey, c.querySelector('.area-ports-list')));
+}
+
+// Fetch and render the discovered-ports list for one area. Re-called after
+// every render (list rebuilt from scratch) and after any confirm/reject/
+// manual-refresh action, so it always reflects the latest server state.
+async function loadAreaPorts(areaKey, listEl) {
+  if (!listEl) return;
+  try {
+    const { ports } = await api(`/api/areas/${encodeURIComponent(areaKey)}/ports`);
+    listEl.innerHTML = ports.length
+      ? ports
+          .map(
+            (p) => `
+        <li data-id="${p.id}">
+          <strong>${escHtml(p.name)}</strong>
+          <span class="badge ${p.status}">${escHtml(t(`areas.ports.${p.status}`))}</span>
+          <small>${escHtml(t('areas.ports.sources', { list: p.sources.join(', ') }))}</small>
+          ${
+            p.status === 'review'
+              ? `
+            <button class="btn btn-sm area-port-confirm" data-id="${p.id}">${escHtml(t('areas.ports.confirm'))}</button>
+            <button class="btn btn-sm btn-clear area-port-reject" data-id="${p.id}">${escHtml(t('areas.ports.reject'))}</button>
+          `
+              : ''
+          }
+        </li>`
+          )
+          .join('')
+      : `<li class="health-muted">${escHtml(t('areas.ports.empty'))}</li>`;
+  } catch {
+    /* leave list as-is on failure */
+  }
 }
 
 export async function loadAreas() {
@@ -289,10 +335,42 @@ export function initAreas() {
     i.addEventListener('input', updateCandidate)
   );
 
-  el.areasBody.addEventListener('click', (e) => {
+  el.areasBody.addEventListener('click', async (e) => {
     const btn = e.target.closest('.area-del-btn');
     if (btn) {
       if (!btn.disabled) requestDelete(btn.dataset.key, btn.dataset.name);
+      return;
+    }
+    // Ports panel: manual "search now" kicks off a fire-and-forget background
+    // scan on the server (POST returns immediately) — re-fetch the list right
+    // after, which mostly just reflects the unchanged state until the scan
+    // finishes; that's expected, not something to poll/retry for here.
+    const refreshBtn = e.target.closest('.area-ports-refresh');
+    if (refreshBtn) {
+      const container = refreshBtn.closest('.area-ports');
+      try {
+        await api(`/api/areas/${encodeURIComponent(container.dataset.areaKey)}/discover-ports`, 'POST');
+      } catch {
+        /* ignore */
+      }
+      await loadAreaPorts(container.dataset.areaKey, container.querySelector('.area-ports-list'));
+      return;
+    }
+    const confirmBtn = e.target.closest('.area-port-confirm');
+    const rejectBtn = e.target.closest('.area-port-reject');
+    if (confirmBtn || rejectBtn) {
+      const li = (confirmBtn || rejectBtn).closest('li');
+      const container = (confirmBtn || rejectBtn).closest('.area-ports');
+      const action = confirmBtn ? 'confirm' : 'reject';
+      try {
+        await api(
+          `/api/areas/${encodeURIComponent(container.dataset.areaKey)}/ports/${li.dataset.id}/${action}`,
+          'POST'
+        );
+      } catch {
+        /* ignore */
+      }
+      await loadAreaPorts(container.dataset.areaKey, container.querySelector('.area-ports-list'));
       return;
     }
     const row = e.target.closest('tr.area-row');

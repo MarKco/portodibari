@@ -702,6 +702,15 @@ export default {
   'areas.none':              'No areas configured.',
   'areas.errName':           'Enter a name for the area.',
   'areas.errCoords':         'Invalid coordinates. Fill the four fields (decimal degrees) or capture the view.',
+  'areas.ports.title':       'Ports',
+  'areas.ports.refresh':     'Search ports now',
+  'areas.ports.empty':       'No ports found for this area.',
+  'areas.ports.confirmed':   'Confirmed',
+  'areas.ports.review':      'Needs review',
+  'areas.ports.rejected':    'Rejected',
+  'areas.ports.confirm':     'Confirm',
+  'areas.ports.reject':      'Reject',
+  'areas.ports.sources':     'Sources: {list}',
   'undo.btn':                '↶ Undo',
 
   // ── Settings modal ─────────────────────────────────────────────────────────
