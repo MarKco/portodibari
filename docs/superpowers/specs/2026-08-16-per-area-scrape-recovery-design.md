@@ -129,8 +129,27 @@ Cascata di conferma, in ordine di priorità/costo:
 
 **Trigger**: automatico alla creazione di una nuova area. **Backfill al deploy**: per le aree già attive
 senza porti scoperti, una coda in background (non in parallelo — un'area alla volta, con pausa tra una e
-l'altra) al boot del processo dopo questo deploy. **Refresh manuale**: bottone admin "Cerca porti ora"
-per area, riusabile in futuro.
+l'altra) al boot del processo dopo questo deploy. **Refresh manuale**: un controllo minimale in
+Impostazioni → Diagnostica AIS (select area + bottone "Cerca porti ora", fire-and-forget) — **non** nella
+schermata Aree.
+
+⚠️ **Corretto dopo la prima implementazione (2026-08-22)**: il caso "banchine già osservate" inizialmente
+persisteva **una riga `area_ports` per banchina** — sbagliato, un porto reale è un gruppo di banchine
+vicine, non una singola banchina. Corretto: le banchine dell'area vengono clusterizzate per prossimità
+con la stessa logica delle fonti esterne (`clusterCandidates`/`haversineM`, ~4km), producendo una riga per
+porto reale invece che per banchina. Nella stessa correzione è stato anche **rimosso l'elenco
+conferma/rifiuta dalla schermata Aree** (introdotto nel piano originale) — quella UI esponeva la
+granularità sbagliata (banchina-come-porto) prima ancora della clusterizzazione, ed è stata giudicata
+prematura: i porti scoperti restano solo dato di backend fino a quando il Piano 2 (sezione 5, sotto) ne
+avrà davvero bisogno. Resta solo il controllo manuale minimale in Diagnostica AIS, senza lista/badge/
+conferma — quella UI più ricca si potrà ricostruire, se serve, quando ci sarà un consumatore reale.
+
+**Nota per il Piano 2**: quando lo scope "monitoraggio completo" diventerà per-area (sezione 2, sopra),
+il momento naturale per (ri)lanciare la scoperta porti su un'area specifica è **quando quello scope viene
+attivato per quell'area** — è esattamente il momento in cui i porti scoperti iniziano a servire davvero
+(per la scoperta arrivi, sezione 5). Non implementato ora perché legato al toggle globale attuale
+(`state.fallbackScopeAreas`), che il Piano 2 sta per sostituire — aggiungerlo ora sarebbe lavoro da
+rifare. Da aggiungere nel Piano 2 stesso, non prima.
 
 **Persistenza**: nuova tabella `area_ports` (in `BACKUP_TABLES`):
 

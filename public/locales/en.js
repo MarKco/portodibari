@@ -626,6 +626,11 @@ export default {
   'health.fallbackNoHistory':    'No scrape data in the last 48h.',
   'health.fallbackOkLabel':      'Succeeded',
   'health.fallbackFailedLabel':  'Failed',
+  'health.portDiscoveryTitle':   'Port discovery',
+  'health.portDiscoveryDesc':    'Manually re-run port discovery for an area (runs in the background, can take a few minutes).',
+  'health.portDiscoveryRun':     'Search ports now',
+  'health.portDiscoveryStarted': 'Search started in the background.',
+  'health.portDiscoveryError':   'Failed to start.',
   'health.fallbackEstimateTitle':'Scope comparison estimate (requests/hour)',
   'health.fallbackBudgetNote':   'Configured hard cap: {n} requests/hour (SF+MST combined). "Full monitoring" scope redistributes the same cap over more ships, it does not raise it.',
 
@@ -702,15 +707,6 @@ export default {
   'areas.none':              'No areas configured.',
   'areas.errName':           'Enter a name for the area.',
   'areas.errCoords':         'Invalid coordinates. Fill the four fields (decimal degrees) or capture the view.',
-  'areas.ports.title':       'Ports',
-  'areas.ports.refresh':     'Search ports now',
-  'areas.ports.empty':       'No ports found for this area.',
-  'areas.ports.confirmed':   'Confirmed',
-  'areas.ports.review':      'Needs review',
-  'areas.ports.rejected':    'Rejected',
-  'areas.ports.confirm':     'Confirm',
-  'areas.ports.reject':      'Reject',
-  'areas.ports.sources':     'Sources: {list}',
   'undo.btn':                '↶ Undo',
 
   // ── Settings modal ─────────────────────────────────────────────────────────

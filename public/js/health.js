@@ -262,12 +262,40 @@ async function fetchHealth() {
   }
 }
 
+// Manual port-discovery re-run control. Lives OUTSIDE #health-body (whose
+// innerHTML fetchHealth() replaces every 5s — a <select> in there would lose
+// the admin's chosen area on every poll tick), so it's populated once per
+// tab-open, not rebuilt on the health-poll cycle.
+async function populatePortDiscoveryAreas() {
+  const sel = document.getElementById('port-discovery-area-select');
+  if (!sel) return;
+  try {
+    const { areas } = await api('/api/areas');
+    sel.innerHTML = (areas || [])
+      .map((a) => `<option value="${escHtml(a.key)}">${escHtml(a.name)}</option>`)
+      .join('');
+  } catch { /* leave empty on failure */ }
+}
+
+document.getElementById('btn-port-discovery-run')?.addEventListener('click', async () => {
+  const sel = document.getElementById('port-discovery-area-select');
+  const result = document.getElementById('port-discovery-result');
+  if (!sel || !sel.value) return;
+  try {
+    await api(`/api/areas/${encodeURIComponent(sel.value)}/discover-ports`, 'POST');
+    if (result) result.textContent = t('health.portDiscoveryStarted');
+  } catch {
+    if (result) result.textContent = t('health.portDiscoveryError');
+  }
+});
+
 // Called when the Settings → "Diagnostica AIS" tab becomes active: poll health
 // every 5s while visible.
 export function openHealth() {
   clearInterval(healthTimer); // guard against a leaked timer if re-opened without close
   fetchHealth();
   healthTimer = setInterval(fetchHealth, 5000);
+  populatePortDiscoveryAreas();
 }
 
 // Called when leaving that tab (or Settings entirely): stop polling.

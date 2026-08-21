@@ -1745,6 +1745,15 @@
           </div>
         </div>
         <div id="settings-panel-health" class="settings-panel hidden">
+          <div id="port-discovery-control" class="health-section">
+            <h4 class="health-subtitle" data-i18n="health.portDiscoveryTitle">Scoperta porti</h4>
+            <p class="health-section-desc" data-i18n="health.portDiscoveryDesc">Rilancia a mano la scoperta dei porti per un'area (gira in background, la ricerca può durare qualche minuto).</p>
+            <div class="fallback-scope-actions">
+              <select id="port-discovery-area-select"></select>
+              <button id="btn-port-discovery-run" class="btn btn-sm btn-secondary" data-i18n="health.portDiscoveryRun">Rilancia ricerca porti</button>
+            </div>
+            <p id="port-discovery-result" class="health-note"></p>
+          </div>
           <div id="health-body"></div>
         </div>
       </div>

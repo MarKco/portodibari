@@ -78,31 +78,19 @@ The [Coverage map](../manuale/index.en.html#coverage-map) is visible read-only t
 
 ---
 
-## Area ports
+## Port discovery (per area)
 
-On the **🗺 Areas** screen, admin-only (the panel doesn't show up at all for regular users), each area row can be expanded into a list of the **ports discovered** for that area.
+The system figures out on its own, in the background, which real ports fall inside each monitored area — useful for future features (today it's purely internal data, no screen shows the list yet).
 
-For each port found, the panel shows:
+**From ⚙ Settings → AIS Diagnostics** you'll find a minimal control: pick an area from the dropdown and press **Search ports now** to manually re-run it. The search starts in the background (can take a few minutes on an area with no berths observed yet) — the control just shows a "Search started" message, with no progress indicator or list of ports found.
 
-- its **name**;
-- a **status badge**: 🟢 **Confirmed**, 🟡 **Needs review**, 🔴 **Rejected**;
-- the **sources** that found it (e.g. `berths`, `wpi`, `locode`, `vf`);
-- for **Needs review** ports, two buttons — **Confirm** / **Reject**; a port that's already been decided (**Confirmed** or **Rejected**) instead shows the opposite action's button, so you can correct an earlier decision at any time;
-- a **Search ports now** button, to manually re-run discovery.
-
-**What the statuses mean:**
-
-- **Confirmed**: either it's a berth already observed for real (a cluster of moorings the AIS detected for that area — in this case no external source is even contacted: the observed berth **is** the port), or **at least two independent sources** (among World Port Index, UN/LOCODE and VesselFinder) found the same geographic point.
-- **Needs review**: **only one source** found it — awaiting an admin to confirm or reject it with the two dedicated buttons.
-- **Rejected**: an admin explicitly discarded it (e.g. a false positive). Once a decision is made (confirmed or rejected), a later discovery run **never overwrites it** — only ports still "Needs review" can change status automatically on each new run.
-
-> **Note:** Global Fishing Watch is **not a usable source today** for this feature — its anchorages dataset isn't reachable via API (only a separate, non-integrated download portal exists). It remains a candidate in the code, ready to re-activate if GFW opens access. The sources actually active today are **World Port Index**, **UN/LOCODE** and **VesselFinder**.
+**How ports are identified**: if the area already has berths really observed by AIS, those (grouped by proximity) **are** the ports — no external source is contacted. Otherwise it cross-checks World Port Index, UN/LOCODE and VesselFinder (Global Fishing Watch is a candidate in the code but **isn't reachable today** — its anchorages dataset isn't available via API); a point found by at least two independent sources is considered confirmed.
 
 **When discovery runs:**
 
 - **Automatically**, when a new area is created.
 - **In the background at server restart**, one time only, for existing areas that don't have discovered ports yet (one area at a time, with a pause between each, so it doesn't slow down startup).
-- **On demand**, with the **Search ports now** button: runs again in the background — on an area with no berths observed yet it can take a few minutes. The panel re-fetches once, right after the click, so it will almost always still show the previous state: there's no progress indicator and no automatic refresh afterwards — to see the outcome, click **Search ports now** again (or reopen the Areas screen) after a few minutes.
+- **On demand**, from the AIS Diagnostics control described above.
 
 ---
 

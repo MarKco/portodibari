@@ -1697,16 +1697,9 @@ pre {
 .area-row-editing td { background: rgba(251, 191, 36, 0.14); }
 .area-row-editing td:first-child { box-shadow: inset 3px 0 0 #fbbf24; }
 
-/* Ports panel row, appended right after each area-row — not itself a
-   clickable "open this area" target like .area-row, so undo the generic
-   table row affordances (pointer cursor, hover tint, no-wrap text). */
-.area-ports-row { cursor: default; }
-.area-ports-row:hover { background: transparent; }
-.area-ports-row td { white-space: normal; }
-.area-ports { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
-.area-ports > strong { margin-right: 0.6rem; }
-.area-ports-list { list-style: none; padding: 0; margin: 0.4rem 0 0; }
-.area-ports-list li { padding: 0.3rem 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+/* Generic status-badge variants (used by the port-discovery manual-run
+   control in Settings → Diagnostica AIS, and available for any future
+   confirmed/review/rejected-style status display). */
 .badge.confirmed { background: var(--green-soft); color: var(--green); border-color: var(--green-bd); }
 .badge.review    { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-bd); }
 .badge.rejected  { background: var(--red-soft); color: var(--red); border-color: var(--red-bd); }

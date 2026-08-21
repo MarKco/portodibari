@@ -78,31 +78,19 @@ La [Mappa delle zone coperte](../manuale/index.html#mappa-delle-zone-coperte) è
 
 ---
 
-## Porti di un'area
+## Scoperta porti (per area)
 
-Nella schermata **🗺 Aree**, riservata agli amministratori (il pannello non compare affatto agli utenti normali), ogni riga area si può espandere in un elenco dei **porti scoperti** per quell'area.
+Il sistema individua da sé, in background, quali porti reali ricadono dentro ciascuna area monitorata — utile in vista di funzioni future (oggi è puro dato interno, nessuna schermata ne mostra ancora l'elenco).
 
-Per ciascun porto trovato il pannello mostra:
+**Da ⚙ Impostazioni → Diagnostica AIS** trovi un controllo minimale: scegli un'area dal menu e premi **Cerca porti ora** per rilanciarla a mano. La ricerca parte in background (può richiedere qualche minuto su un'area senza banchine ancora osservate) — il controllo mostra solo un messaggio "Ricerca avviata", senza indicatore di avanzamento né elenco dei porti trovati.
 
-- il **nome**;
-- un **badge di stato**: 🟢 **Confermato**, 🟡 **Da rivedere**, 🔴 **Rifiutato**;
-- le **fonti** che l'hanno individuato (es. `berths`, `wpi`, `locode`, `vf`);
-- per i porti **Da rivedere**, due bottoni **Conferma** / **Rifiuta**; per un porto già deciso (**Confermato** o **Rifiutato**) viene mostrato il bottone dell'azione opposta, per poter correggere una decisione precedente in qualsiasi momento;
-- il bottone **Cerca porti ora**, per rilanciare la ricerca manualmente.
-
-**Cosa significano gli stati:**
-
-- **Confermato**: o è una banchina già osservata realmente (un cluster di ormeggi rilevato dall'AIS per quell'area — in questo caso nessuna fonte esterna viene nemmeno interrogata: la banchina osservata **è** il porto), oppure **almeno due fonti indipendenti** (tra World Port Index, UN/LOCODE e VesselFinder) hanno individuato lo stesso punto geografico.
-- **Da rivedere**: **una sola fonte** l'ha trovato — resta in attesa che un amministratore lo confermi o lo rifiuti con i due bottoni dedicati.
-- **Rifiutato**: un amministratore l'ha scartato esplicitamente (es. un falso positivo). Una volta presa, la decisione (confermato o rifiutato) **non viene più sovrascritta** da una ricerca successiva: solo i porti ancora "Da rivedere" possono cambiare stato automaticamente ad ogni nuova ricerca.
-
-> **Nota:** Global Fishing Watch **non è oggi una fonte disponibile** per questa funzione — il suo dataset di ancoraggi non è raggiungibile via API (solo un portale di download separato, non integrato). Resta candidata nel codice, pronta a riattivarsi se GFW aprirà l'accesso. Le fonti realmente attive sono **World Port Index**, **UN/LOCODE** e **VesselFinder**.
+**Come vengono identificati**: se l'area ha già banchine osservate realmente dall'AIS, quelle (raggruppate per vicinanza) **sono** i porti — nessuna fonte esterna interrogata. Altrimenti incrocia World Port Index, UN/LOCODE e VesselFinder (Global Fishing Watch è candidata nel codice ma **non è oggi raggiungibile**, il suo dataset ancoraggi non è disponibile via API); un punto trovato da almeno due fonti indipendenti viene considerato confermato.
 
 **Quando parte la ricerca:**
 
 - **Automaticamente**, alla creazione di una nuova area.
 - **In background al riavvio del server**, una tantum, per le aree già esistenti che non hanno ancora porti scoperti (un'area alla volta, con una pausa tra l'una e l'altra, per non appesantire l'avvio).
-- **A richiesta**, col bottone **Cerca porti ora**: riparte in background — su un'area senza banchine ancora osservate può richiedere qualche minuto. Il pannello si ri-aggiorna una sola volta subito dopo il click, quindi quasi sempre mostrerà ancora lo stato precedente: non c'è un indicatore di avanzamento né un aggiornamento automatico successivo, per vedere l'esito bisogna ricliccare **Cerca porti ora** (o riaprire la schermata Aree) dopo qualche minuto.
+- **A richiesta**, dal controllo in Diagnostica AIS descritto sopra.
 
 ---
 

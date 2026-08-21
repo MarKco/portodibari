@@ -626,6 +626,11 @@ export default {
   'health.fallbackNoHistory':    'Nessun dato di scraping nelle ultime 48h.',
   'health.fallbackOkLabel':      'Riuscite',
   'health.fallbackFailedLabel':  'Fallite',
+  'health.portDiscoveryTitle':   'Scoperta porti',
+  'health.portDiscoveryDesc':    'Rilancia a mano la scoperta dei porti per un\'area (gira in background, la ricerca può durare qualche minuto).',
+  'health.portDiscoveryRun':     'Rilancia ricerca porti',
+  'health.portDiscoveryStarted': 'Ricerca avviata in background.',
+  'health.portDiscoveryError':   'Avvio non riuscito.',
   'health.fallbackEstimateTitle':'Stima confronto modalità (richieste/ora)',
   'health.fallbackBudgetNote':   'Tetto massimo configurato: {n} richieste/ora (SF+MST insieme). Ambito "monitoraggio completo" ridistribuisce lo stesso tetto su più navi, non lo aumenta.',
 
@@ -702,15 +707,6 @@ export default {
   'areas.none':              'Nessuna area configurata.',
   'areas.errName':           'Inserisci un nome per l\'area.',
   'areas.errCoords':         'Coordinate non valide. Compila i quattro campi (gradi decimali) o cattura la vista.',
-  'areas.ports.title':       'Porti',
-  'areas.ports.refresh':     'Cerca porti ora',
-  'areas.ports.empty':       'Nessun porto trovato per quest\'area.',
-  'areas.ports.confirmed':   'Confermato',
-  'areas.ports.review':      'Da rivedere',
-  'areas.ports.rejected':    'Rifiutato',
-  'areas.ports.confirm':     'Conferma',
-  'areas.ports.reject':      'Rifiuta',
-  'areas.ports.sources':     'Fonti: {list}',
   'undo.btn':                '↶ Annulla',
 
   // ── Settings modal ─────────────────────────────────────────────────────────

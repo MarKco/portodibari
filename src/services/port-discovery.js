@@ -74,21 +74,32 @@ function wpiCandidates(box) {
 async function discoverPortsForArea(areaKey) {
   const berths = db.getBerths(areaKey);
   if (berths.length) {
-    for (const b of berths) {
+    // A real port is a GROUP of nearby berths, not one berth each — an area with
+    // 45 individual mooring clusters is typically 1-2 real ports, not 45. Cluster
+    // berths by proximity with the exact same logic used for external-source
+    // candidates below, instead of persisting one area_port row per berth.
+    // Named berths sort first so an admin-assigned name wins the cluster's
+    // display name over a generated fallback when both land in the same cluster.
+    const sorted = [...berths].sort((a, b) => (b.name ? 1 : 0) - (a.name ? 1 : 0));
+    const candidates = sorted.map((b) => ({
+      // Unnamed (not-yet-renamed) berths key their fallback name on rounded
+      // centroid, NOT on `b.id` — berths are DELETE+INSERT with a fresh
+      // AUTOINCREMENT id on every recompute (project-wide gotcha) — but this
+      // name is only ever used to seed a cluster before clusterCandidates picks
+      // a final display name, so precision here matters less than for the old
+      // one-row-per-berth scheme.
+      name: b.name || `Porto ${b.centroid_lat.toFixed(2)},${b.centroid_lon.toFixed(2)}`,
+      lat: b.centroid_lat,
+      lon: b.centroid_lon,
+      source: 'berths',
+    }));
+    for (const c of clusterCandidates(candidates)) {
       db.upsertAreaPort({
         area_key: areaKey,
-        // Unnamed (not-yet-renamed) auto-clustered berths must key on something
-        // stable, NOT `b.id` — berths are DELETE+INSERT with a fresh AUTOINCREMENT
-        // id on every recompute (project-wide gotcha), so keying on id would make
-        // `UNIQUE(area_key, name)` insert a new row per recompute instead of
-        // updating the same one, and would resurrect an admin-rejected row under
-        // its new id. The rounded centroid (3 decimals ≈ 111m at the equator) is
-        // stable enough across recompute jitter, well under a berth's own
-        // footprint, so it naturally dedups via the same UNIQUE constraint.
-        name: b.name || `Banchina ${b.centroid_lat.toFixed(3)},${b.centroid_lon.toFixed(3)}`,
-        lat: b.centroid_lat,
-        lon: b.centroid_lon,
-        sources: ['berths'],
+        name: c.name,
+        lat: c.lat,
+        lon: c.lon,
+        sources: c.sources,
         status: 'confirmed',
       });
     }
