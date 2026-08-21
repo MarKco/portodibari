@@ -78,6 +78,34 @@ The [Coverage map](../manuale/index.en.html#coverage-map) is visible read-only t
 
 ---
 
+## Area ports
+
+On the **🗺 Areas** screen, admin-only (the panel doesn't show up at all for regular users), each area row can be expanded into a list of the **ports discovered** for that area.
+
+For each port found, the panel shows:
+
+- its **name**;
+- a **status badge**: 🟢 **Confirmed**, 🟡 **Needs review**, 🔴 **Rejected**;
+- the **sources** that found it (e.g. `berths`, `wpi`, `locode`, `vf`);
+- for **Needs review** ports, two buttons — **Confirm** / **Reject**;
+- a **Search ports now** button, to manually re-run discovery.
+
+**What the statuses mean:**
+
+- **Confirmed**: either it's a berth already observed for real (a cluster of moorings the AIS detected for that area — in this case no external source is even contacted: the observed berth **is** the port), or **at least two independent sources** (among World Port Index, UN/LOCODE and VesselFinder) found the same geographic point.
+- **Needs review**: **only one source** found it — awaiting an admin to confirm or reject it with the two dedicated buttons.
+- **Rejected**: an admin explicitly discarded it (e.g. a false positive). Once a decision is made (confirmed or rejected), a later discovery run **never overwrites it** — only ports still "Needs review" can change status automatically on each new run.
+
+> **Note:** Global Fishing Watch is **not a usable source today** for this feature — its anchorages dataset isn't reachable via API (only a separate, non-integrated download portal exists). It remains a candidate in the code, ready to re-activate if GFW opens access. The sources actually active today are **World Port Index**, **UN/LOCODE** and **VesselFinder**.
+
+**When discovery runs:**
+
+- **Automatically**, when a new area is created.
+- **In the background at server restart**, one time only, for existing areas that don't have discovered ports yet (one area at a time, with a pause between each, so it doesn't slow down startup).
+- **On demand**, with the **Search ports now** button: runs again in the background — on an area with no berths observed yet it can take a few minutes — and the list refreshes itself once it's done.
+
+---
+
 ## Risk model (signal weights)
 
 Besides the **cargo-type weights** (editable by everyone in Settings), administrators can adjust **how many points each risk signal is worth** (AIS blackout, spoofing/position jump, dwell, draught increase, sanctions, PSC, GFW events, rendezvous, etc.) from **⚙ Settings → "⚖ Risk model" section**.

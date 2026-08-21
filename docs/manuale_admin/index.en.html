@@ -143,6 +143,7 @@
         <li><a href="#user-groups">User groups</a></li>
         <li><a href="#coverage-map-administrator-controls">Coverage map
         — administrator controls</a></li>
+        <li><a href="#area-ports">Area ports</a></li>
         <li><a href="#risk-model-signal-weights">Risk model (signal
         weights)</a></li>
         <li><a href="#system-logs">System logs</a>
@@ -349,6 +350,67 @@
         <code>HEATMAP_AIS_API_KEY</code>. Without that key, the feature
         stays off.</p>
         </blockquote>
+        <hr />
+        <h2 id="area-ports">Area ports</h2>
+        <p>On the <strong>🗺 Areas</strong> screen, admin-only (the panel
+        doesn’t show up at all for regular users), each area row can be
+        expanded into a list of the <strong>ports discovered</strong>
+        for that area.</p>
+        <p>For each port found, the panel shows:</p>
+        <ul>
+        <li>its <strong>name</strong>;</li>
+        <li>a <strong>status badge</strong>: 🟢
+        <strong>Confirmed</strong>, 🟡 <strong>Needs review</strong>, 🔴
+        <strong>Rejected</strong>;</li>
+        <li>the <strong>sources</strong> that found it
+        (e.g. <code>berths</code>, <code>wpi</code>,
+        <code>locode</code>, <code>vf</code>);</li>
+        <li>for <strong>Needs review</strong> ports, two buttons —
+        <strong>Confirm</strong> / <strong>Reject</strong>;</li>
+        <li>a <strong>Search ports now</strong> button, to manually
+        re-run discovery.</li>
+        </ul>
+        <p><strong>What the statuses mean:</strong></p>
+        <ul>
+        <li><strong>Confirmed</strong>: either it’s a berth already
+        observed for real (a cluster of moorings the AIS detected for
+        that area — in this case no external source is even contacted:
+        the observed berth <strong>is</strong> the port), or <strong>at
+        least two independent sources</strong> (among World Port Index,
+        UN/LOCODE and VesselFinder) found the same geographic
+        point.</li>
+        <li><strong>Needs review</strong>: <strong>only one
+        source</strong> found it — awaiting an admin to confirm or
+        reject it with the two dedicated buttons.</li>
+        <li><strong>Rejected</strong>: an admin explicitly discarded it
+        (e.g. a false positive). Once a decision is made (confirmed or
+        rejected), a later discovery run <strong>never overwrites
+        it</strong> — only ports still “Needs review” can change status
+        automatically on each new run.</li>
+        </ul>
+        <blockquote>
+        <p><strong>Note:</strong> Global Fishing Watch is <strong>not a
+        usable source today</strong> for this feature — its anchorages
+        dataset isn’t reachable via API (only a separate, non-integrated
+        download portal exists). It remains a candidate in the code,
+        ready to re-activate if GFW opens access. The sources actually
+        active today are <strong>World Port Index</strong>,
+        <strong>UN/LOCODE</strong> and
+        <strong>VesselFinder</strong>.</p>
+        </blockquote>
+        <p><strong>When discovery runs:</strong></p>
+        <ul>
+        <li><strong>Automatically</strong>, when a new area is
+        created.</li>
+        <li><strong>In the background at server restart</strong>, one
+        time only, for existing areas that don’t have discovered ports
+        yet (one area at a time, with a pause between each, so it
+        doesn’t slow down startup).</li>
+        <li><strong>On demand</strong>, with the <strong>Search ports
+        now</strong> button: runs again in the background — on an area
+        with no berths observed yet it can take a few minutes — and the
+        list refreshes itself once it’s done.</li>
+        </ul>
         <hr />
         <h2 id="risk-model-signal-weights">Risk model (signal
         weights)</h2>

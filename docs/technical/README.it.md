@@ -177,6 +177,31 @@ Il bottone **🏠 Monitoraggi** nella sidebar riporta alla home (vista navi pres
 
 Il cambio di area nel menu a tendina in fondo alla sidebar è un **cambio di vista**: mostra i dati dell'area selezionata ma non avvia né ferma alcuno stream. Ogni area ha il proprio stream indipendente — per avviare o fermare lo stream di un'area usa i pulsanti nella sidebar oppure il pannello **"Monitoraggio aree"** nelle Impostazioni. La selezione dell'area viene persistita in `local.properties` (chiave `BBOX_PRESET`). La *keyword* serve alla sezione "Navi attese" per filtrare le navi con destinazione corrispondente.
 
+## 🔎 Scoperta porti di un'area
+
+Per ogni area, il sistema mantiene un elenco di **porti scoperti** in una tabella dedicata `area_ports` (`id`, `area_key`, `name`, `lat`, `lon`, `sources` JSON, `status` `'confirmed'|'review'|'rejected'`, `admin_reviewed`, `mst_pid`, timestamp; `UNIQUE(area_key, name)`; in `BACKUP_TABLES`). Query in `src/db.js`: `getAreaPorts`, `getConfirmedAreaPorts`, `countAreaPorts`, `upsertAreaPort`, `setAreaPortDecision`, `setAreaPortMstPid`. L'`upsert` non resuscita mai una decisione admin (`admin_reviewed = 1`): una ricerca successiva non riporta a `review`/`confirmed` un porto già rifiutato, né declassa uno già confermato a mano.
+
+**Cascata di scoperta** (`src/services/port-discovery.js`, `discoverPortsForArea(areaKey)`):
+
+- **Scorciatoia banchine**: se l'area ha già cluster di banchine reali (`db.getBerths`), quelli **sono** la risposta — ogni banchina viene auto-confermata come porto (fonte `berths`), **nessuna fonte esterna viene interrogata**.
+- Altrimenti, cascata a 4 fonti (tutte quelle disponibili vengono interrogate, non ci si ferma alla prima che risponde):
+  - **Global Fishing Watch — non percorribile**. Il dataset pubblico "anchorages" di GFW non è raggiungibile via API: `GET /v3/datasets/public-anchorages:latest` → 404 (dataset non trovato), `.../public-anchorages` senza `:latest` → 403 (non autorizzato — il dataset esiste ma questo tier non vi accede), nessun alias di versione risolve. La pagina ufficiale GFW lo conferma esplicitamente ("Anchorages and Voyages are not yet available in the APIs & packages") — l'unico accesso è un portale di download autenticato via browser, fuori perimetro. `gfw.getAnchoragesInBbox()` è quindi uno **stub permanente** che ritorna sempre `[]`, non un TODO: un vicolo cieco confermato e documentato in codice, riattivabile in futuro se GFW apre l'endpoint.
+  - **World Port Index (NGA) — funzionante, dati reali**. `https://msi.nga.mil/api/publications/world-port-index?output=json`, un GET pubblico senza autenticazione, restituisce 2951 porti mondiali con coordinate decimali già pronte. Bundle una tantum `data/wpi.json`, generato da `scripts/build-wpi.js` (rigenerare a mano, di rado, stesso pattern dei bundle LOCODE/PSC).
+  - **UN/LOCODE**: esteso per usare il campo di classificazione `Function` (cifra `'1'` = porto marittimo), prima scartato. `scripts/build-locode.js` genera anche `data/locode-ports.json` (18388 codici classificati porto), incrociato con le coordinate già presenti in `data/locode-coords.json`.
+  - **VesselFinder**: `/ports` non ha un parametro di ricerca funzionante (`?name=`/`?q=`/`?search=` vengono ignorati silenziosamente — output byte-identico con o senza). Implementata invece come **ricerca binaria** sull'indice `/ports` di VF, paginato e ordinato alfabeticamente su scala globale (`src/services/scrapers/vesselfinder-ports.js`, ~9-10 richieste per ricerca) — con jitter tra le proprie richieste (1.5-4.5s, stesso pattern di `fallback-mode.js`) e una cache di pagina a livello di modulo, così ricerche ripetute nello stesso processo non ri-scaricano le pagine già viste.
+  - I candidati delle fonti che hanno risposto vengono raggruppati per prossimità geografica (riuso di `haversineM` da `ship-analysis.js`, già usato da `proximity.js` per i rendezvous — raggio ~4km, niente seconda implementazione dell'haversine). **≥2 fonti indipendenti concordi su un cluster → `confirmed` automatico; 1 sola fonte → `review`** (in attesa di conferma/rifiuto admin).
+  - `mst_pid` (l'id porto interno di MyShipTracking, necessario a un piano futuro di scoperta nuovi arrivi — non usato da questa feature) viene risolto in modo pigro, **solo per i porti già `confirmed`**, tramite le nuove `searchPort`/`getPortCoords` in `src/services/scrapers/myshiptracking.js`.
+  - Anche questa cascata (quando le banchine non bastano) ha jitter tra un candidato e l'altro — stesso principio anti-ban applicato in tutto il progetto al volume di richieste verso fonti esterne.
+
+**Trigger**:
+- **Automatico** alla creazione di una nuova area (fire-and-forget, non blocca la risposta di creazione area).
+- **Backfill al boot**: una tantum, in coda **sequenziale** (non in parallelo), un'area ogni 30 secondi, per le aree preesistenti alla feature che non hanno ancora righe in `area_ports` (`src/server.js`, parte 60s dopo l'avvio per lasciare respirare boot/stream).
+- **Manuale**: bottone admin "Cerca porti ora"/"Search ports now" nella schermata Aree — anch'esso fire-and-forget (`POST /api/areas/:key/discover-ports` risponde `{ok:true}` subito; il lavoro vero, che su un'area fresca senza banchine può richiedere minuti, gira in background; il frontend ri-interroga la lista porti da solo al termine).
+
+**Rotte admin** (`src/routes/areas.js`, tutte `requireAdmin`): `GET /areas/:key/ports`, `POST /areas/:key/discover-ports` (fire-and-forget), `POST /areas/:key/ports/:id/confirm`, `POST /areas/:key/ports/:id/reject`.
+
+**UI**: dentro la schermata "🗺 Aree" esistente, admin-only (il pannello non viene renderizzato affatto per utenti non-admin, gate lato client su `S.isAdmin` più `requireAdmin` lato server), ogni riga area si espande in un elenco porti con nome, badge di stato (Confermato/Da rivedere/Rifiutato — verde/ambra/rosso), le fonti contribuenti, bottoni Conferma/Rifiuta (solo per i porti in stato `review`) e il bottone "Cerca porti ora". File coinvolti: `public/js/areas.js`, `public/index.html` (tabella a 7 colonne, la riga porti la occupa tutta), `public/css/style.css`, `public/locales/it.js`+`en.js`.
+
 ## 📻 Tipi di messaggio AIS ricevuti
 
 - `PositionReport` — posizione, velocità (SOG), rotta (COG), prua, stato navigazionale
