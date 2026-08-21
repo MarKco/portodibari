@@ -89,9 +89,14 @@ function fmtCount(n) {
   return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
 }
 
-// One row per area, followed by a full-width row holding its ports panel
-// (list of discovered ports + manual "search now" trigger). The panel's own
-// content is filled in separately by loadAreaPorts, once per render.
+// One row per area, followed — admin only — by a full-width row holding its
+// ports panel (list of discovered ports + manual "search now" trigger). The
+// GET/POST /areas/:key/ports* routes are requireAdmin-only (Task 8), so a
+// non-admin's fetch would just 403; rather than rendering a permanently
+// blank/broken panel for them, skip the row entirely, same as the rest of
+// the app hides admin-only UI (S.isAdmin, see auth-ui.js/outage.js). The
+// panel's own content is filled in separately by loadAreaPorts, once per
+// render.
 function renderAreasList() {
   const only = S.areasList.length <= 1;
   el.areasBody.innerHTML =
@@ -110,6 +115,17 @@ function renderAreasList() {
         const cls = [pending ? 'area-row-pending' : '', S.areaEditKey === a.key ? 'area-row-editing' : '']
           .filter(Boolean)
           .join(' ');
+        const portsRow = S.isAdmin
+          ? `<tr class="area-ports-row">
+          <td colspan="7">
+            <div class="area-ports" data-area-key="${escHtml(a.key)}">
+              <strong>${escHtml(t('areas.ports.title'))}</strong>
+              <button class="btn btn-sm btn-secondary area-ports-refresh" data-i18n="areas.ports.refresh">${escHtml(t('areas.ports.refresh'))}</button>
+              <ul class="area-ports-list"></ul>
+            </div>
+          </td>
+        </tr>`
+          : '';
         return `<tr class="area-row ${cls}" data-key="${escHtml(a.key)}" title="${escHtml(t('areas.rowHint'))}">
           <td>${escHtml(a.name)}${a.current ? ` <span class="area-current-tag" data-i18n="areas.inUse">${t('areas.inUse')}</span>` : ''}</td>
           <td class="mono">${swLat.toFixed(4)}, ${swLon.toFixed(4)}</td>
@@ -119,20 +135,15 @@ function renderAreasList() {
           <td class="area-data-cell">${dataTxt}</td>
           <td><button class="btn btn-clear btn-sm area-del-btn" data-key="${escHtml(a.key)}" data-name="${escHtml(a.name)}"${disabled} title="${escHtml(t('areas.delete'))}">🗑</button></td>
         </tr>
-        <tr class="area-ports-row">
-          <td colspan="7">
-            <div class="area-ports" data-area-key="${escHtml(a.key)}">
-              <button class="btn btn-sm btn-secondary area-ports-refresh" data-i18n="areas.ports.refresh">${escHtml(t('areas.ports.refresh'))}</button>
-              <ul class="area-ports-list"></ul>
-            </div>
-          </td>
-        </tr>`;
+        ${portsRow}`;
       })
       .join('') ||
     `<tr><td colspan="7" class="empty">${t('areas.none')}</td></tr>`;
-  el.areasBody
-    .querySelectorAll('.area-ports')
-    .forEach((c) => loadAreaPorts(c.dataset.areaKey, c.querySelector('.area-ports-list')));
+  if (S.isAdmin) {
+    el.areasBody
+      .querySelectorAll('.area-ports')
+      .forEach((c) => loadAreaPorts(c.dataset.areaKey, c.querySelector('.area-ports-list')));
+  }
 }
 
 // Fetch and render the discovered-ports list for one area. Re-called after
