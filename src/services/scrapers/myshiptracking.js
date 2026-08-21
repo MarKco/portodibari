@@ -158,7 +158,7 @@ async function searchPort(name) {
  *  `contributorMap.php` AJAX call. null if not found. */
 async function getPortCoords(slug, pid) {
   const html = await fetchHttp(`https://www.myshiptracking.com/ports/${slug}-id-${pid}`);
-  const m = html.match(/lat=([\d.]+)&lng=([\d.]+)/);
+  const m = html.match(/lat=(-?[\d.]+)&lng=(-?[\d.]+)/);
   return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null;
 }
 

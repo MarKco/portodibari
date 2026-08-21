@@ -87,7 +87,7 @@ For each port found, the panel shows:
 - its **name**;
 - a **status badge**: 🟢 **Confirmed**, 🟡 **Needs review**, 🔴 **Rejected**;
 - the **sources** that found it (e.g. `berths`, `wpi`, `locode`, `vf`);
-- for **Needs review** ports, two buttons — **Confirm** / **Reject**;
+- for **Needs review** ports, two buttons — **Confirm** / **Reject**; a port that's already been decided (**Confirmed** or **Rejected**) instead shows the opposite action's button, so you can correct an earlier decision at any time;
 - a **Search ports now** button, to manually re-run discovery.
 
 **What the statuses mean:**
@@ -102,7 +102,7 @@ For each port found, the panel shows:
 
 - **Automatically**, when a new area is created.
 - **In the background at server restart**, one time only, for existing areas that don't have discovered ports yet (one area at a time, with a pause between each, so it doesn't slow down startup).
-- **On demand**, with the **Search ports now** button: runs again in the background — on an area with no berths observed yet it can take a few minutes — and the list refreshes itself once it's done.
+- **On demand**, with the **Search ports now** button: runs again in the background — on an area with no berths observed yet it can take a few minutes. The panel re-fetches once, right after the click, so it will almost always still show the previous state: there's no progress indicator and no automatic refresh afterwards — to see the outcome, click **Search ports now** again (or reopen the Areas screen) after a few minutes.
 
 ---
 

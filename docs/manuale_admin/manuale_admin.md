@@ -87,7 +87,7 @@ Per ciascun porto trovato il pannello mostra:
 - il **nome**;
 - un **badge di stato**: 🟢 **Confermato**, 🟡 **Da rivedere**, 🔴 **Rifiutato**;
 - le **fonti** che l'hanno individuato (es. `berths`, `wpi`, `locode`, `vf`);
-- per i porti **Da rivedere**, due bottoni **Conferma** / **Rifiuta**;
+- per i porti **Da rivedere**, due bottoni **Conferma** / **Rifiuta**; per un porto già deciso (**Confermato** o **Rifiutato**) viene mostrato il bottone dell'azione opposta, per poter correggere una decisione precedente in qualsiasi momento;
 - il bottone **Cerca porti ora**, per rilanciare la ricerca manualmente.
 
 **Cosa significano gli stati:**
@@ -102,7 +102,7 @@ Per ciascun porto trovato il pannello mostra:
 
 - **Automaticamente**, alla creazione di una nuova area.
 - **In background al riavvio del server**, una tantum, per le aree già esistenti che non hanno ancora porti scoperti (un'area alla volta, con una pausa tra l'una e l'altra, per non appesantire l'avvio).
-- **A richiesta**, col bottone **Cerca porti ora**: riparte in background — su un'area senza banchine ancora osservate può richiedere qualche minuto — e la lista si aggiorna da sola al termine.
+- **A richiesta**, col bottone **Cerca porti ora**: riparte in background — su un'area senza banchine ancora osservate può richiedere qualche minuto. Il pannello si ri-aggiorna una sola volta subito dopo il click, quindi quasi sempre mostrerà ancora lo stato precedente: non c'è un indicatore di avanzamento né un aggiornamento automatico successivo, per vedere l'esito bisogna ricliccare **Cerca porti ora** (o riaprire la schermata Aree) dopo qualche minuto.
 
 ---
 

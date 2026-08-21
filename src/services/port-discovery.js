@@ -6,6 +6,8 @@ const { haversineM } = require('./ship-analysis');
 const gfw = require('./gfw');
 const { searchVesselFinderPorts } = require('./scrapers/vesselfinder-ports');
 const mst = require('./scrapers/myshiptracking');
+const fallbackMode = require('./fallback-mode');
+const appLog = require('./app-log');
 const wpi = require('../../data/wpi.json');
 const locodeNames = require('../../data/locode.json');
 const locodeCoords = require('../../data/locode-coords.json');
@@ -75,13 +77,32 @@ async function discoverPortsForArea(areaKey) {
     for (const b of berths) {
       db.upsertAreaPort({
         area_key: areaKey,
-        name: b.name || `Banchina #${b.id}`,
+        // Unnamed (not-yet-renamed) auto-clustered berths must key on something
+        // stable, NOT `b.id` — berths are DELETE+INSERT with a fresh AUTOINCREMENT
+        // id on every recompute (project-wide gotcha), so keying on id would make
+        // `UNIQUE(area_key, name)` insert a new row per recompute instead of
+        // updating the same one, and would resurrect an admin-rejected row under
+        // its new id. The rounded centroid (3 decimals ≈ 111m at the equator) is
+        // stable enough across recompute jitter, well under a berth's own
+        // footprint, so it naturally dedups via the same UNIQUE constraint.
+        name: b.name || `Banchina ${b.centroid_lat.toFixed(3)},${b.centroid_lon.toFixed(3)}`,
         lat: b.centroid_lat,
         lon: b.centroid_lon,
         sources: ['berths'],
         status: 'confirmed',
       });
     }
+    return;
+  }
+
+  // Fallback mode = a declared prolonged-AIS-outage emergency where VF/MST
+  // scraping is suspended project-wide (see fallback-mode.js) because ban risk
+  // is highest. Port discovery's cascade below fires VF (and, downstream,
+  // resolveMstPidForConfirmedPorts fires MST) — defer the whole run rather than
+  // add to that risk. No candidates are persisted this run; a later manual
+  // re-run or the next boot backfill picks it up once fallback mode ends.
+  if (fallbackMode.isActive()) {
+    appLog.info('AREE', `Scoperta porti per ${areaKey} rimandata: modalità fallback attiva.`);
     return;
   }
 
@@ -131,6 +152,11 @@ async function resolveMstPidForConfirmedPorts(areaKey) {
   const ports = db.getConfirmedAreaPorts(areaKey);
   for (let i = 0; i < ports.length; i++) {
     const port = ports[i];
+    // Same anti-ban discipline as the cascade above: skip while fallback mode's
+    // emergency suspension is active, and independently respect MST's own
+    // per-source circuit breaker (already tripped from unrelated 403/429s) even
+    // if fallback mode itself isn't currently active.
+    if (fallbackMode.isActive() || fallbackMode.getStatus().circuits.mst.open) continue;
     if (!port.mst_pid) {
       try {
         const matches = await mst.searchPort(port.name);

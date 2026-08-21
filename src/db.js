@@ -3387,6 +3387,7 @@ function pruneOrphans() {
     // Parents first: ships whose area is gone, berths whose area is gone.
     counts.ships = run("DELETE FROM ships WHERE last_area != '' AND last_area NOT IN (SELECT key FROM areas)");
     counts.berths = run('DELETE FROM berths WHERE area NOT IN (SELECT key FROM areas)');
+    counts.area_ports = run('DELETE FROM area_ports WHERE area_key NOT IN (SELECT key FROM areas)');
     // Children keyed by area and/or by a now-missing ship.
     counts.readings = run(
       "DELETE FROM readings WHERE (area != '' AND area NOT IN (SELECT key FROM areas)) OR mmsi NOT IN (SELECT mmsi FROM ships)"

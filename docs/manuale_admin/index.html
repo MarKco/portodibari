@@ -376,7 +376,11 @@
         <code>berths</code>, <code>wpi</code>, <code>locode</code>,
         <code>vf</code>);</li>
         <li>per i porti <strong>Da rivedere</strong>, due bottoni
-        <strong>Conferma</strong> / <strong>Rifiuta</strong>;</li>
+        <strong>Conferma</strong> / <strong>Rifiuta</strong>; per un
+        porto già deciso (<strong>Confermato</strong> o
+        <strong>Rifiutato</strong>) viene mostrato il bottone
+        dell’azione opposta, per poter correggere una decisione
+        precedente in qualsiasi momento;</li>
         <li>il bottone <strong>Cerca porti ora</strong>, per rilanciare
         la ricerca manualmente.</li>
         </ul>
@@ -419,8 +423,13 @@
         per non appesantire l’avvio).</li>
         <li><strong>A richiesta</strong>, col bottone <strong>Cerca
         porti ora</strong>: riparte in background — su un’area senza
-        banchine ancora osservate può richiedere qualche minuto — e la
-        lista si aggiorna da sola al termine.</li>
+        banchine ancora osservate può richiedere qualche minuto. Il
+        pannello si ri-aggiorna una sola volta subito dopo il click,
+        quindi quasi sempre mostrerà ancora lo stato precedente: non c’è
+        un indicatore di avanzamento né un aggiornamento automatico
+        successivo, per vedere l’esito bisogna ricliccare <strong>Cerca
+        porti ora</strong> (o riaprire la schermata Aree) dopo qualche
+        minuto.</li>
         </ul>
         <hr />
         <h2 id="modello-di-rischio-pesi-dei-segnali">Modello di rischio

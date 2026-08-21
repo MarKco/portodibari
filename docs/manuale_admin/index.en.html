@@ -366,7 +366,10 @@
         (e.g. <code>berths</code>, <code>wpi</code>,
         <code>locode</code>, <code>vf</code>);</li>
         <li>for <strong>Needs review</strong> ports, two buttons —
-        <strong>Confirm</strong> / <strong>Reject</strong>;</li>
+        <strong>Confirm</strong> / <strong>Reject</strong>; a port
+        that’s already been decided (<strong>Confirmed</strong> or
+        <strong>Rejected</strong>) instead shows the opposite action’s
+        button, so you can correct an earlier decision at any time;</li>
         <li>a <strong>Search ports now</strong> button, to manually
         re-run discovery.</li>
         </ul>
@@ -408,8 +411,12 @@
         doesn’t slow down startup).</li>
         <li><strong>On demand</strong>, with the <strong>Search ports
         now</strong> button: runs again in the background — on an area
-        with no berths observed yet it can take a few minutes — and the
-        list refreshes itself once it’s done.</li>
+        with no berths observed yet it can take a few minutes. The panel
+        re-fetches once, right after the click, so it will almost always
+        still show the previous state: there’s no progress indicator and
+        no automatic refresh afterwards — to see the outcome, click
+        <strong>Search ports now</strong> again (or reopen the Areas
+        screen) after a few minutes.</li>
         </ul>
         <hr />
         <h2 id="risk-model-signal-weights">Risk model (signal

@@ -167,6 +167,10 @@ async function loadAreaPorts(areaKey, listEl) {
             <button class="btn btn-sm area-port-confirm" data-id="${p.id}">${escHtml(t('areas.ports.confirm'))}</button>
             <button class="btn btn-sm btn-clear area-port-reject" data-id="${p.id}">${escHtml(t('areas.ports.reject'))}</button>
           `
+              : p.status === 'confirmed'
+              ? `<button class="btn btn-sm btn-clear area-port-reject" data-id="${p.id}">${escHtml(t('areas.ports.reject'))}</button>`
+              : p.status === 'rejected'
+              ? `<button class="btn btn-sm area-port-confirm" data-id="${p.id}">${escHtml(t('areas.ports.confirm'))}</button>`
               : ''
           }
         </li>`
