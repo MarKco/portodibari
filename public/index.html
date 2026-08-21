@@ -134,6 +134,11 @@
         <span class="sb-icon">📖</span>
         <span class="sb-label" data-i18n="sidebar.manual">Manuale utente</span>
       </a>
+      <button id="btn-fallback-scrape-overlay" class="btn btn-secondary sb-btn hidden"
+              data-i18n-title="sidebar.fallbackScrapeLog" title="Log modalità fallback">
+        <span class="sb-icon">🔀</span>
+        <span class="sb-label" data-i18n="sidebar.fallbackScrapeLog">Log modalità fallback</span>
+      </button>
       <button id="btn-log-overlay" class="btn btn-secondary sb-btn"
               data-i18n-title="sidebar.logOverlay" title="Log attività">
         <span class="sb-icon">🪵</span>
@@ -1772,6 +1777,17 @@
       <button id="log-ov-close" class="log-ov-btn" data-i18n-title="log.close" title="Chiudi">✕</button>
     </div>
     <div id="log-ov-body" class="log-ov-body"></div>
+  </div>
+
+  <!-- Floating fallback-mode live scrape-log overlay window (admin, only while fallback mode is active) -->
+  <div id="fallback-scrape-ov-window" class="log-overlay-window hidden">
+    <div id="fallback-scrape-ov-header" class="log-ov-header">
+      <span class="log-ov-title">🔀 <span data-i18n="sidebar.fallbackScrapeLog">Log modalità fallback</span></span>
+      <span id="fallback-scrape-ov-live" class="badge inactive" data-i18n="log.offline">OFFLINE</span>
+      <span class="log-ov-spacer"></span>
+      <button id="fallback-scrape-ov-close" class="log-ov-btn" data-i18n-title="log.close" title="Chiudi">✕</button>
+    </div>
+    <div id="fallback-scrape-ov-body" class="log-ov-body fallback-scrape-ov-body"></div>
   </div>
 
 

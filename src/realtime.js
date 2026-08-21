@@ -10,6 +10,7 @@
 
 const logClients = new Set();
 const appLogClients = new Set();
+const fallbackScrapeClients = new Set();
 const pendingAlerts = [];
 
 // Bound the alert backlog: if nothing ever drains it (GET /api/alerts), it would
@@ -50,12 +51,22 @@ function broadcastAppLog(entry) {
   for (const res of appLogClients) res.write(payload);
 }
 
+/** Push a fallback-mode scrape attempt ({ts,source,mmsi,ok}) to every
+ *  connected SSE client (see services/fallback-mode.js). */
+function broadcastFallbackScrape(entry) {
+  if (!fallbackScrapeClients.size) return;
+  const payload = `data: ${JSON.stringify(entry)}\n\n`;
+  for (const res of fallbackScrapeClients) res.write(payload);
+}
+
 module.exports = {
   logClients,
   appLogClients,
+  fallbackScrapeClients,
   pendingAlerts,
   pushAlert,
   drainAlertsForUser,
   broadcastLog,
   broadcastAppLog,
+  broadcastFallbackScrape,
 };

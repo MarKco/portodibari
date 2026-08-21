@@ -359,6 +359,14 @@ export const el = {
   logOvClear: $('log-ov-clear'),
   logOvClose: $('log-ov-close'),
 
+  // Fallback-mode live scrape log — sidebar toggle + floating overlay window
+  btnFallbackScrapeOverlay: $('btn-fallback-scrape-overlay'),
+  fallbackScrapeOvWindow: $('fallback-scrape-ov-window'),
+  fallbackScrapeOvHeader: $('fallback-scrape-ov-header'),
+  fallbackScrapeOvBody: $('fallback-scrape-ov-body'),
+  fallbackScrapeOvLive: $('fallback-scrape-ov-live'),
+  fallbackScrapeOvClose: $('fallback-scrape-ov-close'),
+
   // Application log — Settings → Log tab
   toggleAppLog: $('toggle-app-log'),
   appLogBody: $('app-log-body'),

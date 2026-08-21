@@ -2079,6 +2079,10 @@ pre {
   padding-bottom: 20px;
   position: relative;
 }
+/* Compact variant for the live fallback-scrape overlay window (narrower than
+   the Settings panel, no hour labels — no need to reserve label padding). */
+.fallback-scrape-chart { height: 56px; padding-bottom: 0; gap: 2px; }
+.fallback-scrape-ov-body { padding: 0.6rem 0.8rem; }
 .hour-bar-wrap {
   flex: 1;
   display: flex;

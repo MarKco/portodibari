@@ -15,6 +15,7 @@ export default {
   'sidebar.areas':    'Areas',
   'sidebar.settings': 'Settings',
   'sidebar.fallback': 'Fallback mode',
+  'sidebar.fallbackScrapeLog': 'Fallback mode log',
   'sidebar.notifications': 'Notifications',
   'sidebar.groupNotifications': 'Group activity notifications',
   'sidebar.manual':   'User manual',
@@ -631,6 +632,8 @@ export default {
   'health.portDiscoveryRun':     'Search ports now',
   'health.portDiscoveryStarted': 'Search started in the background.',
   'health.portDiscoveryError':   'Failed to start.',
+  'fallbackScrapeLog.desc':  'Calls to ShipFinder/MyShipTracking over the last {min} minutes, updated in real time.',
+  'fallbackScrapeLog.calls': 'calls',
   'health.fallbackEstimateTitle':'Scope comparison estimate (requests/hour)',
   'health.fallbackBudgetNote':   'Configured hard cap: {n} requests/hour (SF+MST combined). "Full monitoring" scope redistributes the same cap over more ships, it does not raise it.',
 

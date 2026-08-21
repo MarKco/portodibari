@@ -15,6 +15,7 @@ export default {
   'sidebar.areas':    'Aree',
   'sidebar.settings': 'Impostazioni',
   'sidebar.fallback': 'Modalità fallback',
+  'sidebar.fallbackScrapeLog': 'Log modalità fallback',
   'sidebar.notifications': 'Notifiche',
   'sidebar.groupNotifications': 'Notifiche attività di gruppo',
   'sidebar.manual':   'Manuale utente',
@@ -631,6 +632,8 @@ export default {
   'health.portDiscoveryRun':     'Rilancia ricerca porti',
   'health.portDiscoveryStarted': 'Ricerca avviata in background.',
   'health.portDiscoveryError':   'Avvio non riuscito.',
+  'fallbackScrapeLog.desc':  'Chiamate a ShipFinder/MyShipTracking negli ultimi {min} minuti, aggiornato in tempo reale.',
+  'fallbackScrapeLog.calls': 'chiamate',
   'health.fallbackEstimateTitle':'Stima confronto modalità (richieste/ora)',
   'health.fallbackBudgetNote':   'Tetto massimo configurato: {n} richieste/ora (SF+MST insieme). Ambito "monitoraggio completo" ridistribuisce lo stesso tetto su più navi, non lo aumenta.',
 

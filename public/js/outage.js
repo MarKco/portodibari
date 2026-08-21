@@ -17,6 +17,7 @@ import { el } from './dom.js';
 import { S } from './store.js';
 import { t } from './i18n.js';
 import { formatTime } from './helpers.js';
+import { closeFallbackScrapeLogIfOpen } from './fallback-scrape-log.js';
 
 const MONITORING_VIEWS = new Set(['active', 'past', 'traffico', 'followed', 'detail']);
 const STREAM_LABEL_KEY = { monitoring: 'health.streamMonitoring', follow: 'sidebar.followed', heatmap: 'settings.group.heatmap' };
@@ -47,6 +48,9 @@ export function applyOutageBanner() {
   const streamIssues = o?.streamIssues || [];
   const fb = o?.fallbackMode;
   el.btnFallbackNav?.classList.toggle('hidden', !(fb?.active && S.isAdmin));
+  const showScrapeLog = !!(fb?.active && S.isAdmin);
+  el.btnFallbackScrapeOverlay?.classList.toggle('hidden', !showScrapeLog);
+  if (!showScrapeLog) closeFallbackScrapeLogIfOpen();
   const active = !!o && (o.serviceDown || streamIssues.length > 0 || fb?.active);
   const key = currentKey(o);
   const show = active && MONITORING_VIEWS.has(S.view) && dismissedKey !== key;

@@ -27,6 +27,7 @@
 const db = require('../db');
 const appLog = require('./app-log');
 const telegram = require('./telegram');
+const { broadcastFallbackScrape } = require('../realtime');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
@@ -153,12 +154,28 @@ function candidatePool() {
   return followed.concat(db.getStaleAreaShips(FOLLOW_FRESH_MS));
 }
 
+// Rolling in-memory buffer of recent scrape attempts (this module's own, not
+// the DB-backed `scrape_log`), for the live "Log modalità fallback" sidebar
+// window to backfill on open before live SSE events start arriving. Capped,
+// in-memory only — same tradeoff as the circuit breaker above, a restart just
+// starts the buffer empty again.
+const MAX_SCRAPE_EVENTS = 200;
+const recentScrapeEvents = [];
+
+function logScrapeEvent(source, mmsi, ok) {
+  const entry = { ts: new Date().toISOString(), source, mmsi, ok };
+  recentScrapeEvents.push(entry);
+  if (recentScrapeEvents.length > MAX_SCRAPE_EVENTS) recentScrapeEvents.shift();
+  broadcastFallbackScrape(entry);
+}
+
 async function scrapeOne(source, sh) {
   if (db.hasRecentScrapeFailure(sh.mmsi, source, SCRAPE_NEG_CACHE_DAYS)) return;
   try {
     const { static: staticData, position } =
       source === 'sf' ? await crawlShipfinder(sh.mmsi) : await crawlMyshiptracking(sh.mmsi);
     db.recordScrape(source, true);
+    logScrapeEvent(source, sh.mmsi, true);
     if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, source, staticData);
     if (position) {
       const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name }, source);
@@ -172,6 +189,7 @@ async function scrapeOne(source, sh) {
     }
   } catch (e) {
     db.recordScrape(source, false);
+    logScrapeEvent(source, sh.mmsi, false);
     db.setScrapeFailure(sh.mmsi, source, e.message);
     recordFailure(source, sh.mmsi, e);
   }
@@ -253,4 +271,8 @@ function getStatus() {
   };
 }
 
-module.exports = { isActive, enter, exit, sweep, getEstimate, getStatus };
+function getRecentScrapeEvents() {
+  return recentScrapeEvents.slice();
+}
+
+module.exports = { isActive, enter, exit, sweep, getEstimate, getStatus, getRecentScrapeEvents };
