@@ -325,8 +325,6 @@ function startExternalSearch() {
       if (el.areaPortsCandidatesStatus) el.areaPortsCandidatesStatus.textContent = t('areas.ports.candidatesStatusRunning', { n: candidates.length });
     } else if (msg.type === 'done') {
       finishSearch(t('areas.ports.candidatesStatusDone', { n: candidates.length }));
-    } else if (msg.type === 'deferred') {
-      finishSearch(t('areas.ports.candidatesStatusDeferred'));
     } else if (msg.type === 'error') {
       finishSearch(t('areas.ports.candidatesStatusError'));
     }

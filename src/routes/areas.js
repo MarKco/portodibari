@@ -318,14 +318,16 @@ router.get('/areas/:key/ports/search-external/stream', requireAdmin, (req, res) 
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Same anti-ban caution as discoverPortsForArea: this cascade fires the same
-  // VesselFinder scraping, competing for the shared budget/circuit breaker
-  // with fallback mode's own scraping while any area is silent.
-  if (fallbackMode.isAnyAreaSilent()) {
-    res.write(`data: ${JSON.stringify({ type: 'deferred' })}\n\n`);
-    return res.end();
-  }
-
+  // No isAnyAreaSilent() gate here, unlike discoverPortsForArea: THAT gate
+  // exists because its own flow also calls resolveMstPidForConfirmedPorts
+  // right after, which fires MST — the source fallback-mode.js's shared
+  // budget/circuit breaker (SOURCES = ['sf','mst']) actually protects.
+  // searchExternalCandidates never touches SF or MST (locode/WPI are local
+  // lookups, GFW is its own separately-tokened API, VesselFinder has its own
+  // independent pacing/negative-cache and is never gated on area silence
+  // anywhere else in the app — see enrichment.js's VF enrichment). Gating it
+  // here too would just block this feature globally the moment ANY one area
+  // is silent or force-fallback'd, for a resource it doesn't actually share.
   let closed = false;
   req.on('close', () => { closed = true; });
 

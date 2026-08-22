@@ -745,7 +745,6 @@ export default {
   'areas.ports.searchExternalRunning': 'Ricerca in corso…',
   'areas.ports.candidatesStatusRunning': '{n} trovati finora…',
   'areas.ports.candidatesStatusDone': '{n} candidati trovati.',
-  'areas.ports.candidatesStatusDeferred': 'Rimandata: modalità fallback attiva su almeno un\'area (stesso budget anti-ban dello scraping di riserva). Riprova più tardi.',
   'areas.ports.candidatesStatusError': 'Ricerca interrotta per un errore.',
   'areas.ports.addOne': 'Aggiungi',
   'areas.ports.addSelected': 'Aggiungi selezionati',
