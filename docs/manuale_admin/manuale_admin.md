@@ -82,15 +82,28 @@ La [Mappa delle zone coperte](../manuale/index.html#mappa-delle-zone-coperte) è
 
 Il sistema individua da sé, in background, quali porti reali ricadono dentro ciascuna area monitorata. Non è solo dato interno: la **modalità fallback** (sotto) lo usa per scoprire navi che l'AIS non ha mai visto, quando un'area non riceve segnali da un po' — nella schermata **Aree** un'icona ⚠ accanto all'interruttore fallback ti avvisa se il porto di quell'area non è (ancora) risolto su MyShipTracking, e quindi quella parte della funzione non è attiva lì (il riposizionamento delle navi già note funziona comunque).
 
-**Da ⚙ Impostazioni → Diagnostica AIS** trovi un controllo minimale: scegli un'area dal menu e premi **Cerca porti ora** per rilanciarla a mano. La ricerca parte in background (può richiedere qualche minuto su un'area senza banchine ancora osservate) — il controllo mostra solo un messaggio "Ricerca avviata", senza indicatore di avanzamento né elenco dei porti trovati.
+**Come vengono identificati**: se l'area ha già banchine osservate realmente dall'AIS, quelle (raggruppate per vicinanza) **sono** i porti — nessuna fonte esterna interrogata automaticamente. Altrimenti incrocia World Port Index, UN/LOCODE e VesselFinder (Global Fishing Watch è candidata nel codice ma **non è oggi raggiungibile**, il suo dataset ancoraggi non è disponibile via API); un punto trovato da almeno due fonti indipendenti viene considerato confermato, uno da una sola fonte resta "da rivedere".
 
-**Come vengono identificati**: se l'area ha già banchine osservate realmente dall'AIS, quelle (raggruppate per vicinanza) **sono** i porti — nessuna fonte esterna interrogata. Altrimenti incrocia World Port Index, UN/LOCODE e VesselFinder (Global Fishing Watch è candidata nel codice ma **non è oggi raggiungibile**, il suo dataset ancoraggi non è disponibile via API); un punto trovato da almeno due fonti indipendenti viene considerato confermato.
+**Quando parte la ricerca automatica:**
 
-**Quando parte la ricerca:**
-
-- **Automaticamente**, alla creazione di una nuova area.
+- **Alla creazione di una nuova area.**
 - **In background al riavvio del server**, una tantum, per le aree già esistenti che non hanno ancora porti scoperti (un'area alla volta, con una pausa tra l'una e l'altra, per non appesantire l'avvio).
-- **A richiesta**, dal controllo in Diagnostica AIS descritto sopra.
+
+### Pannello Porti (schermata Aree)
+
+![Aree — pannello Porti: elenco confermati/rifiutati e confronto con sorgenti esterne, con marker sulla mappa.](images/32-aree-pannello-porti.png)
+
+Dalla schermata **Aree**, il pulsante **⚓** su ogni riga apre un pannello dedicato ai porti di quell'area, sotto la mappa (non un popup che la nasconde — la mappa resta visibile con i marker evidenziati sopra la tabella):
+
+- **Elenco porti** — nome, coordinate, stato (**Confermato** verde / **Da rivedere** ambra / **Rifiutato** rosso) e sorgenti che lo hanno individuato. Confermare o rifiutare decide se quel porto viene interrogato per scoprire navi mai viste dall'AIS quando l'area è in fallback — non tocca il riposizionamento delle navi già note, che non dipende dai porti. La decisione è reversibile in qualsiasi momento (un porto rifiutato può essere riconfermato dopo).
+- **Cerca porti ora** — rilancia la scoperta automatica descritta sopra (stessa logica: banchine se già osservate, altrimenti cascata esterna). Se l'area aveva accumulato porti duplicati da esecuzioni passate (stesso punto salvato più volte con nomi diversi), questa azione li ripulisce automaticamente, sostituendoli con l'insieme riclusterizzato corrente — a patto che non siano già stati confermati/rifiutati a mano.
+- **Confronta con sorgenti esterne** — sezione separata, sempre disponibile (anche quando l'area ha già banchine osservate, a differenza della scoperta automatica sopra): il pulsante **Cerca in sorgenti esterne ora** interroga LOCODE/WPI/Global Fishing Watch/VesselFinder indipendentemente e mostra i risultati **in tempo reale** man mano che arrivano (LOCODE/WPI/GFW quasi istantanei, VesselFinder più lento per il ritmo anti-ban). Ogni candidato ha una casella di spunta e un pulsante **Aggiungi**; **Aggiungi selezionati** li inserisce in batch. Un candidato aggiunto va direttamente a **Confermato** — la scelta dell'admin è già la revisione. I candidati non toccano l'elenco sopra finché non li aggiungi esplicitamente.
+
+![Aree — confronto con sorgenti esterne: candidati in arrivo con checkbox, aggiunta singola o in batch.](images/33-aree-porti-candidati.png)
+
+Sulla mappa della schermata Aree, mentre il pannello è aperto, i porti già confermati appaiono come cerchi pieni colorati per stato; i candidati esterni appena trovati come cerchi **blu tratteggiati**, per poterli confrontare visivamente prima di decidere se aggiungerli.
+
+![Aree — mappa con porti confermati (pieni) e candidati esterni (blu tratteggiato) a confronto.](images/34-aree-porti-mappa.png)
 
 ---
 
@@ -147,25 +160,36 @@ Il **banner di disservizio AIS** che compare a tutti gli utenti nelle pagine di 
 
 ### Modalità fallback (per area, silenziosa)
 
-La modalità fallback **non è più un interruttore unico per tutto il sito**: ogni area monitorata ha la propria, indipendente dalle altre. Quando un'area non riceve un segnale AIS reale da un po' (soglia configurabile, `AREA_SILENT_THRESHOLD_MIN` — vedi [Modifica dei file di configurazione](#modifica-dei-file-di-configurazione)), l'app smette di affidarsi al solo feed AIS **per quell'area** e:
+La modalità fallback **non è un interruttore unico per tutto il sito**: ogni area monitorata ha la propria, indipendente dalle altre. Quando un'area non riceve un segnale AIS reale da un po' (soglia configurabile, `AREA_SILENT_THRESHOLD_MIN` — vedi [Modifica dei file di configurazione](#modifica-dei-file-di-configurazione)) — o quando è stata **forzata** manualmente (sotto) — l'app **aggiunge** allo stesso feed AIS, che resta sempre ascoltato senza interruzioni, anche lo scraping per quell'area:
 
 - **riposiziona** le navi già note tramite scraping su **ShipFinder** e **MyShipTracking** (le due sole fonti esterne che forniscono coordinate);
 - **scopre** navi che l'AIS non ha mai visto affatto, interrogando gli arrivi/partenze del porto dell'area su MyShipTracking — funziona solo se l'area ha un porto riconosciuto e risolto (vedi [Scoperta porti](#scoperta-porti-per-area) sopra; l'icona ⚠ nella schermata Aree ti avvisa quando manca).
 
 Questo copre sia le interruzioni AIS temporanee sia le **zone con copertura AISStream scarsa o assente in modo strutturale** (nessun ricevitore vicino): un'area del genere resta "in fallback" di continuo, silenziosamente, senza generare alcun allarme — è il funzionamento previsto, non un guasto.
 
-**Dove si attiva/disattiva**: dalla schermata **Aree**, un interruttore per ciascuna area (**attivo di default**). È una scelta riservata agli amministratori — un utente normale può gestire le proprie aree (nome, coordinate, parola chiave) ma non questo interruttore, che non compare nella sua vista. Disattivarlo per un'area significa: nessun riposizionamento/scoperta extra per quell'area quando l'AIS tace (le navi seguite che vi transitano restano comunque tracciate come sempre, indipendentemente da questo interruttore).
+![Aree — colonna Fallback: interruttore on/off, interruttore ⚡ forza, ed etichetta di stato live con badge porto.](images/31-aree-fallback-toggle.png)
 
-**Come sapere se un'area sta usando il fallback in questo momento**: nella pagina **Navi presenti**, il titolo mostra il nome dell'area e — solo per gli amministratori — un'etichetta "📡 Dati da AIS" oppure "🔀 Dati da fallback (scraping)". Le singole navi mostrano inoltre un piccolo badge quando la loro posizione in tabella arriva da ShipFinder/MyShipTracking invece che dall'AIS (stesso indicatore già usato per le navi seguite).
+**Due interruttori indipendenti, nella schermata Aree, una riga per area** (entrambi riservati agli amministratori — un utente normale gestisce le proprie aree ma non li vede):
+
+- **Interruttore principale** (**attivo di default**) — abilita/disabilita del tutto lo scraping di riserva per quell'area. Spento: quest'area non riceve mai scraping, nemmeno durante un'interruzione AIS lunga (le navi seguite che vi transitano restano comunque tracciate come sempre, indipendentemente da questo interruttore — non sono legate a un'area). L'ascolto AIS stesso **non è mai influenzato** da questo interruttore.
+- **Interruttore ⚡ "forza"** (visibile solo quando il principale è acceso, **spento di default**) — tratta l'area come silenziosa anche se l'AIS sta ricevendo messaggi normalmente. Utile per una zona che sai avere poca copertura AIS reale (poche navi dotate di transponder nei paraggi), dove la soglia di silenzio automatica non scatterebbe mai da sola pur avendo bisogno dello scraping. Anche qui l'AIS continua a essere ascoltato esattamente come prima — lo scraping si aggiunge soltanto, in parallelo.
+
+**Come sapere se un'area sta usando il fallback in questo momento**: nella colonna **Fallback** della schermata Aree, un'etichetta live per riga — **🟢 AIS attivo** oppure **🔴 In fallback** (con la durata se il silenzio è reale, o "(forzata)" se lo stato dipende dall'interruttore ⚡) — più un badge ℹ/⚠ se manca un porto risolto per la scoperta di navi nuove. Nella pagina **Navi presenti**, il titolo mostra inoltre il nome dell'area e — solo per gli amministratori — la stessa etichetta "📡 Dati da AIS" / "🔀 Dati da fallback (scraping)". Le singole navi mostrano un piccolo badge quando la loro posizione in tabella arriva da ShipFinder/MyShipTracking invece che dall'AIS (stesso indicatore già usato per le navi seguite).
 
 **Pannello diagnostico — ⚙ Impostazioni → Diagnostica AIS** (visibile solo agli amministratori):
 
-- **Stato per area** — elenco di tutte le aree monitorate con, per ciascuna, se è correntemente silenziosa e da quando.
+![Impostazioni → Diagnostica AIS — sezione Modalità fallback: stato per area, circuit breaker, storico scraping, stima richieste/ora.](images/35-impostazioni-diagnostica-fallback.png)
+
+- **Stato per area** — elenco di tutte le aree monitorate con, per ciascuna, l'etichetta "AIS attivo"/"In fallback" e da quando (assente quando lo stato dipende dall'interruttore ⚡ forza, non da un silenzio reale).
 - **Storico scraping reale** — un grafico a barre separato per **ShipFinder** e **MyShipTracking**, ultime 48 ore, con barre impilate verde/rosso per richieste riuscite/fallite ed etichette orarie ogni 6 ore — passa il mouse su una barra per il dettaglio esatto. Aggregato su tutte le aree insieme, non spezzato per area.
-- **Stima richieste/ora** — quante richieste/ora comportano oggi, in totale, le navi seguite più le navi delle aree correntemente silenziose, rispetto al tetto massimo configurato. Più aree silenziose insieme **non aumentano** il tetto massimo di richieste/ora (`FALLBACK_MAX_REQ_PER_HOUR`) — lo ridistribuiscono solo su più navi, che vengono quindi rivisitate meno spesso.
+- **Stima richieste/ora** — quante richieste/ora comportano oggi, in totale, le navi seguite più le navi delle aree correntemente silenziose, rispetto al tetto massimo configurato. Più aree silenziose insieme (per soglia reale o per interruttore forza) **non aumentano** il tetto massimo di richieste/ora (`FALLBACK_MAX_REQ_PER_HOUR`) — lo ridistribuiscono solo su più navi, che vengono quindi rivisitate meno spesso.
 - **Stato dei "circuit breaker" e problemi della sessione** — se ShipFinder o MyShipTracking mostrano troppi errori 403/429 ravvicinati (possibile segnale di blocco), quella sorgente viene sospesa temporaneamente in automatico, per tutte le aree insieme; qui vedi se e fino a quando, più un **contatore di quanti sospetti blocco si sono verificati in questa sessione** per ciascuna sorgente — resta visibile anche dopo che il blocco si è auto-risolto, invece di sparire non appena la sorgente riprende a funzionare.
 
-**Log modalità fallback (tempo reale)**: una voce dedicata nel menu laterale, sopra "Log attività" — **🔀 Log modalità fallback** (visibile solo agli amministratori, sempre disponibile, non solo mentre qualche area è silenziosa). Apre una finestra flottante (trascinabile, come il Log attività) con due piccoli grafici — uno per ShipFinder, uno per MyShipTracking — che si aggiornano **in tempo reale** ad ogni chiamata effettiva, qualunque area o nave l'abbia generata: barre impilate verde/rosso (riuscite/fallite) sugli ultimi 10 minuti, più il totale chiamate/riuscite/fallite di sessione per sorgente. Finestra desktop, come il Log attività non è pensata per schermi piccoli.
+**Log modalità fallback (tempo reale)**: una voce dedicata nel menu laterale, sopra "Log attività" — **🔀 Log modalità fallback** (visibile solo agli amministratori, sempre disponibile, non solo mentre qualche area è silenziosa). Apre una finestra flottante (trascinabile, come il Log attività) con un piccolo **grafico a linea** — uno per ShipFinder, uno per MyShipTracking, con legenda verde/rosso — che si aggiorna **in tempo reale** ad ogni chiamata effettiva, qualunque area o nave l'abbia generata: chiamate riuscite/fallite sugli ultimi 10 minuti, più il totale di sessione per sorgente. Finestra desktop, come il Log attività non è pensata per schermi piccoli.
+
+![Finestra "Log modalità fallback": grafico a linea in tempo reale con legenda riuscite/fallite.](images/36-log-modalita-fallback-grafico.png)
+
+Il **Log attività** (vedi sopra) riporta anche ogni riposizionamento riuscito (`Fallback: posizione ShipFinder/MyShipTracking per <nave>`), con **area e — se identificabile entro qualche km — porto più vicino** tra parentesi quadre quando la nave appartiene a un'area (non per le navi seguite, che non sono legate a un'area).
 
 Se una sorgente viene sospesa per sospetto blocco, ricevi un **alert dedicato — solo per gli amministratori** — via notifica in-app, Telegram (attivabile/disattivabile nella scheda Impostazioni → Integrazioni esterne → Telegram, voce "sospetto ban") e un avviso nel banner di disservizio AIS quando sei loggato come admin.
 

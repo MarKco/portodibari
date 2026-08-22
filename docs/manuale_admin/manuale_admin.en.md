@@ -82,15 +82,28 @@ The [Coverage map](../manuale/index.en.html#coverage-map) is visible read-only t
 
 The system figures out on its own, in the background, which real ports fall inside each monitored area. It's not just internal data: **fallback mode** (below) uses it to discover ships AIS has never seen, when an area hasn't had signal for a while — on the **Areas** screen a ⚠ icon next to that area's fallback toggle warns you if its port isn't (yet) resolved on MyShipTracking, meaning that part of the feature isn't active there (repositioning already-known ships still works).
 
-**From ⚙ Settings → AIS Diagnostics** you'll find a minimal control: pick an area from the dropdown and press **Search ports now** to manually re-run it. The search starts in the background (can take a few minutes on an area with no berths observed yet) — the control just shows a "Search started" message, with no progress indicator or list of ports found.
+**How ports are identified**: if the area already has berths really observed by AIS, those (grouped by proximity) **are** the ports — no external source is contacted automatically. Otherwise it cross-checks World Port Index, UN/LOCODE and VesselFinder (Global Fishing Watch is a candidate in the code but **isn't reachable today** — its anchorages dataset isn't available via API); a point found by at least two independent sources is considered confirmed, one found by a single source stays "needs review".
 
-**How ports are identified**: if the area already has berths really observed by AIS, those (grouped by proximity) **are** the ports — no external source is contacted. Otherwise it cross-checks World Port Index, UN/LOCODE and VesselFinder (Global Fishing Watch is a candidate in the code but **isn't reachable today** — its anchorages dataset isn't available via API); a point found by at least two independent sources is considered confirmed.
+**When automatic discovery runs:**
 
-**When discovery runs:**
-
-- **Automatically**, when a new area is created.
+- **When a new area is created.**
 - **In the background at server restart**, one time only, for existing areas that don't have discovered ports yet (one area at a time, with a pause between each, so it doesn't slow down startup).
-- **On demand**, from the AIS Diagnostics control described above.
+
+### Ports panel (Areas screen)
+
+![Areas — Ports panel: confirmed/rejected list and compare against external sources, with markers on the map.](images/32-aree-pannello-porti.png)
+
+From the **Areas** screen, the **⚓** button on each row opens a panel dedicated to that area's ports, below the map (not a popup that hides it — the map stays visible with its markers highlighted above the table):
+
+- **Port list** — name, coordinates, status (**Confirmed** green / **Needs review** amber / **Rejected** red) and the sources that found it. Confirming or rejecting decides whether that port is queried to discover ships AIS never reported while the area is in fallback — it doesn't affect repositioning already-known ships, which doesn't depend on ports. The decision is reversible at any time (a rejected port can be confirmed again later).
+- **Search ports now** — re-runs the automatic discovery described above (same logic: berths if already observed, otherwise the external cascade). If the area had accumulated duplicate ports from past runs (the same spot saved multiple times under different names), this action cleans them up automatically, replacing them with the current re-clustered set — as long as they haven't already been manually confirmed/rejected.
+- **Compare against external sources** — a separate section, always available (even when the area already has observed berths, unlike the automatic discovery above): the **Search external sources now** button queries LOCODE/WPI/Global Fishing Watch/VesselFinder independently and shows results **live** as they arrive (LOCODE/WPI/GFW almost instant, VesselFinder slower due to its anti-ban pacing). Each candidate has a checkbox and an **Add** button; **Add selected** adds them in a batch. An added candidate goes straight to **Confirmed** — the admin's pick already is the review. Candidates don't touch the list above until you explicitly add them.
+
+![Areas — compare against external sources: candidates arriving live with checkboxes, single or batch add.](images/33-aree-porti-candidati.png)
+
+On the Areas screen's map, while the panel is open, already-confirmed ports show as solid circles colored by status; freshly-found external candidates show as **dashed blue** circles, so you can visually compare before deciding whether to add them.
+
+![Areas — map with confirmed ports (solid) and external candidates (dashed blue) side by side.](images/34-aree-porti-mappa.png)
 
 ---
 
@@ -147,25 +160,36 @@ The **AIS outage banner** shown to all users on monitoring pages when an area go
 
 ### Fallback mode (per area, silent)
 
-Fallback mode is **no longer a single switch for the whole site**: every monitored area has its own, independent of the others. When an area hasn't received a real AIS signal for a while (configurable threshold, `AREA_SILENT_THRESHOLD_MIN` — see [Editing configuration files](#editing-configuration-files)), the app stops relying only on the AIS feed **for that area** and:
+Fallback mode is **not a single switch for the whole site**: every monitored area has its own, independent of the others. When an area hasn't received a real AIS signal for a while (configurable threshold, `AREA_SILENT_THRESHOLD_MIN` — see [Editing configuration files](#editing-configuration-files)) — or when it's been manually **forced** (below) — the app **adds** scraping for that area on top of the same AIS feed, which keeps being listened to without interruption:
 
 - **relocates** already-known ships via scraping on **ShipFinder** and **MyShipTracking** (the only two external sources that provide coordinates);
 - **discovers** ships AIS never saw at all, by querying the area's port arrivals/departures on MyShipTracking — this only works if the area has a recognized, resolved port (see [Port discovery](#port-discovery-per-area) above; the ⚠ icon on the Areas screen warns you when it's missing).
 
 This covers both temporary AIS outages and **zones with structurally poor or absent AISStream coverage** (no nearby receiver): such an area stays "in fallback" continuously, silently, without raising any alarm — that's the intended behavior, not a malfunction.
 
-**Where to turn it on/off**: on the **Areas** screen, one toggle per area (**on by default**). This is an administrator-only choice — a regular user can manage their own areas (name, coordinates, keyword) but not this toggle, which doesn't appear in their view. Turning it off for an area means: no extra repositioning/discovery for that area when AIS goes quiet (followed ships passing through it are still tracked as always, regardless of this toggle).
+![Areas — Fallback column: on/off toggle, ⚡ force toggle, and a live status label with port badge.](images/31-aree-fallback-toggle.png)
 
-**How to tell if an area is using fallback right now**: on the **Ships present** page, the title shows the area's name and — administrators only — a "📡 Data from AIS" or "🔀 Data from fallback (scraping)" label. Individual ships also show a small badge when their table position comes from ShipFinder/MyShipTracking instead of AIS (the same indicator already used for followed ships).
+**Two independent toggles, on the Areas screen, one row per area** (both administrator-only — a regular user manages their own areas but doesn't see either):
+
+- **Main toggle** (**on by default**) — enables/disables fallback scraping for that area entirely. Off: this area never gets scraping, even during a long AIS outage (followed ships passing through it are still tracked as always, regardless of this toggle — they aren't tied to an area). AIS listening itself is **never** affected by this toggle.
+- **⚡ "force" toggle** (only shown while the main one is on, **off by default**) — treats the area as silent even while AIS is receiving messages normally. Useful for a spot you know has thin real AIS coverage (few transponder-equipped ships nearby), where the automatic silence threshold would never trigger on its own despite needing scraping. Here too, AIS keeps being listened to exactly as before — scraping is simply added on top, in parallel.
+
+**How to tell if an area is using fallback right now**: in the **Fallback** column on the Areas screen, a live label per row — **🟢 AIS active** or **🔴 In fallback** (with a duration when the silence is genuine, or "(forced)" when the state comes from the ⚡ toggle) — plus an ℹ/⚠ badge if a resolved port is missing for discovering new ships. On the **Ships present** page, the title also shows the area's name and — administrators only — the same "📡 Data from AIS" / "🔀 Data from fallback (scraping)" label. Individual ships show a small badge when their table position comes from ShipFinder/MyShipTracking instead of AIS (the same indicator already used for followed ships).
 
 **Diagnostic panel — ⚙ Settings → AIS Diagnostics** (administrators only):
 
-- **Per-area status** — a list of every monitored area with, for each, whether it's currently silent and since when.
+![Settings → AIS Diagnostics — Fallback mode section: per-area status, circuit breakers, scrape history, requests/hour estimate.](images/35-impostazioni-diagnostica-fallback.png)
+
+- **Per-area status** — a list of every monitored area with, for each, the "AIS active"/"In fallback" label and since when (absent when the state comes from the ⚡ force toggle rather than genuine silence).
 - **Real scrape history** — a separate bar chart for **ShipFinder** and **MyShipTracking**, last 48 hours, with stacked green/red bars for succeeded/failed requests and hour labels every 6 hours — hover a bar for the exact breakdown. Aggregated across all areas, not split per area.
-- **Requests/hour estimate** — how many requests/hour followed ships plus ships in currently-silent areas add up to right now, against the configured hourly cap. More silent areas at once do **not** raise the hourly request cap (`FALLBACK_MAX_REQ_PER_HOUR`) — they only redistribute it over more ships, each then revisited less often.
+- **Requests/hour estimate** — how many requests/hour followed ships plus ships in currently-silent areas add up to right now, against the configured hourly cap. More silent areas at once (by real threshold or by the force toggle) do **not** raise the hourly request cap (`FALLBACK_MAX_REQ_PER_HOUR`) — they only redistribute it over more ships, each then revisited less often.
 - **Circuit-breaker status and session problems** — if ShipFinder or MyShipTracking show too many 403/429 errors in a short window (a possible sign of blocking), that source is automatically paused for a while, across all areas at once; here you see whether it's paused and until when, plus a **counter of how many suspected blocks happened this session** per source — it stays visible even after the block resolved itself, instead of disappearing the moment the source recovers.
 
-**Fallback mode log (real-time)**: a dedicated sidebar entry, above "Activity log" — **🔀 Fallback mode log** (administrators only, always available, not just while some area is silent). It opens a floating window (draggable, like Activity log) with two small charts — one for ShipFinder, one for MyShipTracking — that update **in real time** on every actual call, whichever area or ship triggered it: stacked green/red bars (succeeded/failed) over the last 10 minutes, plus the session's total/succeeded/failed count per source. Desktop window, like Activity log it isn't designed for small screens.
+**Fallback mode log (real-time)**: a dedicated sidebar entry, above "Activity log" — **🔀 Fallback mode log** (administrators only, always available, not just while some area is silent). It opens a floating window (draggable, like Activity log) with a small **line chart** — one for ShipFinder, one for MyShipTracking, with a green/red legend — that updates **in real time** on every actual call, whichever area or ship triggered it: succeeded/failed calls over the last 10 minutes, plus the session's total count per source. Desktop window, like Activity log it isn't designed for small screens.
+
+![The "Fallback mode log" window: a real-time line chart with a succeeded/failed legend.](images/36-log-modalita-fallback-grafico.png)
+
+The **Activity log** (see above) also records every successful reposition (`Fallback: posizione ShipFinder/MyShipTracking per <ship>`), with the **area — and, if identifiable within a few km, the nearest port** — in brackets whenever the ship belongs to an area (not for followed ships, which aren't tied to one).
 
 If a source is paused for suspected blocking, you get a dedicated alert — **administrators only** — via in-app notification, Telegram (toggle in Settings → External integrations → Telegram, "suspected ban" entry) and a hint in the AIS-outage banner while logged in as an admin.
 
