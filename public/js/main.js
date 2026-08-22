@@ -114,8 +114,11 @@ function syncAreaMonitors() {
 }
 
 // ── Title ──────────────────────────────────────────────────────────────────────
-function setTitle(bboxName) {
-  const title = bboxName ? `${t('app.title')} - ${bboxName}` : t('app.title');
+// Shared by the area-switch flow here AND by showView() (views.js) so every
+// section — not just the monitoring tabs — gets its own title instead of
+// leaking the last-selected area name.
+export function setTitle(suffix) {
+  const title = suffix ? `${t('app.title')} - ${suffix}` : t('app.title');
   if (el.appTitle) el.appTitle.textContent = title;
   document.title = title;
 }

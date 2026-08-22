@@ -30,7 +30,7 @@ import { closeLogs } from './logs.js';
 import { closeHealth } from './health.js';
 import { applyOutageBanner } from './outage.js';
 import { t } from './i18n.js';
-import { stopTelegramLinkPoll, resetDetailTabs } from './main.js';
+import { stopTelegramLinkPoll, resetDetailTabs, setTitle } from './main.js';
 import { exitReplay } from './replay.js';
 
 export function showView(v, mmsi, shipData) {
@@ -81,6 +81,27 @@ export function showView(v, mmsi, shipData) {
   // The outage banner only belongs on monitoring pages — re-evaluate on nav.
   applyOutageBanner();
 
+  // Header title (h1 + tab title): each section gets its own, instead of
+  // leaking whatever the monitoring tabs last showed (area name).
+  const MONITORING_VIEWS = ['active', 'past', 'traffico'];
+  if (MONITORING_VIEWS.includes(v)) {
+    setTitle(S.presets[S.currentPreset]?.name);
+  } else if (v === 'detail') {
+    setTitle(shipData?.ship_name || (mmsi != null ? `MMSI ${mmsi}` : null));
+  } else if (v === 'followed') {
+    setTitle(t('sidebar.followed'));
+  } else if (v === 'areas') {
+    setTitle(t('sidebar.areas'));
+  } else if (v === 'coverage') {
+    setTitle(t('sidebar.coverage'));
+  } else if (v === 'group-activity') {
+    setTitle(t('sidebar.groupActivity'));
+  } else if (v === 'transits') {
+    setTitle(t('transits.title'));
+  } else if (v === 'settings') {
+    setTitle(t('sidebar.settings'));
+  }
+
   if (v === 'detail' && mmsi != null) {
     S.detailMmsi = mmsi;
     S.detailShipData = shipData || null;
@@ -118,7 +139,6 @@ export function showView(v, mmsi, shipData) {
   } else if (v === 'traffico') {
     loadTraffco();
   } else if (v === 'followed') {
-    document.title = `${t('app.title')} - ${t('sidebar.followed')}`;
     loadFollowed();
   } else if (v === 'areas') {
     enterAreasView();

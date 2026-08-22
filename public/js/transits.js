@@ -36,7 +36,6 @@ function areaOptions() {
 // Enter the view: (re)fill the two area pickers from the user's areas, restoring
 // the previous choice when those areas still exist.
 export function enterTransitsView() {
-  document.title = `${t('app.title')} - ${t('transits.title')}`;
   const keys = Object.keys(S.presets || {});
   const opts = areaOptions();
   el.transitsAreaA.innerHTML = opts;
