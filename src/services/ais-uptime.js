@@ -158,8 +158,17 @@ function applyDown(result, nowIso, silentMin) {
   const monitorSource = result.source;
   if (!outage.serviceDown) {
     appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
-    require('./telegram').broadcastOutage('start', { min: silentMin });
-    require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
+    // Skip the push (Telegram/webhook) — not the log line above — when fallback
+    // mode is ALREADY active: that flag means an outage is already known and
+    // being handled (surfaced earlier, or restored live from a backup without a
+    // restart — meta.fallback_mode_active is read live on every sweep, but this
+    // in-memory `outage` tracker isn't re-hydrated from it without one, so it
+    // would otherwise treat the same ongoing outage as brand-new and re-alert).
+    // The in-app banner/log still reflect the fresh local transition either way.
+    if (!fallbackMode.isActive()) {
+      require('./telegram').broadcastOutage('start', { min: silentMin });
+      require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
+    }
   }
   // Prefer the monitor's own `lastMessageReceived` — the authoritative,
   // community-wide "down since" — over anything local: it's correct even on

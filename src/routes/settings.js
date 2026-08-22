@@ -311,6 +311,15 @@ function exportSettings() {
     cargoWeightsPreset: state.cargoWeightsPreset,
     riskWeights: Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, state.riskWeights[k]])),
     riskWeightsPreset: state.riskWeightsPreset,
+    // NOT re-applied by fallbackMode.enter() itself — that always resets scope
+    // to "follow only" on a fresh inactive→active transition, by design (an
+    // admin's earlier "monitoraggio completo" choice must never silently carry
+    // over into a NEW outage they haven't looked at yet). This only matters
+    // when a restore's `meta.fallback_mode_active` is already '1' (read live
+    // by fallbackMode.isActive() on every sweep, not cached) — enter() is never
+    // called in that case, so without this the restored scope choice would be
+    // silently lost even though fallback mode itself is already running.
+    fallbackScopeAreas: state.fallbackScopeAreas,
   };
 }
 
@@ -371,6 +380,13 @@ function applyImportedSettings(s) {
   // GFW: persist only, no backfill on import (same reasoning as VF/MT — the
   // enrichment lives in ship_scrape_cache and is restored with the DB).
   if (s.importGfw !== undefined) setImportGfw(s.importGfw);
+
+  // Fallback-mode scope: persist only. Does NOT itself activate/deactivate
+  // fallback mode (that's meta.fallback_mode_active, restored with the DB) —
+  // this only decides which scope fallback mode uses IF/when it's active, and
+  // never overrides enter()'s own "reset to follow-only" on a genuinely fresh
+  // outage (see the comment on exportSettings above).
+  if (s.fallbackScopeAreas !== undefined) setFallbackScopeAreas(s.fallbackScopeAreas);
 
   clearRiskCache(); // import may have flipped sources that feed the score
   return exportSettings();

@@ -2262,19 +2262,31 @@ function getActiveShips(area, boxes = null) {
     .all(...params);
 }
 
-// Ships "active" in any monitored area (same ACTIVE_PREDICATE as getActiveShips)
-// that are NOT already followed and have had no fix in freshMs — the area-scope
-// candidate pool for fallback-mode's scrape sweep when an admin opts into
-// "monitoraggio completo" (see services/fallback-mode.js). Followed ships are
-// excluded here since they're already covered by the followed-ships pool, so the
-// same MMSI is never scraped twice in one sweep.
+// Ships last tagged to a currently-monitored area that are NOT already followed
+// and have had no fix in freshMs — the area-scope candidate pool for
+// fallback-mode's scrape sweep when an admin opts into "monitoraggio completo"
+// (see services/fallback-mode.js). Followed ships are excluded here since
+// they're already covered by the followed-ships pool, so the same MMSI is
+// never scraped twice in one sweep.
+//
+// Deliberately does NOT reuse ACTIVE_PREDICATE (unlike getActiveShips): that
+// predicate is exactly what demotes a ship from "active" to "past" after
+// ACTIVE_WINDOW_HOURS/PORT_WINDOW_HOURS of AIS silence — gating the fallback
+// candidate pool on it created a catch-22 for any outage longer than that
+// window (6h/24h): a ship needs a scraped fix to look "active" again, but it's
+// excluded from scraping the moment it stops looking active. A real multi-day
+// AISStream outage hit this immediately — every area ship fell out of
+// ACTIVE_PREDICATE within a day, permanently locking "monitoraggio completo"
+// out of ever repositioning any of them, no matter how long it stayed on.
+// Membership in a monitored area (`last_area`) doesn't expire this way, so it's
+// the right gate here: exactly the ships fallback mode exists to rescue.
 function getStaleAreaShips(freshMs) {
   const cutoff = new Date(Date.now() - freshMs).toISOString();
   return db
     .prepare(
       `SELECT mmsi, ship_name, last_seen_at, last_latitude AS lat, last_longitude AS lon
        FROM ships
-       WHERE ${ACTIVE_PREDICATE}
+       WHERE last_area IN (SELECT key FROM areas WHERE active = 1)
          AND (last_seen_at IS NULL OR last_seen_at < ?)
          AND mmsi NOT IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
     )
