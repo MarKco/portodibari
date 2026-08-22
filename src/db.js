@@ -201,6 +201,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_moorings_area ON moorings(area);
   CREATE INDEX IF NOT EXISTS idx_moorings_berth ON moorings(berth_id);
+  CREATE INDEX IF NOT EXISTS idx_moorings_area_mmsi_ts ON moorings(area, mmsi, ts);
 
   CREATE TABLE IF NOT EXISTS berths (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -571,6 +572,12 @@ for (const col of ["area TEXT NOT NULL DEFAULT ''"]) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_readings_area ON readings(area)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_port_events_area_type ON port_events(area, event_type)');
+// getStayCentroid (services/berths.js syncMoorings/syncMooringsIncremental) filters
+// on exactly these three columns per call — without this, SQLite falls back to
+// idx_readings_area alone and scans every reading the AREA has ever recorded (not
+// just the one ship's), per call. Measured on a real busy area (Israele, ~18k
+// readings): 13.5s → 90ms for the same 3927-candidate sync pass once this exists.
+db.exec('CREATE INDEX IF NOT EXISTS idx_readings_mmsi_area_time ON readings(mmsi, area, received_at)');
 
 // Stop evidence for a completed visit, written on the 'departed' event (see
 // checkAndLogDepartures): stop_min_sog = the lowest speed the ship broadcast
@@ -2886,11 +2893,62 @@ function getArrivalsForArea(area) {
     .all(area);
 }
 
+// The subset of an area's arrivals that syncMooringsIncremental (services/
+// berths.js) actually needs to (re)compute a centroid for — everyone else's
+// mooring is already final and untouched by new activity elsewhere in the
+// area. Two cases, unioned:
+//   1. No mooring row yet at all (brand-new arrival never synced).
+//   2. This is the ship's MOST RECENT arrival in the area — i.e. still "in
+//      port" by getArrivalsForArea's own convention (a stay only "ends" when
+//      the SAME ship arrives again; there's no explicit close). Its centroid
+//      may have kept moving since the last sync, so it's always re-read.
+// `next_ts` mirrors getArrivalsForArea's own endTs derivation (next arrival
+// for the same ship, else open-ended) so the caller's getStayCentroid window
+// matches exactly what the full/legacy scan would have used for that row.
+// Both EXISTS/NOT EXISTS branches lean on idx_port_events_area_mmsi and
+// idx_moorings_area_mmsi_ts — bounded by how much actually changed since the
+// last sync, not by the area's total history (see the comment on
+// syncMooringsIncremental for why getArrivalsForArea itself can't be used on
+// the hot path once an area has months of settled history).
+function getDirtyArrivalsForArea(area) {
+  return db
+    .prepare(
+      `SELECT pe.mmsi, pe.ts, pe.ship_type,
+              (SELECT MIN(nxt.ts) FROM port_events nxt
+                WHERE nxt.mmsi = pe.mmsi AND nxt.area = pe.area
+                  AND nxt.event_type = 'arrived' AND nxt.ts > pe.ts) AS next_ts
+       FROM port_events pe
+       WHERE pe.event_type = 'arrived' AND pe.area = ?
+         AND (
+           NOT EXISTS (SELECT 1 FROM moorings m WHERE m.area = pe.area AND m.mmsi = pe.mmsi AND m.ts = pe.ts)
+           OR NOT EXISTS (SELECT 1 FROM port_events nxt2
+             WHERE nxt2.mmsi = pe.mmsi AND nxt2.area = pe.area
+               AND nxt2.event_type = 'arrived' AND nxt2.ts > pe.ts)
+         )
+       ORDER BY pe.mmsi, pe.ts`
+    )
+    .all(area);
+}
+
+// Existing moorings for a bounded set of ships in one area — used instead of
+// getMoorings(area)'s full-history scan when the caller (syncMooringsIncremental)
+// already knows exactly which mmsis it needs (from getDirtyArrivalsForArea),
+// which for a long-lived area is a small fraction of the area's total moorings.
+function getMooringsForMmsis(area, mmsis) {
+  if (!mmsis.length) return [];
+  const placeholders = mmsis.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM moorings WHERE area = ? AND mmsi IN (${placeholders})`).all(area, ...mmsis);
+}
+
 // Centroid of a ship's *stationary* readings inside an area during one visit
 // window [fromTs, toTs). Stationary = SOG below the "ferma" threshold or an
 // explicit moored/anchored nav status (1 = anchored, 5 = moored). Returns
 // { lat, lon, n } with n = how many readings backed the centroid (0 = the ship
-// passed through without ever settling → not a real mooring).
+// passed through without ever settling → not a real mooring). Relies on
+// idx_readings_mmsi_area_time (mmsi, area, received_at) — without it SQLite
+// falls back to the plain area index and scans the WHOLE area's readings per
+// call, not just this one ship's (measured: 13.5s → 90ms for one sync pass
+// over a busy area's backlog, same 222-row result either way).
 const stayCentroidStmt = db.prepare(
   `SELECT AVG(latitude) AS lat, AVG(longitude) AS lon, COUNT(*) AS n
    FROM readings
@@ -3892,6 +3950,8 @@ module.exports = {
   getAreaTransits,
   hasShipAreaHistory,
   getArrivalsForArea,
+  getDirtyArrivalsForArea,
+  getMooringsForMmsis,
   getStayCentroid,
   replaceMoorings,
   addMooring,

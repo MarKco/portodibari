@@ -356,10 +356,10 @@ function restoreDbFromLatestBackup() {
 // table there's nothing to preserve (everyone starts unclustered), so
 // incremental's leftover-pool DBSCAN degenerates to the same one-time
 // cluster-everything work a full rebuild would do anyway — no regression.
-function rebuildBerthsAfterRestore(counts = {}) {
+async function rebuildBerthsAfterRestore(counts = {}) {
   const skipSync = counts.moorings !== undefined;
   try {
-    berths.recomputeAll({ skipSync });
+    await berths.recomputeAll({ skipSync });
   } catch (e) {
     console.error(`[BERTHS] Ricalcolo post-restore fallito: ${e.message}`);
   }
@@ -557,7 +557,7 @@ router.post('/restore', async (req, res) => {
     db.tagLegacyArea(state.preset, areaForPoint);
     db.reconcileAreasByCoords(areaForPoint);
     db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
-    rebuildBerthsAfterRestore(counts);
+    await rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
     reissueSession(req, res);
     // Reconcile live streams to the just-restored active set (start/stop so only
@@ -653,7 +653,7 @@ router.post('/bundle/import', async (req, res) => {
       }
     }
 
-    rebuildBerthsAfterRestore(counts);
+    await rebuildBerthsAfterRestore(counts);
     rehomeAfterRestore();
     reissueSession(req, res);
     const resumed = stream.resumeActiveStreams({ defaultArea: state.preset });
@@ -700,7 +700,7 @@ router.get('/backups/:filename/download', (req, res) => {
 });
 
 // Selective restore from a saved backup. Body: { parts: ['db','areas','settings'] }.
-router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req, res) => {
+router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), async (req, res) => {
   const filename = path.basename(req.params.filename);
   if (!/^tracker-porti-(auto|manual)backup-[\w-]+\.(tpbk|json)$/.test(filename)) {
     return res.status(400).json({ error: 'Nome file non valido' });
@@ -746,7 +746,7 @@ router.post('/backups/:filename/restore', express.json({ limit: '10kb' }), (req,
       db.reconcileAreasByCoords(areaForPoint);
       db.setMeta('areas_sig', bboxSignature()); // reconciled now; skip the startup sweep
     }
-    if (parts.includes('db')) rebuildBerthsAfterRestore(counts);
+    if (parts.includes('db')) await rebuildBerthsAfterRestore(counts);
     if (parts.includes('db') || parts.includes('areas')) {
       rehomeAfterRestore();
       if (parts.includes('db')) reissueSession(req, res); // sessions table only replaced with the db part

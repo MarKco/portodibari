@@ -265,20 +265,29 @@ app.listen(PORT, () => {
   // Berths: backfill mooring clusters from existing history once at startup
   // (idempotent — manual edits survive), then recompute periodically as new
   // arrivals accumulate. Runs detached so it never blocks the listen callback.
-  setTimeout(() => {
+  setTimeout(async () => {
     try {
-      berths.recomputeAll();
+      await berths.recomputeAll();
       appLog.info('BERTHS', appLog.t('berths.backfill_done'));
     } catch (e) {
       appLog.error('BERTHS', appLog.t('berths.backfill_failed', { error: e.message }));
     }
   }, 0);
-  setInterval(() => {
+  // Re-entrancy guard: recomputeAll now yields to the event loop internally
+  // (see berths.js syncMoorings) instead of running fully synchronously, so a
+  // slow pass can outlive RECOMPUTE_MIN — without this, the next tick would
+  // start a second overlapping pass instead of waiting for the first to finish.
+  let recomputeAllRunning = false;
+  setInterval(async () => {
+    if (recomputeAllRunning) return;
+    recomputeAllRunning = true;
     const __t0 = Date.now();
     try {
-      berths.recomputeAll();
+      await berths.recomputeAll();
     } catch (e) {
       appLog.error('BERTHS', appLog.t('berths.recompute_periodic_failed', { error: e.message }));
+    } finally {
+      recomputeAllRunning = false;
     }
     const __ms = Date.now() - __t0;
     if (__ms > 200) appLog.warn('PERF', `berths.recomputeAll lento: ${__ms}ms`);

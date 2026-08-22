@@ -42,6 +42,16 @@ const { categoryOf, isHazmat } = require('./ship-categories');
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
 
+// Cooperative yield: gives the event loop a chance to service pending I/O
+// (HTTP responses, AIS WebSocket frames/pings, SSE writes) between chunks of a
+// long synchronous loop. Node's SQLite bindings are fully synchronous per call,
+// so nothing here makes any single query faster — it caps how long any one
+// stretch of work can hog the event loop, instead of running solid for
+// however long the whole loop takes (observed: minutes, on a busy area with a
+// large "never departed" ship backlog — see syncMoorings).
+const YIELD_EVERY = 200;
+const yieldToLoop = () => new Promise((resolve) => setImmediate(resolve));
+
 // ── Geometry helpers ─────────────────────────────────────────────────────────
 const R = 6371000; // Earth radius (m)
 const toRad = (d) => (d * Math.PI) / 180;
@@ -242,10 +252,18 @@ function detectMoorings(area) {
 // Returns the moorings this call actually inserted or repositioned — brand-new
 // arrivals, and ships still in port whose centroid just moved. Everyone else
 // (departed, unchanged since last sync) is untouched on purpose: their cluster
-// membership can't have changed, so recomputeAreaIncremental() uses this list
-// to know exactly which moorings might need re-evaluating instead of every
-// mooring the area has ever recorded.
-function syncMoorings(area) {
+// membership can't have changed.
+//
+// O(area's ENTIRE arrival history) every call — getArrivalsForArea and
+// getMoorings(area) both scan everything, unconditionally, to also catch the
+// rare orphan-cleanup case (a port_event deleted out from under an existing
+// mooring). Fine for recomputeAreaFull, which already pays for a full rebuild
+// and needs that correctness guarantee. NOT fine on a periodic hot path: for
+// a long-lived busy area (Israele, ~16k arrivals / ~13k moorings in one real
+// export) this alone measured as the entire cost of a 213s recompute cycle —
+// see syncMooringsIncremental below, which recomputeAreaIncremental actually
+// uses instead.
+async function syncMoorings(area) {
   const arrivals = db.getArrivalsForArea(area); // ordered by mmsi, ts
   const arrivalKeys = new Set(arrivals.map((a) => `${a.mmsi}:${a.ts}`));
   const existing = new Map(db.getMoorings(area).map((m) => [`${m.mmsi}:${m.ts}`, m]));
@@ -257,6 +275,7 @@ function syncMoorings(area) {
 
   const touched = [];
   for (let i = 0; i < arrivals.length; i++) {
+    if (i > 0 && i % YIELD_EVERY === 0) await yieldToLoop();
     const a = arrivals[i];
     const key = `${a.mmsi}:${a.ts}`;
     const next = arrivals[i + 1];
@@ -267,6 +286,52 @@ function syncMoorings(area) {
     if (cur && endTs !== FAR_FUTURE) continue;
 
     // Ship still in port or new arrival: compute centroid while readings are fresh.
+    const c = db.getStayCentroid(a.mmsi, area, a.ts, endTs);
+    if (!c || !c.n || c.lat == null || c.lon == null) continue;
+
+    if (cur) {
+      db.updateMooringPosition(cur.id, c.lat, c.lon);
+      touched.push({ id: cur.id, lat: c.lat, lon: c.lon, berth_id: cur.berth_id });
+    } else {
+      const id = db.addMooring(area, a.mmsi, a.ship_type ?? null, categoryOf(a.ship_type), c.lat, c.lon, a.ts);
+      touched.push({ id, lat: c.lat, lon: c.lon, berth_id: null });
+    }
+  }
+  return touched;
+}
+
+// Leaner mooring sync for the hot path (periodic timer + dirty-flush — see
+// recomputeAreaIncremental). Same observable result as syncMoorings for the
+// rows it touches (identical endTs derivation, identical insert/update
+// shape), but sourced from db.getDirtyArrivalsForArea instead of scanning the
+// area's entire history: only genuinely-new arrivals and each ship's
+// still-open latest stay ever need a fresh centroid — a settled, departed
+// stay's mooring can't change, so there's nothing incremental recompute would
+// ever do with it anyway (see the module-level comment on
+// recomputeAreaIncremental — this only reaches the mooring-sync step, not the
+// clustering below it, which was already scoped this way).
+//
+// Deliberately drops the orphan-cleanup half of syncMoorings (deleting a
+// mooring whose port_event was deleted out from under it): that's a rare,
+// admin/manual-editing edge case, not something new AIS traffic ever
+// triggers, so it stays exclusive to recomputeAreaFull rather than paying for
+// a full-history reconciliation on every incremental tick just to catch it
+// promptly. An orphan left behind here is cleaned up by the next full
+// rebuild (manual "recompute now", any berth create/edit/merge/delete, or a
+// restore) — never permanent, just not instant.
+async function syncMooringsIncremental(area) {
+  const dirty = db.getDirtyArrivalsForArea(area);
+  if (!dirty.length) return [];
+  const mmsis = [...new Set(dirty.map((a) => a.mmsi))];
+  const existing = new Map(db.getMooringsForMmsis(area, mmsis).map((m) => [`${m.mmsi}:${m.ts}`, m]));
+
+  const touched = [];
+  for (let i = 0; i < dirty.length; i++) {
+    if (i > 0 && i % YIELD_EVERY === 0) await yieldToLoop();
+    const a = dirty[i];
+    const endTs = a.next_ts || FAR_FUTURE;
+    const cur = existing.get(`${a.mmsi}:${a.ts}`);
+
     const c = db.getStayCentroid(a.mmsi, area, a.ts, endTs);
     if (!c || !c.n || c.lat == null || c.lon == null) continue;
 
@@ -316,8 +381,8 @@ function characterize(members) {
 //
 // skipSync: true → skip mooring sync (use the moorings table as-is).
 // Used post-restore when moorings were already restored from a backup.
-function recomputeAreaFull(area, { skipSync = false } = {}) {
-  if (!skipSync) syncMoorings(area); // merge-based update
+async function recomputeAreaFull(area, { skipSync = false } = {}) {
+  if (!skipSync) await syncMoorings(area); // merge-based update
   const pendingNotify = [];
   db.runTransaction(() => {
     db.clearMooringBerths(area); // berth_id reset to NULL so re-clustering starts clean
@@ -439,10 +504,18 @@ function recomputeAreaFull(area, { skipSync = false } = {}) {
 // which for a busy area (tens of thousands of moorings) meant redoing years of
 // already-settled clustering work every 2 minutes, blocking the single Node
 // thread long enough to also starve the AIS WebSocket's heartbeat handling.
-function recomputeAreaIncremental(area, { skipSync = false } = {}) {
-  // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22).
+async function recomputeAreaIncremental(area, { skipSync = false } = {}) {
+  // Timing breakdown kept as a permanent PERF warning below: on a busy,
+  // long-lived area this step used to dominate the whole function (measured:
+  // sync ≈ 100% of totale, transazione just a few hundred ms even with a
+  // large unclustered pool) because syncMoorings scanned the area's ENTIRE
+  // arrival/mooring history every single cycle. syncMooringsIncremental fixes
+  // the actual cause (bounded to what's genuinely new or still-open, not
+  // total history — see its own comment); syncMoorings additionally now
+  // yields to the event loop periodically as a second line of defence. The
+  // warning stays to catch a still-growing backlog before it gets there.
   const __t0 = Date.now();
-  const touched = skipSync ? [] : syncMoorings(area);
+  const touched = skipSync ? [] : await syncMooringsIncremental(area);
   const __syncMs = Date.now() - __t0;
 
   // A repositioned mooring's existing berth may no longer fit — release it
@@ -592,12 +665,12 @@ function recomputeArea(area, { skipSync = false, full = false } = {}) {
   return full || skipSync ? recomputeAreaFull(area, { skipSync }) : recomputeAreaIncremental(area, { skipSync });
 }
 
-function recomputeAll({ skipSync = false, full = false } = {}) {
+async function recomputeAll({ skipSync = false, full = false } = {}) {
   const { BBOX_PRESETS } = require('../config');
   const out = {};
   for (const area of Object.keys(BBOX_PRESETS)) {
     try {
-      out[area] = recomputeArea(area, { skipSync, full });
+      out[area] = await recomputeArea(area, { skipSync, full });
     } catch (e) {
       appLog.error('BERTHS', appLog.t('berths.recompute_failed', { area, error: e.message }), { area });
     }
@@ -617,17 +690,28 @@ function markAreaDirty(area) {
   if (area) dirtyAreas.add(area);
 }
 
-function flushDirtyAreas() {
-  if (!dirtyAreas.size) return;
-  const areas = [...dirtyAreas];
-  dirtyAreas.clear();
-  appLog.info('BERTHS', appLog.t('berths.recompute_incremental'), { aree: areas });
-  for (const area of areas) {
-    try {
-      recomputeArea(area);
-    } catch (e) {
-      appLog.error('BERTHS', appLog.t('berths.recompute_incremental_failed', { area, error: e.message }), { area });
+// Re-entrancy guard: recomputeArea now yields to the event loop internally
+// (see syncMoorings), so a slow flush can outlive its own interval — without
+// this, the next tick would start a second overlapping pass over the same
+// areas instead of waiting, doubling the very load this fix exists to tame.
+let flushing = false;
+
+async function flushDirtyAreas() {
+  if (flushing || !dirtyAreas.size) return;
+  flushing = true;
+  try {
+    const areas = [...dirtyAreas];
+    dirtyAreas.clear();
+    appLog.info('BERTHS', appLog.t('berths.recompute_incremental'), { aree: areas });
+    for (const area of areas) {
+      try {
+        await recomputeArea(area);
+      } catch (e) {
+        appLog.error('BERTHS', appLog.t('berths.recompute_incremental_failed', { area, error: e.message }), { area });
+      }
     }
+  } finally {
+    flushing = false;
   }
 }
 

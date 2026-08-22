@@ -129,19 +129,19 @@ router.get('/berths', (req, res) => {
 });
 
 // Recompute moorings + clusters. With ?area=, just that area; otherwise all.
-router.post('/berths/recompute', (req, res) => {
+router.post('/berths/recompute', async (req, res) => {
   const area = req.query.area || (req.body && req.body.area);
   try {
     if (area) {
       if (!BBOX_PRESETS[area]) return res.status(404).json({ error: 'Area sconosciuta' });
       if (!owns(req, area)) return res.status(403).json({ error: 'Area non assegnata' });
       appLog.info('BERTHS', appLog.t('berths.recompute_manual'), { area });
-      berths.recomputeArea(area, { full: true });
+      await berths.recomputeArea(area, { full: true });
       res.json({ ok: true, ...listPayload(area) });
     } else {
       // No area → recompute only the user's own areas (not the whole catalog).
       appLog.info('BERTHS', appLog.t('berths.recompute_manual_all'));
-      for (const k of db.getUserAreaKeys(req.user.id)) berths.recomputeArea(k, { full: true });
+      for (const k of db.getUserAreaKeys(req.user.id)) await berths.recomputeArea(k, { full: true });
       res.json({ ok: true });
     }
   } catch (e) {
@@ -151,7 +151,7 @@ router.post('/berths/recompute', (req, res) => {
 
 // Create a manual berth by drawing a polygon. Membership/characterisation is
 // filled by the recompute that follows.
-router.post('/berths', (req, res) => {
+router.post('/berths', async (req, res) => {
   const { area, name, polygon, override } = req.body || {};
   if (!area || !BBOX_PRESETS[area])
     return res.status(400).json({ error: 'Area mancante o sconosciuta' });
@@ -168,7 +168,7 @@ router.post('/berths', (req, res) => {
       char_override: override || null,
     });
     appLog.info('BERTHS', appLog.t('berths.created', { name: name ? String(name).trim() : null }), { area, id });
-    berths.recomputeArea(area, { full: true });
+    await berths.recomputeArea(area, { full: true });
     res.json({ ok: true, id, ...listPayload(area) });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -178,7 +178,7 @@ router.post('/berths', (req, res) => {
 // Edit a berth: rename, set/clear the manual category override, and/or redraw
 // the polygon (which locks geometry as manual). Recomputes the owning area so
 // membership and characterisation reflect the change.
-router.patch('/berths/:id', (req, res) => {
+router.patch('/berths/:id', async (req, res) => {
   const id = Number(req.params.id);
   const berth = db.getBerth(id);
   if (!berth) return res.status(404).json({ error: 'Banchina sconosciuta' });
@@ -197,7 +197,7 @@ router.patch('/berths/:id', (req, res) => {
     }
     db.updateBerthManual(id, fields);
     appLog.info('BERTHS', appLog.t('berths.modified', { name: berth.name || null }), { area: berth.area, id, campi: Object.keys(fields) });
-    berths.recomputeArea(berth.area, { full: true });
+    await berths.recomputeArea(berth.area, { full: true });
     res.json({ ok: true, ...listPayload(berth.area) });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -205,7 +205,7 @@ router.patch('/berths/:id', (req, res) => {
 });
 
 // Merge several berths into a single manual berth covering all their moorings.
-router.post('/berths/merge', (req, res) => {
+router.post('/berths/merge', async (req, res) => {
   const { ids, name } = req.body || {};
   if (!Array.isArray(ids) || ids.length < 2) {
     return res.status(400).json({ error: 'Servono almeno due banchine da unire' });
@@ -237,7 +237,7 @@ router.post('/berths/merge', (req, res) => {
     });
     for (const b of targets) db.deleteBerth(b.id);
     appLog.info('BERTHS', appLog.t('berths.merged', { count: targets.length }), { area, id: mergedId });
-    berths.recomputeArea(area, { full: true });
+    await berths.recomputeArea(area, { full: true });
     res.json({ ok: true, id: mergedId, ...listPayload(area) });
   } catch (e) {
     res.status(400).json({ error: e.message });

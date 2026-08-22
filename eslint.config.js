@@ -19,6 +19,7 @@ const NODE_GLOBALS = {
   clearInterval: 'readonly',
   setTimeout: 'readonly',
   clearTimeout: 'readonly',
+  setImmediate: 'readonly',
 };
 
 const BROWSER_GLOBALS = {
