@@ -209,15 +209,20 @@ function connect() {
 
     sendSubscription();
 
+    // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22): delta
+    // frame negli ultimi 60s, per correlare con eventuali raffiche dopo riconnessione.
+    let __lastHeartbeatFrames = 0;
     s.heartbeatTimer = setInterval(() => {
       const upSec = Math.round((Date.now() - s.connectedAt) / 1000);
+      const framesDelta = s.rawFramesReceived - __lastHeartbeatFrames;
+      __lastHeartbeatFrames = s.rawFramesReceived;
       broadcastLog(
         db.insertLog({
           method: 'AIS',
           path: '/ais/follow/heartbeat',
           status: s.rawFramesReceived > 0 ? 200 : 204,
           duration_ms: 0,
-          response_body: `[follow] Connesso da ${upSec}s | frame WS: ${s.rawFramesReceived} | navi seguite: ${s.followedCount}${s.staleCount ? ` (${s.staleCount} in ri-acquisizione worldwide)` : ''}`,
+          response_body: `[follow] Connesso da ${upSec}s | frame WS: ${s.rawFramesReceived} (+${framesDelta}/60s) | navi seguite: ${s.followedCount}${s.staleCount ? ` (${s.staleCount} in ri-acquisizione worldwide)` : ''}`,
         })
       );
     }, 60000);

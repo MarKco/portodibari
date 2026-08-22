@@ -228,6 +228,11 @@ async function evaluate() {
     }
   }
 
+  // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22): riga
+  // incondizionata a ogni tick (non solo sulle transizioni) per ricostruire la
+  // sequenza esatta silenzio-locale/verdetto-monitor durante i cicli di ~30 min.
+  appLog.info('PERF', `Silenzio AIS ${silentMin}min, monitor=${lastProbeResult ? `${lastProbeResult.state}(${lastProbeResult.source})` : 'n/d'}, lastMsgMonitor=${lastProbeResult ? lastProbeResult.lastMessageReceived : 'n/d'}`);
+
   const down = lastProbeResult && lastProbeResult.state !== null && lastProbeResult.state !== 'Up';
   if (down) applyDown(lastProbeResult, nowIso, silentMin);
   else applyUp(lastProbeResult ? lastProbeResult.state : null, lastProbeResult ? lastProbeResult.source : null, nowIso, silentMin);

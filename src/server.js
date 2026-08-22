@@ -144,8 +144,11 @@ app.listen(PORT, () => {
   // interval so a transient SQLite error can't abort the boot sequence (nor, now,
   // crash the process).
   const runDepartures = () => {
+    const __t0 = Date.now();
     try { db.checkAndLogDepartures(); }
     catch (e) { appLog.error('DB', `checkAndLogDepartures fallito: ${e.message}`); }
+    const __ms = Date.now() - __t0;
+    if (__ms > 200) appLog.warn('PERF', `checkAndLogDepartures lento: ${__ms}ms`);
   };
   runDepartures();
   setInterval(runDepartures, 60 * 1000);
@@ -170,6 +173,17 @@ app.listen(PORT, () => {
       appLog.error('DB', appLog.t('db.maint_periodic_failed', { error: e.message }));
     }
   }, 5 * 60 * 1000);
+
+  // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22): rileva
+  // blocchi dell'event loop indipendentemente dalla causa (query sync pesante, loop
+  // denso, ecc). >300ms di ritardo su un tick da 1s è già sintomo di CPU satura.
+  let __lagLastTick = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    const lag = now - __lagLastTick - 1000;
+    __lagLastTick = now;
+    if (lag > 300) appLog.warn('PERF', `Event loop lag ${lag}ms`);
+  }, 1000);
 
   // Orphan cleanup: deleting an area removes its rows, but a ship that drifted
   // between areas can leave rows keyed by its mmsi behind (and the scrape cache
@@ -247,11 +261,14 @@ app.listen(PORT, () => {
     }
   }, 0);
   setInterval(() => {
+    const __t0 = Date.now();
     try {
       berths.recomputeAll();
     } catch (e) {
       appLog.error('BERTHS', appLog.t('berths.recompute_periodic_failed', { error: e.message }));
     }
+    const __ms = Date.now() - __t0;
+    if (__ms > 200) appLog.warn('PERF', `berths.recomputeAll lento: ${__ms}ms`);
   }, BERTH.RECOMPUTE_MIN * 60 * 1000);
 
   // Fast incremental recompute of only the areas that just saw new arrivals.

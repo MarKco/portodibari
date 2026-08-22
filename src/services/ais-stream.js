@@ -177,15 +177,21 @@ function connect() {
 
     sendSubscription();
 
+    // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22): il
+    // delta di frame ricevuti negli ultimi 60s isola una raffica di messaggi (es.
+    // backlog dopo riconnessione) da una connessione semplicemente silenziosa.
+    let __lastHeartbeatFrames = 0;
     conn.heartbeatTimer = setInterval(() => {
       const upSec = Math.round((Date.now() - conn.connectedAt) / 1000);
+      const framesDelta = conn.rawFramesReceived - __lastHeartbeatFrames;
+      __lastHeartbeatFrames = conn.rawFramesReceived;
       broadcastLog(
         db.insertLog({
           method: 'AIS',
           path: '/ais/monitoring/heartbeat',
           status: conn.rawFramesReceived > 0 ? 200 : 204,
           duration_ms: 0,
-          response_body: `[monitoring] Connesso da ${upSec}s | frame WS: ${conn.rawFramesReceived} | aree attive: ${activeKeys().length}`,
+          response_body: `[monitoring] Connesso da ${upSec}s | frame WS: ${conn.rawFramesReceived} (+${framesDelta}/60s) | aree attive: ${activeKeys().length}`,
         })
       );
     }, 60000);
@@ -379,12 +385,17 @@ function connect() {
         const m = areas.get(areaKey);
         if (m) m.totalReceived++;
         conn.sessionMessages++;
+        const __msgMs = Date.now() - t0;
+        // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22):
+        // un singolo messaggio lento indica lavoro sincrono pesante nella pipeline
+        // insert/risk-score/notifiche per QUELLA nave (non solo "tanti messaggi").
+        if (__msgMs > 100) appLog.warn('PERF', `Messaggio AIS lento (${areaKey || 'monitoring'}): ${__msgMs}ms, mmsi=${parsed.MetaData?.MMSI}`);
         broadcastLog(
           db.insertLog({
             method: 'DB',
             path: `/ais/${areaKey || 'monitoring'}/${parsed.MessageType}`,
             status: 200,
-            duration_ms: Date.now() - t0,
+            duration_ms: __msgMs,
             request_body: JSON.stringify(parsed).slice(0, MAX_BODY),
             response_body: null,
           })

@@ -221,7 +221,10 @@ async function sweep() {
   let budgetLeft = FALLBACK_MAX_REQ_PER_HOUR - requestTimestamps.length;
   if (budgetLeft <= 0) return;
 
+  const __poolT0 = Date.now();
   const candidates = candidatePool();
+  const __poolMs = Date.now() - __poolT0;
+  if (__poolMs > 200) appLog.warn('PERF', `fallbackMode.candidatePool lento: ${__poolMs}ms (${candidates.length} navi)`);
   if (!candidates.length) return;
   candidates.sort((a, b) => (lastScrapeAt.get(a.mmsi) || 0) - (lastScrapeAt.get(b.mmsi) || 0));
 
