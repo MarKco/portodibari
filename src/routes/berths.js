@@ -136,12 +136,12 @@ router.post('/berths/recompute', (req, res) => {
       if (!BBOX_PRESETS[area]) return res.status(404).json({ error: 'Area sconosciuta' });
       if (!owns(req, area)) return res.status(403).json({ error: 'Area non assegnata' });
       appLog.info('BERTHS', appLog.t('berths.recompute_manual'), { area });
-      berths.recomputeArea(area);
+      berths.recomputeArea(area, { full: true });
       res.json({ ok: true, ...listPayload(area) });
     } else {
       // No area → recompute only the user's own areas (not the whole catalog).
       appLog.info('BERTHS', appLog.t('berths.recompute_manual_all'));
-      for (const k of db.getUserAreaKeys(req.user.id)) berths.recomputeArea(k);
+      for (const k of db.getUserAreaKeys(req.user.id)) berths.recomputeArea(k, { full: true });
       res.json({ ok: true });
     }
   } catch (e) {
@@ -168,7 +168,7 @@ router.post('/berths', (req, res) => {
       char_override: override || null,
     });
     appLog.info('BERTHS', appLog.t('berths.created', { name: name ? String(name).trim() : null }), { area, id });
-    berths.recomputeArea(area);
+    berths.recomputeArea(area, { full: true });
     res.json({ ok: true, id, ...listPayload(area) });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -197,7 +197,7 @@ router.patch('/berths/:id', (req, res) => {
     }
     db.updateBerthManual(id, fields);
     appLog.info('BERTHS', appLog.t('berths.modified', { name: berth.name || null }), { area: berth.area, id, campi: Object.keys(fields) });
-    berths.recomputeArea(berth.area);
+    berths.recomputeArea(berth.area, { full: true });
     res.json({ ok: true, ...listPayload(berth.area) });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -237,7 +237,7 @@ router.post('/berths/merge', (req, res) => {
     });
     for (const b of targets) db.deleteBerth(b.id);
     appLog.info('BERTHS', appLog.t('berths.merged', { count: targets.length }), { area, id: mergedId });
-    berths.recomputeArea(area);
+    berths.recomputeArea(area, { full: true });
     res.json({ ok: true, id: mergedId, ...listPayload(area) });
   } catch (e) {
     res.status(400).json({ error: e.message });

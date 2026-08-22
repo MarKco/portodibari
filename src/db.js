@@ -60,6 +60,15 @@ if (typeof db.transaction !== 'function') {
   };
 }
 
+// Exported for callers outside this module (e.g. services/berths.js incremental
+// recompute) that batch several writes and want one commit instead of an
+// implicit auto-commit per statement. Keep `fn` free of network/await calls —
+// it runs synchronously inside BEGIN/COMMIT and would otherwise hold the write
+// lock open for the duration of any I/O it triggers.
+function runTransaction(fn) {
+  return db.transaction(fn)();
+}
+
 db.exec(`PRAGMA journal_mode = WAL`);
 db.exec(`PRAGMA synchronous = NORMAL`);
 // Wait (and retry internally) up to 5s for a lock instead of throwing
@@ -2802,6 +2811,18 @@ function getMoorings(area) {
   return db.prepare('SELECT * FROM moorings WHERE area = ? ORDER BY id').all(area);
 }
 
+// Moorings with no berth yet — new arrivals, or points that stayed noise (below
+// MIN_PTS) last cycle. The only ones incremental recompute needs to (re)evaluate;
+// everyone else already has a stable berth_id that full history growth doesn't
+// invalidate (see services/berths.js recomputeAreaIncremental).
+function getUnclusteredMoorings(area) {
+  return db.prepare('SELECT * FROM moorings WHERE area = ? AND berth_id IS NULL ORDER BY id').all(area);
+}
+
+function getMooringsByBerth(berthId) {
+  return db.prepare('SELECT * FROM moorings WHERE berth_id = ?').all(berthId);
+}
+
 function setMooringBerth(ids, berthId) {
   if (!ids.length) return;
   const stmt = db.prepare('UPDATE moorings SET berth_id = ? WHERE id = ?');
@@ -2864,6 +2885,18 @@ function updateBerthChar(id, { char_label, mooring_count, dist_json, hazmat_pct 
     `UPDATE berths SET char_label = ?, mooring_count = ?, dist_json = ?, hazmat_pct = ?, updated_at = ?
      WHERE id = ?`
   ).run(char_label ?? null, mooring_count ?? 0, dist_json ?? null, hazmat_pct ?? 0, new Date().toISOString(), id);
+}
+
+// Recentre an AUTO berth's geometry after it gains a member incrementally
+// (see recomputeAreaIncremental). Deliberately does NOT set manual_geom —
+// unlike updateBerthManual, which is for user-drawn geometry.
+function updateBerthAutoGeom(id, { centroid_lat, centroid_lon, polygon_json }) {
+  db.prepare('UPDATE berths SET centroid_lat = ?, centroid_lon = ?, polygon_json = ? WHERE id = ?').run(
+    centroid_lat,
+    centroid_lon,
+    polygon_json,
+    id
+  );
 }
 
 // Apply user edits: rename, manual category override, and/or a redrawn polygon
@@ -3735,6 +3768,8 @@ module.exports = {
   updateMooringPosition,
   deleteMooring,
   getMoorings,
+  getUnclusteredMoorings,
+  getMooringsByBerth,
   setMooringBerth,
   clearMooringBerths,
   getBerths,
@@ -3743,8 +3778,10 @@ module.exports = {
   deleteAutoBerths,
   insertBerth,
   updateBerthChar,
+  updateBerthAutoGeom,
   updateBerthManual,
   deleteBerth,
+  runTransaction,
   addNotification,
   getNotifications,
   getUnreadNotificationCount,

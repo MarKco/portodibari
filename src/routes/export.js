@@ -344,9 +344,18 @@ function restoreDbFromLatestBackup() {
 // overlay matches the restored database immediately (manual berths are kept).
 //
 // counts: the per-table row counts returned by restoreFrom. If the backup had a
-// moorings table (counts.moorings is defined), the restored moorings are already
-// correct — skip re-deriving from readings (which may be pruned) and only
-// re-cluster. For old backups without a moorings table, do a full re-derive.
+// moorings table (counts.moorings is defined), `berths` was restored right
+// alongside it (both in BACKUP_TABLES) — berth_id assignments are already
+// internally consistent as of backup time, so the incremental recompute is not
+// just enough but the CORRECT choice: it leaves the restored clustering alone
+// and only evaluates whatever's genuinely new since the backup (normally
+// nothing, since deploy = backup + immediate restore). Forcing a full rebuild
+// here would be pure waste — discarding valid berth ids/geometry for no
+// correctness gain, and paying the same "whole area history" cost the
+// incremental recompute exists to avoid. For old backups without a moorings
+// table there's nothing to preserve (everyone starts unclustered), so
+// incremental's leftover-pool DBSCAN degenerates to the same one-time
+// cluster-everything work a full rebuild would do anyway — no regression.
 function rebuildBerthsAfterRestore(counts = {}) {
   const skipSync = counts.moorings !== undefined;
   try {

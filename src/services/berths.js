@@ -238,6 +238,13 @@ function detectMoorings(area) {
 // (even after their readings are pruned), only ships still in port get their
 // centroid refreshed, and new arrivals are added. Orphaned moorings (whose
 // arrival was deleted from port_events) are removed.
+//
+// Returns the moorings this call actually inserted or repositioned — brand-new
+// arrivals, and ships still in port whose centroid just moved. Everyone else
+// (departed, unchanged since last sync) is untouched on purpose: their cluster
+// membership can't have changed, so recomputeAreaIncremental() uses this list
+// to know exactly which moorings might need re-evaluating instead of every
+// mooring the area has ever recorded.
 function syncMoorings(area) {
   const arrivals = db.getArrivalsForArea(area); // ordered by mmsi, ts
   const arrivalKeys = new Set(arrivals.map((a) => `${a.mmsi}:${a.ts}`));
@@ -248,6 +255,7 @@ function syncMoorings(area) {
     if (!arrivalKeys.has(key)) db.deleteMooring(m.id);
   }
 
+  const touched = [];
   for (let i = 0; i < arrivals.length; i++) {
     const a = arrivals[i];
     const key = `${a.mmsi}:${a.ts}`;
@@ -264,10 +272,13 @@ function syncMoorings(area) {
 
     if (cur) {
       db.updateMooringPosition(cur.id, c.lat, c.lon);
+      touched.push({ id: cur.id, lat: c.lat, lon: c.lon, berth_id: cur.berth_id });
     } else {
-      db.addMooring(area, a.mmsi, a.ship_type ?? null, categoryOf(a.ship_type), c.lat, c.lon, a.ts);
+      const id = db.addMooring(area, a.mmsi, a.ship_type ?? null, categoryOf(a.ship_type), c.lat, c.lon, a.ts);
+      touched.push({ id, lat: c.lat, lon: c.lon, berth_id: null });
     }
   }
+  return touched;
 }
 
 // ── Characterisation ─────────────────────────────────────────────────────────
@@ -294,122 +305,284 @@ function characterize(members) {
 }
 
 // ── Recompute ──────────────────────────────────────────────────────────────
+// Full rebuild: every mooring the area has ever recorded is reset to
+// unclustered and re-clustered from scratch. Correct by construction (handles
+// arbitrary manual-polygon edits/merges, always converges to the same result),
+// but its cost grows with the area's ENTIRE mooring history — fine for the rare,
+// explicit admin actions that call it (create/edit/merge/delete a berth, the
+// manual "recompute now" button, post-restore), disastrous on a fixed timer for
+// a busy area (see recomputeAreaIncremental below, which is what the periodic
+// timer and dirty-flush actually use).
+//
 // skipSync: true → skip mooring sync (use the moorings table as-is).
 // Used post-restore when moorings were already restored from a backup.
-function recomputeArea(area, { skipSync = false } = {}) {
-  if (skipSync) {
+function recomputeAreaFull(area, { skipSync = false } = {}) {
+  if (!skipSync) syncMoorings(area); // merge-based update
+  const pendingNotify = [];
+  db.runTransaction(() => {
     db.clearMooringBerths(area); // berth_id reset to NULL so re-clustering starts clean
-  } else {
-    syncMoorings(area);          // merge-based update; also resets berth_id via replace paths
-    db.clearMooringBerths(area);
-  }
-  const stored = db.getMoorings(area); // now with ids
+    const stored = db.getMoorings(area); // now with ids
 
-  const oldAuto = db.getAutoBerths(area); // capture renamed/overridden identity
-  const manualBerths = db.getBerths(area).filter((b) => b.manual_geom);
+    const oldAuto = db.getAutoBerths(area); // capture renamed/overridden identity
+    const manualBerths = db.getBerths(area).filter((b) => b.manual_geom);
 
-  // Berth lifecycle notifications. The very first recompute on an empty area
-  // would otherwise flag every freshly seeded berth as "new"/"characterised";
-  // suppress that initial burst (no prior berths of any kind = seeding).
-  const initialSeed = oldAuto.length === 0 && manualBerths.length === 0;
-  // Per-user gating happens in notifyAreaOwners; here we only suppress the
-  // initial seeding burst (no prior berths of any kind).
-  const emitNew = !initialSeed;
-  const emitChar = !initialSeed;
+    // Berth lifecycle notifications. The very first recompute on an empty area
+    // would otherwise flag every freshly seeded berth as "new"/"characterised";
+    // suppress that initial burst (no prior berths of any kind = seeding).
+    const initialSeed = oldAuto.length === 0 && manualBerths.length === 0;
+    // Per-user gating happens in notifyAreaOwners; here we only suppress the
+    // initial seeding burst (no prior berths of any kind).
+    const emitNew = !initialSeed;
+    const emitChar = !initialSeed;
 
-  // 1) Assign points inside a manual polygon to that berth (hand-drawn wins).
-  const claimed = new Set();
-  for (const b of manualBerths) {
-    let ring;
-    try {
-      ring = JSON.parse(b.polygon_json);
-    } catch {
-      ring = null;
-    }
-    if (!ring) continue;
-    const members = stored.filter((m) => !claimed.has(m.id) && pointInPolygon(m.lat, m.lon, ring));
-    members.forEach((m) => claimed.add(m.id));
-    db.setMooringBerth(
-      members.map((m) => m.id),
-      b.id
-    );
-    const wasUnchar = !b.char_label;
-    const ch = characterize(members);
-    db.updateBerthChar(b.id, {
-      char_label: ch.label,
-      mooring_count: ch.count,
-      dist_json: JSON.stringify(ch.dist),
-      hazmat_pct: ch.hazmatPct,
-    });
-    if (emitChar && wasUnchar && ch.label) {
-      notifyAreaOwners(area, 'notifyBerthChar', { type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label });
-    }
-  }
-
-  // 2) Cluster the rest into auto berths.
-  const pool = stored.filter((m) => !claimed.has(m.id));
-  const clusters = dbscan(pool, BERTH.CLUSTER_EPS_M, BERTH.MIN_PTS);
-
-  db.deleteAutoBerths(area);
-
-  const usedOld = new Set();
-  for (const members of clusters) {
-    const c = centroidOf(members);
-    // Inherit name/override/identity from the nearest old auto berth. The match
-    // radius is widened to 2× eps so a cluster whose centroid drifts a little
-    // between recomputes still keeps its identity — otherwise it would be
-    // treated as brand-new and re-fire a "new berth" notification every cycle.
-    let inherit = null;
-    let best = Infinity;
-    for (const ob of oldAuto) {
-      if (usedOld.has(ob.id)) continue;
-      const d = haversineM(c.lat, c.lon, ob.centroid_lat, ob.centroid_lon);
-      if (d < best && d <= BERTH.CLUSTER_EPS_M * 2) {
-        best = d;
-        inherit = ob;
+    // 1) Assign points inside a manual polygon to that berth (hand-drawn wins).
+    const claimed = new Set();
+    for (const b of manualBerths) {
+      let ring;
+      try {
+        ring = JSON.parse(b.polygon_json);
+      } catch {
+        ring = null;
+      }
+      if (!ring) continue;
+      const members = stored.filter((m) => !claimed.has(m.id) && pointInPolygon(m.lat, m.lon, ring));
+      members.forEach((m) => claimed.add(m.id));
+      db.setMooringBerth(
+        members.map((m) => m.id),
+        b.id
+      );
+      const wasUnchar = !b.char_label;
+      const ch = characterize(members);
+      db.updateBerthChar(b.id, {
+        char_label: ch.label,
+        mooring_count: ch.count,
+        dist_json: JSON.stringify(ch.dist),
+        hazmat_pct: ch.hazmatPct,
+      });
+      if (emitChar && wasUnchar && ch.label) {
+        pendingNotify.push(['notifyBerthChar', { type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label }]);
       }
     }
-    if (inherit) usedOld.add(inherit.id);
 
-    const ch = characterize(members);
-    const id = db.insertBerth({
-      area,
-      name: inherit ? inherit.name : null,
-      polygon_json: JSON.stringify(convexHull(members)),
-      centroid_lat: c.lat,
-      centroid_lon: c.lon,
-      manual_geom: 0,
-      char_label: ch.label,
-      char_override: inherit ? inherit.char_override : null,
-      mooring_count: ch.count,
-      dist_json: JSON.stringify(ch.dist),
-      hazmat_pct: ch.hazmatPct,
-    });
-    db.setMooringBerth(
-      members.map((m) => m.id),
-      id
-    );
+    // 2) Cluster the rest into auto berths.
+    const pool = stored.filter((m) => !claimed.has(m.id));
+    const clusters = dbscan(pool, BERTH.CLUSTER_EPS_M, BERTH.MIN_PTS);
 
-    // Notify: a brand-new berth (no inherited identity) → "new"; an existing
-    // berth that just crossed the characterisation threshold → "characterised".
-    if (!inherit) {
-      if (emitNew) {
-        notifyAreaOwners(area, 'notifyBerthNew', { type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null });
+    db.deleteAutoBerths(area);
+
+    const usedOld = new Set();
+    for (const members of clusters) {
+      const c = centroidOf(members);
+      // Inherit name/override/identity from the nearest old auto berth. The match
+      // radius is widened to 2× eps so a cluster whose centroid drifts a little
+      // between recomputes still keeps its identity — otherwise it would be
+      // treated as brand-new and re-fire a "new berth" notification every cycle.
+      let inherit = null;
+      let best = Infinity;
+      for (const ob of oldAuto) {
+        if (usedOld.has(ob.id)) continue;
+        const d = haversineM(c.lat, c.lon, ob.centroid_lat, ob.centroid_lon);
+        if (d < best && d <= BERTH.CLUSTER_EPS_M * 2) {
+          best = d;
+          inherit = ob;
+        }
       }
-    } else if (emitChar && !inherit.char_label && ch.label) {
-      notifyAreaOwners(area, 'notifyBerthChar', { type: 'berth_characterized', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: inherit.name, band: ch.label });
-    }
-  }
+      if (inherit) usedOld.add(inherit.id);
 
-  return { moorings: stored.length, berths: db.getBerths(area).length };
+      const ch = characterize(members);
+      const id = db.insertBerth({
+        area,
+        name: inherit ? inherit.name : null,
+        polygon_json: JSON.stringify(convexHull(members)),
+        centroid_lat: c.lat,
+        centroid_lon: c.lon,
+        manual_geom: 0,
+        char_label: ch.label,
+        char_override: inherit ? inherit.char_override : null,
+        mooring_count: ch.count,
+        dist_json: JSON.stringify(ch.dist),
+        hazmat_pct: ch.hazmatPct,
+      });
+      db.setMooringBerth(
+        members.map((m) => m.id),
+        id
+      );
+
+      // Notify: a brand-new berth (no inherited identity) → "new"; an existing
+      // berth that just crossed the characterisation threshold → "characterised".
+      if (!inherit) {
+        if (emitNew) {
+          pendingNotify.push(['notifyBerthNew', { type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null }]);
+        }
+      } else if (emitChar && !inherit.char_label && ch.label) {
+        pendingNotify.push(['notifyBerthChar', { type: 'berth_characterized', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: inherit.name, band: ch.label }]);
+      }
+    }
+  });
+
+  // Fired only after the transaction commits: notifyAreaOwners does Telegram/
+  // webhook network I/O, which must never run with the write lock still held.
+  for (const [prefKey, notif] of pendingNotify) notifyAreaOwners(area, prefKey, notif);
+
+  return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
 }
 
-function recomputeAll({ skipSync = false } = {}) {
+// Incremental rebuild: touches only moorings that (a) have no berth yet — new
+// arrivals, or points that stayed noise below MIN_PTS last cycle — or (b)
+// belong to a ship still in port whose centroid syncMoorings just moved enough
+// to fall outside its current berth. Every other mooring (the vast majority
+// once an area has been running a while — departed ships already stably
+// clustered) is left completely untouched: no re-fetch, no re-cluster, no
+// write. This is what makes the periodic timer and dirty-flush sweep cheap
+// regardless of how much history an area has accumulated — the old code
+// reset+re-clustered EVERY mooring the area ever had on every single run,
+// which for a busy area (tens of thousands of moorings) meant redoing years of
+// already-settled clustering work every 2 minutes, blocking the single Node
+// thread long enough to also starve the AIS WebSocket's heartbeat handling.
+function recomputeAreaIncremental(area, { skipSync = false } = {}) {
+  const touched = skipSync ? [] : syncMoorings(area);
+
+  // A repositioned mooring's existing berth may no longer fit — release it
+  // back into the pool so it gets re-evaluated below. Cost is bounded by how
+  // many ships are CURRENTLY in port (small), never by total history.
+  for (const t of touched) {
+    if (t.berth_id == null) continue;
+    const b = db.getBerth(t.berth_id);
+    const stillFits = b && berthContains(b, t.lat, t.lon);
+    if (!stillFits) db.setMooringBerth([t.id], null);
+  }
+
+  const pool = db.getUnclusteredMoorings(area);
+  if (!pool.length) return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
+
+  const manualBerths = db.getBerths(area).filter((b) => b.manual_geom);
+  const autoBerths = db.getAutoBerths(area);
+  const pendingNotify = [];
+  const claimed = new Set();
+
+  db.runTransaction(() => {
+    // 1) Manual polygons still win first claim — but only over the (small)
+    // pool, not the area's whole history: an already-clustered point is never
+    // reconsidered here (see recomputeAreaFull's stronger guarantee for that).
+    for (const b of manualBerths) {
+      let ring;
+      try {
+        ring = JSON.parse(b.polygon_json);
+      } catch {
+        ring = null;
+      }
+      if (!ring) continue;
+      const members = pool.filter((m) => !claimed.has(m.id) && pointInPolygon(m.lat, m.lon, ring));
+      if (!members.length) continue;
+      members.forEach((m) => claimed.add(m.id));
+      db.setMooringBerth(members.map((m) => m.id), b.id);
+      const wasUnchar = !b.char_label;
+      const merged = db.getMooringsByBerth(b.id); // old + newly-claimed members
+      const ch = characterize(merged);
+      db.updateBerthChar(b.id, { char_label: ch.label, mooring_count: ch.count, dist_json: JSON.stringify(ch.dist), hazmat_pct: ch.hazmatPct });
+      if (wasUnchar && ch.label) {
+        pendingNotify.push(['notifyBerthChar', { type: 'berth_characterized', area, berth_id: b.id, berth_lat: b.centroid_lat, berth_lon: b.centroid_lon, ship_name: b.name, band: ch.label }]);
+      }
+    }
+
+    // 2) Try attaching the rest to an existing auto berth (within eps of its
+    // current centroid) instead of re-running DBSCAN over the whole area.
+    const rest = pool.filter((m) => !claimed.has(m.id));
+    const touchedBerths = new Set();
+    for (const m of rest) {
+      let best = null;
+      let bestD = Infinity;
+      for (const b of autoBerths) {
+        const d = haversineM(m.lat, m.lon, b.centroid_lat, b.centroid_lon);
+        if (d < bestD && d <= BERTH.CLUSTER_EPS_M) {
+          bestD = d;
+          best = b;
+        }
+      }
+      if (best) {
+        claimed.add(m.id);
+        db.setMooringBerth([m.id], best.id);
+        touchedBerths.add(best.id);
+      }
+    }
+    // Re-characterise + recentre every auto berth that gained a member.
+    for (const berthId of touchedBerths) {
+      const b = autoBerths.find((x) => x.id === berthId);
+      const merged = db.getMooringsByBerth(berthId);
+      const wasUnchar = !b.char_label;
+      const ch = characterize(merged);
+      const c = centroidOf(merged);
+      db.updateBerthAutoGeom(berthId, { centroid_lat: c.lat, centroid_lon: c.lon, polygon_json: JSON.stringify(convexHull(merged)) });
+      db.updateBerthChar(berthId, { char_label: ch.label, mooring_count: ch.count, dist_json: JSON.stringify(ch.dist), hazmat_pct: ch.hazmatPct });
+      if (wasUnchar && ch.label) {
+        pendingNotify.push(['notifyBerthChar', { type: 'berth_characterized', area, berth_id: berthId, berth_lat: c.lat, berth_lon: c.lon, ship_name: b.name, band: ch.label }]);
+      }
+    }
+
+    // 3) Whatever's left matched no manual polygon and no existing berth —
+    // genuinely new territory. Cluster just this leftover (small) pool to spot
+    // brand-new berths; anything below MIN_PTS stays noise and is simply
+    // reconsidered again next cycle once more points land nearby.
+    const orphans = rest.filter((m) => !claimed.has(m.id));
+    const clusters = dbscan(orphans, BERTH.CLUSTER_EPS_M, BERTH.MIN_PTS);
+    for (const members of clusters) {
+      const c = centroidOf(members);
+      const ch = characterize(members);
+      const id = db.insertBerth({
+        area,
+        name: null,
+        polygon_json: JSON.stringify(convexHull(members)),
+        centroid_lat: c.lat,
+        centroid_lon: c.lon,
+        manual_geom: 0,
+        char_label: ch.label,
+        char_override: null,
+        mooring_count: ch.count,
+        dist_json: JSON.stringify(ch.dist),
+        hazmat_pct: ch.hazmatPct,
+      });
+      db.setMooringBerth(members.map((m) => m.id), id);
+      pendingNotify.push(['notifyBerthNew', { type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null }]);
+    }
+  });
+
+  for (const [prefKey, notif] of pendingNotify) notifyAreaOwners(area, prefKey, notif);
+  return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
+}
+
+// A point "still fits" a berth if it's inside the manual polygon (manual
+// berths) or within clustering radius of the centroid (auto berths) — same
+// membership rule recomputeAreaFull's clustering pass would apply.
+function berthContains(berth, lat, lon) {
+  if (berth.manual_geom) {
+    let ring;
+    try {
+      ring = JSON.parse(berth.polygon_json);
+    } catch {
+      return false;
+    }
+    return ring ? pointInPolygon(lat, lon, ring) : false;
+  }
+  return haversineM(lat, lon, berth.centroid_lat, berth.centroid_lon) <= BERTH.CLUSTER_EPS_M;
+}
+
+// Manual admin actions (create/edit/merge/delete a berth, the "recompute now"
+// button, post-restore) always get the full, from-scratch rebuild — they're
+// rare and need the stronger correctness guarantee (e.g. a resized manual
+// polygon must be able to reclaim points currently owned by a DIFFERENT
+// berth, which the incremental pool-only pass never reconsiders). The
+// automated paths (periodic timer, dirty-flush) explicitly opt into the fast
+// incremental pass instead — see server.js and startDirtyFlush() below.
+function recomputeArea(area, { skipSync = false, full = false } = {}) {
+  return full || skipSync ? recomputeAreaFull(area, { skipSync }) : recomputeAreaIncremental(area, { skipSync });
+}
+
+function recomputeAll({ skipSync = false, full = false } = {}) {
   const { BBOX_PRESETS } = require('../config');
   const out = {};
   for (const area of Object.keys(BBOX_PRESETS)) {
     try {
-      out[area] = recomputeArea(area, { skipSync });
+      out[area] = recomputeArea(area, { skipSync, full });
     } catch (e) {
       appLog.error('BERTHS', appLog.t('berths.recompute_failed', { area, error: e.message }), { area });
     }
