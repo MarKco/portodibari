@@ -2098,17 +2098,30 @@ function insertFollowPosition(parsed, area = '') {
 // Stored in `readings` tagged source != 'ais', so it is EXCLUDED from the AIS
 // track polyline, risk scoring and replay (lower trust, irregular cadence) and
 // surfaces only as a distinct "last known (ShipFinder)" marker on the detail map.
-// Deliberately does NOT touch the ships master row: last_seen_at stays the AIS
+// By default does NOT touch the ships master row: last_seen_at stays the AIS
 // freshness signal, so the follow stream keeps re-acquiring the ship over its
 // worldwide box and the 6-month auto-stop isn't reset by a scraped fix. Skips a
 // duplicate of the latest stored fix (same report time). Returns the stored fix.
-function insertScrapedPosition(mmsi, pos, source = 'sf') {
+// `opts.updateShipRow` (used only by fallback-mode's area-scope sweep, which has
+// no re-acquire/auto-stop logic to protect) also refreshes ships.last_latitude/
+// last_longitude/last_seen_at — otherwise the ship ages out of ACTIVE_PREDICATE
+// (main map/list) even while fresh sf/mst fixes keep arriving.
+function insertScrapedPosition(mmsi, pos, source = 'sf', opts = {}) {
   if (!mmsi || !pos || pos.lat == null || pos.lon == null) return null;
   const received_at = pos.reportedAt || new Date().toISOString();
   const last = db
     .prepare("SELECT id, received_at, latitude AS lat, longitude AS lon FROM readings WHERE mmsi = ? AND source = ? AND latitude IS NOT NULL ORDER BY received_at DESC LIMIT 1")
     .get(mmsi, source);
   if (last && last.received_at === received_at) return null;
+  const touchShipRow = () => {
+    if (!opts.updateShipRow) return;
+    db.prepare(
+      `UPDATE ships SET last_latitude = ?, last_longitude = ?, last_seen_at = ?,
+         last_sog = COALESCE(?, last_sog), last_cog = COALESCE(?, last_cog),
+         last_navigational_status = COALESCE(?, last_navigational_status)
+       WHERE mmsi = ?`
+    ).run(pos.lat, pos.lon, received_at, pos.sog ?? null, pos.cog ?? null, pos.status ?? null, mmsi);
+  };
   // Spatial dedup: if new fix is within cluster radius of the last stored fix,
   // just refresh the timestamp of that row instead of inserting a new point.
   // Prevents port-cluster bloat when a ship is moored and position doesn't change.
@@ -2116,6 +2129,7 @@ function insertScrapedPosition(mmsi, pos, source = 'sf') {
     const radiusM = cfg.state.scrapeClusterRadiusM;
     if (radiusM > 0 && haversineM(last.lat, last.lon, pos.lat, pos.lon) < radiusM) {
       db.prepare('UPDATE readings SET received_at = ? WHERE id = ?').run(received_at, last.id);
+      touchShipRow();
       return null;
     }
   }
@@ -2138,6 +2152,7 @@ function insertScrapedPosition(mmsi, pos, source = 'sf') {
   if (insertCounters.ShipfinderPosition % 500 === 0) {
     pruneStmt.run('ShipfinderPosition', 'ShipfinderPosition', MAX_READINGS_PER_TYPE);
   }
+  touchShipRow();
   return { mmsi, received_at, lat: pos.lat, lon: pos.lon, sog: pos.sog ?? null, cog: pos.cog ?? null, status: pos.status ?? null };
 }
 

@@ -147,11 +147,18 @@ function isStale(sh, now) {
   return !sh.last_seen_at || now - new Date(sh.last_seen_at).getTime() > FOLLOW_FRESH_MS;
 }
 
+// Area-scope candidates are tagged so scrapeOne() knows to also refresh their
+// `ships` master row (see insertScrapedPosition) — followed ships deliberately
+// keep the no-touch behavior (worldwide re-acquire box, 6-month auto-stop stay
+// keyed to true AIS freshness), but area ships have no such logic to protect,
+// and without this they silently age out of ACTIVE_PREDICATE (main map/list)
+// even while fresh sf/mst fixes keep arriving.
 function candidatePool() {
   const now = Date.now();
   const followed = db.getAllFollowedShips().filter((sh) => isStale(sh, now));
   if (!state.fallbackScopeAreas) return followed;
-  return followed.concat(db.getStaleAreaShips(FOLLOW_FRESH_MS));
+  const areaShips = db.getStaleAreaShips(FOLLOW_FRESH_MS).map((sh) => ({ ...sh, _areaScope: true }));
+  return followed.concat(areaShips);
 }
 
 // Rolling in-memory buffer of recent scrape attempts (this module's own, not
@@ -178,7 +185,12 @@ async function scrapeOne(source, sh) {
     logScrapeEvent(source, sh.mmsi, true);
     if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, source, staticData);
     if (position) {
-      const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name }, source);
+      const stored = db.insertScrapedPosition(
+        sh.mmsi,
+        { ...position, name: position.name || sh.ship_name },
+        source,
+        { updateShipRow: !!sh._areaScope }
+      );
       db.clearScrapeFailure(sh.mmsi, source);
       if (stored) {
         invalidateRiskCache(sh.mmsi);
