@@ -566,7 +566,14 @@ export function initAreas() {
       openPortsPanel(portsBtn.dataset.key, portsBtn.dataset.name);
       return;
     }
-    if (e.target.closest('.area-fallback-toggle') || e.target.closest('.area-fallback-force-toggle')) return; // handled by the change listener below
+    // Guard the whole <label class="toggle"> wrapper, not just the checkbox
+    // itself: clicking the visible slider (<span class="toggle-slider">, a
+    // SIBLING of the <input>, not its ancestor) has e.target = the span, so
+    // closest('.area-fallback-toggle') never matches it and the click fell
+    // through to the row's own "open editor" handler below instead of just
+    // toggling — looked like the toggle "did nothing" when it was actually
+    // being immediately overridden by a row-edit navigation.
+    if (e.target.closest('label.toggle')) return; // handled by the change listeners below
     const row = e.target.closest('tr.area-row');
     if (row) startEdit(row.dataset.key);
   });
