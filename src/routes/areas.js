@@ -78,6 +78,7 @@ router.get('/areas', (req, res) => {
       if (isAdmin) {
         const live = areaStatuses.get(key);
         entry.fallbackEnabled = !!live?.fallbackEnabled;
+        entry.fallbackForced = !!live?.fallbackForced;
         entry.fallbackSilent = !!live?.silent;
         entry.fallbackSilentSince = live?.silentSince || null;
         entry.portStatus = portDiscoveryStatus(key);
@@ -218,19 +219,29 @@ router.patch('/areas/:key', (req, res) => {
   }
 });
 
-// Enable/disable this area's silent fallback (services/fallback-mode.js) — an
-// admin-only decision (unlike the general area edit above, which any co-owner
-// can do), per the feature's design: which areas get scraping-based coverage
-// when their own AIS goes quiet is an operational/cost choice, not a per-user
-// preference. Default is enabled (see the ALTER TABLE default in db.js) — this
-// only needs calling to turn it OFF, or back on after that.
+// Enable/disable this area's silent fallback (services/fallback-mode.js), and/or
+// force it (treat as silent even while AIS keeps arriving, for a bbox an admin
+// knows has thin real coverage) — both admin-only decisions (unlike the general
+// area edit above, which any co-owner can do), per the feature's design: which
+// areas get scraping-based coverage is an operational/cost choice, not a
+// per-user preference. Defaults are enabled/not-forced (see the ALTER TABLE
+// defaults in db.js) — this only needs calling to change either from default.
 router.patch('/areas/:key/fallback', requireAdmin, (req, res) => {
   const { key } = req.params;
   if (!BBOX_PRESETS[key]) return res.status(404).json({ error: 'Area sconosciuta' });
-  const { enabled } = req.body || {};
-  db.setAreaFallbackEnabled(key, !!enabled);
-  appLog.info('AREE', `Modalità fallback per ${BBOX_PRESETS[key].name}: ${enabled ? 'attivata' : 'disattivata'}`, { area: key });
-  res.json({ ok: true, key, fallbackEnabled: !!enabled });
+  const { enabled, forced } = req.body || {};
+  const out = { ok: true, key };
+  if (enabled !== undefined) {
+    db.setAreaFallbackEnabled(key, !!enabled);
+    appLog.info('AREE', `Modalità fallback per ${BBOX_PRESETS[key].name}: ${enabled ? 'attivata' : 'disattivata'}`, { area: key });
+    out.fallbackEnabled = !!enabled;
+  }
+  if (forced !== undefined) {
+    db.setAreaFallbackForced(key, !!forced);
+    appLog.info('AREE', `Modalità fallback forzata per ${BBOX_PRESETS[key].name}: ${forced ? 'attivata' : 'disattivata'}`, { area: key });
+    out.fallbackForced = !!forced;
+  }
+  res.json(out);
 });
 
 // Remove an area from the CURRENT USER's set. The area + its collected history +

@@ -52,9 +52,12 @@ function setStatus(state) {
   }
 }
 
-// One small stacked-bar chart for a single source, 30s buckets over the last
-// 10 minutes — same visual language (stacked ok/failed bars) as the historical
-// per-hour chart in Settings → Diagnostica AIS, just at live/fine granularity.
+// One small line chart per source (ok + failed calls per 30s bucket, last 10
+// minutes). A line reads this series better than the stacked bars used by the
+// historical per-hour chart in Settings → Diagnostica AIS: at live/fine
+// granularity most buckets are empty (a handful of calls scattered over 20
+// buckets), which made the bars look sparse/misaligned rather than showing a
+// trend.
 function sourceChart(source) {
   const now = Date.now();
   const buckets = new Array(BUCKET_COUNT).fill(null).map(() => ({ ok: 0, failed: 0 }));
@@ -67,26 +70,28 @@ function sourceChart(source) {
       else buckets[idx].failed++;
     }
   }
-  const maxTotal = Math.max(1, ...buckets.map((b) => b.ok + b.failed));
-  const bars = buckets
-    .map((b) => {
-      const total = b.ok + b.failed;
-      const totalPct = total ? Math.max(4, Math.round((total / maxTotal) * 100)) : 0;
-      const failPct = total ? Math.round(totalPct * (b.failed / total)) : 0;
-      const okPct = totalPct - failPct;
-      return `
-      <div class="hour-bar-wrap" title="${b.ok} ${t('health.fallbackOkLabel')} · ${b.failed} ${t('health.fallbackFailedLabel')}">
-        <div class="hour-bar-stack" style="height:${totalPct}%">
-          ${failPct ? `<div class="hour-bar-fail" style="height:${failPct}%"></div>` : ''}
-          ${okPct ? `<div class="hour-bar-ok" style="height:${okPct}%"></div>` : ''}
-        </div>
-      </div>`;
-    })
-    .join('');
+  const maxVal = Math.max(1, ...buckets.map((b) => Math.max(b.ok, b.failed)));
+  const W = 300;
+  const H = 56;
+  const PAD = 4;
+  const stepX = (W - PAD * 2) / (BUCKET_COUNT - 1);
+  const xAt = (i) => PAD + i * stepX;
+  const yAt = (v) => H - PAD - (v / maxVal) * (H - PAD * 2);
+  const lineFor = (key) => buckets.map((b, i) => `${xAt(i).toFixed(1)},${yAt(b[key]).toFixed(1)}`).join(' ');
+  const dotsFor = (key, cls, label) =>
+    buckets
+      .map((b, i) => (b[key] ? `<circle class="linechart-point ${cls}" cx="${xAt(i).toFixed(1)}" cy="${yAt(b[key]).toFixed(1)}" r="2.5"><title>${b[key]} ${label}</title></circle>` : ''))
+      .join('');
   const t2 = totals[source];
   return `
     <p class="health-section-desc" style="margin:0.5rem 0 0.2rem"><strong>${SOURCE_LABEL[source]}</strong> — ${t2.ok + t2.failed} ${t('fallbackScrapeLog.calls')} (${t2.ok} ${t('health.fallbackOkLabel').toLowerCase()}, ${t2.failed} ${t('health.fallbackFailedLabel').toLowerCase()})</p>
-    <div class="hourly-bars fallback-scrape-chart">${bars}</div>`;
+    <svg class="fallback-scrape-linechart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${SOURCE_LABEL[source]}">
+      <line x1="${PAD}" y1="${(H - PAD).toFixed(1)}" x2="${W - PAD}" y2="${(H - PAD).toFixed(1)}" class="linechart-baseline" />
+      <polyline points="${lineFor('ok')}" class="linechart-ok" />
+      <polyline points="${lineFor('failed')}" class="linechart-fail" />
+      ${dotsFor('ok', 'linechart-point-ok', t('health.fallbackOkLabel'))}
+      ${dotsFor('failed', 'linechart-point-fail', t('health.fallbackFailedLabel'))}
+    </svg>`;
 }
 
 function render() {
@@ -94,6 +99,10 @@ function render() {
   if (!body) return;
   body.innerHTML = `
     <p class="health-note" style="margin:0 0 0.4rem">${t('fallbackScrapeLog.desc', { min: WINDOW_MIN })}</p>
+    <div class="fallback-scrape-legend">
+      <span><i class="legend-ok"></i>${t('health.fallbackOkLabel')}</span>
+      <span><i class="legend-fail"></i>${t('health.fallbackFailedLabel')}</span>
+    </div>
     ${sourceChart('sf')}
     ${sourceChart('mst')}`;
 }

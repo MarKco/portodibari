@@ -149,13 +149,13 @@ function fallbackModeBlock(fb, est) {
   const areaRows = (fb.areas || [])
     .map((a) => {
       if (!a.silent) {
-        return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-ok">${t('health.fallbackAreaOk')}</span></div>`;
+        return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-ok" title="${escHtml(t('health.fallbackAreaOkTip'))}">${t('health.fallbackAreaOk')}</span></div>`;
       }
       const durationSec = a.silentSince ? Math.max(0, Math.round((Date.now() - new Date(a.silentSince).getTime()) / 1000)) : null;
       const suffix = a.fallbackEnabled
-        ? (durationSec != null ? ` · ${fmtUptime(durationSec)}` : '')
+        ? (durationSec != null ? ` · ${fmtUptime(durationSec)}` : a.fallbackForced ? ` (${t('areas.fallbackForcedLabel')})` : '')
         : ` · ${t('health.fallbackAreaDisabled')}`;
-      return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-err">${t('health.fallbackAreaSilent')}${suffix}</span></div>`;
+      return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-err" title="${escHtml(t('health.fallbackAreaSilentTip'))}">${t('health.fallbackAreaSilent')}${suffix}</span></div>`;
     })
     .join('');
   const rows = [areaRows || `<div class="health-item"><span class="health-muted">${t('health.fallbackNoAreas')}</span></div>`];

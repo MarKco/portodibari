@@ -31,6 +31,21 @@ export function primeActiveFit() {
   if (S.currentBbox) activeFitKey = JSON.stringify(S.currentBbox);
 }
 
+// Frame the selected area's bounding box, not the ships, so the view stays
+// anchored to the chosen area even if a few (possibly mis-tagged) ships sit
+// outside it. Re-fit only when the area changed, to avoid snapping back on
+// every poll. Must run even with zero positioned ships (freshly switched/
+// restored area, nothing scraped yet) — otherwise the map is stuck on the
+// previous area until this one finally gets a positioned ship.
+function fitActiveAreaBbox() {
+  if (!S.currentBbox) return false;
+  const key = JSON.stringify(S.currentBbox);
+  if (key === activeFitKey) return false;
+  S.activeMap.fitBounds(S.currentBbox, { padding: [40, 40] });
+  activeFitKey = key;
+  return true;
+}
+
 // ── Detail map (single ship track) ───────────────────────────────────────────
 function initMap() {
   if (S.aisMap) return;
@@ -902,7 +917,10 @@ export function renderActiveMap(ships) {
   renderSeamarkBerths();
 
   const positioned = ships.filter((s) => s.last_latitude != null && s.last_longitude != null);
-  if (!positioned.length) return;
+  if (!positioned.length) {
+    fitActiveAreaBbox();
+    return;
+  }
 
   const latlngs = [];
   // Below the threshold, labels/trails stay on (permanent); above it, names
@@ -973,16 +991,10 @@ export function renderActiveMap(ships) {
     }
   });
 
-  // Frame the selected area's bounding box, not the ships, so the view stays
-  // anchored to the chosen area even if a few (possibly mis-tagged) ships sit
-  // outside it. Re-fit only when the area changed, to avoid snapping back on
-  // every poll. Fall back to ship bounds only when no area box is known.
+  // Frame the selected area's bbox; fall back to ship bounds only when no
+  // area box is known.
   if (S.currentBbox) {
-    const key = JSON.stringify(S.currentBbox);
-    if (key !== activeFitKey) {
-      S.activeMap.fitBounds(S.currentBbox, { padding: [40, 40] });
-      activeFitKey = key;
-    }
+    fitActiveAreaBbox();
   } else {
     const bounds = L.latLngBounds(latlngs);
     if (bounds.isValid()) S.activeMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });

@@ -44,6 +44,7 @@ const { invalidateRiskCache } = require('./risk-score');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking, crawlPortArrivals } = require('./scrapers/myshiptracking');
 const { classifyFailure } = require('./scrapers/http');
+const { haversineM } = require('./ship-analysis');
 const {
   FOLLOW_FRESH_MS,
   SCRAPE_NEG_CACHE_DAYS,
@@ -52,10 +53,37 @@ const {
   FALLBACK_CIRCUIT_TRIP_COUNT,
   FALLBACK_CIRCUIT_TRIP_WINDOW_MIN,
   FALLBACK_CIRCUIT_COOLDOWN_MIN,
+  BBOX_PRESETS,
 } = require('../config');
 
 const SOURCES = ['sf', 'mst'];
 const SOURCE_LABEL = { sf: 'ShipFinder', mst: 'MyShipTracking' };
+
+// How close a freshly-scraped position needs to be to a confirmed area port to
+// name it in the "Fallback: posizione..." log line — generous vs. the 4km
+// port-discovery clustering radius (services/port-discovery.js) since this is
+// just a log hint, not a clustering decision: a ship a few km off a port's
+// resolved centroid (anchorage, approach channel) should still show it.
+const LOG_PORT_PROXIMITY_M = 8000;
+
+// Only meaningful for area-scope ships (sh._areaScope, see candidatePool) —
+// followed ships aren't tied to one area (see the comment there), so there's
+// no area to name. Prefers the just-scraped position over the ship's
+// previously-known one, so the nearest-port pick reflects where the fix
+// actually landed.
+function areaPortLogTag(sh, lat, lon) {
+  if (!sh._areaScope || !sh.last_area) return '';
+  const areaName = BBOX_PRESETS[sh.last_area]?.name || sh.last_area;
+  let portName = null;
+  if (lat != null && lon != null) {
+    let best = Infinity;
+    for (const p of db.getConfirmedAreaPorts(sh.last_area)) {
+      const d = haversineM(lat, lon, p.lat, p.lon);
+      if (d < best && d <= LOG_PORT_PROXIMITY_M) { best = d; portName = p.name; }
+    }
+  }
+  return portName ? ` [area ${areaName}, porto ${portName}]` : ` [area ${areaName}]`;
+}
 
 // Per-source circuit breaker: distinct-ship (or distinct-port, for discovery
 // failures with no ship yet) 403/429 timestamps within the trip window, and
@@ -192,7 +220,8 @@ async function scrapeOne(source, sh) {
       db.clearScrapeFailure(sh.mmsi, source);
       if (stored) {
         invalidateRiskCache(sh.mmsi);
-        appLog.info('SCRAPE', `Fallback: posizione ${SOURCE_LABEL[source]} per ${sh.ship_name || sh.mmsi}`, { mmsi: sh.mmsi });
+        const tag = areaPortLogTag(sh, position.lat, position.lon);
+        appLog.info('SCRAPE', `Fallback: posizione ${SOURCE_LABEL[source]} per ${sh.ship_name || sh.mmsi}${tag}`, { mmsi: sh.mmsi, area: sh._areaScope ? sh.last_area : null });
       }
     } else {
       db.setScrapeFailure(sh.mmsi, source, `${SOURCE_LABEL[source]}: nessuna posizione`);
@@ -332,13 +361,19 @@ function getEstimate() {
 function getAreaStatuses() {
   const cutoffIso = areaSilentCutoffIso();
   return db.getAllAreas().map((a) => {
-    const silent = !!a.fallback_enabled && (!a.last_ais_message_at || a.last_ais_message_at < cutoffIso);
+    const genuinelySilent = !a.last_ais_message_at || a.last_ais_message_at < cutoffIso;
+    const forced = !!a.fallback_forced;
+    const silent = !!a.fallback_enabled && (forced || genuinelySilent);
     return {
       key: a.key,
       name: a.name,
       fallbackEnabled: !!a.fallback_enabled,
+      fallbackForced: forced,
       silent,
-      silentSince: silent ? a.last_ais_message_at : null,
+      // Only meaningful for genuine AIS silence — a forced-but-fresh area has
+      // no real "silent since" instant, so leave it null rather than showing
+      // a recent/absent last_ais_message_at as if AIS had gone quiet then.
+      silentSince: silent && genuinelySilent ? a.last_ais_message_at : null,
     };
   });
 }

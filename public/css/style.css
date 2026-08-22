@@ -1726,6 +1726,19 @@ pre {
 .badge.review    { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-bd); }
 .badge.rejected  { background: var(--red-soft); color: var(--red); border-color: var(--red-bd); }
 
+/* Per-area ports panel (Aree screen → "⚓" button), see areas.js openPortsPanel. */
+.area-ports-table { width: 100%; font-size: 0.83rem; }
+.area-ports-table th, .area-ports-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+.area-ports-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.area-ports-table tr:last-child td { border-bottom: none; }
+
 /* ── Undo toast ───────────────────────────────────────────────────────── */
 .undo-toast {
   display: flex;
@@ -2113,10 +2126,37 @@ pre {
   padding-bottom: 20px;
   position: relative;
 }
-/* Compact variant for the live fallback-scrape overlay window (narrower than
-   the Settings panel, no hour labels — no need to reserve label padding). */
-.fallback-scrape-chart { height: 56px; padding-bottom: 0; gap: 2px; }
 .fallback-scrape-ov-body { padding: 0.6rem 0.8rem; }
+
+/* Live fallback-scrape overlay window: line chart (ok/failed calls per 30s
+   bucket, last 10min) — a line reads a mostly-empty, bursty series (a handful
+   of calls scattered across sparse buckets) more cleanly than bars, which look
+   misaligned/uneven when most buckets are empty. */
+.fallback-scrape-linechart { width: 100%; height: 56px; display: block; }
+.linechart-baseline { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.linechart-ok, .linechart-fail {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.linechart-ok { stroke: var(--green); }
+.linechart-fail { stroke: var(--red); }
+.linechart-point { fill: var(--bg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.linechart-point-ok { stroke: var(--green); }
+.linechart-point-fail { stroke: var(--red); }
+.fallback-scrape-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin: 0.3rem 0 0.5rem;
+}
+.fallback-scrape-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.fallback-scrape-legend i { width: 10px; height: 2px; border-radius: 1px; display: inline-block; }
+.fallback-scrape-legend .legend-ok { background: var(--green); }
+.fallback-scrape-legend .legend-fail { background: var(--red); }
 .hour-bar-wrap {
   flex: 1;
   display: flex;

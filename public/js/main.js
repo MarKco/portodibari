@@ -2012,7 +2012,7 @@ function initGlossaryTooltip() {
     tip.style.left = left + 'px';
   }
 
-  const TIP_SELECTOR = '.eq-info[data-tip], .follow-search-badge[data-tip], .map-toggle-buttons a[data-tip], .src-dot[data-tip]';
+  const TIP_SELECTOR = '.eq-info[data-tip], .follow-search-badge[data-tip], .map-toggle-buttons a[data-tip], .src-dot[data-tip], .area-fallback-live[data-tip], .area-badge-warn[data-tip], .area-badge-info[data-tip], .toggle[data-tip]';
   document.addEventListener('mouseover', (e) => {
     const icon = e.target.closest(TIP_SELECTOR);
     if (icon) show(icon);

@@ -127,6 +127,7 @@ export const S = {
   areasMap: null,
   areasLayer: null, // existing-area rectangles
   areaCandidateLayer: null, // dashed preview rectangle for the area being added
+  areaPortsLayer: null, // port markers shown while the ports panel modal is open
   areasList: [], // last-fetched area descriptors
   pendingDelete: null, // { key, timer, toast } — deletion deferred during undo window
   areaEditKey: null, // area key currently loaded in the add/edit form (null = add mode)

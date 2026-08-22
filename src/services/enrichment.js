@@ -110,6 +110,7 @@ function isAreaSilentForShip(ship) {
   if (!ship.last_area) return false;
   const area = db.getArea(ship.last_area);
   if (!area || !area.fallback_enabled) return false;
+  if (area.fallback_forced) return true;
   if (!area.last_ais_message_at) return true;
   const cutoff = Date.now() - AREA_SILENT_THRESHOLD_MIN * 60 * 1000;
   return new Date(area.last_ais_message_at).getTime() < cutoff;

@@ -45,6 +45,7 @@ const BROWSER_GLOBALS = {
   cancelAnimationFrame: 'readonly',
   performance: 'readonly',
   ResizeObserver: 'readonly',
+  MutationObserver: 'readonly',
   L: 'readonly', // Leaflet (loaded from CDN)
 };
 

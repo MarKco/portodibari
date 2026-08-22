@@ -490,6 +490,10 @@ for (const col of [
   'active INTEGER NOT NULL DEFAULT 0',
   'fallback_enabled INTEGER NOT NULL DEFAULT 1',
   'last_ais_message_at TEXT',
+  // Admin override: treat as silent regardless of last_ais_message_at (see
+  // setAreaFallbackForced). Default off — an older backup restores as not
+  // forced, i.e. today's plain threshold-based behavior.
+  'fallback_forced INTEGER NOT NULL DEFAULT 0',
 ]) {
   try { db.exec(`ALTER TABLE areas ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
@@ -1139,6 +1143,17 @@ function setAreaActive(key, active) {
 const setAreaFallbackEnabledStmt = db.prepare('UPDATE areas SET fallback_enabled = ? WHERE key = ?');
 function setAreaFallbackEnabled(key, enabled) {
   setAreaFallbackEnabledStmt.run(enabled ? 1 : 0, key);
+}
+
+// Admin per-area override: treat the area as silent (fallback scraping runs)
+// even while AIS messages keep arriving — for a bbox an admin knows has thin
+// real AIS coverage (few transponder-equipped ships passing through), where
+// waiting for AREA_SILENT_THRESHOLD_MIN of total silence would never trigger.
+// Independent of fallback_enabled (the master on/off): forcing a disabled area
+// still does nothing.
+const setAreaFallbackForcedStmt = db.prepare('UPDATE areas SET fallback_forced = ? WHERE key = ?');
+function setAreaFallbackForced(key, forced) {
+  setAreaFallbackForcedStmt.run(forced ? 1 : 0, key);
 }
 
 // Called from ais-stream.js on real AIS traffic, throttled in-memory by the
@@ -2314,11 +2329,11 @@ function getStaleAreaShips(freshMs, areaSilentCutoffIso) {
   const shipCutoff = new Date(Date.now() - freshMs).toISOString();
   return db
     .prepare(
-      `SELECT s.mmsi, s.ship_name, s.last_seen_at, s.last_latitude AS lat, s.last_longitude AS lon
+      `SELECT s.mmsi, s.ship_name, s.last_seen_at, s.last_latitude AS lat, s.last_longitude AS lon, s.last_area
        FROM ships s
        JOIN areas a ON a.key = s.last_area
        WHERE a.fallback_enabled = 1
-         AND (a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)
+         AND (a.fallback_forced = 1 OR a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)
          AND (s.last_seen_at IS NULL OR s.last_seen_at < ?)
          AND s.mmsi NOT IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
     )
@@ -2339,7 +2354,7 @@ function getPortDiscoveryTargets(areaSilentCutoffIso) {
        JOIN areas a ON a.key = ap.area_key
        WHERE ap.status = 'confirmed' AND ap.mst_pid IS NOT NULL
          AND a.fallback_enabled = 1
-         AND (a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)`
+         AND (a.fallback_forced = 1 OR a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)`
     )
     .all(areaSilentCutoffIso);
 }
@@ -3928,6 +3943,7 @@ module.exports = {
   upsertArea,
   setAreaActive,
   setAreaFallbackEnabled,
+  setAreaFallbackForced,
   touchAreaLastAisMessage,
   getActiveAreaKeys,
   deleteAreaRow,
