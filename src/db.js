@@ -1251,6 +1251,28 @@ function upsertAreaPort({ area_key, name, lat, lon, sources, status }) {
   upsertAreaPortStmt.run(area_key, name, lat, lon, JSON.stringify(sources), status, now, now);
 }
 
+// Admin explicitly picked this external-source candidate (routes/areas.js
+// POST .../ports/candidates, see the "search external sources now" compare
+// UI) — always lands 'confirmed'/admin_reviewed=1 regardless of any prior
+// row at that (area_key, name), unlike upsertAreaPort's ON CONFLICT above
+// which preserves an existing admin decision. Here the admin action IS the
+// decision, on this exact candidate, so it should win outright.
+const addManualAreaPortStmt = db.prepare(`
+  INSERT INTO area_ports (area_key, name, lat, lon, sources, status, admin_reviewed, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, 'confirmed', 1, ?, ?)
+  ON CONFLICT(area_key, name) DO UPDATE SET
+    lat = excluded.lat,
+    lon = excluded.lon,
+    sources = excluded.sources,
+    status = 'confirmed',
+    admin_reviewed = 1,
+    updated_at = excluded.updated_at
+`);
+function addManualAreaPort({ area_key, name, lat, lon, source }) {
+  const now = new Date().toISOString();
+  addManualAreaPortStmt.run(area_key, name, lat, lon, JSON.stringify([source]), now, now);
+}
+
 function getAreaPorts(areaKey) {
   return db.prepare('SELECT * FROM area_ports WHERE area_key = ? ORDER BY name').all(areaKey)
     .map((r) => ({ ...r, sources: JSON.parse(r.sources) }));
@@ -1263,6 +1285,25 @@ function getConfirmedAreaPorts(areaKey) {
 
 function countAreaPorts(areaKey) {
   return db.prepare('SELECT COUNT(*) AS n FROM area_ports WHERE area_key = ?').get(areaKey).n;
+}
+
+// Retire auto-generated berth-cluster ports before a fresh discovery run
+// re-clusters this area's current berths (services/port-discovery.js,
+// discoverPortsForArea's berths branch). Without this, a row an admin never
+// reviewed just sits there forever if a later run's cluster picks a different
+// representative name (berth centroids drift slightly on every recompute, or
+// a berth gains/loses cluster membership) — upsertAreaPort only matches by
+// exact (area_key, name), so it can't tell "this old row IS that new cluster,
+// just renamed" and leaves the old one orphaned instead of replacing it.
+// Scoped tight on purpose: only rows sourced SOLELY from 'berths' (nothing
+// external corroborated them) AND never admin-reviewed — an admin's
+// confirm/reject decision, or any row an external source also backed, always
+// survives untouched.
+const deleteUnreviewedBerthPortsStmt = db.prepare(
+  `DELETE FROM area_ports WHERE area_key = ? AND admin_reviewed = 0 AND sources = '["berths"]'`
+);
+function deleteUnreviewedBerthPorts(areaKey) {
+  deleteUnreviewedBerthPortsStmt.run(areaKey);
 }
 
 const setAreaPortDecisionStmt = db.prepare(
@@ -3958,6 +3999,8 @@ module.exports = {
   getAreaPorts,
   getConfirmedAreaPorts,
   countAreaPorts,
+  deleteUnreviewedBerthPorts,
+  addManualAreaPort,
   setAreaPortDecision,
   setAreaPortMstPid,
   migrateMultiUser,

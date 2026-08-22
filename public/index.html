@@ -859,6 +859,36 @@
         <div id="areas-map"></div>
       </div>
 
+      <!-- Per-area ports panel (areas.js openPortsPanel): inline, not a modal, so
+           the map above (with the port markers just added to it) stays visible
+           while browsing the list. -->
+      <div id="area-ports-panel" class="area-ports-panel hidden">
+        <div class="area-ports-panel-header">
+          <h3 id="area-ports-panel-title"></h3>
+          <button id="btn-area-ports-close" class="btn btn-clear btn-sm">&times;</button>
+        </div>
+        <p class="health-note" id="area-ports-panel-desc"></p>
+        <div class="area-ports-panel-actions">
+          <button id="btn-area-ports-discover" class="btn btn-secondary btn-sm"></button>
+        </div>
+        <div id="area-ports-list"></div>
+
+        <!-- External-source candidate compare (areas.js openPortsPanel / SSE
+             search-external stream): separate from the confirmed/review/rejected
+             table above — these aren't area_ports rows yet, just candidates the
+             admin can pick to add. -->
+        <div class="area-ports-candidates">
+          <h4 id="area-ports-candidates-title"></h4>
+          <p class="health-note" id="area-ports-candidates-desc"></p>
+          <div class="area-ports-panel-actions">
+            <span id="area-ports-candidates-status" class="area-ports-candidates-status"></span>
+            <button id="btn-area-ports-search-external" class="btn btn-secondary btn-sm"></button>
+            <button id="btn-area-ports-candidates-add-selected" class="btn btn-primary btn-sm hidden"></button>
+          </div>
+          <div id="area-ports-candidates-list"></div>
+        </div>
+      </div>
+
       <div class="areas-list-wrap">
         <table>
           <thead>

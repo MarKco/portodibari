@@ -301,5 +301,80 @@ router.post('/areas/:key/ports/:id/reject', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Compare pane for the ports panel: always runs the external cascade
+// (locode/WPI/GFW/VesselFinder), regardless of whether the area already has
+// berths — unlike discoverPortsForArea's own berths-short-circuit — so an
+// admin can see external candidates side by side with auto-detected berths
+// and decide what to add. Streams each raw (unclustered) candidate as SSE the
+// moment it's found: locode/WPI/GFW arrive almost instantly, VesselFinder
+// trickles in over its own paced loop (same anti-ban jitter as
+// discoverPortsForArea's cascade) — streaming avoids making the admin stare
+// at a blank panel for the ~1-2min a fresh area's full VF pass can take.
+router.get('/areas/:key/ports/search-external/stream', requireAdmin, (req, res) => {
+  const { key } = req.params;
+  if (!BBOX_PRESETS[key]) return res.status(404).json({ error: 'Area sconosciuta' });
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Same anti-ban caution as discoverPortsForArea: this cascade fires the same
+  // VesselFinder scraping, competing for the shared budget/circuit breaker
+  // with fallback mode's own scraping while any area is silent.
+  if (fallbackMode.isAnyAreaSilent()) {
+    res.write(`data: ${JSON.stringify({ type: 'deferred' })}\n\n`);
+    return res.end();
+  }
+
+  let closed = false;
+  req.on('close', () => { closed = true; });
+
+  portDiscovery
+    .searchExternalCandidates(
+      key,
+      (c) => {
+        if (!closed) res.write(`data: ${JSON.stringify({ type: 'candidate', candidate: c })}\n\n`);
+      },
+      () => closed
+    )
+    .then(() => {
+      if (!closed) {
+        res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+        res.end();
+      }
+    })
+    .catch((e) => {
+      if (closed) return;
+      res.write(`data: ${JSON.stringify({ type: 'error', message: e.message })}\n\n`);
+      res.end();
+    });
+});
+
+// Add one or more external-source candidates (from the stream above) as real
+// area ports, straight to 'confirmed' — the admin picking a specific
+// candidate off the map/list IS the review, unlike discoverPortsForArea's own
+// auto-persisted candidates which still need a confirm/reject. Capped batch
+// size is a generous ceiling against a malformed/abusive request, not a real
+// UX limit — no realistic candidate list from the cascade above gets close.
+const MAX_CANDIDATES_PER_ADD = 200;
+router.post('/areas/:key/ports/candidates', requireAdmin, (req, res) => {
+  const { key } = req.params;
+  if (!BBOX_PRESETS[key]) return res.status(404).json({ error: 'Area sconosciuta' });
+  const list = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+  if (!list.length) return res.status(400).json({ error: 'Nessun candidato' });
+  if (list.length > MAX_CANDIDATES_PER_ADD) return res.status(400).json({ error: 'Troppi candidati in una volta sola' });
+  let added = 0;
+  for (const c of list) {
+    const lat = Number(c?.lat);
+    const lon = Number(c?.lon);
+    const name = c?.name && String(c.name).trim();
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+    db.addManualAreaPort({ area_key: key, name, lat, lon, source: c.source ? String(c.source) : 'manual' });
+    added++;
+  }
+  appLog.info('AREE', `${added} porto/i aggiunto/i manualmente per ${BBOX_PRESETS[key].name} da sorgenti esterne`, { area: key });
+  res.json({ ok: true, added, ports: db.getAreaPorts(key) });
+});
+
 module.exports = router;
 module.exports.importAreasAndStart = importAreasAndStart;

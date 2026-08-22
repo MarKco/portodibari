@@ -175,11 +175,12 @@ function renderAreasList() {
 }
 
 // ── Ports panel (per-area port catalog: services/port-discovery.js) ──────────
-// Reuses the shared #modal-overlay for the list (see CLAUDE.md on the two
-// overlay patterns — this one is mobile-safe, unlike the draggable log
-// windows) and the already-on-screen areas-map for "evidenziazione sulla
-// mappa" instead of embedding a second Leaflet instance in the modal.
+// Inline panel below the areas-map (NOT the shared #modal-overlay, which
+// covers the whole page behind a backdrop) — the whole point of "evidenziazione
+// sulla mappa" is that the map stays visible with its markers while the admin
+// reads the list, which a full-screen modal would hide.
 const PORT_STATUS_COLOR = { confirmed: '#34d399', review: '#fbbf24', rejected: '#ef4444' };
+let openPortsAreaKey = null;
 
 function renderPortsList(areaKey, ports) {
   if (!ports.length) return `<p class="vf-empty">${t('areas.ports.empty')}</p>`;
@@ -232,71 +233,158 @@ function highlightPortsOnMap(areaKey, ports) {
   }
 }
 
-// The shared modal has no "on close" hook of its own (see main.js: closing
-// just toggles the hidden class) — watch for that class change instead of
-// duplicating close-button/backdrop/Escape wiring here, so the port markers
-// come off the areas-map whichever way the admin closes it.
-function watchModalClose(cleanup) {
-  const obs = new MutationObserver(() => {
-    if (el.modalOverlay.classList.contains('hidden')) {
-      cleanup();
-      obs.disconnect();
-    }
-  });
-  obs.observe(el.modalOverlay, { attributes: true, attributeFilter: ['class'] });
+// ── External-source candidate compare ────────────────────────────────────────
+// Separate from the confirmed/review/rejected table above: these are raw
+// picks from the "search external sources now" SSE stream (services/
+// port-discovery.js searchExternalCandidates), not area_ports rows yet — an
+// admin adds the ones that look right, one at a time or in a batch.
+const CANDIDATE_COLOR = '#60a5fa';
+let candidateSource = null; // active EventSource, or null while idle
+let candidates = []; // {name, lat, lon, source}
+
+function stopCandidateSearch() {
+  if (candidateSource) {
+    candidateSource.close();
+    candidateSource = null;
+  }
 }
 
-async function refreshPortsPanel(areaKey) {
-  const { ports } = await api(`/api/areas/${encodeURIComponent(areaKey)}/ports`);
-  highlightPortsOnMap(areaKey, ports);
-  const list = document.getElementById('area-ports-list');
-  if (list) list.innerHTML = renderPortsList(areaKey, ports);
+function clearCandidates() {
+  stopCandidateSearch();
+  candidates = [];
+  if (S.areaPortCandidatesLayer) S.areaPortCandidatesLayer.clearLayers();
+  if (el.areaPortsCandidatesList) el.areaPortsCandidatesList.innerHTML = '';
+  if (el.areaPortsCandidatesStatus) el.areaPortsCandidatesStatus.textContent = '';
+  el.btnAreaPortsCandidatesAddSelected?.classList.add('hidden');
+}
+
+function addCandidateToMap(c) {
+  if (!S.areasMap) return;
+  if (!S.areaPortCandidatesLayer) S.areaPortCandidatesLayer = L.layerGroup().addTo(S.areasMap);
+  L.circleMarker([c.lat, c.lon], { radius: 7, color: CANDIDATE_COLOR, weight: 2, dashArray: '3 3', fillOpacity: 0.25 })
+    .bindTooltip(`${escHtml(c.name)} (${escHtml(c.source)})`, { permanent: false })
+    .addTo(S.areaPortCandidatesLayer);
+}
+
+function candidateRowHtml(c, i) {
+  return `
+    <div class="area-port-candidate-row">
+      <input type="checkbox" class="area-port-candidate-check" data-idx="${i}">
+      <span class="area-port-candidate-name">${escHtml(c.name)} <span class="mono">${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}</span></span>
+      <span class="area-port-candidate-source">${escHtml(c.source)}</span>
+      <button class="btn btn-sm area-port-candidate-add" data-idx="${i}">${t('areas.ports.addOne')}</button>
+    </div>`;
+}
+
+// Full rebuild — only for a reset (search restart) or after a batch add shifts
+// every remaining index. NOT used for a single incoming SSE candidate: see
+// appendCandidateRow, which avoids wiping any checkbox the admin already
+// ticked mid-stream (innerHTML replacement would uncheck it on every new
+// arrival during a search that can run for a minute or more).
+function renderCandidatesList() {
+  if (!el.areaPortsCandidatesList) return;
+  el.areaPortsCandidatesList.innerHTML = candidates.map(candidateRowHtml).join('');
+  el.btnAreaPortsCandidatesAddSelected?.classList.toggle('hidden', !candidates.length);
+  if (el.btnAreaPortsCandidatesAddSelected) el.btnAreaPortsCandidatesAddSelected.textContent = t('areas.ports.addSelected');
+}
+
+function appendCandidateRow(c, i) {
+  if (!el.areaPortsCandidatesList) return;
+  el.areaPortsCandidatesList.insertAdjacentHTML('beforeend', candidateRowHtml(c, i));
+  el.btnAreaPortsCandidatesAddSelected?.classList.remove('hidden');
+  if (el.btnAreaPortsCandidatesAddSelected) el.btnAreaPortsCandidatesAddSelected.textContent = t('areas.ports.addSelected');
+}
+
+function finishSearch(statusText) {
+  stopCandidateSearch();
+  if (el.btnAreaPortsSearchExternal) {
+    el.btnAreaPortsSearchExternal.disabled = false;
+    el.btnAreaPortsSearchExternal.textContent = t('areas.ports.searchExternal');
+  }
+  if (el.areaPortsCandidatesStatus) el.areaPortsCandidatesStatus.textContent = statusText;
+}
+
+function startExternalSearch() {
+  if (!openPortsAreaKey || candidateSource) return;
+  clearCandidates();
+  if (el.btnAreaPortsSearchExternal) {
+    el.btnAreaPortsSearchExternal.disabled = true;
+    el.btnAreaPortsSearchExternal.textContent = t('areas.ports.searchExternalRunning');
+  }
+  if (el.areaPortsCandidatesStatus) el.areaPortsCandidatesStatus.textContent = t('areas.ports.candidatesStatusRunning', { n: 0 });
+  const es = new EventSource(`/api/areas/${encodeURIComponent(openPortsAreaKey)}/ports/search-external/stream`);
+  candidateSource = es;
+  es.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.type === 'candidate') {
+      const idx = candidates.length;
+      candidates.push(msg.candidate);
+      addCandidateToMap(msg.candidate);
+      appendCandidateRow(msg.candidate, idx);
+      if (el.areaPortsCandidatesStatus) el.areaPortsCandidatesStatus.textContent = t('areas.ports.candidatesStatusRunning', { n: candidates.length });
+    } else if (msg.type === 'done') {
+      finishSearch(t('areas.ports.candidatesStatusDone', { n: candidates.length }));
+    } else if (msg.type === 'deferred') {
+      finishSearch(t('areas.ports.candidatesStatusDeferred'));
+    } else if (msg.type === 'error') {
+      finishSearch(t('areas.ports.candidatesStatusError'));
+    }
+  };
+  es.onerror = () => finishSearch(t('areas.ports.candidatesStatusError'));
+}
+
+async function addCandidates(indexes) {
+  if (!openPortsAreaKey || !indexes.length) return;
+  const picked = indexes.map((i) => candidates[i]).filter(Boolean);
+  if (!picked.length) return;
+  try {
+    await api(`/api/areas/${encodeURIComponent(openPortsAreaKey)}/ports/candidates`, 'POST', { candidates: picked });
+    const drop = new Set(indexes);
+    candidates = candidates.filter((_, i) => !drop.has(i));
+    if (S.areaPortCandidatesLayer) S.areaPortCandidatesLayer.clearLayers();
+    candidates.forEach(addCandidateToMap);
+    renderCandidatesList();
+    await refreshPortsPanel();
+    showAlert(el.areaPortsPanelTitle?.textContent || '', t('areas.ports.addSuccess', { n: picked.length }));
+  } catch {
+    showAlert(el.areaPortsPanelTitle?.textContent || '', t('areas.ports.addError'));
+  }
+}
+
+function closePortsPanel() {
+  openPortsAreaKey = null;
+  el.areaPortsPanel?.classList.add('hidden');
+  if (S.areaPortsLayer) S.areaPortsLayer.clearLayers();
+  clearCandidates();
+  renderAreaRectangles();
+}
+
+async function refreshPortsPanel() {
+  if (!openPortsAreaKey) return;
+  const { ports } = await api(`/api/areas/${encodeURIComponent(openPortsAreaKey)}/ports`);
+  highlightPortsOnMap(openPortsAreaKey, ports);
+  if (el.areaPortsList) el.areaPortsList.innerHTML = renderPortsList(openPortsAreaKey, ports);
 }
 
 async function openPortsPanel(areaKey, areaName) {
+  openPortsAreaKey = areaKey;
+  clearCandidates();
+  if (el.areaPortsPanelTitle) el.areaPortsPanelTitle.textContent = t('areas.ports.title', { name: areaName });
+  if (el.areaPortsPanelDesc) el.areaPortsPanelDesc.textContent = t('areas.ports.desc');
+  if (el.btnAreaPortsDiscover) el.btnAreaPortsDiscover.textContent = t('areas.ports.discoverNow');
+  if (el.areaPortsCandidatesTitle) el.areaPortsCandidatesTitle.textContent = t('areas.ports.candidatesTitle');
+  if (el.areaPortsCandidatesDesc) el.areaPortsCandidatesDesc.textContent = t('areas.ports.candidatesDesc');
+  if (el.btnAreaPortsSearchExternal) {
+    el.btnAreaPortsSearchExternal.disabled = false;
+    el.btnAreaPortsSearchExternal.textContent = t('areas.ports.searchExternal');
+  }
+  el.areaPortsPanel?.classList.remove('hidden');
+  el.areaPortsPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   try {
-    const { ports } = await api(`/api/areas/${encodeURIComponent(areaKey)}/ports`);
-    highlightPortsOnMap(areaKey, ports);
-    el.modalTitle.textContent = t('areas.ports.title', { name: areaName });
-    el.modalBody.innerHTML = `
-      <p class="health-note" style="margin-top:0">${t('areas.ports.desc')}</p>
-      <div style="text-align:right;margin-bottom:0.6rem">
-        <button id="btn-area-ports-discover" class="btn btn-secondary btn-sm">${t('areas.ports.discoverNow')}</button>
-      </div>
-      <div id="area-ports-list">${renderPortsList(areaKey, ports)}</div>`;
-    el.modalOverlay.classList.remove('hidden');
-    watchModalClose(() => {
-      if (S.areaPortsLayer) S.areaPortsLayer.clearLayers();
-      renderAreaRectangles();
-    });
-
-    document.getElementById('btn-area-ports-discover')?.addEventListener('click', async (e) => {
-      e.target.disabled = true;
-      try {
-        await api(`/api/areas/${encodeURIComponent(areaKey)}/discover-ports`, 'POST');
-        showAlert(t('areas.ports.title', { name: areaName }), t('health.portDiscoveryStarted'));
-      } catch {
-        showAlert(t('areas.ports.title', { name: areaName }), t('health.portDiscoveryError'));
-      } finally {
-        e.target.disabled = false;
-      }
-    });
-
-    document.getElementById('area-ports-list')?.addEventListener('click', async (e) => {
-      const confirmBtn = e.target.closest('.area-port-confirm');
-      const rejectBtn = e.target.closest('.area-port-reject');
-      const btn = confirmBtn || rejectBtn;
-      if (!btn) return;
-      btn.disabled = true;
-      try {
-        await api(`/api/areas/${encodeURIComponent(areaKey)}/ports/${btn.dataset.id}/${confirmBtn ? 'confirm' : 'reject'}`, 'POST');
-        await refreshPortsPanel(areaKey);
-      } catch {
-        btn.disabled = false;
-      }
-    });
+    await refreshPortsPanel();
   } catch {
-    showAlert(t('areas.ports.title', { name: areaName }), t('areas.ports.loadError'));
+    if (el.areaPortsList) el.areaPortsList.innerHTML = `<p class="vf-empty">${t('areas.ports.loadError')}</p>`;
   }
 }
 
@@ -454,6 +542,7 @@ function undoPendingDelete() {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 export function enterAreasView() {
   cancelEdit(); // always land on the plain "add" form
+  closePortsPanel(); // don't resurface a stale ports panel from the last visit
   initAreasMap();
   // Map container was hidden until now; let Leaflet recompute its size.
   setTimeout(() => S.areasMap && S.areasMap.invalidateSize(), 60);
@@ -504,6 +593,11 @@ export function initAreas() {
   });
 
   // Per-area "force" override: same admin-only gate, see setAreaFallbackForced.
+  // Full reload (not a local patch + renderAreasList like the enabled-toggle
+  // above): forcing changes the SERVER-computed silent/silentSince/portStatus
+  // too (see fallback-mode.js getAreaStatuses), so a client-side patch of just
+  // fallbackForced would leave the live 🟢/🔴 dot showing stale state until
+  // the admin happened to leave and re-enter the Aree tab.
   el.areasBody.addEventListener('change', async (e) => {
     const cb = e.target.closest('.area-fallback-force-toggle');
     if (!cb) return;
@@ -511,11 +605,53 @@ export function initAreas() {
     const forced = cb.checked;
     try {
       await api(`/api/areas/${encodeURIComponent(key)}/fallback`, 'PATCH', { forced });
-      const a = S.areasList.find((x) => x.key === key);
-      if (a) a.fallbackForced = forced;
+      await loadAreas();
     } catch {
       cb.checked = !forced; // revert on failure
     }
+  });
+
+  // Ports panel: close, manual re-run, confirm/reject (see openPortsPanel).
+  // Wired once here (static DOM, not rebuilt per open) rather than inside
+  // openPortsPanel, which would pile up duplicate listeners on every open.
+  el.btnAreaPortsClose?.addEventListener('click', closePortsPanel);
+  el.btnAreaPortsDiscover?.addEventListener('click', async (e) => {
+    if (!openPortsAreaKey) return;
+    const areaKey = openPortsAreaKey;
+    e.target.disabled = true;
+    try {
+      await api(`/api/areas/${encodeURIComponent(areaKey)}/discover-ports`, 'POST');
+      showAlert(el.areaPortsPanelTitle?.textContent || '', t('health.portDiscoveryStarted'));
+    } catch {
+      showAlert(el.areaPortsPanelTitle?.textContent || '', t('health.portDiscoveryError'));
+    } finally {
+      e.target.disabled = false;
+    }
+  });
+  el.areaPortsList?.addEventListener('click', async (e) => {
+    const confirmBtn = e.target.closest('.area-port-confirm');
+    const rejectBtn = e.target.closest('.area-port-reject');
+    const btn = confirmBtn || rejectBtn;
+    if (!btn || !openPortsAreaKey) return;
+    btn.disabled = true;
+    try {
+      await api(`/api/areas/${encodeURIComponent(openPortsAreaKey)}/ports/${btn.dataset.id}/${confirmBtn ? 'confirm' : 'reject'}`, 'POST');
+      await refreshPortsPanel();
+    } catch {
+      btn.disabled = false;
+    }
+  });
+
+  // External-source candidate compare (see startExternalSearch/addCandidates).
+  el.btnAreaPortsSearchExternal?.addEventListener('click', startExternalSearch);
+  el.btnAreaPortsCandidatesAddSelected?.addEventListener('click', () => {
+    const idxs = [...document.querySelectorAll('.area-port-candidate-check:checked')].map((cb) => Number(cb.dataset.idx));
+    addCandidates(idxs);
+  });
+  el.areaPortsCandidatesList?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.area-port-candidate-add');
+    if (!btn) return;
+    addCandidates([Number(btn.dataset.idx)]);
   });
 
   // Browser close / reload during the undo window → commit immediately so the

@@ -87,12 +87,23 @@ async function discoverPortsForArea(areaKey) {
       // AUTOINCREMENT id on every recompute (project-wide gotcha) — but this
       // name is only ever used to seed a cluster before clusterCandidates picks
       // a final display name, so precision here matters less than for the old
-      // one-row-per-berth scheme.
-      name: b.name || `Porto ${b.centroid_lat.toFixed(2)},${b.centroid_lon.toFixed(2)}`,
+      // one-row-per-berth scheme. No language-specific word here on purpose
+      // (unlike the old "Porto {lat},{lon}"/"Banchina {lat},{lon}" fallbacks it
+      // replaced) — a name baked into the DB can't be run through the client's
+      // i18n at display time, so a plain coordinate pair is the only form
+      // that's correct in every UI language.
+      name: b.name || `${b.centroid_lat.toFixed(2)}, ${b.centroid_lon.toFixed(2)}`,
       lat: b.centroid_lat,
       lon: b.centroid_lon,
       source: 'berths',
     }));
+    // Retire this area's previous auto-generated, never-reviewed berth-cluster
+    // rows before re-clustering: upsertAreaPort matches by exact name, so a
+    // cluster that now picks a different representative (drifted centroid, a
+    // berth that gained/lost a neighbour) would otherwise leave the old row
+    // behind as an orphaned duplicate instead of replacing it — see
+    // deleteUnreviewedBerthPorts's own comment for the exact scope/guard.
+    db.deleteUnreviewedBerthPorts(areaKey);
     for (const c of clusterCandidates(candidates)) {
       db.upsertAreaPort({
         area_key: areaKey,
@@ -119,32 +130,9 @@ async function discoverPortsForArea(areaKey) {
     return;
   }
 
-  const box = bboxOf(areaKey);
-  const locodeCands = localocodeCandidates(box);
-  const wpiCands = wpiCandidates(box);
-
-  let gfwCands = [];
-  try {
-    gfwCands = (await gfw.getAnchoragesInBbox([box.swLat, box.swLon], [box.neLat, box.neLon]))
-      .map((p) => ({ ...p, source: 'gfw' }));
-  } catch { /* best-effort source */ }
-
-  const vfCands = [];
-  const vfLookupCands = [...locodeCands, ...wpiCands].slice(0, 20);
-  for (let i = 0; i < vfLookupCands.length; i++) {
-    const cand = vfLookupCands[i];
-    try {
-      const matches = await searchVesselFinderPorts(cand.name);
-      vfCands.push(...matches.filter((m) => inBbox(m.lat, m.lon, box)).map((m) => ({ ...m, source: 'vf' })));
-    } catch { /* best-effort, one candidate's VF lookup failing doesn't block the rest */ }
-    // Pace between candidates (not just within a single VF call's own internal
-    // jitter) — a single searchVesselFinderPorts call is already ~10 requests;
-    // up to 20 candidates back-to-back would otherwise fire immediately after
-    // each other. Skip the sleep after the last iteration.
-    if (i < vfLookupCands.length - 1) await sleep(jitterMs());
-  }
-
-  const clusters = clusterCandidates([...gfwCands, ...wpiCands, ...locodeCands, ...vfCands]);
+  const allCands = [];
+  await searchExternalCandidates(areaKey, (c) => allCands.push(c));
+  const clusters = clusterCandidates(allCands);
   for (const c of clusters) {
     db.upsertAreaPort({
       area_key: areaKey,
@@ -154,6 +142,54 @@ async function discoverPortsForArea(areaKey) {
       sources: c.sources,
       status: c.sources.length >= 2 ? 'confirmed' : 'review',
     });
+  }
+}
+
+/** Run the 4-source external cascade (locode/WPI/GFW/VesselFinder) for
+ *  `areaKey` and call `onCandidate(candidate)` as each one is found — locode/
+ *  WPI/GFW arrive almost immediately (in-memory lookup / one API call), VF
+ *  trickles in over the same paced loop as discoverPortsForArea's own cascade
+ *  (up to 20 lookups, jittered). Raw candidates, NOT clustered — used both by
+ *  discoverPortsForArea (which clusters+persists them itself) and by the
+ *  admin-triggered "search external sources now" SSE endpoint (routes/areas.js),
+ *  which streams them live for a side-by-side compare against auto-detected
+ *  berths and lets the admin add individual ones — clustering isn't needed
+ *  there since a human is already picking which to keep. Caller is
+ *  responsible for the same isAnyAreaSilent() gate discoverPortsForArea
+ *  applies (this function doesn't re-check it, so it can be reused for a
+ *  manual admin action that surfaces the deferral differently). `shouldStop`
+ *  is polled between VF lookups (the only slow, multi-request leg) so an
+ *  admin closing the SSE stream early — see routes/areas.js — stops burning
+ *  anti-ban budget on a search nobody's watching anymore, instead of running
+ *  the full ~20-candidate pass into the void. */
+async function searchExternalCandidates(areaKey, onCandidate, shouldStop = () => false) {
+  const box = bboxOf(areaKey);
+  const locodeCands = localocodeCandidates(box);
+  const wpiCands = wpiCandidates(box);
+  for (const c of [...locodeCands, ...wpiCands]) onCandidate(c);
+
+  let gfwCands = [];
+  try {
+    gfwCands = (await gfw.getAnchoragesInBbox([box.swLat, box.swLon], [box.neLat, box.neLon]))
+      .map((p) => ({ ...p, source: 'gfw' }));
+  } catch { /* best-effort source */ }
+  for (const c of gfwCands) onCandidate(c);
+
+  const vfLookupCands = [...locodeCands, ...wpiCands].slice(0, 20);
+  for (let i = 0; i < vfLookupCands.length; i++) {
+    if (shouldStop()) return;
+    const cand = vfLookupCands[i];
+    try {
+      const matches = await searchVesselFinderPorts(cand.name);
+      for (const m of matches.filter((mm) => inBbox(mm.lat, mm.lon, box)).map((mm) => ({ ...mm, source: 'vf' }))) {
+        onCandidate(m);
+      }
+    } catch { /* best-effort, one candidate's VF lookup failing doesn't block the rest */ }
+    // Pace between candidates (not just within a single VF call's own internal
+    // jitter) — a single searchVesselFinderPorts call is already ~10 requests;
+    // up to 20 candidates back-to-back would otherwise fire immediately after
+    // each other. Skip the sleep after the last iteration.
+    if (i < vfLookupCands.length - 1) await sleep(jitterMs());
   }
 }
 
@@ -187,4 +223,4 @@ async function resolveMstPidForConfirmedPorts(areaKey) {
   }
 }
 
-module.exports = { clusterCandidates, discoverPortsForArea, resolveMstPidForConfirmedPorts };
+module.exports = { clusterCandidates, discoverPortsForArea, resolveMstPidForConfirmedPorts, searchExternalCandidates };

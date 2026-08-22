@@ -1696,6 +1696,38 @@ pre {
   z-index: 0; /* trap Leaflet's internal z-indexes so they don't bleed over the form / modals */
 }
 .areas-list-wrap { overflow-x: auto; }
+
+/* Per-area ports panel (areas.js openPortsPanel) — inline below the map, not a
+   modal, so the map (with its just-added port markers) stays visible. */
+.area-ports-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+}
+.area-ports-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.area-ports-panel-header h3 { margin: 0; font-size: 0.95rem; }
+.area-ports-panel-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; margin: 0.4rem 0 0.6rem; }
+.area-ports-candidates { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed var(--border); }
+.area-ports-candidates h4 { margin: 0 0 0.2rem; font-size: 0.85rem; }
+.area-ports-candidates-status { font-size: 0.76rem; color: var(--text-muted); margin-right: auto; }
+.area-port-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.83rem;
+}
+.area-port-candidate-row:last-child { border-bottom: none; }
+.area-port-candidate-name { flex: 1; min-width: 0; }
+.area-port-candidate-source {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .area-current-tag { color: var(--violet); font-size: 0.72rem; font-weight: 600; }
 .area-data-cell { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .area-row-pending { opacity: 0.45; text-decoration: line-through; }

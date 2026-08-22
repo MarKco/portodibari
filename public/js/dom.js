@@ -188,6 +188,18 @@ export const el = {
   areaAddError: $('area-add-error'),
   areasFormTitle: $('areas-form-title'),
   areasFormHint: $('areas-form-hint'),
+  areaPortsPanel: $('area-ports-panel'),
+  areaPortsPanelTitle: $('area-ports-panel-title'),
+  areaPortsPanelDesc: $('area-ports-panel-desc'),
+  areaPortsList: $('area-ports-list'),
+  btnAreaPortsClose: $('btn-area-ports-close'),
+  btnAreaPortsDiscover: $('btn-area-ports-discover'),
+  areaPortsCandidatesTitle: $('area-ports-candidates-title'),
+  areaPortsCandidatesDesc: $('area-ports-candidates-desc'),
+  areaPortsCandidatesStatus: $('area-ports-candidates-status'),
+  areaPortsCandidatesList: $('area-ports-candidates-list'),
+  btnAreaPortsSearchExternal: $('btn-area-ports-search-external'),
+  btnAreaPortsCandidatesAddSelected: $('btn-area-ports-candidates-add-selected'),
 
   // Settings view
   btnSettings: $('btn-settings'),
