@@ -440,7 +440,10 @@ function recomputeAreaFull(area, { skipSync = false } = {}) {
 // already-settled clustering work every 2 minutes, blocking the single Node
 // thread long enough to also starve the AIS WebSocket's heartbeat handling.
 function recomputeAreaIncremental(area, { skipSync = false } = {}) {
+  // DIAGNOSTICA TEMPORANEA (picchi CPU periodici, vedi indagine 2026-08-22).
+  const __t0 = Date.now();
   const touched = skipSync ? [] : syncMoorings(area);
+  const __syncMs = Date.now() - __t0;
 
   // A repositioned mooring's existing berth may no longer fit — release it
   // back into the pool so it gets re-evaluated below. Cost is bounded by how
@@ -452,14 +455,20 @@ function recomputeAreaIncremental(area, { skipSync = false } = {}) {
     if (!stillFits) db.setMooringBerth([t.id], null);
   }
 
+  const __poolT0 = Date.now();
   const pool = db.getUnclusteredMoorings(area);
-  if (!pool.length) return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
+  const __poolMs = Date.now() - __poolT0;
+  if (!pool.length) {
+    if (__syncMs > 200 || __poolMs > 200) appLog.warn('PERF', `berths[${area}] incrementale: sync=${__syncMs}ms pool=${__poolMs}ms touched=${touched.length} unclustered=0`);
+    return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
+  }
 
   const manualBerths = db.getBerths(area).filter((b) => b.manual_geom);
   const autoBerths = db.getAutoBerths(area);
   const pendingNotify = [];
   const claimed = new Set();
 
+  const __txT0 = Date.now();
   db.runTransaction(() => {
     // 1) Manual polygons still win first claim — but only over the (small)
     // pool, not the area's whole history: an already-clustered point is never
@@ -545,6 +554,12 @@ function recomputeAreaIncremental(area, { skipSync = false } = {}) {
       pendingNotify.push(['notifyBerthNew', { type: 'berth_new', area, berth_id: id, berth_lat: c.lat, berth_lon: c.lon, ship_name: null, band: ch.label || null }]);
     }
   });
+
+  const __txMs = Date.now() - __txT0;
+  const __totalMs = Date.now() - __t0;
+  if (__totalMs > 200) {
+    appLog.warn('PERF', `berths[${area}] incrementale: totale=${__totalMs}ms sync=${__syncMs}ms getPool=${__poolMs}ms transazione=${__txMs}ms touched=${touched.length} unclustered=${pool.length} autoBerths=${autoBerths.length} manualBerths=${manualBerths.length}`);
+  }
 
   for (const [prefKey, notif] of pendingNotify) notifyAreaOwners(area, prefKey, notif);
   return { moorings: db.getMoorings(area).length, berths: db.getBerths(area).length };
