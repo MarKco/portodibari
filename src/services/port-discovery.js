@@ -106,14 +106,16 @@ async function discoverPortsForArea(areaKey) {
     return;
   }
 
-  // Fallback mode = a declared prolonged-AIS-outage emergency where VF/MST
-  // scraping is suspended project-wide (see fallback-mode.js) because ban risk
-  // is highest. Port discovery's cascade below fires VF (and, downstream,
+  // Fallback mode is now per-area and always-on-when-needed (see
+  // fallback-mode.js) rather than a single global emergency switch, but the
+  // same caution still applies: while ANY area is silent, its scraping is
+  // already competing for the shared anti-ban budget/circuit breaker. Port
+  // discovery's cascade below fires VF (and, downstream,
   // resolveMstPidForConfirmedPorts fires MST) — defer the whole run rather than
   // add to that risk. No candidates are persisted this run; a later manual
-  // re-run or the next boot backfill picks it up once fallback mode ends.
-  if (fallbackMode.isActive()) {
-    appLog.info('AREE', `Scoperta porti per ${areaKey} rimandata: modalità fallback attiva.`);
+  // re-run or the next boot backfill picks it up once no area is silent.
+  if (fallbackMode.isAnyAreaSilent()) {
+    appLog.info('AREE', `Scoperta porti per ${areaKey} rimandata: modalità fallback attiva su almeno un'area.`);
     return;
   }
 
@@ -163,11 +165,10 @@ async function resolveMstPidForConfirmedPorts(areaKey) {
   const ports = db.getConfirmedAreaPorts(areaKey);
   for (let i = 0; i < ports.length; i++) {
     const port = ports[i];
-    // Same anti-ban discipline as the cascade above: skip while fallback mode's
-    // emergency suspension is active, and independently respect MST's own
-    // per-source circuit breaker (already tripped from unrelated 403/429s) even
-    // if fallback mode itself isn't currently active.
-    if (fallbackMode.isActive() || fallbackMode.getStatus().circuits.mst.open) continue;
+    // Same anti-ban discipline as the cascade above: skip while any area is
+    // silent, and independently respect MST's own per-source circuit breaker
+    // (already tripped from unrelated 403/429s) even if no area is silent.
+    if (fallbackMode.isAnyAreaSilent() || fallbackMode.getStatus().circuits.mst.open) continue;
     if (!port.mst_pid) {
       try {
         const matches = await mst.searchPort(port.name);

@@ -33,8 +33,6 @@ const {
   AIS_OUTAGE_SILENCE_MIN,
   AIS_UPTIME_URL,
   AIS_UPTIME_SELFHOST_URL,
-  AIS_FALLBACK_HOURS,
-  AIS_FALLBACK_EXIT_GRACE_MIN,
 } = require('../config');
 
 const CHECK_INTERVAL_MS = 60 * 1000; // how often we re-evaluate local silence
@@ -73,34 +71,6 @@ outage.serviceDown = !!outage.since;
 let lastProbeAt = 0;
 let lastProbeResult = null; // { state, lastChecked, source } from the most recent successful probe
 let timer = null;
-
-// Fallback-mode hysteresis: once a clean verdict arrives while fallback mode is
-// active, this marks when that grace period started. Only a *sustained* clean
-// verdict (AIS_FALLBACK_EXIT_GRACE_MIN minutes straight) actually exits fallback
-// mode — a brief reconnect-then-drop blip cancels the pending exit instead of
-// flipping fallback mode off and back on. In-memory only: losing it on restart
-// just restarts the grace window, never wrongly exits early.
-let fallbackExitPendingSince = null;
-
-function handleFallbackTransition(down) {
-  if (down) {
-    fallbackExitPendingSince = null;
-    if (outage.since && Date.now() - new Date(outage.since).getTime() >= AIS_FALLBACK_HOURS * 3600 * 1000) {
-      fallbackMode.enter();
-    }
-    return;
-  }
-  if (!fallbackMode.isActive()) {
-    fallbackExitPendingSince = null;
-    return;
-  }
-  if (fallbackExitPendingSince === null) {
-    fallbackExitPendingSince = Date.now();
-  } else if (Date.now() - fallbackExitPendingSince >= AIS_FALLBACK_EXIT_GRACE_MIN * 60 * 1000) {
-    fallbackMode.exit();
-    fallbackExitPendingSince = null;
-  }
-}
 
 /** Monitors to consult, highest priority first. Self-hosted instance before the
  *  public service, so a healthy private deployment never calls the public one. */
@@ -158,17 +128,8 @@ function applyDown(result, nowIso, silentMin) {
   const monitorSource = result.source;
   if (!outage.serviceDown) {
     appLog.warn('AIS', appLog.t('ais.outage_detected', { state: monitorState, min: silentMin, source: monitorSource }));
-    // Skip the push (Telegram/webhook) — not the log line above — when fallback
-    // mode is ALREADY active: that flag means an outage is already known and
-    // being handled (surfaced earlier, or restored live from a backup without a
-    // restart — meta.fallback_mode_active is read live on every sweep, but this
-    // in-memory `outage` tracker isn't re-hydrated from it without one, so it
-    // would otherwise treat the same ongoing outage as brand-new and re-alert).
-    // The in-app banner/log still reflect the fresh local transition either way.
-    if (!fallbackMode.isActive()) {
-      require('./telegram').broadcastOutage('start', { min: silentMin });
-      require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
-    }
+    require('./telegram').broadcastOutage('start', { min: silentMin });
+    require('./webhooks').broadcast('outage', { phase: 'start', min: silentMin });
   }
   // Prefer the monitor's own `lastMessageReceived` — the authoritative,
   // community-wide "down since" — over anything local: it's correct even on
@@ -184,7 +145,6 @@ function applyDown(result, nowIso, silentMin) {
   db.setMeta('ais_outage_monitor_state', monitorState);
   db.setMeta('ais_outage_monitor_source', monitorSource);
   outage = { serviceDown: true, monitorState, monitorSource, checkedAt: nowIso, since, silentMin };
-  handleFallbackTransition(true);
 }
 
 /** Transition (or reconfirm) the outage verdict to "up". Shared by evaluate()
@@ -199,7 +159,6 @@ function applyUp(monitorState, monitorSource, nowIso, silentMin) {
   db.setMeta('ais_outage_since', null);
   db.setMeta('ais_outage_monitor_state', null);
   db.setMeta('ais_outage_monitor_source', null);
-  handleFallbackTransition(false);
 }
 
 async function evaluate() {

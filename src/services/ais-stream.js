@@ -96,6 +96,25 @@ function areaForActive(lat, lon) {
 // service-status cross-check) from a healthy busy stream.
 let lastFrameAt = null;
 
+// Per-area last-real-AIS-message timestamp, feeding the per-area silent
+// fallback (services/fallback-mode.js: an area is "silent" when this is null
+// or older than AREA_SILENT_THRESHOLD_MIN). Written to the DB at most once per
+// AREA_TOUCH_THROTTLE_MS per area — NOT once per message, which for a busy
+// area would double the write load of every single AIS message. This mirrors
+// the same in-memory-throttle tradeoff already used elsewhere in this file
+// (reconnectLog, dirty-flush) — a restart just means every area looks "due"
+// for a touch again, harmless.
+const AREA_TOUCH_THROTTLE_MS = 60 * 1000;
+const lastAreaTouchAt = new Map(); // areaKey -> epoch ms of last DB write
+function touchAreaTraffic(areaKey) {
+  if (!areaKey) return;
+  const now = Date.now();
+  const last = lastAreaTouchAt.get(areaKey) || 0;
+  if (now - last < AREA_TOUCH_THROTTLE_MS) return;
+  lastAreaTouchAt.set(areaKey, now);
+  db.touchAreaLastAisMessage(areaKey, new Date(now).toISOString());
+}
+
 // Arrivals are collected here and flushed as a single log line once a minute
 // (rather than one line per ship), so a busy area doesn't drown the log.
 let arrivalNames = [];
@@ -241,6 +260,7 @@ function connect() {
         // Attribute the message to the (tightest) active area covering its
         // position — replaces the old "one socket per area knows its own key".
         const areaKey = areaForActive(parsed.MetaData?.latitude ?? null, parsed.MetaData?.longitude ?? null);
+        touchAreaTraffic(areaKey);
         const { arrivedFlagged, newShip, revisit, areaChange, arrived } = db.insert(parsed, areaKey);
         // New data for this ship → its cached risk score is stale.
         invalidateRiskCache(parsed.MetaData?.MMSI);

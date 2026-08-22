@@ -171,7 +171,23 @@ router.get('/ships/active', (req, res) => {
   const sets = userSets(req.user.id);
   const ships = db
     .getActiveShips(null, userScope(req))
-    .map((s) => decorate(s, sets, lang, true))
+    .map((s) => {
+      const decorated = decorate(s, sets, lang, true);
+      // Same "position from scraping, not AIS" badge already shown for followed
+      // ships (see /ships/followed/active) — an area ship's own last_seen_at can
+      // now be kept fresh by fallback-mode.js's SF/MST scraping (see
+      // db.insertScrapedPosition's updateShipRow), so it's just as relevant here.
+      decorated.sf_last_at = sfBadgeAt(s.mmsi, s.last_seen_at);
+      decorated.mst_last_at = mstBadgeAt(s.mmsi, s.last_seen_at);
+      const fb = scrapeFallbackFix(s.mmsi, s.last_seen_at);
+      if (fb) {
+        decorated.fallback_lat = fb.lat;
+        decorated.fallback_lon = fb.lon;
+        decorated.fallback_at = fb.at;
+        decorated.fallback_source = fb.source;
+      }
+      return decorated;
+    })
     .sort(flaggedFirst);
   attachCharges(ships);
   // Trail data costs a batch query — only computed when the client actually

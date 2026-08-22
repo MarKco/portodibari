@@ -1,56 +1,65 @@
 'use strict';
 
-// Fallback scraping mode: when AISStream has been down long enough (see
-// ais-uptime.js, which owns the entry/exit trigger + hysteresis), this module
-// takes over re-locating ships via ShipFinder/MyShipTracking scraping instead of
-// ship-follow.js's own always-on reacquire sweep — with the anti-ban precautions
-// a much heavier scrape volume needs: a global hourly request budget (shared by
-// both sources, so widening scope redistributes it over more ships rather than
-// multiplying total volume), oldest-first priority, per-ship source rotation,
+// Fallback scraping mode: per-area and silent. Each monitored area is
+// independently "in fallback" whenever it hasn't received a real AIS message
+// in more than AREA_SILENT_THRESHOLD_MIN minutes (or never has) AND its admin
+// hasn't disabled it (areas.fallback_enabled, default on) — computed fresh on
+// every check from `areas.last_ais_message_at` (stamped by ais-stream.js on
+// every real message), never a persisted state machine. This is intentionally
+// decoupled from the GLOBAL outage detector (ais-uptime.js): that one only
+// notifies admins/users about a service-wide AISStream problem now, it no
+// longer switches any scraping on or off. An area can be silently in fallback
+// (poor/no AISStream coverage for that specific spot) with zero global outage,
+// and vice versa.
+//
+// While an area is silent, this module:
+//   1. Repositions ships already tied to that area (`last_area`) via SF/MST
+//      scraping by MMSI (candidatePool/scrapeOne) — same mechanism used for
+//      followed ships, which are scraped unconditionally regardless of any
+//      area's state (a followed ship isn't tied to one area).
+//   2. Discovers ships AIS never reported at all, via the area's resolved
+//      port(s) on MyShipTracking (sweepPortDiscovery/crawlPortArrivals) —
+//      port-arrivals lookups require no prior MMSI, unlike every other source
+//      this app uses. Discovered ships are stubbed + tagged with `last_area`
+//      and left for the NEXT sweep's normal reposition pass to get an actual
+//      fix — no double budget accounting, no separate scrape path.
+//
+// Anti-ban precautions (shared across BOTH of the above, and across every
+// area at once — one pool of ships, one budget, not one per area): a global
+// hourly request budget, oldest-first priority, per-ship source rotation,
 // jittered pacing, and a per-source circuit breaker that pauses a source for a
 // cooldown once its 403/429s cluster (a likely-blocked signal, not one flaky
-// request). VF/MT enrichment is paused entirely while active (see enrichment.js)
-// — they carry no coordinates and only add risk.
+// request).
 //
-// Scope (followed ships only, vs. also ships in monitored areas) is always reset
-// to the safe "followed only" default on entry; an admin can widen it at any time
-// from the "Modalità fallback" panel (see routes/settings.js), never as a fixed
-// startup choice — see enter() below.
-//
-// State: `fallback_mode_active`/`fallback_mode_since` live in the `meta` table
-// (in BACKUP_TABLES) so a restart mid-outage doesn't forget; the per-source
-// circuit breaker is in-memory only (a restart clearing it is an acceptable, much
-// simpler tradeoff than persisting/expiring it correctly). No schema changes at
-// all — an older backup restored here just has no fallback_mode_* meta rows,
-// which db.getMeta already treats as "off" by default.
+// No schema changes needed beyond areas.fallback_enabled/last_ais_message_at
+// (see db.js) — no more fallback_mode_active/fallback_mode_since meta keys;
+// an older backup simply restores areas with fallback_enabled defaulting on
+// and last_ais_message_at null, which correctly reads as "silent until proven
+// otherwise", a safe default.
 
 const db = require('../db');
 const appLog = require('./app-log');
-const telegram = require('./telegram');
 const { broadcastFallbackScrape } = require('../realtime');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlShipfinder } = require('./scrapers/shipfinder');
-const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
+const { crawlMyshiptracking, crawlPortArrivals } = require('./scrapers/myshiptracking');
 const { classifyFailure } = require('./scrapers/http');
 const {
   FOLLOW_FRESH_MS,
   SCRAPE_NEG_CACHE_DAYS,
+  AREA_SILENT_THRESHOLD_MIN,
   FALLBACK_MAX_REQ_PER_HOUR,
   FALLBACK_CIRCUIT_TRIP_COUNT,
   FALLBACK_CIRCUIT_TRIP_WINDOW_MIN,
   FALLBACK_CIRCUIT_COOLDOWN_MIN,
-  state,
-  setFallbackScopeAreas,
 } = require('../config');
-
-const META_ACTIVE = 'fallback_mode_active';
-const META_SINCE = 'fallback_mode_since';
 
 const SOURCES = ['sf', 'mst'];
 const SOURCE_LABEL = { sf: 'ShipFinder', mst: 'MyShipTracking' };
 
-// Per-source circuit breaker: distinct-ship 403/429 timestamps within the trip
-// window, and the open/until state derived from them.
+// Per-source circuit breaker: distinct-ship (or distinct-port, for discovery
+// failures with no ship yet) 403/429 timestamps within the trip window, and
+// the open/until state derived from them.
 const failureLog = { sf: [], mst: [] }; // [{ mmsi, at }], pruned to the trip window
 const circuit = { sf: { open: false, until: 0 }, mst: { open: false, until: 0 } };
 
@@ -61,32 +70,12 @@ const lastScrapeAt = new Map(); // mmsi -> epoch ms of last fallback-mode scrape
 let cycleCount = 0;
 let requestTimestamps = []; // epoch ms of requests made in the trailing hour
 
-// Suspected-block count per source for the *current* session (reset on enter()),
-// surfaced to the admin diagnostics panel as an at-a-glance "problems so far".
-// In-memory only, like the circuit breaker itself — a restart mid-session just
-// restarts the count, never wrongly inflates or persists a stale one.
-let tripCounters = { sf: 0, mst: 0 };
-
-function isActive() {
-  return db.getMeta(META_ACTIVE) === '1';
-}
-
-function enter() {
-  if (isActive()) return;
-  db.setMeta(META_ACTIVE, '1');
-  db.setMeta(META_SINCE, new Date().toISOString());
-  tripCounters = { sf: 0, mst: 0 };
-  // Always the safe default, regardless of what an admin left it at last time.
-  setFallbackScopeAreas(false);
-  appLog.warn('AIS', 'Modalità fallback attivata: scraping ShipFinder/MyShipTracking per riposizionare le navi seguite.');
-}
-
-function exit() {
-  if (!isActive()) return;
-  db.setMeta(META_ACTIVE, '0');
-  db.setMeta(META_SINCE, null);
-  appLog.info('AIS', 'Modalità fallback disattivata: AIS tornato stabile.');
-}
+// Suspected-block count per source for the current process lifetime, surfaced
+// to the admin diagnostics panel as an at-a-glance "problems so far". In-memory
+// only, like the circuit breaker itself — a restart just restarts the count,
+// never wrongly inflates or persists a stale one. There's no more enter() to
+// reset it on, since there's no more single global activation event.
+const tripCounters = { sf: 0, mst: 0 };
 
 function isCircuitOpen(source) {
   return circuit[source].open;
@@ -137,14 +126,19 @@ function onCircuitTransition(source, phase) {
       db.addNotification({ user_id: uid, type, band: source });
     } catch { /* best-effort */ }
   }
-  telegram.broadcastAdminAlert('suspected_ban', phase, { source: label });
+  require('./telegram').broadcastAdminAlert('suspected_ban', phase, { source: label }); // lazy: avoids a load-time cycle
 }
 
-// A followed ship is "stale" once we haven't heard it for FOLLOW_FRESH_MS — same
-// definition ship-follow.js's isStaleFollow uses, duplicated here to avoid a
-// circular require (ship-follow.js itself defers to this module while active).
+// A followed ship is "stale" once we haven't heard it for FOLLOW_FRESH_MS.
 function isStale(sh, now) {
   return !sh.last_seen_at || now - new Date(sh.last_seen_at).getTime() > FOLLOW_FRESH_MS;
+}
+
+// ISO cutoff shared by every "is this area silent" check this sweep makes —
+// computed once per sweep, not once per area, so all of them agree on exactly
+// the same instant.
+function areaSilentCutoffIso() {
+  return new Date(Date.now() - AREA_SILENT_THRESHOLD_MIN * 60 * 1000).toISOString();
 }
 
 // Area-scope candidates are tagged so scrapeOne() knows to also refresh their
@@ -153,11 +147,15 @@ function isStale(sh, now) {
 // keyed to true AIS freshness), but area ships have no such logic to protect,
 // and without this they silently age out of ACTIVE_PREDICATE (main map/list)
 // even while fresh sf/mst fixes keep arriving.
-function candidatePool() {
+//
+// Followed ships are ALWAYS included, unconditionally — they're not tied to a
+// single area's silence state (a followed ship can be anywhere), so this is
+// the only place that repositions them (ship-follow.js no longer scrapes; see
+// its own comments) and it always has, needing no "is some area silent" gate.
+function candidatePool(cutoffIso) {
   const now = Date.now();
   const followed = db.getAllFollowedShips().filter((sh) => isStale(sh, now));
-  if (!state.fallbackScopeAreas) return followed;
-  const areaShips = db.getStaleAreaShips(FOLLOW_FRESH_MS).map((sh) => ({ ...sh, _areaScope: true }));
+  const areaShips = db.getStaleAreaShips(FOLLOW_FRESH_MS, cutoffIso).map((sh) => ({ ...sh, _areaScope: true }));
   return followed.concat(areaShips);
 }
 
@@ -209,11 +207,70 @@ async function scrapeOne(source, sh) {
 
 const jitterMs = () => 1500 + Math.random() * 3000;
 
-// Periodic fallback sweep — a no-op unless fallback mode is active. Not on the
-// same timer as ais-uptime.js's 60s outage check; wired to its own interval in
-// server.js.
+// Port-arrivals discovery cadence: independent of the main sweep interval
+// (server.js fires sweep() every few minutes) — a port's arrival list doesn't
+// change that fast, and re-polling it every sweep tick would burn budget for
+// no new information. In-memory only, keyed per area+port — a restart just
+// makes every port "due" again, harmless (same tradeoff as lastScrapeAt above
+// and the circuit breaker: never a per-tick DB write, which is exactly the
+// kind of unthrottled write that once starved this app's event loop and
+// caused cascading AIS WebSocket disconnects when berth recompute did it on
+// every arrival — not repeating that here).
+const lastPortPollAt = new Map(); // `${areaKey}:${port_id}` -> epoch ms
+const PORT_ARRIVALS_POLL_MS = 30 * 60 * 1000;
+
+// Discover ships AIS never reported, via arrivals/departures at whatever
+// port(s) a silent area has resolved on MyShipTracking. Shares the caller's
+// budget (maxUnits, itself part of the one global FALLBACK_MAX_REQ_PER_HOUR
+// pool) — one crawlPortArrivals call is one unit, same as any per-ship scrape.
+// Returns how many units it actually spent, so sweep() can subtract them from
+// the budget before running the normal reposition pass.
+async function sweepPortDiscovery(cutoffIso, maxUnits) {
+  if (maxUnits <= 0 || isCircuitOpen('mst')) return 0;
+  const now = Date.now();
+  const due = db
+    .getPortDiscoveryTargets(cutoffIso)
+    .filter((p) => now - (lastPortPollAt.get(`${p.area_key}:${p.port_id}`) || 0) >= PORT_ARRIVALS_POLL_MS);
+  if (!due.length) return 0;
+
+  let used = 0;
+  for (const port of due) {
+    if (used >= maxUnits) break;
+    lastPortPollAt.set(`${port.area_key}:${port.port_id}`, Date.now());
+    used++;
+    requestTimestamps.push(Date.now());
+    try {
+      const rows = await crawlPortArrivals(port.mst_pid);
+      db.recordScrape('mst', true);
+      for (const { mmsi, name } of rows) {
+        db.ensureShipStub(mmsi, name);
+        db.setShipLastArea(mmsi, port.area_key);
+      }
+      // Awaited (not fire-and-forget) so this sweep's own pacing stays
+      // predictable — enrichment's own fan-out has its own internal pacing.
+      const enrichment = require('./enrichment'); // lazy: avoids a load-time cycle
+      for (const { mmsi } of rows) await enrichment.enrichNewShip(mmsi);
+      if (rows.length) {
+        appLog.info('SCRAPE', `Scoperta arrivi/partenze porto ${port.name}: ${rows.length} navi`, { area: port.area_key });
+      }
+    } catch (e) {
+      db.recordScrape('mst', false);
+      // No ship yet to key the circuit breaker on — a synthetic per-port id
+      // still counts toward "distinct failing things", just never inflates
+      // past 1 per broken port (a single stale/renamed port shouldn't alone
+      // look like a site-wide block).
+      recordFailure('mst', `port:${port.port_id}`, e);
+    }
+    await new Promise((r) => setTimeout(r, jitterMs()));
+  }
+  return used;
+}
+
+// Periodic sweep — always runs (no more global on/off flag to gate it), but is
+// a fast no-op whenever no area is silent and no followed ship is stale. Not
+// on the same timer as ais-uptime.js's 60s outage check; wired to its own
+// interval in server.js.
 async function sweep() {
-  if (!isActive()) return;
   checkCircuitRecovery();
 
   const now = Date.now();
@@ -221,8 +278,13 @@ async function sweep() {
   let budgetLeft = FALLBACK_MAX_REQ_PER_HOUR - requestTimestamps.length;
   if (budgetLeft <= 0) return;
 
+  const cutoffIso = areaSilentCutoffIso();
+
+  budgetLeft -= await sweepPortDiscovery(cutoffIso, budgetLeft);
+  if (budgetLeft <= 0) return;
+
   const __poolT0 = Date.now();
-  const candidates = candidatePool();
+  const candidates = candidatePool(cutoffIso);
   const __poolMs = Date.now() - __poolT0;
   if (__poolMs > 200) appLog.warn('PERF', `fallbackMode.candidatePool lento: ${__poolMs}ms (${candidates.length} navi)`);
   if (!candidates.length) return;
@@ -244,40 +306,66 @@ async function sweep() {
   }
 }
 
-// Estimate for the admin "Modalità fallback" panel: candidate counts for each
-// scope option (independent of which one is currently active) plus recent real
-// volume, so an admin can compare "what we'd scrape" against "what we scrape
-// today" before choosing.
+// Estimate for the admin diagnostics panel: current real candidate counts
+// (followed + area-scope, given each area's live silence state right now)
+// plus recent real volume. No more "what if I switched scope" comparison —
+// there's no single global scope to switch anymore, just per-area toggles.
 function getEstimate() {
   const now = Date.now();
+  const cutoffIso = areaSilentCutoffIso();
   const followedStale = db.getAllFollowedShips().filter((sh) => isStale(sh, now)).length;
-  const areaStale = db.getStaleAreaShips(FOLLOW_FRESH_MS).length;
+  const areaStale = db.getStaleAreaShips(FOLLOW_FRESH_MS, cutoffIso).length;
+  const total = followedStale + areaStale;
   const budget = FALLBACK_MAX_REQ_PER_HOUR;
-  const followOnlyPerHour = Math.min(followedStale, budget);
-  const fullPerHour = Math.min(followedStale + areaStale, budget);
+  const requestsPerHour = Math.min(total, budget);
   return {
     followedStaleCount: followedStale,
     areaStaleCount: areaStale,
     budgetPerHour: budget,
-    followOnly: {
-      requestsPerHour: followOnlyPerHour,
-      avgRevisitHours: followedStale && followOnlyPerHour ? Math.round((followedStale / followOnlyPerHour) * 10) / 10 : 0,
-    },
-    full: {
-      requestsPerHour: fullPerHour,
-      avgRevisitHours:
-        followedStale + areaStale && fullPerHour ? Math.round(((followedStale + areaStale) / fullPerHour) * 10) / 10 : 0,
-    },
+    requestsPerHour,
+    avgRevisitHours: total && requestsPerHour ? Math.round((total / requestsPerHour) * 10) / 10 : 0,
     recentHistory: db.getScrapeCountsHourly(48),
   };
 }
 
+// Per-area live status for the admin diagnostics panel and the "Aree" screen.
+function getAreaStatuses() {
+  const cutoffIso = areaSilentCutoffIso();
+  return db.getAllAreas().map((a) => {
+    const silent = !!a.fallback_enabled && (!a.last_ais_message_at || a.last_ais_message_at < cutoffIso);
+    return {
+      key: a.key,
+      name: a.name,
+      fallbackEnabled: !!a.fallback_enabled,
+      silent,
+      silentSince: silent ? a.last_ais_message_at : null,
+    };
+  });
+}
+
+// Rough project-wide caution flag for callers that don't need per-area
+// precision (port-discovery.js: defer its own VF/MST scraping cascade while
+// ANY area is silent, since it'd compete for the same anti-ban budget/circuit
+// breaker as this module's own scraping — not worth resolving to a specific
+// area for a rare, one-off backfill/admin action).
+function isAnyAreaSilent() {
+  return getAreaStatuses().some((a) => a.silent);
+}
+
 function getStatus() {
-  const active = isActive();
+  const areas = getAreaStatuses();
+  const silentAreas = areas.filter((a) => a.silent);
+  // `active`/`since` are a derived aggregate (any area silent? earliest one)
+  // kept for the general outage banner (public/js/outage.js), which is
+  // per-service, not per-area, and shown to every user — it doesn't need to
+  // know WHICH area, just "fallback scraping is happening somewhere". The
+  // `areas` breakdown itself is admin-only detail (see routes/stream.js,
+  // which strips it for non-admins before responding).
+  const since = silentAreas.map((a) => a.silentSince).filter(Boolean).sort()[0] || null;
   return {
-    active,
-    since: active ? db.getMeta(META_SINCE) : null,
-    scope: state.fallbackScopeAreas ? 'areas' : 'follow',
+    active: silentAreas.length > 0,
+    since,
+    areas,
     circuits: {
       sf: { open: circuit.sf.open, until: circuit.sf.open ? new Date(circuit.sf.until).toISOString() : null },
       mst: { open: circuit.mst.open, until: circuit.mst.open ? new Date(circuit.mst.until).toISOString() : null },
@@ -290,4 +378,4 @@ function getRecentScrapeEvents() {
   return recentScrapeEvents.slice();
 }
 
-module.exports = { isActive, enter, exit, sweep, getEstimate, getStatus, getRecentScrapeEvents };
+module.exports = { sweep, getEstimate, getStatus, getRecentScrapeEvents, isAnyAreaSilent, getAreaStatuses };

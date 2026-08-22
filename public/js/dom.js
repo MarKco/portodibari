@@ -20,6 +20,10 @@ export const el = {
   outageBannerText: $('outage-banner-text'),
   outageBannerClose: $('outage-banner-close'),
 
+  // "Navi presenti" view header
+  activeAreaTitle: $('active-area-title'),
+  activeAreaSourceBadge: $('active-area-source-badge'),
+
   // Tabs / views
   tabActive: $('tab-active'),
   tabPast: $('tab-past'),

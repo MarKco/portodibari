@@ -181,6 +181,10 @@
 
     <!-- View: navi presenti -->
     <div id="view-active">
+      <div id="active-view-header" class="active-view-header">
+        <h3 id="active-area-title" class="detail-section-title"></h3>
+        <span id="active-area-source-badge" class="badge hidden"></span>
+      </div>
       <div id="active-map"></div>
       <div id="replay-bar" class="replay-bar hidden">
         <div class="replay-row">
@@ -864,12 +868,13 @@
               <th data-i18n="areas.col.ne">NE (lat, lon)</th>
               <th data-i18n="areas.col.keyword">Parola chiave</th>
               <th data-i18n="areas.col.status">Stato</th>
+              <th id="areas-col-fallback" data-i18n="areas.col.fallback">Fallback</th>
               <th data-i18n="areas.col.data">Dati salvati</th>
               <th data-i18n="areas.col.actions">Azioni</th>
             </tr>
           </thead>
           <tbody id="areas-body">
-            <tr><td colspan="7" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
+            <tr><td colspan="8" class="empty" data-i18n="empty.loading">Caricamento…</td></tr>
           </tbody>
         </table>
       </div>

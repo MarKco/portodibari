@@ -10,6 +10,7 @@ import { loadGroupState, getGroupState, displayName } from './group.js';
 import {
   escHtml,
   formatTime,
+  formatAgo,
   formatDuration,
   shortType,
   navStatus,
@@ -575,6 +576,20 @@ export function bindFlagSeenButtons(tbody, reload) {
   });
 }
 
+// One compact icon + tooltip instead of stacking the separate "AIS lost" +
+// "seen on ShipFinder"/"seen on MyShipTracking" sub-rows followed.js uses:
+// area-ship rows already carry flag/seen/charged/military/risk styling, and
+// this badge is new on top of all that — a single glyph keeps the row height
+// and information density in check instead of compounding the clutter.
+function scrapeSourceBadge(s) {
+  if (!s.sf_last_at && !s.mst_last_at) return '';
+  const useSf = s.sf_last_at && (!s.mst_last_at || new Date(s.sf_last_at) > new Date(s.mst_last_at));
+  const at = useSf ? s.sf_last_at : s.mst_last_at;
+  const source = useSf ? 'ShipFinder' : 'MyShipTracking';
+  const tip = t('active.scrapeSourceTip', { source, time: formatTime(at), ago: formatAgo(s.last_seen_at) });
+  return ` <span class="scrape-badge-compact" data-tip="${escHtml(tip)}">🔀</span>`;
+}
+
 function renderActiveTable(ships) {
   activeShipsData = ships;
   const filtered = filterShips(ships, S.activeFilter, { inPort: true });
@@ -594,7 +609,7 @@ function renderActiveTable(ships) {
     <tr class="ship-row ${s.is_military ? 'military-row' : s.risk?.band === 'high' ? 'risk-row' : ''} ${s.flagged ? 'flagged-row' : ''} ${s.seen ? 'seen-row' : ''} ${s.chargedBy?.length ? 'charged-row' : ''}" data-mmsi="${s.mmsi}">
       <td class="col-flags">${flagSeenButtonsHtml(s)}</td>
       <td>${formatTime(s.last_seen_at)}</td>
-      <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}</td>
+      <td class="ship-name">${escHtml(s.ship_name) || '—'}${s.in_port ? ` <span class="port-badge">${t('port.badge')}</span>` : ''}${scrapeSourceBadge(s)}</td>
       <td class="mono">${s.mmsi}</td>
       <td>${shipTypeBadge(s.ship_type)}</td>
       <td class="destination">${escHtml(s.destination_label || s.destination) || '—'}</td>

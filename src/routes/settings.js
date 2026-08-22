@@ -5,7 +5,7 @@ const {
   state, setImportVf, setImportMt, setImportSf, setImportMst, setImportSanctions, setImportSanctionsExtra, setImportPsc, setImportEquasis, setImportGfw,
   setExcludeTankers, setCheckSpoofing, setCheckDarkActivity, setCargoWeights, setCargoWeightsPreset, DEFAULT_CARGO_WEIGHTS, BBOX_PRESETS, currentKeyword,
   setRiskWeights, setRiskWeightsPreset, DEFAULT_RISK_WEIGHTS, EDITABLE_RISK_WEIGHTS,
-  setSfScrapeInterval, setMstScrapeInterval, setScrapeClusterRadius, setFallbackScopeAreas,
+  setSfScrapeInterval, setMstScrapeInterval, setScrapeClusterRadius,
   POLL_INTERVAL_MS, TRACK_MERGE_RADIUS_M, SOG_FERMA, NOTIF_DELETE_UNDO_SECONDS,
   BACKUP_INTERVAL_MIN, REPLAY, FOLLOW_STALE_HOURS,
   EQUASIS_USER, EQUASIS_PASSWORD, GFW_TOKEN,
@@ -311,15 +311,6 @@ function exportSettings() {
     cargoWeightsPreset: state.cargoWeightsPreset,
     riskWeights: Object.fromEntries(EDITABLE_RISK_WEIGHTS.map((k) => [k, state.riskWeights[k]])),
     riskWeightsPreset: state.riskWeightsPreset,
-    // NOT re-applied by fallbackMode.enter() itself — that always resets scope
-    // to "follow only" on a fresh inactive→active transition, by design (an
-    // admin's earlier "monitoraggio completo" choice must never silently carry
-    // over into a NEW outage they haven't looked at yet). This only matters
-    // when a restore's `meta.fallback_mode_active` is already '1' (read live
-    // by fallbackMode.isActive() on every sweep, not cached) — enter() is never
-    // called in that case, so without this the restored scope choice would be
-    // silently lost even though fallback mode itself is already running.
-    fallbackScopeAreas: state.fallbackScopeAreas,
   };
 }
 
@@ -380,13 +371,6 @@ function applyImportedSettings(s) {
   // GFW: persist only, no backfill on import (same reasoning as VF/MT — the
   // enrichment lives in ship_scrape_cache and is restored with the DB).
   if (s.importGfw !== undefined) setImportGfw(s.importGfw);
-
-  // Fallback-mode scope: persist only. Does NOT itself activate/deactivate
-  // fallback mode (that's meta.fallback_mode_active, restored with the DB) —
-  // this only decides which scope fallback mode uses IF/when it's active, and
-  // never overrides enter()'s own "reset to follow-only" on a genuinely fresh
-  // outage (see the comment on exportSettings above).
-  if (s.fallbackScopeAreas !== undefined) setFallbackScopeAreas(s.fallbackScopeAreas);
 
   clearRiskCache(); // import may have flipped sources that feed the score
   return exportSettings();
@@ -629,16 +613,10 @@ router.post('/settings/scrape-params', requireAdmin, (req, res) => {
   res.json({ ok: true, sfScrapeIntervalMs: state.sfScrapeIntervalMs, mstScrapeIntervalMs: state.mstScrapeIntervalMs, scrapeClusterRadiusM: state.scrapeClusterRadiusM });
 });
 
-// "Modalità fallback" admin panel: scope switch (always readable/settable, not
-// only while fallback is active — an admin can explore/test it any time) +
-// history/estimate for the comparison chart. See services/fallback-mode.js.
-router.post('/settings/fallback-scope', requireAdmin, (req, res) => {
-  const { areas } = req.body || {};
-  setFallbackScopeAreas(!!areas);
-  appLog.info('SETTINGS', `Modalità fallback: scope impostato su "${state.fallbackScopeAreas ? 'monitoraggio completo' : 'solo navi seguite'}"`);
-  res.json({ ok: true, scope: state.fallbackScopeAreas ? 'areas' : 'follow' });
-});
-
+// "Modalità fallback" admin panel: per-area enable/disable now lives on the
+// Aree screen (routes/areas.js) — this stays only for the diagnostics data
+// (candidate estimate, recent volume) shown in Impostazioni → Diagnostica AIS.
+// See services/fallback-mode.js.
 router.get('/settings/fallback-mode/estimate', requireAdmin, (req, res) => {
   res.json(fallbackMode.getEstimate());
 });

@@ -139,29 +139,26 @@ function sourceHistoryChart(source, byHour, hours, maxTotal) {
     <div class="hourly-bars">${bars}</div>`;
 }
 
-// "Modalità fallback" (see services/fallback-mode.js): status + duration,
-// per-source circuit breaker state + session problem count, real recent scrape
-// volume (last 48h, one small-multiple chart per source, ok/failed stacked),
-// and a comparison of the two scope options' request/hour estimate — so an
-// admin can see the risk jump before switching, not just a bare toggle.
+// "Modalità fallback" (see services/fallback-mode.js): per-area silent status
+// (no more single global on/off — each area gets its own row, toggled from the
+// Aree screen, not here), per-source circuit breaker state + session problem
+// count, and real recent scrape volume (last 48h, one small-multiple chart per
+// source, ok/failed stacked).
 function fallbackModeBlock(fb, est) {
   if (!fb) return '';
-  const statusVal = fb.active
-    ? `<span class="health-err">${t('health.fallbackActive')}</span>`
-    : `<span class="health-ok">${t('health.fallbackInactive')}</span>`;
-  const rows = [`<div class="health-item"><label>${t('health.fallbackStatus')}</label><span>${statusVal}</span></div>`];
-  if (fb.active && fb.since) {
-    const durationSec = Math.max(0, Math.round((Date.now() - new Date(fb.since).getTime()) / 1000));
-    rows.push(
-      `<div class="health-item"><label>${t('health.fallbackSince')}</label><span>${formatTime(fb.since)}</span></div>`,
-      `<div class="health-item"><label>${t('health.fallbackDuration')}</label><span>${fmtUptime(durationSec)}</span></div>`
-    );
-  }
-  rows.push(
-    `<div class="health-item"><label>${t('health.fallbackScope')}</label><span>${
-      fb.scope === 'areas' ? t('health.fallbackModeFull') : t('health.fallbackModeFollow')
-    }</span></div>`
-  );
+  const areaRows = (fb.areas || [])
+    .map((a) => {
+      if (!a.silent) {
+        return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-ok">${t('health.fallbackAreaOk')}</span></div>`;
+      }
+      const durationSec = a.silentSince ? Math.max(0, Math.round((Date.now() - new Date(a.silentSince).getTime()) / 1000)) : null;
+      const suffix = a.fallbackEnabled
+        ? (durationSec != null ? ` · ${fmtUptime(durationSec)}` : '')
+        : ` · ${t('health.fallbackAreaDisabled')}`;
+      return `<div class="health-item"><label>${escHtml(a.name)}</label><span class="health-err">${t('health.fallbackAreaSilent')}${suffix}</span></div>`;
+    })
+    .join('');
+  const rows = [areaRows || `<div class="health-item"><span class="health-muted">${t('health.fallbackNoAreas')}</span></div>`];
   for (const src of ['sf', 'mst']) {
     const c = fb.circuits?.[src];
     const trips = fb.tripCounts?.[src] || 0;
@@ -189,12 +186,12 @@ function fallbackModeBlock(fb, est) {
        ${sourceHistoryChart('mst', bySourceHour.mst, hours, maxTotal)}`
     : `<p class="health-muted">${t('health.fallbackNoHistory')}</p>`;
 
-  const maxEst = Math.max(1, est?.followOnly?.requestsPerHour || 0, est?.full?.requestsPerHour || 0);
-  const estRow = (labelKey, e) => `
+  const requestsPerHour = est?.requestsPerHour || 0;
+  const estRow = `
     <div class="type-bar-row">
-      <div class="type-bar-label">${t(labelKey)}</div>
-      <div class="type-bar-track"><div class="type-bar-fill" style="width:${Math.round(((e?.requestsPerHour || 0) / maxEst) * 100)}%"></div></div>
-      <div class="type-bar-count" style="width:auto;min-width:36px">${e?.requestsPerHour || 0}/h</div>
+      <div class="type-bar-label">${t('health.fallbackEstimateTitle')}</div>
+      <div class="type-bar-track"><div class="type-bar-fill" style="width:${Math.round((requestsPerHour / Math.max(1, est?.budgetPerHour || 1)) * 100)}%"></div></div>
+      <div class="type-bar-count" style="width:auto;min-width:36px">${requestsPerHour}/h</div>
     </div>`;
 
   return `
@@ -205,29 +202,10 @@ function fallbackModeBlock(fb, est) {
       <h4 class="health-subtitle">${t('health.fallbackHistoryTitle')}</h4>
       ${historyChart}
       <h4 class="health-subtitle">${t('health.fallbackEstimateTitle')}</h4>
-      ${estRow('health.fallbackModeFollow', est?.followOnly)}
-      ${estRow('health.fallbackModeFull', est?.full)}
+      ${estRow}
       <p class="health-note">${t('health.fallbackBudgetNote', { n: est?.budgetPerHour || 0 })}</p>
-      <div class="fallback-scope-actions">
-        <button id="btn-fallback-scope-follow" class="btn btn-sm ${fb.scope !== 'areas' ? 'btn-primary' : 'btn-secondary'}">${t('health.fallbackModeFollow')}</button>
-        <button id="btn-fallback-scope-areas" class="btn btn-sm ${fb.scope === 'areas' ? 'btn-primary' : 'btn-secondary'}">${t('health.fallbackModeFull')}</button>
-      </div>
     </div>`;
 }
-
-async function setFallbackScope(areas) {
-  try {
-    await api('/api/settings/fallback-scope', 'POST', { areas });
-    fetchHealth();
-  } catch { /* best-effort; next poll reflects real state either way */ }
-}
-
-// Delegated once on the static container — fetchHealth() rebuilds its innerHTML
-// on every poll, so per-render listeners would leak/duplicate.
-el.healthBody?.addEventListener('click', (e) => {
-  if (e.target.id === 'btn-fallback-scope-follow') setFallbackScope(false);
-  else if (e.target.id === 'btn-fallback-scope-areas') setFallbackScope(true);
-});
 
 async function fetchHealth() {
   try {

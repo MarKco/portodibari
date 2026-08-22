@@ -480,7 +480,17 @@ if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_tr
 // a stream is shared across all users that own the area, and it rides along in
 // backups (areas is in BACKUP_TABLES; restoreFrom is column-intersection so older
 // backups without the column simply restore as 0).
-for (const col of ['active INTEGER NOT NULL DEFAULT 0']) {
+// fallback_enabled/last_ais_message_at back the per-area silent fallback (see
+// services/fallback-mode.js): an area is "silent" right now when enabled AND
+// its last real AIS message is older than AREA_SILENT_THRESHOLD_MIN — computed
+// live from these two columns, never a persisted state machine. Same
+// backup/restore reasoning as `active`: rides in BACKUP_TABLES, older backups
+// without these columns restore as enabled=1/never-seen (both safe defaults).
+for (const col of [
+  'active INTEGER NOT NULL DEFAULT 0',
+  'fallback_enabled INTEGER NOT NULL DEFAULT 1',
+  'last_ais_message_at TEXT',
+]) {
   try { db.exec(`ALTER TABLE areas ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
@@ -1091,6 +1101,11 @@ function getAllAreas() {
   return getAllAreasStmt.all();
 }
 
+const getAreaStmt = db.prepare('SELECT * FROM areas WHERE key = ?');
+function getArea(key) {
+  return getAreaStmt.get(key) || null;
+}
+
 const upsertAreaStmt = db.prepare(`
   INSERT INTO areas (key, name, keyword, sw_lat, sw_lon, ne_lat, ne_lon, created_by, created_at)
   VALUES (@key, @name, @keyword, @sw_lat, @sw_lon, @ne_lat, @ne_lon, @created_by, @created_at)
@@ -1118,6 +1133,21 @@ function upsertArea({ key, name, keyword = null, sw, ne, createdBy = null }) {
 const setAreaActiveStmt = db.prepare('UPDATE areas SET active = ? WHERE key = ?');
 function setAreaActive(key, active) {
   setAreaActiveStmt.run(active ? 1 : 0, key);
+}
+
+// Admin per-area toggle for the silent fallback (see services/fallback-mode.js).
+const setAreaFallbackEnabledStmt = db.prepare('UPDATE areas SET fallback_enabled = ? WHERE key = ?');
+function setAreaFallbackEnabled(key, enabled) {
+  setAreaFallbackEnabledStmt.run(enabled ? 1 : 0, key);
+}
+
+// Called from ais-stream.js on real AIS traffic, throttled in-memory by the
+// caller (never once per message — see fallback-mode.js's cadence comments for
+// why an unthrottled per-message write here would be exactly the event-loop-
+// starvation bug already fixed once in this codebase for berth recompute).
+const touchAreaLastAisMessageStmt = db.prepare('UPDATE areas SET last_ais_message_at = ? WHERE key = ?');
+function touchAreaLastAisMessage(key, ts) {
+  touchAreaLastAisMessageStmt.run(ts, key);
 }
 const getActiveAreaKeysStmt = db.prepare(
   'SELECT key FROM areas WHERE active = 1 ORDER BY created_at ASC, key ASC'
@@ -2262,12 +2292,12 @@ function getActiveShips(area, boxes = null) {
     .all(...params);
 }
 
-// Ships last tagged to a currently-monitored area that are NOT already followed
-// and have had no fix in freshMs — the area-scope candidate pool for
-// fallback-mode's scrape sweep when an admin opts into "monitoraggio completo"
-// (see services/fallback-mode.js). Followed ships are excluded here since
-// they're already covered by the followed-ships pool, so the same MMSI is
-// never scraped twice in one sweep.
+// Ships last tagged to an area currently in "silent fallback" (fallback_enabled
+// AND no real AIS message more recently than areaSilentCutoffIso — see
+// services/fallback-mode.js) that are NOT already followed and have had no fix
+// in freshMs. Followed ships are excluded here since they're already covered
+// by the followed-ships pool, so the same MMSI is never scraped twice in one
+// sweep.
 //
 // Deliberately does NOT reuse ACTIVE_PREDICATE (unlike getActiveShips): that
 // predicate is exactly what demotes a ship from "active" to "past" after
@@ -2276,21 +2306,51 @@ function getActiveShips(area, boxes = null) {
 // window (6h/24h): a ship needs a scraped fix to look "active" again, but it's
 // excluded from scraping the moment it stops looking active. A real multi-day
 // AISStream outage hit this immediately — every area ship fell out of
-// ACTIVE_PREDICATE within a day, permanently locking "monitoraggio completo"
-// out of ever repositioning any of them, no matter how long it stayed on.
+// ACTIVE_PREDICATE within a day, permanently locking area-scope fallback out
+// of ever repositioning any of them, no matter how long it stayed on.
 // Membership in a monitored area (`last_area`) doesn't expire this way, so it's
 // the right gate here: exactly the ships fallback mode exists to rescue.
-function getStaleAreaShips(freshMs) {
-  const cutoff = new Date(Date.now() - freshMs).toISOString();
+function getStaleAreaShips(freshMs, areaSilentCutoffIso) {
+  const shipCutoff = new Date(Date.now() - freshMs).toISOString();
   return db
     .prepare(
-      `SELECT mmsi, ship_name, last_seen_at, last_latitude AS lat, last_longitude AS lon
-       FROM ships
-       WHERE last_area IN (SELECT key FROM areas WHERE active = 1)
-         AND (last_seen_at IS NULL OR last_seen_at < ?)
-         AND mmsi NOT IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
+      `SELECT s.mmsi, s.ship_name, s.last_seen_at, s.last_latitude AS lat, s.last_longitude AS lon
+       FROM ships s
+       JOIN areas a ON a.key = s.last_area
+       WHERE a.fallback_enabled = 1
+         AND (a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)
+         AND (s.last_seen_at IS NULL OR s.last_seen_at < ?)
+         AND s.mmsi NOT IN (SELECT DISTINCT mmsi FROM user_follows WHERE followed = 1)`
     )
-    .all(cutoff);
+    .all(areaSilentCutoffIso, shipCutoff);
+}
+
+// Confirmed area ports with a resolved MyShipTracking id, for areas currently
+// silent (same areaSilentCutoffIso as getStaleAreaShips — one shared
+// definition of "silent", see services/fallback-mode.js). The candidate pool
+// for port-arrivals ship discovery (crawlPortArrivals): areas whose AIS is
+// quiet but that have a recognized port get a chance to discover ships AIS
+// never reported at all, not just reposition already-known ones.
+function getPortDiscoveryTargets(areaSilentCutoffIso) {
+  return db
+    .prepare(
+      `SELECT ap.id AS port_id, ap.area_key, ap.mst_pid, ap.name
+       FROM area_ports ap
+       JOIN areas a ON a.key = ap.area_key
+       WHERE ap.status = 'confirmed' AND ap.mst_pid IS NOT NULL
+         AND a.fallback_enabled = 1
+         AND (a.last_ais_message_at IS NULL OR a.last_ais_message_at < ?)`
+    )
+    .all(areaSilentCutoffIso);
+}
+
+// Retag a ship's most-recently-associated area — used when a port-arrivals
+// discovery hit places a ship near a port for the first time (or again, in a
+// different area than last known): an arrival/departure event is a recency
+// signal, so retagging is correct even if the ship already belonged elsewhere.
+const setShipLastAreaStmt = db.prepare('UPDATE ships SET last_area = ? WHERE mmsi = ?');
+function setShipLastArea(mmsi, areaKey) {
+  setShipLastAreaStmt.run(areaKey, mmsi);
 }
 
 function getPastShips(area, boxes = null) {
@@ -3737,6 +3797,8 @@ module.exports = {
   pruneOrphans,
   getActiveShips,
   getStaleAreaShips,
+  getPortDiscoveryTargets,
+  setShipLastArea,
   getPastShips,
   getPastShipsCount,
   getFollowedShips,
@@ -3862,8 +3924,11 @@ module.exports = {
   getGroupActivityLog,
   // Area catalog & per-user ownership
   getAllAreas,
+  getArea,
   upsertArea,
   setAreaActive,
+  setAreaFallbackEnabled,
+  touchAreaLastAisMessage,
   getActiveAreaKeys,
   deleteAreaRow,
   addUserArea,

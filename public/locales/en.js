@@ -47,6 +47,8 @@ export default {
   'notif.followFound': '✅ <strong>{ship}</strong> is transmitting again.',
   'notif.followLost': '📭 <strong>{ship}</strong> not found: not transmitting, removed from followed ships.',
   'notif.berthNew': 'New berth detected in {area}',
+  'notif.areaNoPort': 'No port found for "{area}": fallback discovery of new ships won\'t be available for this area (repositioning already-known ships still works).',
+  'notif.fallbackPerAreaIntro': 'New: you can now turn fallback mode on/off separately for each area, from the Areas screen (on by default). Details in Settings → AIS Diagnostics.',
   'notif.berthChar': 'Berth <strong>{berth}</strong> characterised as {cat} in {area}',
   'notif.suspectedBan': '🚫 Suspected block: <strong>{source}</strong> temporarily paused (fallback mode)',
   'notif.suspectedBanCleared': '✅ <strong>{source}</strong>: cooldown ended, scraping resumed',
@@ -608,17 +610,13 @@ export default {
   'health.scrapeDesc':  'Data fetches from external vendors (not the AIS feed). Count per source over the last 24h.',
   'health.scrapeFailed': '{n} failed',
 
-  // ── Fallback mode (services/fallback-mode.js) ───────────────────────────────
+  // ── Fallback mode (services/fallback-mode.js) — per-area, silent ────────────
   'health.fallbackTitle':        '🔀 Fallback mode',
-  'health.fallbackDesc':         'Activates after a prolonged AIS outage: relocates ships via ShipFinder/MyShipTracking scraping instead of AIS alone.',
-  'health.fallbackStatus':       'Status',
-  'health.fallbackActive':       'Active',
-  'health.fallbackInactive':     'Not active',
-  'health.fallbackSince':        'Active since',
-  'health.fallbackDuration':     'Session duration',
-  'health.fallbackScope':        'Current scope',
-  'health.fallbackModeFollow':   'Followed ships only',
-  'health.fallbackModeFull':     'Full monitoring',
+  'health.fallbackDesc':         'For each silent area (no AIS for a while — see the Areas screen to enable/disable it): relocates and discovers ships via ShipFinder/MyShipTracking scraping instead of AIS alone.',
+  'health.fallbackAreaOk':       'AIS active',
+  'health.fallbackAreaSilent':   'silent',
+  'health.fallbackAreaDisabled': 'disabled for this area',
+  'health.fallbackNoAreas':      'No monitored areas.',
   'health.circuitOpen':          'suspected block, paused until {until}',
   'health.circuitClosed':        'no issues',
   'health.fallbackTripCount':    '{n} suspected blocks this session',
@@ -634,14 +632,14 @@ export default {
   'health.portDiscoveryError':   'Failed to start.',
   'fallbackScrapeLog.desc':  'Calls to ShipFinder/MyShipTracking over the last {min} minutes, updated in real time.',
   'fallbackScrapeLog.calls': 'calls',
-  'health.fallbackEstimateTitle':'Scope comparison estimate (requests/hour)',
-  'health.fallbackBudgetNote':   'Configured hard cap: {n} requests/hour (SF+MST combined). "Full monitoring" scope redistributes the same cap over more ships, it does not raise it.',
+  'health.fallbackEstimateTitle':'Requests/hour estimate (followed ships + ships in silent areas)',
+  'health.fallbackBudgetNote':   'Configured hard cap: {n} requests/hour (SF+MST combined, followed and area ships share the same cap).',
 
   // ── AIS outage banner ────────────────────────────────────────────────────────
   'outage.banner':  'Possible AISStream outage: no incoming signals and the public monitor reports “{state}” (checked at {time}). Data may not be updating.',
   'outage.streamBanner': 'AIS connection problem ({stream}): reconnecting for several minutes. Data may not be updating.',
-  'outage.fallbackStillActive': 'Fallback mode active: positions are coming from ShipFinder/MyShipTracking scraping, not the AIS feed.',
-  'outage.fallbackAdminCta': 'Admin: configure scope in Settings → AIS Diagnostics.',
+  'outage.fallbackStillActive': 'Fallback mode active on at least one area: some positions are coming from ShipFinder/MyShipTracking scraping, not the AIS feed.',
+  'outage.fallbackAdminCta': 'Admin: per-area detail in Settings → AIS Diagnostics, enable/disable from the Areas screen.',
   'outage.dismiss': 'Hide',
 
   // ── Log panel ──────────────────────────────────────────────────────────────
@@ -701,11 +699,17 @@ export default {
   'areas.col.ne':            'NE (lat, lon)',
   'areas.col.keyword':       'Keyword',
   'areas.col.status':        'Status',
+  'areas.col.fallback':      'Fallback',
   'areas.col.data':          'Stored data',
   'areas.col.actions':       'Actions',
   'areas.inUse':             '(in use)',
   'areas.delete':            'Delete area and its history',
   'areas.dataSummary':       '{readings} readings · {ships} ships',
+  'areas.fallbackToggleTip': 'Relocates and discovers ships via ShipFinder/MyShipTracking scraping when this area hasn\'t had AIS for a while. On by default.',
+  'areas.fallbackUnresolvedPortTip': 'A port was found for this area but isn\'t resolved on MyShipTracking yet: retry "Search ports now" in AIS Diagnostics. Repositioning already-known ships still works.',
+  'areas.fallbackNoPortTip': 'No port found for this area: discovering new ships isn\'t available (retrying won\'t help unless the real data changes). Repositioning already-known ships still works.',
+  'areas.fallbackSilentTip': 'This area hasn\'t had a real AIS signal for a while: positions are coming from ShipFinder/MyShipTracking scraping.',
+  'areas.fallbackOkTip': 'AIS active for this area.',
   'areas.deleting':          'Deleting area "{name}" and its history…',
   'areas.none':              'No areas configured.',
   'areas.errName':           'Enter a name for the area.',
@@ -1127,6 +1131,11 @@ export default {
   'transits.replayNoData': 'No stored positions for this trip yet (departure {from}, arrival {to}): positions are kept for a short time, port events are not.',
   'transits.legStart':    'Departure',
   'transits.legEnd':      'Arrival',
+
+  // ── "Ships present" view header (admin only, see services/fallback-mode.js) ─
+  'active.sourceAis':       '📡 Data from AIS',
+  'active.sourceFallback':  '🔀 Data from fallback (scraping)',
+  'active.scrapeSourceTip': 'Position from {source} at {time} — AIS silent for {ago}.',
 
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     'No ships in area. Start monitoring.',

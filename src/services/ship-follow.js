@@ -21,9 +21,6 @@ const { invalidateRiskCache } = require('./risk-score');
 const appLog = require('./app-log');
 const telegram = require('./telegram');
 const { broadcastLog } = require('../realtime');
-const { crawlShipfinder } = require('./scrapers/shipfinder');
-const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
-const fallbackMode = require('./fallback-mode');
 const { keyAbuseReason, backoffDelay, closeSocket } = require('./ais-backoff');
 const { traceKey } = require('./key-trace');
 const {
@@ -38,10 +35,6 @@ const {
   FOLLOW_STALE_HOURS,
   FOLLOW_FRESH_MS,
   SEARCH_LOOKUP_TIMEOUT_MS,
-  SF_REACQUIRE_THROTTLE_MS,
-  SF_REACQUIRE_MAX_PER_SWEEP,
-  SCRAPE_NEG_CACHE_DAYS,
-  state,
   areaForPoint,
 } = require('../config');
 
@@ -73,22 +66,11 @@ const lookups = new Map();
 // user is notified. Value: { users:Set<userId>, name, cb, timer }.
 const reacquires = new Map();
 
-// ShipFinder fallback re-acquisition. When a followed ship is stale (no AIS for
-// FOLLOW_FRESH_MS), the worldwide AIS box is the primary recovery net — but a ship
-// that has gone fully dark to our stream won't reappear there. ShipFinder often
-// still serves a relayed last-known position for it, so the refresh sweep scrapes
-// stale follows as a fallback and stores the fix (tagged source='sf', shown as a
-// distinct marker — it never enters the AIS track/risk/freshness). `lastSfScrape`
-// throttles per MMSI; `sfSweeping` prevents overlapping sweeps.
-const lastSfScrape = new Map(); // mmsi -> epoch ms of last scrape attempt
-let sfSweeping = false;
-
-// MyShipTracking re-acquire sweep — an independent second backup alongside
-// ShipFinder, same mechanics (own throttle map + sweep guard, reuses the shared
-// SF_REACQUIRE_* timing). When both are enabled a stale follow is scraped from
-// both sources; whichever returns a fix gives a last-known marker.
-const lastMstScrape = new Map();
-let mstSweeping = false;
+// SF/MST scraping-based re-acquisition for followed ships (stale > FOLLOW_FRESH_MS)
+// now lives entirely in fallback-mode.js's sweep, which has the anti-ban budget
+// and circuit breaker a per-ship-only throttle here never had — see refresh()
+// below. The worldwide AIS box (this module's own, free) remains the always-on
+// primary recovery net regardless.
 
 const s = {
   wsClient: null,
@@ -395,21 +377,6 @@ function refresh() {
   const positions = db.getAllFollowedPositions();
   s.followedCount = positions.length;
 
-  // Fallback: scrape ShipFinder for stale follows AIS can't see (fire-and-forget,
-  // throttled/capped inside). Uses getAllFollowedShips so it also covers follows
-  // that NEVER got an AIS fix (e.g. added by search) — ShipFinder can locate them
-  // by MMSI. The worldwide AIS box recovery continues in parallel regardless.
-  // Skipped entirely while fallback-mode.js's own sweep is active (a prolonged
-  // AIS outage, see ais-uptime.js) — that sweep takes over scraping for followed
-  // ships too, with a global request budget/circuit breaker this per-ship-only
-  // throttle doesn't have.
-  if ((state.importSfData || state.importMstData) && !fallbackMode.isActive()) {
-    const now = Date.now();
-    const stale = db.getAllFollowedShips().filter((sh) => isStaleFollow(sh, now));
-    if (stale.length && state.importSfData) reacquireStaleViaShipfinder(stale).catch((e) => console.error(`[SF:reacquire] ${e.message}`));
-    if (stale.length && state.importMstData) reacquireStaleViaMst(stale).catch((e) => console.error(`[MST:reacquire] ${e.message}`));
-  }
-
   if (!positions.length && !lookups.size) {
     if (s.wsClient || s.active) stop();
     return;
@@ -418,86 +385,6 @@ function refresh() {
     connect();
   } else {
     sendSubscription();
-  }
-}
-
-// Scrape ShipFinder for stale followed ships and store any position found, so a
-// follow that has gone dark to our AIS stream still gets a last-known fix on the
-// map. Throttled per MMSI (SF_REACQUIRE_THROTTLE_MS), capped per sweep, staggered,
-// and negative-cached on miss — keeps request volume low / captcha-safe. The AIS
-// worldwide box keeps hunting in parallel; a real AIS fix always supersedes this.
-async function reacquireStaleViaShipfinder(staleShips) {
-  if (sfSweeping || !state.importSfData || !staleShips.length) return;
-  sfSweeping = true;
-  try {
-    const now = Date.now();
-    const due = staleShips
-      .filter((sh) => now - (lastSfScrape.get(sh.mmsi) || 0) >= state.sfScrapeIntervalMs)
-      .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'sf', SCRAPE_NEG_CACHE_DAYS))
-      .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
-    for (const sh of due) {
-      lastSfScrape.set(sh.mmsi, Date.now());
-      try {
-        const { static: staticData, position } = await crawlShipfinder(sh.mmsi);
-        db.recordScrape('sf', true);
-        if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, 'sf', staticData);
-        if (position) {
-          const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name });
-          db.clearScrapeFailure(sh.mmsi, 'sf');
-          if (stored) {
-            invalidateRiskCache(sh.mmsi);
-            appLog.info('SCRAPE', `Posizione ShipFinder per nave seguita persa: ${sh.ship_name || sh.mmsi}`, { mmsi: sh.mmsi });
-          }
-        } else {
-          db.setScrapeFailure(sh.mmsi, 'sf', 'ShipFinder: nessuna posizione');
-        }
-      } catch (e) {
-        db.setScrapeFailure(sh.mmsi, 'sf', e.message);
-        db.recordScrape('sf', false);
-      }
-      await new Promise((r) => setTimeout(r, 2000)); // stagger requests
-    }
-  } finally {
-    sfSweeping = false;
-  }
-}
-
-// MyShipTracking counterpart of reacquireStaleViaShipfinder — identical mechanics
-// (throttle / cap / stagger / negative-cache), a second independent source so a
-// stale follow still gets a last-known fix if ShipFinder misses it.
-async function reacquireStaleViaMst(staleShips) {
-  if (mstSweeping || !state.importMstData || !staleShips.length) return;
-  mstSweeping = true;
-  try {
-    const now = Date.now();
-    const due = staleShips
-      .filter((sh) => now - (lastMstScrape.get(sh.mmsi) || 0) >= state.mstScrapeIntervalMs)
-      .filter((sh) => !db.hasRecentScrapeFailure(sh.mmsi, 'mst', SCRAPE_NEG_CACHE_DAYS))
-      .slice(0, SF_REACQUIRE_MAX_PER_SWEEP);
-    for (const sh of due) {
-      lastMstScrape.set(sh.mmsi, Date.now());
-      try {
-        const { static: staticData, position } = await crawlMyshiptracking(sh.mmsi);
-        db.recordScrape('mst', true);
-        if (staticData && Object.keys(staticData).length) db.setScrapedData(sh.mmsi, 'mst', staticData);
-        if (position) {
-          const stored = db.insertScrapedPosition(sh.mmsi, { ...position, name: position.name || sh.ship_name }, 'mst');
-          db.clearScrapeFailure(sh.mmsi, 'mst');
-          if (stored) {
-            invalidateRiskCache(sh.mmsi);
-            appLog.info('SCRAPE', `Posizione MyShipTracking per nave seguita persa: ${sh.ship_name || sh.mmsi}`, { mmsi: sh.mmsi });
-          }
-        } else {
-          db.setScrapeFailure(sh.mmsi, 'mst', 'MyShipTracking: nessuna posizione');
-        }
-      } catch (e) {
-        db.setScrapeFailure(sh.mmsi, 'mst', e.message);
-        db.recordScrape('mst', false);
-      }
-      await new Promise((r) => setTimeout(r, 2000)); // stagger requests
-    }
-  } finally {
-    mstSweeping = false;
   }
 }
 

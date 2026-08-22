@@ -4,7 +4,7 @@
 import { el } from './dom.js';
 import { S } from './store.js';
 import { api } from './api.js';
-import { escHtml } from './helpers.js';
+import { escHtml, fmtUptime } from './helpers.js';
 import { showUndoToast } from './toast.js';
 import { t } from './i18n.js';
 import { addBaseLayers } from './tiles.js';
@@ -114,18 +114,50 @@ function renderAreasList() {
         const cls = [pending ? 'area-row-pending' : '', S.areaEditKey === a.key ? 'area-row-editing' : '']
           .filter(Boolean)
           .join(' ');
+        // fallbackEnabled/fallbackSilent/portStatus are only present for admins
+        // (see GET /areas) — the cell renders empty for everyone else, matching
+        // the header column auth-ui.js hides for non-admins.
+        let fallbackCell = '';
+        if (a.fallbackEnabled !== undefined) {
+          // Live silent-fallback state (services/fallback-mode.js), right here
+          // instead of only in Impostazioni → Diagnostica AIS — an admin
+          // wondering "is fallback actually doing anything for this area"
+          // shouldn't have to jump screens to find out.
+          const liveDot = a.fallbackEnabled
+            ? (a.fallbackSilent
+                ? `<span class="area-fallback-live is-silent" data-tip="${escHtml(t('areas.fallbackSilentTip'))}">🔴 ${a.fallbackSilentSince ? fmtUptime(Math.max(0, Math.round((Date.now() - new Date(a.fallbackSilentSince).getTime()) / 1000))) : ''}</span>`
+                : `<span class="area-fallback-live is-ok" data-tip="${escHtml(t('areas.fallbackOkTip'))}">🟢</span>`)
+            : '';
+          // Two distinct states, not one: a port never found at all (nothing to
+          // resolve, retrying discovery won't help unless real data changes) is
+          // a different problem from a confirmed port not yet resolved on MST
+          // (worth re-running discovery for).
+          let portBadge = '';
+          if (a.fallbackEnabled && a.portStatus === 'unresolved') {
+            portBadge = `<span class="area-badge-warn" data-tip="${escHtml(t('areas.fallbackUnresolvedPortTip'))}">⚠</span>`;
+          } else if (a.fallbackEnabled && a.portStatus === 'none') {
+            portBadge = `<span class="area-badge-info" data-tip="${escHtml(t('areas.fallbackNoPortTip'))}">ℹ</span>`;
+          }
+          fallbackCell = `
+          <label class="toggle" title="${escHtml(t('areas.fallbackToggleTip'))}">
+            <input type="checkbox" class="area-fallback-toggle" data-key="${escHtml(a.key)}"${a.fallbackEnabled ? ' checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+          ${liveDot}${portBadge}`;
+        }
         return `<tr class="area-row ${cls}" data-key="${escHtml(a.key)}" title="${escHtml(t('areas.rowHint'))}">
           <td>${escHtml(a.name)}${a.current ? ` <span class="area-current-tag" data-i18n="areas.inUse">${t('areas.inUse')}</span>` : ''}</td>
           <td class="mono">${swLat.toFixed(4)}, ${swLon.toFixed(4)}</td>
           <td class="mono">${neLat.toFixed(4)}, ${neLon.toFixed(4)}</td>
           <td>${a.keyword ? escHtml(a.keyword) : '—'}</td>
           <td>${dot} ${statusTxt}</td>
+          <td>${fallbackCell}</td>
           <td class="area-data-cell">${dataTxt}</td>
           <td><button class="btn btn-clear btn-sm area-del-btn" data-key="${escHtml(a.key)}" data-name="${escHtml(a.name)}"${disabled} title="${escHtml(t('areas.delete'))}">🗑</button></td>
         </tr>`;
       })
       .join('') ||
-    `<tr><td colspan="7" class="empty">${t('areas.none')}</td></tr>`;
+    `<tr><td colspan="8" class="empty">${t('areas.none')}</td></tr>`;
 }
 
 export async function loadAreas() {
@@ -302,8 +334,27 @@ export function initAreas() {
       if (!btn.disabled) requestDelete(btn.dataset.key, btn.dataset.name);
       return;
     }
+    if (e.target.closest('.area-fallback-toggle')) return; // handled by the change listener below
     const row = e.target.closest('tr.area-row');
     if (row) startEdit(row.dataset.key);
+  });
+
+  // Per-area silent-fallback toggle (admin-only, see auth-ui.js which hides the
+  // whole column for everyone else). Separate from submitForm(): this isn't
+  // part of the shared add/edit form, any co-owner's name/keyword/bbox changes
+  // never touch it.
+  el.areasBody.addEventListener('change', async (e) => {
+    const cb = e.target.closest('.area-fallback-toggle');
+    if (!cb) return;
+    const key = cb.dataset.key;
+    const enabled = cb.checked;
+    try {
+      await api(`/api/areas/${encodeURIComponent(key)}/fallback`, 'PATCH', { enabled });
+      const a = S.areasList.find((x) => x.key === key);
+      if (a) a.fallbackEnabled = enabled;
+    } catch {
+      cb.checked = !enabled; // revert on failure
+    }
   });
 
   // Browser close / reload during the undo window → commit immediately so the

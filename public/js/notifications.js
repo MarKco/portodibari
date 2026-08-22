@@ -64,6 +64,12 @@ function personalNotifMessage(n) {
     const source = n.band === 'mst' ? 'MyShipTracking' : n.band === 'sf' ? 'ShipFinder' : (n.band || '?');
     return t(n.type === 'suspected_ban' ? 'notif.suspectedBan' : 'notif.suspectedBanCleared', { source });
   }
+  if (n.type === 'area_no_port') {
+    return t('notif.areaNoPort', { area: escHtml(areaName(n.area)) });
+  }
+  if (n.type === 'fallback_per_area_intro') {
+    return t('notif.fallbackPerAreaIntro');
+  }
   if (n.type === 'berth_characterized') {
     const name = n.ship_name || t('berth.unnamed');
     const cat = n.band ? t(`berthcat.${n.band}`) : '';

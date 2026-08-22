@@ -9,6 +9,7 @@ const aisUptime = require('../services/ais-uptime');
 const fallbackMode = require('../services/fallback-mode');
 const appLog = require('../services/app-log');
 const { state, BBOX_PRESETS } = require('../config');
+const { requireAdmin } = require('../middleware/session-auth');
 
 const router = express.Router();
 
@@ -37,10 +38,21 @@ router.post('/stream/stop', (req, res) => {
 });
 
 router.get('/stream/status', (req, res) => {
-  res.json({ ...stream.getStatus(), outage: aisUptime.getOutage() });
+  const outage = aisUptime.getOutage();
+  // Per-area fallback detail (which area, since when) is admin-only — regular
+  // users get the general active/since aggregate the outage banner needs
+  // (public/js/outage.js) but not the breakdown (surfaced instead on the
+  // monitoring page header and the Aree screen, both already admin-gated).
+  if (!(req.realUser && req.realUser.role === 'admin') && outage.fallbackMode) {
+    outage.fallbackMode = { active: outage.fallbackMode.active, since: outage.fallbackMode.since };
+  }
+  res.json({ ...stream.getStatus(), outage });
 });
 
-router.get('/stream/health', (req, res) => {
+// Admin-only: per-area fallback detail included here (fallbackMode/fallbackEstimate)
+// is the same data the "pagina monitoraggi" header and Aree screen restrict to
+// admins — only ever called from the admin-gated "Diagnostica AIS" tab anyway.
+router.get('/stream/health', requireAdmin, (req, res) => {
   const area = req.query.area || state.preset;
   // Three independent AISStream keys/accounts, each its own connection. Report all
   // three so the panel can show per-key health side by side (monitoring, follow,

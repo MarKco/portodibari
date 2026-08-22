@@ -47,6 +47,8 @@ export default {
   'notif.followFound':    '✅ <strong>{ship}</strong> ha ripreso a trasmettere.',
   'notif.followLost':     '📭 <strong>{ship}</strong> rimossa dai seguiti: assente da 6 mesi.',
   'notif.berthNew': 'Nuova banchina rilevata in {area}',
+  'notif.areaNoPort': 'Nessun porto trovato per "{area}": la scoperta di nuove navi via fallback non sarà disponibile per quest\'area (il riposizionamento delle navi già note funziona comunque).',
+  'notif.fallbackPerAreaIntro': 'Novità: ora puoi attivare/disattivare la modalità fallback separatamente per ciascuna area, dalla schermata Aree (attiva di default). Dettagli in Impostazioni → Diagnostica AIS.',
   'notif.berthChar': 'Banchina <strong>{berth}</strong> caratterizzata come {cat} in {area}',
   'notif.suspectedBan': '🚫 Sospetto blocco: <strong>{source}</strong> sospesa temporaneamente (modalità fallback)',
   'notif.suspectedBanCleared': '✅ <strong>{source}</strong>: cooldown terminato, scraping ripreso',
@@ -608,17 +610,13 @@ export default {
   'health.scrapeDesc':  'Recuperi dati dai fornitori esterni (non dal feed AIS). Conteggio per fonte nelle ultime 24h.',
   'health.scrapeFailed': '{n} falliti',
 
-  // ── Modalità fallback (services/fallback-mode.js) ───────────────────────────
+  // ── Modalità fallback (services/fallback-mode.js) — per-area, silenziosa ───
   'health.fallbackTitle':        '🔀 Modalità fallback',
-  'health.fallbackDesc':         'Attiva dopo un disservizio AIS prolungato: riposiziona le navi via scraping ShipFinder/MyShipTracking invece del solo AIS.',
-  'health.fallbackStatus':       'Stato',
-  'health.fallbackActive':       'Attiva',
-  'health.fallbackInactive':     'Non attiva',
-  'health.fallbackSince':        'Attiva da',
-  'health.fallbackDuration':     'Durata sessione',
-  'health.fallbackScope':        'Ambito attuale',
-  'health.fallbackModeFollow':   'Solo navi seguite',
-  'health.fallbackModeFull':     'Monitoraggio completo',
+  'health.fallbackDesc':         'Per ogni area silenziosa (niente AIS da un po\', vedi schermata Aree per abilitarla/disabilitarla): riposiziona e scopre navi via scraping ShipFinder/MyShipTracking invece del solo AIS.',
+  'health.fallbackAreaOk':       'AIS attivo',
+  'health.fallbackAreaSilent':   'silenziosa',
+  'health.fallbackAreaDisabled': 'disabilitata per quest\'area',
+  'health.fallbackNoAreas':      'Nessuna area monitorata.',
   'health.circuitOpen':          'sospetto blocco, in pausa fino alle {until}',
   'health.circuitClosed':        'nessun problema',
   'health.fallbackTripCount':    '{n} sospetti blocco in questa sessione',
@@ -634,14 +632,14 @@ export default {
   'health.portDiscoveryError':   'Avvio non riuscito.',
   'fallbackScrapeLog.desc':  'Chiamate a ShipFinder/MyShipTracking negli ultimi {min} minuti, aggiornato in tempo reale.',
   'fallbackScrapeLog.calls': 'chiamate',
-  'health.fallbackEstimateTitle':'Stima confronto modalità (richieste/ora)',
-  'health.fallbackBudgetNote':   'Tetto massimo configurato: {n} richieste/ora (SF+MST insieme). Ambito "monitoraggio completo" ridistribuisce lo stesso tetto su più navi, non lo aumenta.',
+  'health.fallbackEstimateTitle':'Stima richieste/ora (navi seguite + navi nelle aree silenziose)',
+  'health.fallbackBudgetNote':   'Tetto massimo configurato: {n} richieste/ora (SF+MST insieme, navi seguite e navi d\'area condividono lo stesso tetto).',
 
   // ── Banner disservizio AIS ───────────────────────────────────────────────────
   'outage.banner':  'Possibile disservizio AISStream: nessun segnale in arrivo e il monitor pubblico riporta «{state}» (controllato alle {time}). I dati potrebbero non aggiornarsi.',
   'outage.streamBanner': 'Problema di connessione AIS ({stream}): la riconnessione è in corso da diversi minuti. I dati potrebbero non aggiornarsi.',
-  'outage.fallbackStillActive': 'Modalità fallback attiva: le posizioni arrivano da scraping ShipFinder/MyShipTracking, non dal feed AIS.',
-  'outage.fallbackAdminCta': 'Admin: configura l\'ambito in Impostazioni → Diagnostica AIS.',
+  'outage.fallbackStillActive': 'Modalità fallback attiva su almeno un\'area: alcune posizioni arrivano da scraping ShipFinder/MyShipTracking, non dal feed AIS.',
+  'outage.fallbackAdminCta': 'Admin: dettaglio per area in Impostazioni → Diagnostica AIS, attiva/disattiva dalla schermata Aree.',
   'outage.dismiss': 'Nascondi',
 
   // ── Log panel ──────────────────────────────────────────────────────────────
@@ -701,11 +699,17 @@ export default {
   'areas.col.ne':            'NE (lat, lon)',
   'areas.col.keyword':       'Parola chiave',
   'areas.col.status':        'Stato',
+  'areas.col.fallback':      'Fallback',
   'areas.col.data':          'Dati salvati',
   'areas.col.actions':       'Azioni',
   'areas.inUse':             '(in uso)',
   'areas.delete':            'Elimina area e relativo storico',
   'areas.dataSummary':       '{readings} letture · {ships} navi',
+  'areas.fallbackToggleTip': 'Riposiziona e scopre navi via scraping ShipFinder/MyShipTracking quando quest\'area non riceve AIS da un po\'. Attivo di default.',
+  'areas.fallbackUnresolvedPortTip': 'Porto trovato per quest\'area ma non ancora risolto su MyShipTracking: riprova "Cerca porti ora" in Diagnostica AIS. Il riposizionamento delle navi già note funziona comunque.',
+  'areas.fallbackNoPortTip': 'Nessun porto trovato per quest\'area: la scoperta di navi nuove non è disponibile (ripetere la ricerca non aiuta se non cambiano i dati reali). Il riposizionamento delle navi già note funziona comunque.',
+  'areas.fallbackSilentTip': 'Quest\'area non riceve un segnale AIS reale da un po\': le posizioni arrivano da scraping ShipFinder/MyShipTracking.',
+  'areas.fallbackOkTip': 'AIS attivo per quest\'area.',
   'areas.deleting':          'Area "{name}" e relativo storico in eliminazione…',
   'areas.none':              'Nessuna area configurata.',
   'areas.errName':           'Inserisci un nome per l\'area.',
@@ -1127,6 +1131,11 @@ export default {
   'transits.replayNoData': 'Nessuna posizione ancora in archivio per questo tragitto (partenza {from}, arrivo {to}): le posizioni hanno una conservazione breve, gli eventi di porto no.',
   'transits.legStart':    'Partenza',
   'transits.legEnd':      'Arrivo',
+
+  // ── "Navi presenti" view header (solo admin, vedi services/fallback-mode.js) ─
+  'active.sourceAis':       '📡 Dati da AIS',
+  'active.sourceFallback':  '🔀 Dati da fallback (scraping)',
+  'active.scrapeSourceTip': 'Posizione da {source} delle {time} — AIS silente da {ago}.',
 
   // ── Empty states ───────────────────────────────────────────────────────────
   'empty.active':     "Nessuna nave nell'area. Avvia il monitoraggio.",

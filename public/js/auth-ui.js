@@ -111,6 +111,12 @@ function hideAdminControls() {
   for (const t of tabs) document.getElementById(`settings-tab-${t}`)?.style.setProperty('display', 'none');
   const adminRows = ['setting-risk-weights', 'setting-cargo-weights', 'setting-telegram-suspected-ban'];
   for (const id of adminRows) document.getElementById(id)?.style.setProperty('display', 'none');
+  // Per-area silent fallback (services/fallback-mode.js) is an admin-only
+  // decision, unlike the rest of the Aree screen (any co-owner can edit
+  // name/keyword/bbox) — the server already omits fallbackEnabled/
+  // portArrivalsReady from GET /areas for non-admins; this just hides the
+  // now-empty column.
+  document.getElementById('areas-col-fallback')?.style.setProperty('display', 'none');
   const adminToggles = [
     'toggle-import-vf', 'toggle-import-mt', 'toggle-import-equasis', 'toggle-import-gfw',
     'toggle-import-sanctions', 'toggle-import-sanctions-extra', 'toggle-import-psc',

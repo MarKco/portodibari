@@ -8,7 +8,7 @@
 
 const db = require('./../db');
 const appLog = require('./app-log');
-const { state, SCRAPE_NEG_CACHE_DAYS } = require('../config');
+const { state, SCRAPE_NEG_CACHE_DAYS, AREA_SILENT_THRESHOLD_MIN } = require('../config');
 const { invalidateRiskCache } = require('./risk-score');
 const { crawlVesselFinder } = require('./scrapers/vesselfinder');
 const { crawlMarineTraffic } = require('./scrapers/marinetraffic');
@@ -16,7 +16,6 @@ const { crawlShipfinder } = require('./scrapers/shipfinder');
 const { crawlMyshiptracking } = require('./scrapers/myshiptracking');
 const { crawlGfw } = require('./gfw');
 const { GFW_TOKEN } = require('../config');
-const fallbackMode = require('./fallback-mode');
 
 // Guards against duplicate concurrent fetches for the same ship+source.
 const inFlight = new Set();
@@ -97,6 +96,25 @@ function catchFetch(ship, source) {
   return (e) => appLog.warn('SCRAPE', appLog.t('scrape.failed', { source: sourceName(source), name: ship.ship_name || ship.mmsi, error: e.message }), { mmsi: ship.mmsi });
 }
 
+// True when `ship`'s own last-known area is currently in silent fallback (see
+// services/fallback-mode.js) — VF/MT add no position value (free tier has no
+// coordinates) and carry the highest ban risk of the five sources (MT
+// especially, via its Cloudflare TLS bypass), so scrape budget for a ship in a
+// silent area goes to SF/MST position recovery instead. Deliberately per-ship/
+// per-area, not a single global switch: a ship in a healthy area keeps normal
+// VF/MT enrichment even while a DIFFERENT area is silent. Duplicates
+// fallback-mode.js's own silence check (rather than calling into it) to avoid
+// a load-time require cycle — fallback-mode.js's port-discovery sweep calls
+// into this module (enrichNewShip) for ships it just discovered.
+function isAreaSilentForShip(ship) {
+  if (!ship.last_area) return false;
+  const area = db.getArea(ship.last_area);
+  if (!area || !area.fallback_enabled) return false;
+  if (!area.last_ais_message_at) return true;
+  const cutoff = Date.now() - AREA_SILENT_THRESHOLD_MIN * 60 * 1000;
+  return new Date(area.last_ais_message_at).getTime() < cutoff;
+}
+
 /**
  * Trigger background enrichment for a newly-detected ship. Queries only the
  * sources the user enabled, and only when nothing is cached yet. Returns
@@ -104,14 +122,10 @@ function catchFetch(ship, source) {
  */
 function enrichNewShip(mmsi) {
   const gfwOn = state.importGfw && GFW_TOKEN;
-  // VF/MT add no position value (free tier has no coordinates) and carry the
-  // highest ban risk of the five sources (MT especially, via its Cloudflare TLS
-  // bypass) — suspended for the whole fallback-mode duration so all scrape
-  // budget goes to SF/MST position recovery instead. See services/fallback-mode.js.
-  const vfMtSuspended = fallbackMode.isActive();
-  if ((!state.importVfData || vfMtSuspended) && (!state.importMtData || vfMtSuspended) && !state.importSfData && !state.importMstData && !gfwOn) return;
   const ship = db.getShip(mmsi);
   if (!ship) return;
+  const vfMtSuspended = isAreaSilentForShip(ship);
+  if ((!state.importVfData || vfMtSuspended) && (!state.importMtData || vfMtSuspended) && !state.importSfData && !state.importMstData && !gfwOn) return;
   if (state.importVfData && !vfMtSuspended) fetchSource(ship, 'vf').catch(catchFetch(ship, 'vf'));
   if (state.importMtData && !vfMtSuspended) fetchSource(ship, 'mt').catch(catchFetch(ship, 'mt'));
   if (state.importSfData) fetchSource(ship, 'sf').catch(catchFetch(ship, 'sf'));
@@ -126,15 +140,13 @@ function enrichNewShip(mmsi) {
  * avoid hammering the scraper endpoints. Fire-and-forget.
  */
 async function enrichAllExisting(source) {
-  if ((source === 'vf' || source === 'mt') && fallbackMode.isActive()) {
-    appLog.info('SCRAPE', `Backfill ${sourceName(source)} sospeso: modalità fallback attiva.`);
-    return;
-  }
+  const vfOrMt = source === 'vf' || source === 'mt';
   const ships = db.getRecentShips();
   console.log(`[ENRICH:${source}] Backfill started — ${ships.length} ships to check`);
   appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
   let queued = 0;
   for (const ship of ships) {
+    if (vfOrMt && isAreaSilentForShip(ship)) continue; // that ship's area is in silent fallback
     if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed
     queued++;
     // stagger requests: 2 s gap between each to avoid hammering scrapers
@@ -153,15 +165,13 @@ async function enrichAllExisting(source) {
  */
 async function enrichActiveShips(source) {
   if (source === 'gfw' && !GFW_TOKEN) return; // no token → nothing to do
-  if ((source === 'vf' || source === 'mt') && fallbackMode.isActive()) {
-    appLog.info('SCRAPE', `Enrichment attivi ${sourceName(source)} sospeso: modalità fallback attiva.`);
-    return;
-  }
+  const vfOrMt = source === 'vf' || source === 'mt';
   const ships = db.getActiveShips(); // no area → all currently-active ships
   console.log(`[ENRICH:${source}] Active-only enrichment — ${ships.length} ships to check`);
   appLog.info('SCRAPE', appLog.t('scrape.backfill_started', { source: sourceName(source) }), { navi: ships.length });
   let queued = 0;
   for (const ship of ships) {
+    if (vfOrMt && isAreaSilentForShip(ship)) continue; // that ship's area is in silent fallback
     if (alreadyResolved(ship.mmsi, source)) continue; // cached or recently failed
     queued++;
     await new Promise((r) => setTimeout(r, 2000));

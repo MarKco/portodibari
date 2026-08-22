@@ -80,7 +80,7 @@ La [Mappa delle zone coperte](../manuale/index.html#mappa-delle-zone-coperte) è
 
 ## Scoperta porti (per area)
 
-Il sistema individua da sé, in background, quali porti reali ricadono dentro ciascuna area monitorata — utile in vista di funzioni future (oggi è puro dato interno, nessuna schermata ne mostra ancora l'elenco).
+Il sistema individua da sé, in background, quali porti reali ricadono dentro ciascuna area monitorata. Non è solo dato interno: la **modalità fallback** (sotto) lo usa per scoprire navi che l'AIS non ha mai visto, quando un'area non riceve segnali da un po' — nella schermata **Aree** un'icona ⚠ accanto all'interruttore fallback ti avvisa se il porto di quell'area non è (ancora) risolto su MyShipTracking, e quindi quella parte della funzione non è attiva lì (il riposizionamento delle navi già note funziona comunque).
 
 **Da ⚙ Impostazioni → Diagnostica AIS** trovi un controllo minimale: scegli un'area dal menu e premi **Cerca porti ora** per rilanciarla a mano. La ricerca parte in background (può richiedere qualche minuto su un'area senza banchine ancora osservate) — il controllo mostra solo un messaggio "Ricerca avviata", senza indicatore di avanzamento né elenco dei porti trovati.
 
@@ -145,22 +145,31 @@ La scheda **⚙ Impostazioni → Diagnostica AIS** (visibile solo agli amministr
 
 Il **banner di disservizio AIS** che compare a tutti gli utenti nelle pagine di monitoraggio quando un'area resta a lungo senza segnale è descritto dal punto di vista dell'utente nel [manuale utente](../manuale/index.html#banner-di-disservizio-ais); il meccanismo di conferma esterna che lo alimenta è nella sezione [Crediti](#crediti) qui sotto.
 
-### Modalità fallback
+### Modalità fallback (per area, silenziosa)
 
-Se il disservizio AIS dura più di **6 ore** (soglia configurabile, `AIS_FALLBACK_HOURS` — vedi [Modifica dei file di configurazione](#modifica-dei-file-di-configurazione)), l'app entra automaticamente in **modalità fallback**: invece di affidarsi solo al feed AIS, riposiziona le navi tramite scraping su **ShipFinder** e **MyShipTracking** (le due sole fonti esterne che forniscono coordinate), per garantire un minimo di monitoraggio anche durante un'interruzione prolungata.
+La modalità fallback **non è più un interruttore unico per tutto il sito**: ogni area monitorata ha la propria, indipendente dalle altre. Quando un'area non riceve un segnale AIS reale da un po' (soglia configurabile, `AREA_SILENT_THRESHOLD_MIN` — vedi [Modifica dei file di configurazione](#modifica-dei-file-di-configurazione)), l'app smette di affidarsi al solo feed AIS **per quell'area** e:
 
-La modalità fallback si avvia sempre nell'ambito più prudente, **"solo navi seguite"**: per ampliarla, o per tornare indietro, usa i due pulsanti in fondo al pannello **⚙ Impostazioni → Diagnostica AIS** (nella stessa scheda descritta sopra, sempre consultabile anche fuori da un disservizio). Mentre la modalità fallback è attiva compare anche una voce dedicata **🔀 Modalità fallback** nel menu laterale (visibile solo agli amministratori), che porta con un clic dritti a questo pannello da qualunque schermata:
+- **riposiziona** le navi già note tramite scraping su **ShipFinder** e **MyShipTracking** (le due sole fonti esterne che forniscono coordinate);
+- **scopre** navi che l'AIS non ha mai visto affatto, interrogando gli arrivi/partenze del porto dell'area su MyShipTracking — funziona solo se l'area ha un porto riconosciuto e risolto (vedi [Scoperta porti](#scoperta-porti-per-area) sopra; l'icona ⚠ nella schermata Aree ti avvisa quando manca).
 
-- **Stato** — attiva/non attiva, da quando, **durata della sessione corrente**, ambito corrente ("solo navi seguite" o "monitoraggio completo").
-- **Storico scraping reale** — un grafico a barre separato per **ShipFinder** e **MyShipTracking** (non più sommati insieme), ultime 48 ore, con barre impilate verde/rosso per richieste riuscite/fallite ed etichette orarie ogni 6 ore — passa il mouse su una barra per il dettaglio esatto.
-- **Stima confronto modalità** — due barre che mostrano quante richieste/ora comporterebbe ciascun ambito ("solo navi seguite" vs "monitoraggio completo"), a fianco dello storico reale: prima di allargare l'ambito puoi vedere concretamente di quanto salirebbe il volume di scraping, invece di scegliere alla cieca. Allargare l'ambito **non aumenta** il tetto massimo di richieste/ora (`FALLBACK_MAX_REQ_PER_HOUR`) — lo ridistribuisce solo su più navi, che vengono quindi rivisitate meno spesso.
-- **Stato dei "circuit breaker" e problemi della sessione** — se ShipFinder o MyShipTracking mostrano troppi errori 403/429 ravvicinati (possibile segnale di blocco), quella sorgente viene sospesa temporaneamente in automatico; qui vedi se e fino a quando, più un **contatore di quanti sospetti blocco si sono verificati in questa sessione** per ciascuna sorgente — resta visibile anche dopo che il blocco si è auto-risolto, invece di sparire non appena la sorgente riprende a funzionare.
+Questo copre sia le interruzioni AIS temporanee sia le **zone con copertura AISStream scarsa o assente in modo strutturale** (nessun ricevitore vicino): un'area del genere resta "in fallback" di continuo, silenziosamente, senza generare alcun allarme — è il funzionamento previsto, non un guasto.
 
-**Log modalità fallback (tempo reale)**: mentre la modalità fallback è attiva, appare anche una seconda voce nel menu laterale, sopra "Log attività" — **🔀 Log modalità fallback**. Apre una finestra flottante (trascinabile, come il Log attività) con due piccoli grafici — uno per ShipFinder, uno per MyShipTracking — che si aggiornano **in tempo reale** ad ogni chiamata effettiva: barre impilate verde/rosso (riuscite/fallite) sugli ultimi 10 minuti, più il totale chiamate/riuscite/fallite di sessione per sorgente. Utile per capire a occhio, mentre la modalità è attiva, quante richieste stiamo facendo davvero e se stanno andando a buon fine — senza aprire le Impostazioni. Finestra desktop, come il Log attività non è pensata per schermi piccoli.
+**Dove si attiva/disattiva**: dalla schermata **Aree**, un interruttore per ciascuna area (**attivo di default**). È una scelta riservata agli amministratori — un utente normale può gestire le proprie aree (nome, coordinate, parola chiave) ma non questo interruttore, che non compare nella sua vista. Disattivarlo per un'area significa: nessun riposizionamento/scoperta extra per quell'area quando l'AIS tace (le navi seguite che vi transitano restano comunque tracciate come sempre, indipendentemente da questo interruttore).
 
-Se una sorgente viene sospesa per sospetto blocco, ricevi un **alert dedicato — solo per gli amministratori** — via notifica in-app, Telegram (attivabile/disattivabile nella scheda Impostazioni → Integrazioni esterne → Telegram, voce "sospetto ban") e un avviso nel banner di disservizio AIS quando sei loggato come admin. La modalità fallback esce da sola quando l'AIS torna stabile per un periodo continuativo (di default 20 minuti), per evitare di attivarsi/disattivarsi ripetutamente su un'interruzione breve.
+**Come sapere se un'area sta usando il fallback in questo momento**: nella pagina **Navi presenti**, il titolo mostra il nome dell'area e — solo per gli amministratori — un'etichetta "📡 Dati da AIS" oppure "🔀 Dati da fallback (scraping)". Le singole navi mostrano inoltre un piccolo badge quando la loro posizione in tabella arriva da ShipFinder/MyShipTracking invece che dall'AIS (stesso indicatore già usato per le navi seguite).
 
-Un riavvio del server (es. dopo un deploy) a metà di un disservizio non fa perdere lo stato: il banner e l'eventuale modalità fallback già attiva riprendono subito, senza dover attendere di nuovo il periodo di silenzio necessario a riconfermare l'interruzione.
+**Pannello diagnostico — ⚙ Impostazioni → Diagnostica AIS** (visibile solo agli amministratori):
+
+- **Stato per area** — elenco di tutte le aree monitorate con, per ciascuna, se è correntemente silenziosa e da quando.
+- **Storico scraping reale** — un grafico a barre separato per **ShipFinder** e **MyShipTracking**, ultime 48 ore, con barre impilate verde/rosso per richieste riuscite/fallite ed etichette orarie ogni 6 ore — passa il mouse su una barra per il dettaglio esatto. Aggregato su tutte le aree insieme, non spezzato per area.
+- **Stima richieste/ora** — quante richieste/ora comportano oggi, in totale, le navi seguite più le navi delle aree correntemente silenziose, rispetto al tetto massimo configurato. Più aree silenziose insieme **non aumentano** il tetto massimo di richieste/ora (`FALLBACK_MAX_REQ_PER_HOUR`) — lo ridistribuiscono solo su più navi, che vengono quindi rivisitate meno spesso.
+- **Stato dei "circuit breaker" e problemi della sessione** — se ShipFinder o MyShipTracking mostrano troppi errori 403/429 ravvicinati (possibile segnale di blocco), quella sorgente viene sospesa temporaneamente in automatico, per tutte le aree insieme; qui vedi se e fino a quando, più un **contatore di quanti sospetti blocco si sono verificati in questa sessione** per ciascuna sorgente — resta visibile anche dopo che il blocco si è auto-risolto, invece di sparire non appena la sorgente riprende a funzionare.
+
+**Log modalità fallback (tempo reale)**: una voce dedicata nel menu laterale, sopra "Log attività" — **🔀 Log modalità fallback** (visibile solo agli amministratori, sempre disponibile, non solo mentre qualche area è silenziosa). Apre una finestra flottante (trascinabile, come il Log attività) con due piccoli grafici — uno per ShipFinder, uno per MyShipTracking — che si aggiornano **in tempo reale** ad ogni chiamata effettiva, qualunque area o nave l'abbia generata: barre impilate verde/rosso (riuscite/fallite) sugli ultimi 10 minuti, più il totale chiamate/riuscite/fallite di sessione per sorgente. Finestra desktop, come il Log attività non è pensata per schermi piccoli.
+
+Se una sorgente viene sospesa per sospetto blocco, ricevi un **alert dedicato — solo per gli amministratori** — via notifica in-app, Telegram (attivabile/disattivabile nella scheda Impostazioni → Integrazioni esterne → Telegram, voce "sospetto ban") e un avviso nel banner di disservizio AIS quando sei loggato come admin.
+
+> ℹ️ Il **banner di disservizio AIS** (a tutti gli utenti, quando l'intero servizio AISStream ha un problema) resta un meccanismo **separato** e invariato — vedi sopra. La modalità fallback per-area non genera notifiche proprie: è pensata per restare silenziosa anche quando è attiva di continuo su un'area con scarsa copertura.
 
 ---
 
@@ -210,9 +219,8 @@ Contiene soglie e parametri (finestre temporali, raggi, retention, banchine, pes
 | `AIS_OUTAGE_SILENCE_MIN` | Minuti senza segnali prima di interrogare il monitor di uptime | `10` |
 | `AIS_UPTIME_SELFHOST_URL` | URL di una tua istanza self-hosted del monitor (interrogata per prima) | _(vuoto)_ |
 | `AIS_UPTIME_URL` | URL del monitor di uptime pubblico, usato come ripiego | `https://aisuptime.buttermilkgreen.fyi` |
-| `AIS_FALLBACK_HOURS` | Ore di disservizio AIS prima di entrare in [modalità fallback](#diagnostica-ais) | `6` |
-| `AIS_FALLBACK_EXIT_GRACE_MIN` | Minuti di servizio stabile prima di uscire dalla modalità fallback | `20` |
-| `FALLBACK_MAX_REQ_PER_HOUR` | Tetto massimo di richieste/ora (ShipFinder+MyShipTracking insieme) in modalità fallback | `90` |
+| `AREA_SILENT_THRESHOLD_MIN` | Minuti senza segnale AIS prima che un'area sia "in [modalità fallback](#diagnostica-ais)" | `20` |
+| `FALLBACK_MAX_REQ_PER_HOUR` | Tetto massimo di richieste/ora (ShipFinder+MyShipTracking insieme, tutte le aree) in modalità fallback | `90` |
 | `FALLBACK_CIRCUIT_TRIP_COUNT` | Fallimenti 403/429 (su navi distinte) che sospendono una sorgente | `5` |
 | `FALLBACK_CIRCUIT_TRIP_WINDOW_MIN` | Finestra temporale entro cui contare quei fallimenti | `10` |
 | `FALLBACK_CIRCUIT_COOLDOWN_MIN` | Minuti di sospensione di una sorgente dopo un sospetto blocco | `30` |

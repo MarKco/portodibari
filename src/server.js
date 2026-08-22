@@ -139,6 +139,19 @@ app.listen(PORT, () => {
     db.setMeta('areas_sig', sig);
   }
 
+  // One-time admin heads-up about the per-area silent fallback (see
+  // services/fallback-mode.js): deliberately invisible-by-default (no banner,
+  // no forced setup, no notification when it actually kicks in), so an
+  // upgrading install would otherwise have no way to learn the "Aree" screen
+  // now has a per-area enable/disable toggle. Fires once ever, gated by a meta
+  // flag exactly like the areas_sig migration above — never repeats.
+  if (!db.getMeta('fallback_per_area_intro_sent')) {
+    for (const uid of db.getAdminUserIds()) {
+      try { db.addNotification({ user_id: uid, type: 'fallback_per_area_intro' }); } catch { /* best-effort */ }
+    }
+    db.setMeta('fallback_per_area_intro_sent', '1');
+  }
+
   // Catch departures that crossed the 60-min threshold while the server was down,
   // then keep checking every minute. Wrapped in try/catch like every other
   // interval so a transient SQLite error can't abort the boot sequence (nor, now,

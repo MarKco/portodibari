@@ -42,9 +42,33 @@ async function updateStatus() {
     updateAreaDropdownStatus(S.allStreamStatus);
     syncAreaMonitors();
     setOutage(s.outage);
+    updateActiveAreaHeader();
   } catch {
     /* ignore */
   }
+}
+
+// "Navi presenti" view header: current area name + (admin-only) whether its
+// ship data right now comes from live AIS or from the scraping-based silent
+// fallback (services/fallback-mode.js). Reads S.outage (set by setOutage() in
+// outage.js from the last /api/stream/status poll) rather than taking a fresh
+// fetch — same shared state the outage banner itself uses. Non-admins never
+// see `fallbackMode.areas` at all (the server strips it), so the badge simply
+// stays hidden for them.
+function updateActiveAreaHeader() {
+  const preset = S.presets?.[S.currentPreset];
+  if (el.activeAreaTitle) el.activeAreaTitle.textContent = preset ? preset.name : '';
+  const badge = el.activeAreaSourceBadge;
+  if (!badge) return;
+  const areaStatus = S.outage?.fallbackMode?.areas?.find((a) => a.key === S.currentPreset);
+  if (!areaStatus) {
+    badge.classList.add('hidden');
+    return;
+  }
+  badge.textContent = areaStatus.silent ? t('active.sourceFallback') : t('active.sourceAis');
+  badge.classList.toggle('health-err', areaStatus.silent);
+  badge.classList.toggle('health-ok', !areaStatus.silent);
+  badge.classList.remove('hidden');
 }
 
 function updateAreaDropdownStatus(streamStatus) {
@@ -181,6 +205,7 @@ async function loadSettings() {
     if (active) {
       S.currentBbox = active.bbox;
       setTitle(active.name);
+      updateActiveAreaHeader();
     }
     S.importVfData = !!s.importVfData;
     S.importMtData = !!s.importMtData;
@@ -1645,6 +1670,7 @@ function initBboxSelect() {
       S.currentPreset = preset;
       showToast(result.name, result.bbox);
       setTitle(result.name);
+      updateActiveAreaHeader();
       S.currentBbox = result.bbox;
 
       // Clear ship data — switching view area, not stream

@@ -7,6 +7,7 @@ const appLog = require('../services/app-log');
 const telegram = require('../services/telegram');
 const groupSync = require('../services/group-sync');
 const portDiscovery = require('../services/port-discovery');
+const fallbackMode = require('../services/fallback-mode');
 const { requireAdmin } = require('../middleware/session-auth');
 const { state, BBOX_PRESETS, addArea, updateArea, removeArea, importAreas, exportAreas, TESTER_MAX_AREAS, TESTER_MAX_AREA_KM2, bboxAreaKm2 } = require('../config');
 
@@ -36,14 +37,30 @@ function importAreasAndStart(raw, userId = null) {
 
 // List the monitoring areas the CURRENT USER owns, with bbox, live stream status
 // and stored-history counts (so the UI can warn before a deletion wipes it).
+// Port readiness for fallback discovery, tri-state (see routes/areas.js GET /areas):
+//   'ready'      — at least one confirmed port resolved on MyShipTracking
+//   'unresolved' — confirmed port(s) exist, but resolveMstPidForConfirmedPorts
+//                  hasn't matched one yet (worth retrying discovery)
+//   'none'       — no confirmed port at all for this area (nothing to resolve —
+//                  retrying discovery won't help unless real port data changes)
+function portDiscoveryStatus(key) {
+  const confirmed = db.getConfirmedAreaPorts(key);
+  if (!confirmed.length) return 'none';
+  return confirmed.some((p) => p.mst_pid) ? 'ready' : 'unresolved';
+}
+
 router.get('/areas', (req, res) => {
   const status = stream.getStatus().streams;
   const myKeys = db.getUserAreaKeys(req.user.id);
+  const isAdmin = req.user.role === 'admin';
+  // One query for every area's live silent-fallback state, reused per row below
+  // instead of recomputing it per-key.
+  const areaStatuses = isAdmin ? new Map(fallbackMode.getAreaStatuses().map((a) => [a.key, a])) : null;
   const areas = myKeys
     .filter((key) => BBOX_PRESETS[key])
     .map((key) => {
       const v = BBOX_PRESETS[key];
-      return {
+      const entry = {
         key,
         name: v.name,
         keyword: v.keyword,
@@ -55,6 +72,17 @@ router.get('/areas', (req, res) => {
         // (twice) before an edit that would move it for them too.
         sharedWith: Math.max(0, db.areaOwnerCount(key) - 1),
       };
+      // Silent fallback (services/fallback-mode.js) config/status: admin-only,
+      // same restriction as the "pagina monitoraggi" indicator and the
+      // Diagnostica AIS panel — a regular user doesn't manage or need to see it.
+      if (isAdmin) {
+        const live = areaStatuses.get(key);
+        entry.fallbackEnabled = !!live?.fallbackEnabled;
+        entry.fallbackSilent = !!live?.silent;
+        entry.fallbackSilentSince = live?.silentSince || null;
+        entry.portStatus = portDiscoveryStatus(key);
+      }
+      return entry;
     });
   // The user's effective "current" area: the global preset if they own it, else
   // their first area.
@@ -134,6 +162,16 @@ router.post('/areas', (req, res) => {
     if (autostart !== false) stream.startStream(area.key);
     portDiscovery.discoverPortsForArea(area.key)
       .then(() => portDiscovery.resolveMstPidForConfirmedPorts(area.key))
+      .then(() => {
+        // Tell the creating admin right away rather than leaving them to
+        // notice the ⚠ badge later on the Aree screen: with zero confirmed
+        // ports, fallback mode's ship-discovery-via-port-arrivals has nothing
+        // to work with for this area (repositioning already-known ships is
+        // unaffected — this only concerns discovering ones AIS never saw).
+        if (portDiscoveryStatus(area.key) === 'none') {
+          db.addNotification({ user_id: req.user.id, type: 'area_no_port', area: area.key });
+        }
+      })
       .catch((e) => appLog.warn('AREE', `Scoperta porti fallita per ${area.key}: ${e.message}`));
     telegram.notifyAreaMonitor(req.user.id, 'start', { area: area.name });
     res.json({ ok: true, area });
@@ -178,6 +216,21 @@ router.patch('/areas/:key', (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// Enable/disable this area's silent fallback (services/fallback-mode.js) — an
+// admin-only decision (unlike the general area edit above, which any co-owner
+// can do), per the feature's design: which areas get scraping-based coverage
+// when their own AIS goes quiet is an operational/cost choice, not a per-user
+// preference. Default is enabled (see the ALTER TABLE default in db.js) — this
+// only needs calling to turn it OFF, or back on after that.
+router.patch('/areas/:key/fallback', requireAdmin, (req, res) => {
+  const { key } = req.params;
+  if (!BBOX_PRESETS[key]) return res.status(404).json({ error: 'Area sconosciuta' });
+  const { enabled } = req.body || {};
+  db.setAreaFallbackEnabled(key, !!enabled);
+  appLog.info('AREE', `Modalità fallback per ${BBOX_PRESETS[key].name}: ${enabled ? 'attivata' : 'disattivata'}`, { area: key });
+  res.json({ ok: true, key, fallbackEnabled: !!enabled });
 });
 
 // Remove an area from the CURRENT USER's set. The area + its collected history +

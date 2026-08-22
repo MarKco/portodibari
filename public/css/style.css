@@ -894,6 +894,16 @@ td.empty {
 .follow-searching-row td { opacity: 0.72; }
 .follow-searching-row .ship-name { font-style: italic; }
 
+/* Compact single-glyph counterpart of .ais-lost-badge/.follow-sf-badge for the
+   "Navi presenti" table (area ships): that row already carries flag/seen/
+   charged/military/risk styling, so a full text sub-row per source would pile
+   up fast — one icon with the detail in the tooltip instead. */
+.scrape-badge-compact {
+  cursor: help;
+  font-size: 0.85em;
+  vertical-align: middle;
+}
+
 /* ShipFinder badge shown on its own line under the ship name in the followed
    table, so the long "seen on ShipFinder · <date>" text grows the ROW height
    instead of widening the column (which pushed the table past the page edge). */
@@ -1697,6 +1707,18 @@ pre {
 .area-row-editing td { background: rgba(251, 191, 36, 0.14); }
 .area-row-editing td:first-child { box-shadow: inset 3px 0 0 #fbbf24; }
 
+/* Per-area silent-fallback toggle column (admin-only, see auth-ui.js). */
+.area-fallback-live { font-size: 0.74rem; margin-left: 0.4rem; white-space: nowrap; }
+.area-fallback-live.is-silent { color: var(--red); }
+.area-fallback-live.is-ok { color: var(--green); }
+.area-badge-warn, .area-badge-info {
+  display: inline-block;
+  margin-left: 0.35rem;
+  cursor: help;
+}
+.area-badge-warn { color: var(--amber); }
+.area-badge-info { color: var(--text-muted); }
+
 /* Generic status-badge variants (used by the port-discovery manual-run
    control in Settings → Diagnostica AIS, and available for any future
    confirmed/review/rejected-style status display). */
@@ -1922,6 +1944,18 @@ pre {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 0 0 0.85rem;
+}
+
+/* "Navi presenti" view header: area name + (admin-only) AIS/fallback source
+   indicator (see updateActiveAreaHeader() in main.js). */
+.active-view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem 0;
+}
+.active-view-header .detail-section-title {
+  margin: 0;
 }
 
 /* Collapsible sections — only in the ship detail view */
